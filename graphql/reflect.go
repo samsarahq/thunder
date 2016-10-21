@@ -1,0 +1,728 @@
+package graphql
+
+import (
+	"bytes"
+	"context"
+	"encoding/base64"
+	"errors"
+	"fmt"
+	"reflect"
+	"sort"
+	"time"
+	"unicode"
+
+	"github.com/samsarahq/thunder"
+)
+
+// TODO: Make keys use struct tags and enforce keys for items in lists
+
+func makeGraphql(s string) string {
+	var b bytes.Buffer
+	for i, c := range s {
+		if i == 0 {
+			b.WriteRune(unicode.ToLower(c))
+		} else {
+			b.WriteRune(c)
+		}
+	}
+	return b.String()
+}
+
+var scalarArgParsers = map[reflect.Type]*ArgParser{
+	reflect.TypeOf(bool(false)): {
+		FromJSON: func(value interface{}, dest reflect.Value) error {
+			asBool, ok := value.(bool)
+			if !ok {
+				return errors.New("not a bool")
+			}
+			dest.Set(reflect.ValueOf(asBool).Convert(dest.Type()))
+			return nil
+		},
+	},
+	reflect.TypeOf(float64(0)): {
+		FromJSON: func(value interface{}, dest reflect.Value) error {
+			asFloat, ok := value.(float64)
+			if !ok {
+				return errors.New("not a number")
+			}
+			dest.Set(reflect.ValueOf(asFloat).Convert(dest.Type()))
+			return nil
+		},
+	},
+	reflect.TypeOf(int64(0)): {
+		FromJSON: func(value interface{}, dest reflect.Value) error {
+			asFloat, ok := value.(float64)
+			if !ok {
+				return errors.New("not a number")
+			}
+			dest.Set(reflect.ValueOf(int64(asFloat)).Convert(dest.Type()))
+			return nil
+		},
+	},
+	reflect.TypeOf(int32(0)): {
+		FromJSON: func(value interface{}, dest reflect.Value) error {
+			asFloat, ok := value.(float64)
+			if !ok {
+				return errors.New("not a number")
+			}
+			dest.Set(reflect.ValueOf(int32(asFloat)).Convert(dest.Type()))
+			return nil
+		},
+	},
+	reflect.TypeOf(int16(0)): {
+		FromJSON: func(value interface{}, dest reflect.Value) error {
+			asFloat, ok := value.(float64)
+			if !ok {
+				return errors.New("not a number")
+			}
+			dest.Set(reflect.ValueOf(int16(asFloat)).Convert(dest.Type()))
+			return nil
+		},
+	},
+	reflect.TypeOf(string("")): {
+		FromJSON: func(value interface{}, dest reflect.Value) error {
+			asString, ok := value.(string)
+			if !ok {
+				return errors.New("not a string")
+			}
+			dest.Set(reflect.ValueOf(asString).Convert(dest.Type()))
+			return nil
+		},
+	},
+	reflect.TypeOf([]byte{}): {
+		FromJSON: func(value interface{}, dest reflect.Value) error {
+			asString, ok := value.(string)
+			if !ok {
+				return errors.New("not a string")
+			}
+			bytes, err := base64.StdEncoding.DecodeString(asString)
+			if err != nil {
+				return err
+			}
+			dest.Set(reflect.ValueOf(bytes).Convert(dest.Type()))
+			return nil
+		},
+	},
+}
+
+func getScalarArgParser(typ reflect.Type) (*ArgParser, bool) {
+	for match, argParser := range scalarArgParsers {
+		if thunder.TypesIdenticalOrScalarAliases(match, typ) {
+			return argParser, true
+		}
+	}
+	return nil, false
+}
+
+func init() {
+	for typ, arg := range scalarArgParsers {
+		arg.Type = typ
+	}
+}
+
+type argField struct {
+	field    reflect.StructField
+	parser   *ArgParser
+	optional bool
+}
+
+func makeArgParser(typ reflect.Type) (*ArgParser, error) {
+	if parser, ok := getScalarArgParser(typ); ok {
+		return parser, nil
+	}
+
+	switch typ.Kind() {
+	case reflect.Struct:
+		return makeStructParser(typ)
+	case reflect.Slice:
+		return makeSliceParser(typ)
+	case reflect.Ptr:
+		return makePtrParser(typ)
+	default:
+		return nil, fmt.Errorf("bad arg type %s: should be struct, scalar, pointer, or a slice", typ)
+	}
+}
+
+func makePtrParser(typ reflect.Type) (*ArgParser, error) {
+	inner, err := makeArgParser(typ.Elem())
+	if err != nil {
+		return nil, err
+	}
+
+	return &ArgParser{
+		FromJSON: func(value interface{}, dest reflect.Value) error {
+			if value == nil {
+				// optional value
+				return nil
+			}
+
+			ptr := reflect.New(typ.Elem())
+			if err := inner.FromJSON(value, ptr.Elem()); err != nil {
+				return err
+			}
+			dest.Set(ptr)
+			return nil
+		},
+		Type: typ,
+	}, nil
+}
+
+func makeStructParser(typ reflect.Type) (*ArgParser, error) {
+	fields := make(map[string]argField)
+
+	for i := 0; i < typ.NumField(); i++ {
+		field := typ.Field(i)
+		if field.PkgPath != "" && !field.Anonymous {
+			continue
+		}
+		if field.Anonymous {
+			return nil, fmt.Errorf("bad arg type %s: anonymous fields not supported", typ)
+		}
+		name := field.Tag.Get("graphql")
+		if name == "" {
+			name = makeGraphql(field.Name)
+		}
+		if name == "-" {
+			continue
+		}
+
+		if _, ok := fields[name]; ok {
+			return nil, fmt.Errorf("bad arg type %s: duplicate field %s", typ, name)
+		}
+
+		parser, err := makeArgParser(field.Type)
+		if err != nil {
+			return nil, err
+		}
+
+		fields[name] = argField{
+			field:  field,
+			parser: parser,
+		}
+	}
+
+	return &ArgParser{
+		FromJSON: func(value interface{}, dest reflect.Value) error {
+			asMap, ok := value.(map[string]interface{})
+			if !ok {
+				return errors.New("not an object")
+			}
+
+			for name, field := range fields {
+				value := asMap[name]
+				fieldDest := dest.FieldByIndex(field.field.Index)
+				if err := field.parser.FromJSON(value, fieldDest); err != nil {
+					return fmt.Errorf("%s: %s", name, err)
+				}
+			}
+
+			for name := range asMap {
+				if _, ok := fields[name]; !ok {
+					return fmt.Errorf("unknown arg %s", name)
+				}
+			}
+
+			return nil
+		},
+		Type: typ,
+	}, nil
+}
+
+func makeSliceParser(typ reflect.Type) (*ArgParser, error) {
+	inner, err := makeArgParser(typ.Elem())
+	if err != nil {
+		return nil, err
+	}
+
+	return &ArgParser{
+		FromJSON: func(value interface{}, dest reflect.Value) error {
+			asSlice, ok := value.([]interface{})
+			if !ok {
+				return errors.New("not a list")
+			}
+
+			dest.Set(reflect.MakeSlice(typ, len(asSlice), len(asSlice)))
+
+			for i, value := range asSlice {
+				if err := inner.FromJSON(value, dest.Index(i)); err != nil {
+					return err
+				}
+			}
+
+			return nil
+		},
+		Type: typ,
+	}, nil
+}
+
+type schemaBuilder struct {
+	types map[reflect.Type]Type
+}
+
+var errType reflect.Type
+var contextType reflect.Type
+var selectionSetType reflect.Type
+
+func init() {
+	var err error
+	errType = reflect.TypeOf(&err).Elem()
+	var context context.Context
+	contextType = reflect.TypeOf(&context).Elem()
+	var selectionSet *SelectionSet
+	selectionSetType = reflect.TypeOf(selectionSet)
+}
+
+func (sb *schemaBuilder) buildFunction(struc reflect.Type, fun reflect.Value, ptrSource bool) (*Field, error) {
+	ptr := reflect.PtrTo(struc)
+
+	if fun.Kind() != reflect.Func {
+		return nil, fmt.Errorf("fun must be func, not %s", fun)
+	}
+	funcType := fun.Type()
+
+	in := make([]reflect.Type, 0, funcType.NumIn())
+	for i := 0; i < funcType.NumIn(); i++ {
+		in = append(in, funcType.In(i))
+	}
+
+	var argParser *ArgParser
+	var ptrFunc bool
+	var hasContext, hasSource, hasArgs, hasSelectionSet bool
+
+	if len(in) > 0 && in[0] == contextType {
+		hasContext = true
+		in = in[1:]
+	}
+
+	if len(in) > 0 && (in[0] == struc || in[0] == ptr) {
+		hasSource = true
+		ptrFunc = in[0] == ptr
+		in = in[1:]
+	}
+
+	if len(in) > 0 && in[0] != selectionSetType {
+		hasArgs = true
+		var err error
+		if argParser, err = makeArgParser(in[0]); err != nil {
+			return nil, err
+		}
+		in = in[1:]
+	}
+
+	if len(in) > 0 && in[0] == selectionSetType {
+		hasSelectionSet = true
+		in = in[:len(in)-1]
+	}
+
+	// We have succeeded if no arguments remain.
+	if len(in) != 0 {
+		return nil, fmt.Errorf("%s arguments should be [context][, [*]%s][, args][, selectionSet]", funcType, struc)
+	}
+
+	// Parse return values. The first return value must be the actual value, and
+	// the second value can optionally be an error.
+
+	var hasRet, hasError bool
+	switch funcType.NumOut() {
+	case 1:
+		if funcType.Out(0) == errType {
+			hasRet = false
+			hasError = true
+		} else {
+			hasRet = true
+			hasError = false
+		}
+
+	case 2:
+		hasRet = true
+		hasError = true
+		if funcType.Out(1) != errType {
+			return nil, fmt.Errorf("%s's second return value should be an error", funcType)
+		}
+
+	default:
+		return nil, fmt.Errorf("%s should return 1 or 2 values", funcType)
+	}
+
+	var retType Type
+	if hasRet {
+		var err error
+		retType, err = sb.getType(funcType.Out(0))
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		var err error
+		retType, err = sb.getType(reflect.TypeOf(true))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &Field{
+		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *SelectionSet) (interface{}, error) {
+			// Set up function arguments.
+			in := make([]reflect.Value, 0, funcType.NumIn())
+
+			if hasContext {
+				in = append(in, reflect.ValueOf(ctx))
+			}
+
+			// Set up source.
+			if hasSource {
+				sourceValue := reflect.ValueOf(source)
+				switch {
+				case ptrSource && !ptrFunc:
+					in = append(in, sourceValue.Elem())
+				case !ptrSource && ptrFunc:
+					copyPtr := reflect.New(struc)
+					copyPtr.Elem().Set(sourceValue)
+					in = append(in, copyPtr)
+				default:
+					in = append(in, sourceValue)
+				}
+			}
+
+			// Set up other arguments.
+			if hasArgs {
+				in = append(in, reflect.ValueOf(args))
+			}
+			if hasSelectionSet {
+				in = append(in, reflect.ValueOf(selectionSet))
+			}
+
+			// Call the function.
+			out := fun.Call(in)
+
+			var result interface{}
+			if hasRet {
+				result = out[0].Interface()
+				out = out[1:]
+			} else {
+				result = true
+			}
+			if hasError {
+				if err := out[0]; !err.IsNil() {
+					return nil, err.Interface().(error)
+				}
+			}
+
+			return result, nil
+		},
+		Type:      retType,
+		ArgParser: argParser,
+	}, nil
+}
+
+func (sb *schemaBuilder) buildField(field reflect.StructField, ptrSource bool) (*Field, error) {
+	retType, err := sb.getType(field.Type)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Field{
+		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *SelectionSet) (interface{}, error) {
+			value := reflect.ValueOf(source)
+			if ptrSource {
+				value = value.Elem()
+			}
+			return value.FieldByIndex(field.Index).Interface(), nil
+		},
+		Type:      retType,
+		ArgParser: nil,
+	}, nil
+}
+
+func (sb *schemaBuilder) prepareSpec(spec Spec) error {
+	struc := reflect.TypeOf(spec.Type)
+	if struc.Kind() != reflect.Struct {
+		return fmt.Errorf("spec.Type should be a struct, not %s", struc.String())
+	}
+
+	if sb.types[struc] != nil {
+		return fmt.Errorf("duplicate spec for %s", struc.String())
+	}
+
+	sb.types[struc] = &Object{
+		Name:   struc.Name(),
+		Fields: make(map[string]*Field),
+	}
+	ptr := reflect.PtrTo(struc)
+	sb.types[ptr] = &Object{
+		Name:   "*" + struc.Name(),
+		Fields: make(map[string]*Field),
+	}
+
+	return nil
+}
+
+func (sb *schemaBuilder) buildSpec(spec Spec) error {
+	struc := reflect.TypeOf(spec.Type)
+	strucType := sb.types[struc].(*Object)
+	ptr := reflect.PtrTo(struc)
+	ptrType := sb.types[ptr].(*Object)
+
+	idx := 0
+
+	for i := 0; i < struc.NumField(); i++ {
+		field := struc.Field(i)
+		if field.PkgPath != "" {
+			continue
+		}
+
+		name := field.Tag.Get("graphql")
+		if name == "" {
+			name = makeGraphql(field.Name)
+		}
+		if name == "-" {
+			continue
+		}
+		if _, ok := strucType.Fields[name]; ok {
+			return fmt.Errorf("bad type %s: two fields named %s", struc, name)
+		}
+
+		built, err := sb.buildField(field, false)
+		if err != nil {
+			return fmt.Errorf("bad field %s on type %s: %s", name, struc, err)
+		}
+		built.Name = name
+		built.Index = idx
+		strucType.Fields[name] = built
+
+		built, err = sb.buildField(field, true)
+		if err != nil {
+			return fmt.Errorf("bad field %s on type %s: %s", name, struc, err)
+		}
+		built.Name = name
+		built.Index = idx
+		ptrType.Fields[name] = built
+
+		idx++
+	}
+
+	if spec.Key != "" {
+		key, ok := strucType.Fields[spec.Key]
+		if !ok {
+			return fmt.Errorf("bad type %s: could not find key %s", struc, spec.Key)
+		}
+		strucType.Key = key
+		ptrType.Key = ptrType.Fields[spec.Key]
+	}
+
+	var names []string
+	for name := range spec.Methods {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		method := spec.Methods[name]
+
+		built, err := sb.buildFunction(struc, reflect.ValueOf(method), false)
+		if err != nil {
+			return fmt.Errorf("bad method %s on type %s: %s", name, struc, err)
+		}
+		built.Name = name
+		built.Index = idx
+		strucType.Fields[name] = built
+
+		built, err = sb.buildFunction(struc, reflect.ValueOf(method), true)
+		if err != nil {
+			return fmt.Errorf("bad method %s on type %s: %s", name, struc, err)
+		}
+		built.Name = name
+		built.Index = idx
+		ptrType.Fields[name] = built
+
+		idx++
+	}
+
+	return nil
+}
+
+var scalars = map[reflect.Type]bool{
+	reflect.TypeOf(bool(false)): true,
+	reflect.TypeOf(int(0)):      true,
+	reflect.TypeOf(int8(0)):     true,
+	reflect.TypeOf(int16(0)):    true,
+	reflect.TypeOf(int32(0)):    true,
+	reflect.TypeOf(int64(0)):    true,
+	reflect.TypeOf(uint(0)):     true,
+	reflect.TypeOf(uint8(0)):    true,
+	reflect.TypeOf(uint16(0)):   true,
+	reflect.TypeOf(uint32(0)):   true,
+	reflect.TypeOf(uint64(0)):   true,
+	reflect.TypeOf(float32(0)):  true,
+	reflect.TypeOf(float64(0)):  true,
+	reflect.TypeOf(string("")):  true,
+	reflect.TypeOf(time.Time{}): true,
+	reflect.TypeOf([]byte{}):    true,
+}
+
+func getScalar(typ reflect.Type) (string, bool) {
+	for match := range scalars {
+		if thunder.TypesIdenticalOrScalarAliases(match, typ) {
+			return typ.String(), true
+		}
+	}
+	return "", false
+}
+
+func (sb *schemaBuilder) getType(t reflect.Type) (Type, error) {
+	if sb.types[t] != nil {
+		return sb.types[t], nil
+	}
+
+	// Support scalars and optional scalars
+	if typ, ok := getScalar(t); ok {
+		return &Scalar{Type: typ}, nil
+	}
+	if t.Kind() == reflect.Ptr {
+		if typ, ok := getScalar(t.Elem()); ok {
+			return &Scalar{Type: "*" + typ}, nil
+		}
+	}
+
+	switch t.Kind() {
+	case reflect.Slice:
+		typ, err := sb.getType(t.Elem())
+		if err != nil {
+			return nil, err
+		}
+		return &List{Type: typ}, nil
+
+	default:
+		return nil, fmt.Errorf("bad type %s: should be a scalar, slice, or spec type", t)
+	}
+}
+
+type Schema struct {
+	QueryRoot    interface{}
+	QueryType    Type
+	MutationRoot interface{}
+	MutationType Type
+}
+
+// BuildSchema builds a graphql schema for a given server. Every type
+// supported by the server should be exposed a method returning a
+// graphql.Spec{}.
+//
+// For example, a basic server type could look as follows:
+//
+//    type Server struct{}
+//
+//    type Foo struct{
+//        Bar string
+//    }
+//    func (s *Server) Bar() graphql.Spec {
+//        return graphql.Spec{
+//            Type: Bar{},
+//        }
+//    }
+//
+//    type Query struct{}
+//    func (s *Server) Query() graphql.Spec {
+//        return graphql.Spec{
+//            Type: Query{},
+//            Methods: graphql.Methods{
+//                "foo": func() (*Foo, error) {
+//                    return &Foo{Bar: "bar"}, nil
+//                },
+//            },
+//        }
+//    }
+//
+//    type Mutation struct{}
+//    func (s *Server) Mutation() graphql.Spec {
+//        return graphql.Spec{
+//            Type: Mutation{},
+//        }
+//    }
+//
+// BuildSchema supports a limited subset of types:
+// - scalar types: ints, floats, bool, and string
+// - optional scalar types: points to ints, floats, bool, and string
+// - list types: slices of other supported types
+// - object types: pointers to structs
+//
+// For object types, BuildSchema recursively builds a schema over the struct's
+// fields and methods. All exported fields become fields in the schema, named by
+// the privatized version of the name (FooBar -> fooBar), or by the name in the
+// graphql tag if provided (`graphql:"foo"`).
+//
+// Methods also become fields in the schema. A method can optionally take both
+// graphql arguments and a context argument. The graphql arguments must be
+// specified in a struct with scalar fields. The context argument, if
+// specified, must follow the graphql names. Both method names and argument names
+// are privatized.
+func BuildSchema(server interface{}) (*Schema, error) {
+	// build specs by calling methods on server
+	var specs []Spec
+
+	value := reflect.ValueOf(server)
+	serverTyp := value.Type()
+
+	var hasQuery, hasMutation bool
+	var querySpec, mutationSpec Spec
+
+	for i := 0; i < serverTyp.NumMethod(); i++ {
+		method := serverTyp.Method(i)
+		if method.Type.NumIn() == 1 && method.Type.NumOut() == 1 && method.Type.Out(0) == reflect.TypeOf(Spec{}) {
+			spec := method.Func.Call([]reflect.Value{value})[0].Interface().(Spec)
+			specs = append(specs, spec)
+
+			if method.Name == "Query" {
+				hasQuery = true
+				querySpec = spec
+			}
+
+			if method.Name == "Mutation" {
+				hasMutation = true
+				mutationSpec = spec
+			}
+		}
+	}
+
+	if !hasQuery || !hasMutation {
+		return nil, errors.New("Missing Query() or Mutation() functions on server")
+	}
+
+	sb := &schemaBuilder{
+		types: make(map[reflect.Type]Type),
+	}
+
+	for _, spec := range specs {
+		if err := sb.prepareSpec(spec); err != nil {
+			return nil, err
+		}
+	}
+	for _, spec := range specs {
+		if err := sb.buildSpec(spec); err != nil {
+			return nil, err
+		}
+	}
+
+	queryTyp, err := sb.getType(reflect.TypeOf(querySpec.Type))
+	if err != nil {
+		return nil, err
+	}
+	mutationTyp, err := sb.getType(reflect.TypeOf(mutationSpec.Type))
+	if err != nil {
+		return nil, err
+	}
+	return &Schema{
+		QueryRoot:    querySpec.Type,
+		QueryType:    queryTyp,
+		MutationRoot: mutationSpec.Type,
+		MutationType: mutationTyp,
+	}, nil
+}
+
+// MustBuildSchema builds a schema and panics if an error occurs
+func MustBuildSchema(server interface{}) *Schema {
+	built, err := BuildSchema(server)
+	if err != nil {
+		panic(err)
+	}
+	return built
+}

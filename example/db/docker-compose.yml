@@ -1,0 +1,14 @@
+version: '2'
+
+services:
+  mysql:
+    image: mysql:5.6
+    volumes:
+      - ./mysql.conf.d:/etc/mysql/conf.d
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_DATABASE: "chat"
+      MYSQL_ROOT_PASSWORD: ""
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+
