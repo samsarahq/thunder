@@ -33,11 +33,23 @@ function deleteMessage(id) {
   });
 }
 
+function addReaction(messageId, reaction) {
+  mutate({
+    query: '{ addReaction(messageId: $messageId, reaction: $reaction) }',
+    variables: { messageId, reaction },
+  });
+}
+
 let Messages = function(props) {
   return (
     <div>
-      {props.data.value.messages.map(({id, text}) => 
-        <p key={id}>{text} <button onClick={() => deleteMessage(id)}>X</button></p>
+      {props.data.value.messages.map(({id, text, reactions}) =>
+        <p key={id}>{text}
+          <button onClick={() => deleteMessage(id)}>X</button>
+          {reactions.map(({reaction, count}) =>
+            <button onClick={() => addReaction(id, reaction)}>{reaction} x{count}</button>
+          )}
+        </p>
       )}
       <Editor />
     </div>
@@ -48,6 +60,7 @@ Messages = connectGraphQL(Messages, () => ({
   {
     messages {
       id, text
+      reactions { reaction count }
     }
   }`,
   variables: {},
