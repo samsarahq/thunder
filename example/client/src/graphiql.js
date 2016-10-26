@@ -8,8 +8,14 @@ import '../node_modules/graphiql/graphiql.css';
 
 const graphQLSchema = buildSchema(`
   type Message {
-    id: Int,
+    id: Int
     text: String
+    reactions: [Reaction]
+  }
+
+  type Reaction {
+    reaction: String
+    count: Int
   }
 
   type Query {
