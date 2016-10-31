@@ -17,47 +17,9 @@ var reactionTypes = map[string]bool{
 	":(": true,
 }
 
-type Server struct {
-	db *livesql.LiveDB
-}
-
 type Message struct {
 	Id   int64 `sql:",primary" graphql:",key"`
 	Text string
-}
-
-func (s *Server) messageReactions(ctx context.Context, m *Message) ([]*Reaction, error) {
-	reactions := make(map[string]*Reaction)
-	for reactionType := range reactionTypes {
-		reactions[reactionType] = &Reaction{
-			Reaction: reactionType,
-		}
-	}
-
-	var instances []*ReactionInstance
-	if err := s.db.Query(ctx, &instances, sqlgen.Filter{"message_id": m.Id}, nil); err != nil {
-		return nil, err
-	}
-	for _, instance := range instances {
-		reactions[instance.Reaction].Count++
-	}
-
-	var result []*Reaction
-	for _, reaction := range reactions {
-		result = append(result, reaction)
-	}
-	slice.Sort(result, func(a, b int) bool { return result[a].Reaction < result[b].Reaction })
-
-	return result, nil
-}
-
-func (s *Server) Message() schemabuilder.Spec {
-	return schemabuilder.Spec{
-		Type: Message{},
-		Methods: schemabuilder.Methods{
-			"reactions": s.messageReactions,
-		},
-	}
 }
 
 type ReactionInstance struct {
@@ -71,12 +33,8 @@ type Reaction struct {
 	Count    int
 }
 
-func (s *Server) messages(ctx context.Context) ([]*Message, error) {
-	var result []*Message
-	if err := s.db.Query(ctx, &result, nil, nil); err != nil {
-		return nil, err
-	}
-	return result, nil
+type Server struct {
+	db *livesql.LiveDB
 }
 
 type Query struct{}
@@ -88,6 +46,14 @@ func (s *Server) Query() schemabuilder.Spec {
 			"messages": s.messages,
 		},
 	}
+}
+
+func (s *Server) messages(ctx context.Context) ([]*Message, error) {
+	var result []*Message
+	if err := s.db.Query(ctx, &result, nil, nil); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 type Mutation struct{}
@@ -116,6 +82,40 @@ func (s *Server) Mutation() schemabuilder.Spec {
 			},
 		},
 	}
+}
+
+func (s *Server) Message() schemabuilder.Spec {
+	return schemabuilder.Spec{
+		Type: Message{},
+		Methods: schemabuilder.Methods{
+			"reactions": s.messageReactions,
+		},
+	}
+}
+
+func (s *Server) messageReactions(ctx context.Context, m *Message) ([]*Reaction, error) {
+	reactions := make(map[string]*Reaction)
+	for reactionType := range reactionTypes {
+		reactions[reactionType] = &Reaction{
+			Reaction: reactionType,
+		}
+	}
+
+	var instances []*ReactionInstance
+	if err := s.db.Query(ctx, &instances, sqlgen.Filter{"message_id": m.Id}, nil); err != nil {
+		return nil, err
+	}
+	for _, instance := range instances {
+		reactions[instance.Reaction].Count++
+	}
+
+	var result []*Reaction
+	for _, reaction := range reactions {
+		result = append(result, reaction)
+	}
+	slice.Sort(result, func(a, b int) bool { return result[a].Reaction < result[b].Reaction })
+
+	return result, nil
 }
 
 func main() {
