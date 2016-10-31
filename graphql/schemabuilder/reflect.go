@@ -16,7 +16,7 @@ import (
 	"github.com/samsarahq/thunder"
 )
 
-type ArgParser struct {
+type argParser struct {
 	FromJSON func(interface{}, reflect.Value) error
 	Type     reflect.Type
 }
@@ -28,7 +28,7 @@ func nilParseArguments(args interface{}) (interface{}, error) {
 	return nil, nil
 }
 
-func (p *ArgParser) Parse(args interface{}) (interface{}, error) {
+func (p *argParser) Parse(args interface{}) (interface{}, error) {
 	if p == nil {
 		return nilParseArguments(args)
 	}
@@ -53,7 +53,7 @@ func makeGraphql(s string) string {
 	return b.String()
 }
 
-var scalarArgParsers = map[reflect.Type]*ArgParser{
+var scalarArgParsers = map[reflect.Type]*argParser{
 	reflect.TypeOf(bool(false)): {
 		FromJSON: func(value interface{}, dest reflect.Value) error {
 			asBool, ok := value.(bool)
@@ -130,7 +130,7 @@ var scalarArgParsers = map[reflect.Type]*ArgParser{
 	},
 }
 
-func getScalarArgParser(typ reflect.Type) (*ArgParser, bool) {
+func getScalarArgParser(typ reflect.Type) (*argParser, bool) {
 	for match, argParser := range scalarArgParsers {
 		if thunder.TypesIdenticalOrScalarAliases(match, typ) {
 			return argParser, true
@@ -147,11 +147,11 @@ func init() {
 
 type argField struct {
 	field    reflect.StructField
-	parser   *ArgParser
+	parser   *argParser
 	optional bool
 }
 
-func makeArgParser(typ reflect.Type) (*ArgParser, error) {
+func makeArgParser(typ reflect.Type) (*argParser, error) {
 	if parser, ok := getScalarArgParser(typ); ok {
 		return parser, nil
 	}
@@ -168,13 +168,13 @@ func makeArgParser(typ reflect.Type) (*ArgParser, error) {
 	}
 }
 
-func makePtrParser(typ reflect.Type) (*ArgParser, error) {
+func makePtrParser(typ reflect.Type) (*argParser, error) {
 	inner, err := makeArgParser(typ.Elem())
 	if err != nil {
 		return nil, err
 	}
 
-	return &ArgParser{
+	return &argParser{
 		FromJSON: func(value interface{}, dest reflect.Value) error {
 			if value == nil {
 				// optional value
@@ -192,7 +192,7 @@ func makePtrParser(typ reflect.Type) (*ArgParser, error) {
 	}, nil
 }
 
-func makeStructParser(typ reflect.Type) (*ArgParser, error) {
+func makeStructParser(typ reflect.Type) (*argParser, error) {
 	fields := make(map[string]argField)
 
 	for i := 0; i < typ.NumField(); i++ {
@@ -226,7 +226,7 @@ func makeStructParser(typ reflect.Type) (*ArgParser, error) {
 		}
 	}
 
-	return &ArgParser{
+	return &argParser{
 		FromJSON: func(value interface{}, dest reflect.Value) error {
 			asMap, ok := value.(map[string]interface{})
 			if !ok {
@@ -253,13 +253,13 @@ func makeStructParser(typ reflect.Type) (*ArgParser, error) {
 	}, nil
 }
 
-func makeSliceParser(typ reflect.Type) (*ArgParser, error) {
+func makeSliceParser(typ reflect.Type) (*argParser, error) {
 	inner, err := makeArgParser(typ.Elem())
 	if err != nil {
 		return nil, err
 	}
 
-	return &ArgParser{
+	return &argParser{
 		FromJSON: func(value interface{}, dest reflect.Value) error {
 			asSlice, ok := value.([]interface{})
 			if !ok {
@@ -310,7 +310,7 @@ func (sb *schemaBuilder) buildFunction(struc reflect.Type, fun reflect.Value, pt
 		in = append(in, funcType.In(i))
 	}
 
-	var argParser *ArgParser
+	var argParser *argParser
 	var ptrFunc bool
 	var hasContext, hasSource, hasArgs, hasSelectionSet bool
 

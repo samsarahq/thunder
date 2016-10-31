@@ -66,7 +66,7 @@ type unsupported struct {
 	A byte
 }
 
-func testArgParseOk(t *testing.T, p *ArgParser, input interface{}, expected interface{}) {
+func testArgParseOk(t *testing.T, p *argParser, input interface{}, expected interface{}) {
 	actual, err := p.Parse(input)
 	if err != nil {
 		t.Error(err)
@@ -78,7 +78,7 @@ func testArgParseOk(t *testing.T, p *ArgParser, input interface{}, expected inte
 	}
 }
 
-func testArgParseBad(t *testing.T, p *ArgParser, input interface{}) {
+func testArgParseBad(t *testing.T, p *argParser, input interface{}) {
 	if actual, err := p.Parse(input); err == nil {
 		t.Errorf("expected p(%v) to fail; got %v", input, actual)
 	}
