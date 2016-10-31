@@ -3,7 +3,6 @@ package graphql
 import (
 	"context"
 	"fmt"
-	"reflect"
 )
 
 // Type represents a GraphQL type, and should be either an Object, a Scalar,
@@ -69,8 +68,7 @@ type Field struct {
 	Resolve Resolver
 	Type    Type
 
-	// ArgParser parses the args of the field
-	ArgParser *ArgParser
+	ParseArguments func(json interface{}) (interface{}, error)
 }
 
 type Schema struct {
@@ -130,24 +128,4 @@ type Selection struct {
 type Fragment struct {
 	On           string
 	SelectionSet *SelectionSet
-}
-
-type ArgParser struct {
-	FromJSON func(interface{}, reflect.Value) error
-	Type     reflect.Type
-}
-
-func (p *ArgParser) Parse(args interface{}) (interface{}, error) {
-	if p == nil {
-		if args, ok := args.(map[string]interface{}); !ok || len(args) != 0 {
-			return nil, NewSafeError("unexpected args")
-		}
-		return nil, nil
-	}
-
-	parsed := reflect.New(p.Type).Elem()
-	if err := p.FromJSON(args, parsed); err != nil {
-		return nil, err
-	}
-	return parsed.Interface(), nil
 }

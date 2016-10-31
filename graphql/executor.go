@@ -32,7 +32,7 @@ func PrepareQuery(typ Type, selectionSet *SelectionSet) error {
 				return NewSafeError(`unknown field "%s"`, selection.Name)
 			}
 
-			parsed, err := field.ArgParser.Parse(selection.Args)
+			parsed, err := field.ParseArguments(selection.Args)
 			if err != nil {
 				return NewSafeError(`error parsing args for "%s": %s`, selection.Name, err)
 			}

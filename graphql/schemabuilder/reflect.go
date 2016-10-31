@@ -16,6 +16,29 @@ import (
 	"github.com/samsarahq/thunder"
 )
 
+type ArgParser struct {
+	FromJSON func(interface{}, reflect.Value) error
+	Type     reflect.Type
+}
+
+func nilParseArguments(args interface{}) (interface{}, error) {
+	if args, ok := args.(map[string]interface{}); !ok || len(args) != 0 {
+		return nil, graphql.NewSafeError("unexpected args")
+	}
+	return nil, nil
+}
+
+func (p *ArgParser) Parse(args interface{}) (interface{}, error) {
+	if p == nil {
+		return nilParseArguments(args)
+	}
+	parsed := reflect.New(p.Type).Elem()
+	if err := p.FromJSON(args, parsed); err != nil {
+		return nil, err
+	}
+	return parsed.Interface(), nil
+}
+
 // TODO: Make keys use struct tags and enforce keys for items in lists
 
 func makeGraphql(s string) string {
@@ -30,7 +53,7 @@ func makeGraphql(s string) string {
 	return b.String()
 }
 
-var scalarArgParsers = map[reflect.Type]*graphql.ArgParser{
+var scalarArgParsers = map[reflect.Type]*ArgParser{
 	reflect.TypeOf(bool(false)): {
 		FromJSON: func(value interface{}, dest reflect.Value) error {
 			asBool, ok := value.(bool)
@@ -107,7 +130,7 @@ var scalarArgParsers = map[reflect.Type]*graphql.ArgParser{
 	},
 }
 
-func getScalarArgParser(typ reflect.Type) (*graphql.ArgParser, bool) {
+func getScalarArgParser(typ reflect.Type) (*ArgParser, bool) {
 	for match, argParser := range scalarArgParsers {
 		if thunder.TypesIdenticalOrScalarAliases(match, typ) {
 			return argParser, true
@@ -124,11 +147,11 @@ func init() {
 
 type argField struct {
 	field    reflect.StructField
-	parser   *graphql.ArgParser
+	parser   *ArgParser
 	optional bool
 }
 
-func makeArgParser(typ reflect.Type) (*graphql.ArgParser, error) {
+func makeArgParser(typ reflect.Type) (*ArgParser, error) {
 	if parser, ok := getScalarArgParser(typ); ok {
 		return parser, nil
 	}
@@ -145,13 +168,13 @@ func makeArgParser(typ reflect.Type) (*graphql.ArgParser, error) {
 	}
 }
 
-func makePtrParser(typ reflect.Type) (*graphql.ArgParser, error) {
+func makePtrParser(typ reflect.Type) (*ArgParser, error) {
 	inner, err := makeArgParser(typ.Elem())
 	if err != nil {
 		return nil, err
 	}
 
-	return &graphql.ArgParser{
+	return &ArgParser{
 		FromJSON: func(value interface{}, dest reflect.Value) error {
 			if value == nil {
 				// optional value
@@ -169,7 +192,7 @@ func makePtrParser(typ reflect.Type) (*graphql.ArgParser, error) {
 	}, nil
 }
 
-func makeStructParser(typ reflect.Type) (*graphql.ArgParser, error) {
+func makeStructParser(typ reflect.Type) (*ArgParser, error) {
 	fields := make(map[string]argField)
 
 	for i := 0; i < typ.NumField(); i++ {
@@ -203,7 +226,7 @@ func makeStructParser(typ reflect.Type) (*graphql.ArgParser, error) {
 		}
 	}
 
-	return &graphql.ArgParser{
+	return &ArgParser{
 		FromJSON: func(value interface{}, dest reflect.Value) error {
 			asMap, ok := value.(map[string]interface{})
 			if !ok {
@@ -230,13 +253,13 @@ func makeStructParser(typ reflect.Type) (*graphql.ArgParser, error) {
 	}, nil
 }
 
-func makeSliceParser(typ reflect.Type) (*graphql.ArgParser, error) {
+func makeSliceParser(typ reflect.Type) (*ArgParser, error) {
 	inner, err := makeArgParser(typ.Elem())
 	if err != nil {
 		return nil, err
 	}
 
-	return &graphql.ArgParser{
+	return &ArgParser{
 		FromJSON: func(value interface{}, dest reflect.Value) error {
 			asSlice, ok := value.([]interface{})
 			if !ok {
@@ -287,7 +310,7 @@ func (sb *schemaBuilder) buildFunction(struc reflect.Type, fun reflect.Value, pt
 		in = append(in, funcType.In(i))
 	}
 
-	var argParser *graphql.ArgParser
+	var argParser *ArgParser
 	var ptrFunc bool
 	var hasContext, hasSource, hasArgs, hasSelectionSet bool
 
@@ -411,8 +434,8 @@ func (sb *schemaBuilder) buildFunction(struc reflect.Type, fun reflect.Value, pt
 
 			return result, nil
 		},
-		Type:      retType,
-		ArgParser: argParser,
+		Type:           retType,
+		ParseArguments: argParser.Parse,
 	}, nil
 }
 
@@ -430,8 +453,8 @@ func (sb *schemaBuilder) buildField(field reflect.StructField, ptrSource bool) (
 			}
 			return value.FieldByIndex(field.Index).Interface(), nil
 		},
-		Type:      retType,
-		ArgParser: nil,
+		Type:           retType,
+		ParseArguments: nilParseArguments,
 	}, nil
 }
 
