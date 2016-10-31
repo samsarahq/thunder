@@ -227,6 +227,10 @@ type user struct {
 	Age  int64
 }
 
+type auto struct {
+	Auto string
+}
+
 type empty struct{}
 
 type root struct {
@@ -247,6 +251,9 @@ func (s *schema) Query() Spec {
 	return Spec{
 		Type: root{},
 		Methods: Methods{
+			"auto": func() auto {
+				return auto{Auto: "automagic"}
+			},
 			"alice": func(r *root) *user {
 				return &user{
 					Name: "alice",
@@ -350,6 +357,14 @@ func TestMakeSchema(t *testing.T) {
 
 	if foo, err := obj.Fields["foo"].Resolve(context.Background(), r, nil, nil); err != nil || foo != int64(10) {
 		t.Error("bad foo")
+	}
+
+	if res, err := obj.Fields["auto"].Resolve(context.Background(), r, nil, nil); err != nil || !reflect.DeepEqual(res, auto{Auto: "automagic"}) {
+		t.Error("bad auto")
+	}
+
+	if res, err := obj.Fields["auto"].Type.(*graphql.Object).Fields["auto"].Resolve(context.Background(), auto{Auto: "automagic"}, nil, nil); err != nil || res != "automagic" {
+		t.Error("bad auto")
 	}
 
 	if optional, err := obj.Fields["optional"].Resolve(context.Background(), r, nil, nil); err != nil || optional != (*int64)(nil) {

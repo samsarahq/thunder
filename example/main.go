@@ -71,12 +71,6 @@ type Reaction struct {
 	Count    int
 }
 
-func (s *Server) Reaction() schemabuilder.Spec {
-	return schemabuilder.Spec{
-		Type: Reaction{},
-	}
-}
-
 func (s *Server) messages(ctx context.Context) ([]*Message, error) {
 	var result []*Message
 	if err := s.db.Query(ctx, &result, nil, nil); err != nil {

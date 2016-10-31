@@ -298,6 +298,7 @@ func makeSliceParser(typ reflect.Type) (*argParser, error) {
 
 type schemaBuilder struct {
 	types map[reflect.Type]graphql.Type
+	specs map[reflect.Type]Spec
 }
 
 var errType reflect.Type
@@ -474,34 +475,28 @@ func (sb *schemaBuilder) buildField(field reflect.StructField, ptrSource bool) (
 	}, nil
 }
 
-func (sb *schemaBuilder) prepareSpec(spec Spec) error {
-	struc := reflect.TypeOf(spec.Type)
-	if struc.Kind() != reflect.Struct {
-		return fmt.Errorf("spec.Type should be a struct, not %s", struc.String())
-	}
-
+func (sb *schemaBuilder) buildStruc(struc reflect.Type) error {
 	if sb.types[struc] != nil {
-		return fmt.Errorf("duplicate spec for %s", struc.String())
+		return nil
 	}
 
-	sb.types[struc] = &graphql.Object{
+	strucType := &graphql.Object{
 		Name:   struc.Name(),
 		Fields: make(map[string]*graphql.Field),
 	}
+	sb.types[struc] = strucType
+
 	ptr := reflect.PtrTo(struc)
-	sb.types[ptr] = &graphql.Object{
+	ptrType := &graphql.Object{
 		Name:   "*" + struc.Name(),
 		Fields: make(map[string]*graphql.Field),
 	}
+	sb.types[ptr] = ptrType
 
-	return nil
-}
-
-func (sb *schemaBuilder) buildSpec(spec Spec) error {
-	struc := reflect.TypeOf(spec.Type)
-	strucType := sb.types[struc].(*graphql.Object)
-	ptr := reflect.PtrTo(struc)
-	ptrType := sb.types[ptr].(*graphql.Object)
+	var methods Methods
+	if spec, ok := sb.specs[struc]; ok {
+		methods = spec.Methods
+	}
 
 	idx := 0
 
@@ -570,13 +565,13 @@ func (sb *schemaBuilder) buildSpec(spec Spec) error {
 	}
 
 	var names []string
-	for name := range spec.Methods {
+	for name := range methods {
 		names = append(names, name)
 	}
 	sort.Strings(names)
 
 	for _, name := range names {
-		method := spec.Methods[name]
+		method := methods[name]
 
 		built, err := sb.buildFunction(struc, reflect.ValueOf(method), false)
 		if err != nil {
@@ -630,6 +625,21 @@ func getScalar(typ reflect.Type) (string, bool) {
 
 func (sb *schemaBuilder) getType(t reflect.Type) (graphql.Type, error) {
 	if sb.types[t] != nil {
+		return sb.types[t], nil
+	}
+
+	// Structs
+	if t.Kind() == reflect.Struct {
+		if err := sb.buildStruc(t); err != nil {
+			return nil, err
+		}
+		return sb.types[t], nil
+	}
+
+	if t.Kind() == reflect.Ptr && t.Elem().Kind() == reflect.Struct {
+		if err := sb.buildStruc(t.Elem()); err != nil {
+			return nil, err
+		}
 		return sb.types[t], nil
 	}
 
@@ -690,17 +700,20 @@ func BuildSchema(server interface{}) (*graphql.Schema, error) {
 
 	sb := &schemaBuilder{
 		types: make(map[reflect.Type]graphql.Type),
+		specs: make(map[reflect.Type]Spec),
 	}
 
 	for _, spec := range specs {
-		if err := sb.prepareSpec(spec); err != nil {
-			return nil, err
+		typ := reflect.TypeOf(spec.Type)
+		if typ.Kind() != reflect.Struct {
+			return nil, fmt.Errorf("spec.Type should be a struct, not %s", typ.String())
 		}
-	}
-	for _, spec := range specs {
-		if err := sb.buildSpec(spec); err != nil {
-			return nil, err
+
+		if _, ok := sb.specs[typ]; ok {
+			return nil, fmt.Errorf("duplicate spec for %s", typ.String())
 		}
+
+		sb.specs[typ] = spec
 	}
 
 	queryTyp, err := sb.getType(reflect.TypeOf(querySpec.Type))
