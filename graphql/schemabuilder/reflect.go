@@ -13,8 +13,7 @@ import (
 	"unicode"
 
 	"github.com/samsarahq/thunder/graphql"
-
-	"github.com/samsarahq/thunder"
+	"github.com/samsarahq/thunder/internal"
 )
 
 type argParser struct {
@@ -133,7 +132,7 @@ var scalarArgParsers = map[reflect.Type]*argParser{
 
 func getScalarArgParser(typ reflect.Type) (*argParser, bool) {
 	for match, argParser := range scalarArgParsers {
-		if thunder.TypesIdenticalOrScalarAliases(match, typ) {
+		if internal.TypesIdenticalOrScalarAliases(match, typ) {
 			return argParser, true
 		}
 	}
@@ -616,7 +615,7 @@ var scalars = map[reflect.Type]bool{
 
 func getScalar(typ reflect.Type) (string, bool) {
 	for match := range scalars {
-		if thunder.TypesIdenticalOrScalarAliases(match, typ) {
+		if internal.TypesIdenticalOrScalarAliases(match, typ) {
 			return typ.String(), true
 		}
 	}

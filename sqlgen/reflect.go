@@ -14,7 +14,7 @@ import (
 	"unicode"
 
 	"github.com/go-sql-driver/mysql"
-	"github.com/samsarahq/thunder"
+	"github.com/samsarahq/thunder/internal"
 )
 
 type Filter map[string]interface{}
@@ -104,7 +104,7 @@ var scannableTypes = map[reflect.Type]reflect.Type{
 
 func getScannableType(typ reflect.Type) (reflect.Type, bool) {
 	for match, scannable := range scannableTypes {
-		if thunder.TypesIdenticalOrScalarAliases(typ, match) {
+		if internal.TypesIdenticalOrScalarAliases(typ, match) {
 			return scannable, true
 		}
 	}
