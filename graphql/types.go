@@ -29,7 +29,7 @@ func (s *Scalar) String() string {
 // Object is a value with several fields
 type Object struct {
 	Name   string
-	Key    *Field
+	Key    Resolver
 	Fields map[string]*Field
 }
 

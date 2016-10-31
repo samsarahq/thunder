@@ -22,7 +22,7 @@ type Server struct {
 }
 
 type Message struct {
-	Id   int64 `sql:",primary"`
+	Id   int64 `sql:",primary" graphql:",key"`
 	Text string
 }
 
@@ -54,7 +54,6 @@ func (s *Server) messageReactions(ctx context.Context, m *Message) ([]*Reaction,
 func (s *Server) Message() schemabuilder.Spec {
 	return schemabuilder.Spec{
 		Type: Message{},
-		Key:  "id",
 		Methods: schemabuilder.Methods{
 			"reactions": s.messageReactions,
 		},
@@ -68,14 +67,13 @@ type ReactionInstance struct {
 }
 
 type Reaction struct {
-	Reaction string
+	Reaction string `graphql:",key"`
 	Count    int
 }
 
 func (s *Server) Reaction() schemabuilder.Spec {
 	return schemabuilder.Spec{
 		Type: Reaction{},
-		Key:  "reaction",
 	}
 }
 

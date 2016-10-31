@@ -10,13 +10,12 @@ package schemabuilder
 // An example spec for a struct User could then look as follows:
 //
 //     type User struct {
-//         Id   int64
+//         Id   int64  `graphql:",key'`
 //         Name string
 //     }
 //
 //     var userSpec = Spec{
 //         Type:    User{},
-//         Key:     "id",
 //         Methods: Methods{
 //             "friends": func(u *User) []*User{
 //                  return []*User{alice, bob},
@@ -26,7 +25,6 @@ package schemabuilder
 //
 type Spec struct {
 	Type    interface{}
-	Key     string
 	Methods Methods
 }
 

@@ -223,7 +223,7 @@ func TestArgParser(t *testing.T) {
 }
 
 type user struct {
-	Name string
+	Name string `graphql:",key"`
 	Age  int64
 }
 
@@ -293,7 +293,6 @@ func (s *schema) Mutation() Spec {
 func (s *schema) User() Spec {
 	return Spec{
 		Type: user{},
-		Key:  "name",
 		Methods: Methods{
 			"ctx": func(ctx context.Context, u *user) bool {
 				return ctx.Value("flag").(bool)
@@ -333,7 +332,7 @@ func TestMakeSchema(t *testing.T) {
 		t.Error("bad ctx")
 	}
 
-	if key, err := obj.Fields["alice"].Type.(*graphql.Object).Key.Resolve(context.Background(), alice, nil, nil); err != nil || key != "alice" {
+	if key, err := obj.Fields["alice"].Type.(*graphql.Object).Key(context.Background(), alice, nil, nil); err != nil || key != "alice" {
 		t.Error("bad key")
 	}
 

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strings"
 	"time"
 	"unicode"
 
@@ -39,7 +40,7 @@ func (p *argParser) Parse(args interface{}) (interface{}, error) {
 	return parsed.Interface(), nil
 }
 
-// TODO: Make keys use struct tags and enforce keys for items in lists
+// TODO: Enforce keys for items in lists, support compound keys
 
 func makeGraphql(s string) string {
 	var b bytes.Buffer
@@ -203,12 +204,27 @@ func makeStructParser(typ reflect.Type) (*argParser, error) {
 		if field.Anonymous {
 			return nil, fmt.Errorf("bad arg type %s: anonymous fields not supported", typ)
 		}
-		name := field.Tag.Get("graphql")
+		tags := strings.Split(field.Tag.Get("graphql"), ",")
+		var name string
+		if len(tags) > 0 {
+			name = tags[0]
+		}
 		if name == "" {
 			name = makeGraphql(field.Name)
 		}
 		if name == "-" {
 			continue
+		}
+
+		var key bool
+
+		if len(tags) > 1 {
+			for _, tag := range tags[1:] {
+				if tag != "key" || key {
+					return nil, fmt.Errorf("bad type %s: field %s has unexpected tag %s", typ, name, tag)
+				}
+				key = true
+			}
 		}
 
 		if _, ok := fields[name]; ok {
@@ -495,13 +511,29 @@ func (sb *schemaBuilder) buildSpec(spec Spec) error {
 			continue
 		}
 
-		name := field.Tag.Get("graphql")
+		tags := strings.Split(field.Tag.Get("graphql"), ",")
+		var name string
+		if len(tags) > 0 {
+			name = tags[0]
+		}
 		if name == "" {
 			name = makeGraphql(field.Name)
 		}
 		if name == "-" {
 			continue
 		}
+
+		var key bool
+
+		if len(tags) > 1 {
+			for _, tag := range tags[1:] {
+				if tag != "key" || key {
+					return fmt.Errorf("bad type %s: field %s has unexpected tag %s", struc, name, tag)
+				}
+				key = true
+			}
+		}
+
 		if _, ok := strucType.Fields[name]; ok {
 			return fmt.Errorf("bad type %s: two fields named %s", struc, name)
 		}
@@ -513,6 +545,12 @@ func (sb *schemaBuilder) buildSpec(spec Spec) error {
 		built.Name = name
 		built.Index = idx
 		strucType.Fields[name] = built
+		if key {
+			if strucType.Key != nil {
+				return fmt.Errorf("bad type %s: multiple key fields", struc)
+			}
+			strucType.Key = built.Resolve
+		}
 
 		built, err = sb.buildField(field, true)
 		if err != nil {
@@ -521,17 +559,14 @@ func (sb *schemaBuilder) buildSpec(spec Spec) error {
 		built.Name = name
 		built.Index = idx
 		ptrType.Fields[name] = built
+		if key {
+			if ptrType.Key != nil {
+				return fmt.Errorf("bad type %s: multiple key fields", struc)
+			}
+			ptrType.Key = built.Resolve
+		}
 
 		idx++
-	}
-
-	if spec.Key != "" {
-		key, ok := strucType.Fields[spec.Key]
-		if !ok {
-			return fmt.Errorf("bad type %s: could not find key %s", struc, spec.Key)
-		}
-		strucType.Key = key
-		ptrType.Key = ptrType.Fields[spec.Key]
 	}
 
 	var names []string

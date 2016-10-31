@@ -95,14 +95,13 @@ func (s *schema) Mutation() schemabuilder.Spec {
 }
 
 type user struct {
-	Name string
+	Name string `graphql:",key"`
 	Age  int64
 }
 
 func (s *schema) User() schemabuilder.Spec {
 	return schemabuilder.Spec{
 		Type: user{},
-		Key:  "name",
 		Methods: schemabuilder.Methods{
 			"byRef": func(u *user) string {
 				return "byRef"

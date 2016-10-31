@@ -122,7 +122,7 @@ func executeObject(ctx context.Context, typ *Object, source interface{}, selecti
 		// if the source has a key, store it to detect changing objects
 		var key interface{}
 		if typ.Key != nil {
-			value, err := typ.Key.Resolve(ctx, source, nil, nil)
+			value, err := typ.Key(ctx, source, nil, nil)
 			if err != nil {
 				return nil, err
 			}
