@@ -1,5 +1,3 @@
-package schemabuilder
-
 // BuildSchema builds a graphql schema for a given server. Every type
 // supported by the server should be exposed a method returning a
 // graphql.Spec{}.
@@ -52,3 +50,4 @@ package schemabuilder
 // specified in a struct with scalar fields. The context argument, if
 // specified, must follow the graphql names. Both method names and argument names
 // are privatized.
+package schemabuilder
