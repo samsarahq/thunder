@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 
 	"github.com/samsarahq/thunder"
+	"github.com/samsarahq/thunder/reactive"
 )
 
 // PrepareQuery checks that the given selectionSet matches the schema typ, and
@@ -99,7 +100,7 @@ func executeObject(ctx context.Context, typ *Object, source interface{}, selecti
 		key.source = &struct{}{}
 	}
 
-	return thunder.Cache(ctx, key, func(ctx context.Context) (interface{}, error) {
+	return reactive.Cache(ctx, key, func(ctx context.Context) (interface{}, error) {
 		selections := Flatten(selectionSet)
 
 		fields := make(map[string]interface{})

@@ -1,4 +1,4 @@
-package thunder
+package reactive
 
 import "sync"
 

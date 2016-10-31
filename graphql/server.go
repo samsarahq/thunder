@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/samsarahq/thunder"
+	"github.com/samsarahq/thunder/reactive"
 )
 
 const (
@@ -34,7 +34,7 @@ type conn struct {
 	url string
 
 	mu            sync.Mutex
-	subscriptions map[string]*thunder.Rerunner
+	subscriptions map[string]*reactive.Rerunner
 }
 
 type inEnvelope struct {
@@ -141,7 +141,7 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 		MaxConcurrency: MaxQueryParallelism,
 	}
 
-	c.subscriptions[id] = thunder.NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
+	c.subscriptions[id] = reactive.NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
 		ctx = c.makeCtx(ctx)
 		current, err := e.Execute(ctx, c.schema.QueryType, c.schema.QueryRoot, selectionSet)
 		if err != nil {
@@ -183,7 +183,7 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 		MaxConcurrency: MaxQueryParallelism,
 	}
 
-	c.subscriptions[id] = thunder.NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
+	c.subscriptions[id] = reactive.NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
 		ctx = c.makeCtx(context.Background())
 		current, err := e.Execute(ctx, c.schema.MutationType, c.schema.MutationRoot, selectionSet)
 		if err != nil {
@@ -297,7 +297,7 @@ func ServeJSONSocket(socket *websocket.Conn, schema *Schema, makeCtx MakeCtxFunc
 		makeCtx:     makeCtx,
 		reportError: reportError,
 
-		subscriptions: make(map[string]*thunder.Rerunner),
+		subscriptions: make(map[string]*reactive.Rerunner),
 	}
 
 	defer c.closeSubscriptions()

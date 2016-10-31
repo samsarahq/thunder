@@ -5,7 +5,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/samsarahq/thunder"
+	"github.com/samsarahq/thunder/reactive"
 	"github.com/samsarahq/thunder/sqlgen"
 )
 
@@ -13,7 +13,7 @@ import (
 type dbResource struct {
 	table    string
 	tester   sqlgen.Tester
-	resource *thunder.Resource
+	resource *reactive.Resource
 }
 
 func (r *dbResource) shouldInvalidate(update *update) bool {
@@ -79,12 +79,12 @@ func (t *dbTracker) registerDependency(ctx context.Context, table string, tester
 	r := &dbResource{
 		table:    table,
 		tester:   tester,
-		resource: thunder.NewResource(),
+		resource: reactive.NewResource(),
 	}
 	r.resource.Cleanup(func() {
 		t.remove(r)
 	})
-	thunder.AddDependency(ctx, r.resource)
+	reactive.AddDependency(ctx, r.resource)
 
 	t.add(r)
 }
@@ -121,7 +121,7 @@ func (ldb *LiveDB) query(ctx context.Context, query *sqlgen.SelectQuery, filter 
 	// it can be stored as a map key.
 	key := queryCacheKey{clause: clause, args: toArray(args)}
 
-	result, err := thunder.Cache(ctx, key, func(ctx context.Context) (interface{}, error) {
+	result, err := reactive.Cache(ctx, key, func(ctx context.Context) (interface{}, error) {
 		// Build a tester for the dependency.
 		tester, err := ldb.Schema.MakeTester(query.Table, filter)
 		if err != nil {
@@ -155,7 +155,7 @@ func (ldb *LiveDB) query(ctx context.Context, query *sqlgen.SelectQuery, filter 
 //   if err := ldb.Query(ctx, &users, nil, nil); err != nil {
 //
 func (ldb *LiveDB) Query(ctx context.Context, result interface{}, filter sqlgen.Filter, options *sqlgen.SelectOptions) error {
-	if !thunder.HasRerunner(ctx) || ldb.HasTx(ctx) {
+	if !reactive.HasRerunner(ctx) || ldb.HasTx(ctx) {
 		return ldb.DB.Query(ctx, result, filter, options)
 	}
 
@@ -181,7 +181,7 @@ func (ldb *LiveDB) Query(ctx context.Context, result interface{}, filter sqlgen.
 //   if err := ldb.Query(ctx, &user, Filter{"id": 10}, nil); err != nil {
 //
 func (ldb *LiveDB) QueryRow(ctx context.Context, result interface{}, filter sqlgen.Filter, options *sqlgen.SelectOptions) error {
-	if !thunder.HasRerunner(ctx) || ldb.HasTx(ctx) {
+	if !reactive.HasRerunner(ctx) || ldb.HasTx(ctx) {
 		return ldb.DB.QueryRow(ctx, result, filter, options)
 	}
 
