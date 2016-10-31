@@ -56,6 +56,9 @@ var _ Type = &Scalar{}
 var _ Type = &Object{}
 var _ Type = &List{}
 
+// A Resolver calculates the value of a field of an object
+type Resolver func(ctx context.Context, source, args interface{}, selectionSet *SelectionSet) (interface{}, error)
+
 // Field knows how to compute field values of an Object
 //
 // Fields are responsible for computing their value themselves.
@@ -63,11 +66,8 @@ type Field struct {
 	Name  string
 	Index int
 
-	// Resolve calculates the value of the field
-	Resolve func(ctx context.Context, source, args interface{}, selectionSet *SelectionSet) (interface{}, error)
-
-	// Type is the type of the field
-	Type Type
+	Resolve Resolver
+	Type    Type
 
 	// ArgParser parses the args of the field
 	ArgParser *ArgParser
