@@ -627,6 +627,17 @@ func (sb *schemaBuilder) getType(t reflect.Type) (graphql.Type, error) {
 		return sb.types[t], nil
 	}
 
+	// Support scalars and optional scalars. Scalars have precedence over structs
+	// to have eg. time.Time function as a scalar.
+	if typ, ok := getScalar(t); ok {
+		return &graphql.Scalar{Type: typ}, nil
+	}
+	if t.Kind() == reflect.Ptr {
+		if typ, ok := getScalar(t.Elem()); ok {
+			return &graphql.Scalar{Type: "*" + typ}, nil
+		}
+	}
+
 	// Structs
 	if t.Kind() == reflect.Struct {
 		if err := sb.buildStruc(t); err != nil {
@@ -640,16 +651,6 @@ func (sb *schemaBuilder) getType(t reflect.Type) (graphql.Type, error) {
 			return nil, err
 		}
 		return sb.types[t], nil
-	}
-
-	// Support scalars and optional scalars
-	if typ, ok := getScalar(t); ok {
-		return &graphql.Scalar{Type: typ}, nil
-	}
-	if t.Kind() == reflect.Ptr {
-		if typ, ok := getScalar(t.Elem()); ok {
-			return &graphql.Scalar{Type: "*" + typ}, nil
-		}
 	}
 
 	switch t.Kind() {
