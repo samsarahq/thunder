@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/samsarahq/thunder/graphql"
+	"github.com/samsarahq/thunder/graphql/schemabuilder"
 )
 
 type alias int64
@@ -26,10 +27,10 @@ func panicFunction() int64 {
 	panic("oh no!")
 }
 
-func (s *schema) Query() graphql.Spec {
-	return graphql.Spec{
+func (s *schema) Query() schemabuilder.Spec {
+	return schemabuilder.Spec{
 		Type: root{},
-		Methods: graphql.Methods{
+		Methods: schemabuilder.Methods{
 			"users": func() []*user {
 				return []*user{
 					{Name: "Alice", Age: 10},
@@ -87,8 +88,8 @@ func (s *schema) Query() graphql.Spec {
 
 type empty struct{}
 
-func (s *schema) Mutation() graphql.Spec {
-	return graphql.Spec{
+func (s *schema) Mutation() schemabuilder.Spec {
+	return schemabuilder.Spec{
 		Type: empty{},
 	}
 }
@@ -98,11 +99,11 @@ type user struct {
 	Age  int64
 }
 
-func (s *schema) User() graphql.Spec {
-	return graphql.Spec{
+func (s *schema) User() schemabuilder.Spec {
+	return schemabuilder.Spec{
 		Type: user{},
 		Key:  "name",
-		Methods: graphql.Methods{
+		Methods: schemabuilder.Methods{
 			"byRef": func(u *user) string {
 				return "byRef"
 			},
@@ -116,7 +117,7 @@ func (s *schema) User() graphql.Spec {
 	}
 }
 
-var builtSchema = graphql.MustBuildSchema(&schema{})
+var builtSchema = schemabuilder.MustBuildSchema(&schema{})
 
 func TestExecuteGood(t *testing.T) {
 	r := root{X: 1234, Time: time.Unix(1458757911, 0).UTC(), Bytes: []byte("bar"), Alias: 999}

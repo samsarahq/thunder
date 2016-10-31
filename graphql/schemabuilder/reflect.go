@@ -1,4 +1,4 @@
-package graphql
+package schemabuilder
 
 import (
 	"bytes"
@@ -10,6 +10,8 @@ import (
 	"sort"
 	"time"
 	"unicode"
+
+	"github.com/samsarahq/thunder/graphql"
 
 	"github.com/samsarahq/thunder"
 )
@@ -28,7 +30,7 @@ func makeGraphql(s string) string {
 	return b.String()
 }
 
-var scalarArgParsers = map[reflect.Type]*ArgParser{
+var scalarArgParsers = map[reflect.Type]*graphql.ArgParser{
 	reflect.TypeOf(bool(false)): {
 		FromJSON: func(value interface{}, dest reflect.Value) error {
 			asBool, ok := value.(bool)
@@ -105,7 +107,7 @@ var scalarArgParsers = map[reflect.Type]*ArgParser{
 	},
 }
 
-func getScalarArgParser(typ reflect.Type) (*ArgParser, bool) {
+func getScalarArgParser(typ reflect.Type) (*graphql.ArgParser, bool) {
 	for match, argParser := range scalarArgParsers {
 		if thunder.TypesIdenticalOrScalarAliases(match, typ) {
 			return argParser, true
@@ -122,11 +124,11 @@ func init() {
 
 type argField struct {
 	field    reflect.StructField
-	parser   *ArgParser
+	parser   *graphql.ArgParser
 	optional bool
 }
 
-func makeArgParser(typ reflect.Type) (*ArgParser, error) {
+func makeArgParser(typ reflect.Type) (*graphql.ArgParser, error) {
 	if parser, ok := getScalarArgParser(typ); ok {
 		return parser, nil
 	}
@@ -143,13 +145,13 @@ func makeArgParser(typ reflect.Type) (*ArgParser, error) {
 	}
 }
 
-func makePtrParser(typ reflect.Type) (*ArgParser, error) {
+func makePtrParser(typ reflect.Type) (*graphql.ArgParser, error) {
 	inner, err := makeArgParser(typ.Elem())
 	if err != nil {
 		return nil, err
 	}
 
-	return &ArgParser{
+	return &graphql.ArgParser{
 		FromJSON: func(value interface{}, dest reflect.Value) error {
 			if value == nil {
 				// optional value
@@ -167,7 +169,7 @@ func makePtrParser(typ reflect.Type) (*ArgParser, error) {
 	}, nil
 }
 
-func makeStructParser(typ reflect.Type) (*ArgParser, error) {
+func makeStructParser(typ reflect.Type) (*graphql.ArgParser, error) {
 	fields := make(map[string]argField)
 
 	for i := 0; i < typ.NumField(); i++ {
@@ -201,7 +203,7 @@ func makeStructParser(typ reflect.Type) (*ArgParser, error) {
 		}
 	}
 
-	return &ArgParser{
+	return &graphql.ArgParser{
 		FromJSON: func(value interface{}, dest reflect.Value) error {
 			asMap, ok := value.(map[string]interface{})
 			if !ok {
@@ -228,13 +230,13 @@ func makeStructParser(typ reflect.Type) (*ArgParser, error) {
 	}, nil
 }
 
-func makeSliceParser(typ reflect.Type) (*ArgParser, error) {
+func makeSliceParser(typ reflect.Type) (*graphql.ArgParser, error) {
 	inner, err := makeArgParser(typ.Elem())
 	if err != nil {
 		return nil, err
 	}
 
-	return &ArgParser{
+	return &graphql.ArgParser{
 		FromJSON: func(value interface{}, dest reflect.Value) error {
 			asSlice, ok := value.([]interface{})
 			if !ok {
@@ -256,7 +258,7 @@ func makeSliceParser(typ reflect.Type) (*ArgParser, error) {
 }
 
 type schemaBuilder struct {
-	types map[reflect.Type]Type
+	types map[reflect.Type]graphql.Type
 }
 
 var errType reflect.Type
@@ -268,11 +270,11 @@ func init() {
 	errType = reflect.TypeOf(&err).Elem()
 	var context context.Context
 	contextType = reflect.TypeOf(&context).Elem()
-	var selectionSet *SelectionSet
+	var selectionSet *graphql.SelectionSet
 	selectionSetType = reflect.TypeOf(selectionSet)
 }
 
-func (sb *schemaBuilder) buildFunction(struc reflect.Type, fun reflect.Value, ptrSource bool) (*Field, error) {
+func (sb *schemaBuilder) buildFunction(struc reflect.Type, fun reflect.Value, ptrSource bool) (*graphql.Field, error) {
 	ptr := reflect.PtrTo(struc)
 
 	if fun.Kind() != reflect.Func {
@@ -285,7 +287,7 @@ func (sb *schemaBuilder) buildFunction(struc reflect.Type, fun reflect.Value, pt
 		in = append(in, funcType.In(i))
 	}
 
-	var argParser *ArgParser
+	var argParser *graphql.ArgParser
 	var ptrFunc bool
 	var hasContext, hasSource, hasArgs, hasSelectionSet bool
 
@@ -344,7 +346,7 @@ func (sb *schemaBuilder) buildFunction(struc reflect.Type, fun reflect.Value, pt
 		return nil, fmt.Errorf("%s should return 1 or 2 values", funcType)
 	}
 
-	var retType Type
+	var retType graphql.Type
 	if hasRet {
 		var err error
 		retType, err = sb.getType(funcType.Out(0))
@@ -359,8 +361,8 @@ func (sb *schemaBuilder) buildFunction(struc reflect.Type, fun reflect.Value, pt
 		}
 	}
 
-	return &Field{
-		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *SelectionSet) (interface{}, error) {
+	return &graphql.Field{
+		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
 			// Set up function arguments.
 			in := make([]reflect.Value, 0, funcType.NumIn())
 
@@ -414,14 +416,14 @@ func (sb *schemaBuilder) buildFunction(struc reflect.Type, fun reflect.Value, pt
 	}, nil
 }
 
-func (sb *schemaBuilder) buildField(field reflect.StructField, ptrSource bool) (*Field, error) {
+func (sb *schemaBuilder) buildField(field reflect.StructField, ptrSource bool) (*graphql.Field, error) {
 	retType, err := sb.getType(field.Type)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Field{
-		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *SelectionSet) (interface{}, error) {
+	return &graphql.Field{
+		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
 			value := reflect.ValueOf(source)
 			if ptrSource {
 				value = value.Elem()
@@ -443,14 +445,14 @@ func (sb *schemaBuilder) prepareSpec(spec Spec) error {
 		return fmt.Errorf("duplicate spec for %s", struc.String())
 	}
 
-	sb.types[struc] = &Object{
+	sb.types[struc] = &graphql.Object{
 		Name:   struc.Name(),
-		Fields: make(map[string]*Field),
+		Fields: make(map[string]*graphql.Field),
 	}
 	ptr := reflect.PtrTo(struc)
-	sb.types[ptr] = &Object{
+	sb.types[ptr] = &graphql.Object{
 		Name:   "*" + struc.Name(),
-		Fields: make(map[string]*Field),
+		Fields: make(map[string]*graphql.Field),
 	}
 
 	return nil
@@ -458,9 +460,9 @@ func (sb *schemaBuilder) prepareSpec(spec Spec) error {
 
 func (sb *schemaBuilder) buildSpec(spec Spec) error {
 	struc := reflect.TypeOf(spec.Type)
-	strucType := sb.types[struc].(*Object)
+	strucType := sb.types[struc].(*graphql.Object)
 	ptr := reflect.PtrTo(struc)
-	ptrType := sb.types[ptr].(*Object)
+	ptrType := sb.types[ptr].(*graphql.Object)
 
 	idx := 0
 
@@ -568,18 +570,18 @@ func getScalar(typ reflect.Type) (string, bool) {
 	return "", false
 }
 
-func (sb *schemaBuilder) getType(t reflect.Type) (Type, error) {
+func (sb *schemaBuilder) getType(t reflect.Type) (graphql.Type, error) {
 	if sb.types[t] != nil {
 		return sb.types[t], nil
 	}
 
 	// Support scalars and optional scalars
 	if typ, ok := getScalar(t); ok {
-		return &Scalar{Type: typ}, nil
+		return &graphql.Scalar{Type: typ}, nil
 	}
 	if t.Kind() == reflect.Ptr {
 		if typ, ok := getScalar(t.Elem()); ok {
-			return &Scalar{Type: "*" + typ}, nil
+			return &graphql.Scalar{Type: "*" + typ}, nil
 		}
 	}
 
@@ -589,73 +591,14 @@ func (sb *schemaBuilder) getType(t reflect.Type) (Type, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &List{Type: typ}, nil
+		return &graphql.List{Type: typ}, nil
 
 	default:
 		return nil, fmt.Errorf("bad type %s: should be a scalar, slice, or spec type", t)
 	}
 }
 
-type Schema struct {
-	QueryRoot    interface{}
-	QueryType    Type
-	MutationRoot interface{}
-	MutationType Type
-}
-
-// BuildSchema builds a graphql schema for a given server. Every type
-// supported by the server should be exposed a method returning a
-// graphql.Spec{}.
-//
-// For example, a basic server type could look as follows:
-//
-//    type Server struct{}
-//
-//    type Foo struct{
-//        Bar string
-//    }
-//    func (s *Server) Bar() graphql.Spec {
-//        return graphql.Spec{
-//            Type: Bar{},
-//        }
-//    }
-//
-//    type Query struct{}
-//    func (s *Server) Query() graphql.Spec {
-//        return graphql.Spec{
-//            Type: Query{},
-//            Methods: graphql.Methods{
-//                "foo": func() (*Foo, error) {
-//                    return &Foo{Bar: "bar"}, nil
-//                },
-//            },
-//        }
-//    }
-//
-//    type Mutation struct{}
-//    func (s *Server) Mutation() graphql.Spec {
-//        return graphql.Spec{
-//            Type: Mutation{},
-//        }
-//    }
-//
-// BuildSchema supports a limited subset of types:
-// - scalar types: ints, floats, bool, and string
-// - optional scalar types: points to ints, floats, bool, and string
-// - list types: slices of other supported types
-// - object types: pointers to structs
-//
-// For object types, BuildSchema recursively builds a schema over the struct's
-// fields and methods. All exported fields become fields in the schema, named by
-// the privatized version of the name (FooBar -> fooBar), or by the name in the
-// graphql tag if provided (`graphql:"foo"`).
-//
-// Methods also become fields in the schema. A method can optionally take both
-// graphql arguments and a context argument. The graphql arguments must be
-// specified in a struct with scalar fields. The context argument, if
-// specified, must follow the graphql names. Both method names and argument names
-// are privatized.
-func BuildSchema(server interface{}) (*Schema, error) {
+func BuildSchema(server interface{}) (*graphql.Schema, error) {
 	// build specs by calling methods on server
 	var specs []Spec
 
@@ -688,7 +631,7 @@ func BuildSchema(server interface{}) (*Schema, error) {
 	}
 
 	sb := &schemaBuilder{
-		types: make(map[reflect.Type]Type),
+		types: make(map[reflect.Type]graphql.Type),
 	}
 
 	for _, spec := range specs {
@@ -710,7 +653,7 @@ func BuildSchema(server interface{}) (*Schema, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Schema{
+	return &graphql.Schema{
 		QueryRoot:    querySpec.Type,
 		QueryType:    queryTyp,
 		MutationRoot: mutationSpec.Type,
@@ -719,7 +662,7 @@ func BuildSchema(server interface{}) (*Schema, error) {
 }
 
 // MustBuildSchema builds a schema and panics if an error occurs
-func MustBuildSchema(server interface{}) *Schema {
+func MustBuildSchema(server interface{}) *graphql.Schema {
 	built, err := BuildSchema(server)
 	if err != nil {
 		panic(err)

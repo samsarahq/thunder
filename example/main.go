@@ -7,6 +7,7 @@ import (
 
 	"github.com/bradfitz/slice"
 	"github.com/samsarahq/thunder/graphql"
+	"github.com/samsarahq/thunder/graphql/schemabuilder"
 	"github.com/samsarahq/thunder/livesql"
 	"github.com/samsarahq/thunder/sqlgen"
 )
@@ -50,11 +51,11 @@ func (s *Server) messageReactions(ctx context.Context, m *Message) ([]*Reaction,
 	return result, nil
 }
 
-func (s *Server) Message() graphql.Spec {
-	return graphql.Spec{
+func (s *Server) Message() schemabuilder.Spec {
+	return schemabuilder.Spec{
 		Type: Message{},
 		Key:  "id",
-		Methods: graphql.Methods{
+		Methods: schemabuilder.Methods{
 			"reactions": s.messageReactions,
 		},
 	}
@@ -71,8 +72,8 @@ type Reaction struct {
 	Count    int
 }
 
-func (s *Server) Reaction() graphql.Spec {
-	return graphql.Spec{
+func (s *Server) Reaction() schemabuilder.Spec {
+	return schemabuilder.Spec{
 		Type: Reaction{},
 		Key:  "reaction",
 	}
@@ -88,10 +89,10 @@ func (s *Server) messages(ctx context.Context) ([]*Message, error) {
 
 type Query struct{}
 
-func (s *Server) Query() graphql.Spec {
-	return graphql.Spec{
+func (s *Server) Query() schemabuilder.Spec {
+	return schemabuilder.Spec{
 		Type: Query{},
-		Methods: graphql.Methods{
+		Methods: schemabuilder.Methods{
 			"messages": s.messages,
 		},
 	}
@@ -99,10 +100,10 @@ func (s *Server) Query() graphql.Spec {
 
 type Mutation struct{}
 
-func (s *Server) Mutation() graphql.Spec {
-	return graphql.Spec{
+func (s *Server) Mutation() schemabuilder.Spec {
+	return schemabuilder.Spec{
 		Type: Mutation{},
-		Methods: graphql.Methods{
+		Methods: schemabuilder.Methods{
 			"addMessage": func(ctx context.Context, args struct{ Text string }) error {
 				_, err := s.db.InsertRow(ctx, &Message{Text: args.Text})
 				return err
@@ -138,7 +139,7 @@ func main() {
 	server := &Server{
 		db: liveDB,
 	}
-	graphqlSchema := graphql.MustBuildSchema(server)
+	graphqlSchema := schemabuilder.MustBuildSchema(server)
 
 	http.Handle("/graphql", graphql.Handler(graphqlSchema))
 	if err := http.ListenAndServe(":3030", nil); err != nil {

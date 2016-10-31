@@ -1,4 +1,4 @@
-package graphql
+package schemabuilder
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/samsarahq/thunder/graphql"
 )
 
 func testMakeGraphql(t *testing.T, s, expected string) {
@@ -64,7 +66,7 @@ type unsupported struct {
 	A byte
 }
 
-func testArgParseOk(t *testing.T, p *ArgParser, input interface{}, expected interface{}) {
+func testArgParseOk(t *testing.T, p *graphql.ArgParser, input interface{}, expected interface{}) {
 	actual, err := p.Parse(input)
 	if err != nil {
 		t.Error(err)
@@ -76,7 +78,7 @@ func testArgParseOk(t *testing.T, p *ArgParser, input interface{}, expected inte
 	}
 }
 
-func testArgParseBad(t *testing.T, p *ArgParser, input interface{}) {
+func testArgParseBad(t *testing.T, p *graphql.ArgParser, input interface{}) {
 	if actual, err := p.Parse(input); err == nil {
 		t.Errorf("expected p(%v) to fail; got %v", input, actual)
 	}
@@ -257,10 +259,10 @@ func (s *schema) Query() Spec {
 			"argsAndCtx": func(r *root, args struct{ A, B int64 }) (int64, error) {
 				return args.A + args.B, nil
 			},
-			"argsCtxAndSelectionSet": func(r *root, args struct{ A, B int64 }, s *SelectionSet) (int64, error) {
+			"argsCtxAndSelectionSet": func(r *root, args struct{ A, B int64 }, s *graphql.SelectionSet) (int64, error) {
 				return int64(len(s.Selections)), nil
 			},
-			"ctxAndSelectionSet": func(r *root, s *SelectionSet) (int64, error) {
+			"ctxAndSelectionSet": func(r *root, s *graphql.SelectionSet) (int64, error) {
 				return int64(len(s.Selections)), nil
 			},
 			"noSource": func(ctx context.Context, args struct{ A, B int64 }) int64 {
@@ -302,7 +304,7 @@ func (s *schema) User() Spec {
 
 func TestMakeSchema(t *testing.T) {
 	schema := MustBuildSchema(&schema{})
-	obj := schema.QueryType.(*Object)
+	obj := schema.QueryType.(*graphql.Object)
 
 	if obj.Name != "root" {
 		t.Errorf("bad name '%s'", obj.Name)
@@ -323,15 +325,15 @@ func TestMakeSchema(t *testing.T) {
 		t.Error("bad alice")
 	}
 
-	if ret, err := obj.Fields["ctxAndSelectionSet"].Resolve(context.Background(), r, nil, &SelectionSet{Selections: []*Selection{nil}}); err != nil || ret != int64(1) {
+	if ret, err := obj.Fields["ctxAndSelectionSet"].Resolve(context.Background(), r, nil, &graphql.SelectionSet{Selections: []*graphql.Selection{nil}}); err != nil || ret != int64(1) {
 		t.Error("bad selection set")
 	}
 
-	if ctx, err := obj.Fields["alice"].Type.(*Object).Fields["ctx"].Resolve(context.WithValue(context.Background(), "flag", true), alice, nil, nil); err != nil || ctx != true {
+	if ctx, err := obj.Fields["alice"].Type.(*graphql.Object).Fields["ctx"].Resolve(context.WithValue(context.Background(), "flag", true), alice, nil, nil); err != nil || ctx != true {
 		t.Error("bad ctx")
 	}
 
-	if key, err := obj.Fields["alice"].Type.(*Object).Key.Resolve(context.Background(), alice, nil, nil); err != nil || key != "alice" {
+	if key, err := obj.Fields["alice"].Type.(*graphql.Object).Key.Resolve(context.Background(), alice, nil, nil); err != nil || key != "alice" {
 		t.Error("bad key")
 	}
 
@@ -375,7 +377,7 @@ func TestMakeSchema(t *testing.T) {
 		t.Error("bad alias")
 	}
 
-	if name, err := obj.Fields["plain"].Type.(*Object).Fields["name"].Resolve(context.Background(), user{Name: "foo"}, nil, nil); err != nil || !reflect.DeepEqual(name, "foo") {
+	if name, err := obj.Fields["plain"].Type.(*graphql.Object).Fields["name"].Resolve(context.Background(), user{Name: "foo"}, nil, nil); err != nil || !reflect.DeepEqual(name, "foo") {
 		t.Error("bad name")
 	}
 
