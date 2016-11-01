@@ -313,8 +313,8 @@ func init() {
 	selectionSetType = reflect.TypeOf(selectionSet)
 }
 
-func (sb *schemaBuilder) buildFunction(struc reflect.Type, fun reflect.Value, ptrSource bool) (*graphql.Field, error) {
-	ptr := reflect.PtrTo(struc)
+func (sb *schemaBuilder) buildFunction(typ reflect.Type, fun reflect.Value) (*graphql.Field, error) {
+	ptr := reflect.PtrTo(typ)
 
 	if fun.Kind() != reflect.Func {
 		return nil, fmt.Errorf("fun must be func, not %s", fun)
@@ -335,7 +335,7 @@ func (sb *schemaBuilder) buildFunction(struc reflect.Type, fun reflect.Value, pt
 		in = in[1:]
 	}
 
-	if len(in) > 0 && (in[0] == struc || in[0] == ptr) {
+	if len(in) > 0 && (in[0] == typ || in[0] == ptr) {
 		hasSource = true
 		ptrFunc = in[0] == ptr
 		in = in[1:]
@@ -357,7 +357,7 @@ func (sb *schemaBuilder) buildFunction(struc reflect.Type, fun reflect.Value, pt
 
 	// We have succeeded if no arguments remain.
 	if len(in) != 0 {
-		return nil, fmt.Errorf("%s arguments should be [context][, [*]%s][, args][, selectionSet]", funcType, struc)
+		return nil, fmt.Errorf("%s arguments should be [context][, [*]%s][, args][, selectionSet]", funcType, typ)
 	}
 
 	// Parse return values. The first return value must be the actual value, and
@@ -412,11 +412,12 @@ func (sb *schemaBuilder) buildFunction(struc reflect.Type, fun reflect.Value, pt
 			// Set up source.
 			if hasSource {
 				sourceValue := reflect.ValueOf(source)
+				ptrSource := sourceValue.Kind() == reflect.Ptr
 				switch {
 				case ptrSource && !ptrFunc:
 					in = append(in, sourceValue.Elem())
 				case !ptrSource && ptrFunc:
-					copyPtr := reflect.New(struc)
+					copyPtr := reflect.New(typ)
 					copyPtr.Elem().Set(sourceValue)
 					in = append(in, copyPtr)
 				default:
@@ -455,7 +456,7 @@ func (sb *schemaBuilder) buildFunction(struc reflect.Type, fun reflect.Value, pt
 	}, nil
 }
 
-func (sb *schemaBuilder) buildField(field reflect.StructField, ptrSource bool) (*graphql.Field, error) {
+func (sb *schemaBuilder) buildField(field reflect.StructField) (*graphql.Field, error) {
 	retType, err := sb.getType(field.Type)
 	if err != nil {
 		return nil, err
@@ -464,7 +465,7 @@ func (sb *schemaBuilder) buildField(field reflect.StructField, ptrSource bool) (
 	return &graphql.Field{
 		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
 			value := reflect.ValueOf(source)
-			if ptrSource {
+			if value.Kind() == reflect.Ptr {
 				value = value.Elem()
 			}
 			return value.FieldByIndex(field.Index).Interface(), nil
@@ -474,33 +475,26 @@ func (sb *schemaBuilder) buildField(field reflect.StructField, ptrSource bool) (
 	}, nil
 }
 
-func (sb *schemaBuilder) buildStruc(struc reflect.Type) error {
-	if sb.types[struc] != nil {
+func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
+	if sb.types[typ] != nil {
 		return nil
 	}
 
-	strucType := &graphql.Object{
-		Name:   struc.Name(),
+	object := &graphql.Object{
+		Name:   typ.Name(),
 		Fields: make(map[string]*graphql.Field),
 	}
-	sb.types[struc] = strucType
-
-	ptr := reflect.PtrTo(struc)
-	ptrType := &graphql.Object{
-		Name:   "*" + struc.Name(),
-		Fields: make(map[string]*graphql.Field),
-	}
-	sb.types[ptr] = ptrType
+	sb.types[typ] = object
 
 	var methods Methods
-	if spec, ok := sb.specs[struc]; ok {
+	if spec, ok := sb.specs[typ]; ok {
 		methods = spec.Methods
 	}
 
 	idx := 0
 
-	for i := 0; i < struc.NumField(); i++ {
-		field := struc.Field(i)
+	for i := 0; i < typ.NumField(); i++ {
+		field := typ.Field(i)
 		if field.PkgPath != "" {
 			continue
 		}
@@ -522,42 +516,29 @@ func (sb *schemaBuilder) buildStruc(struc reflect.Type) error {
 		if len(tags) > 1 {
 			for _, tag := range tags[1:] {
 				if tag != "key" || key {
-					return fmt.Errorf("bad type %s: field %s has unexpected tag %s", struc, name, tag)
+					return fmt.Errorf("bad type %s: field %s has unexpected tag %s", typ, name, tag)
 				}
 				key = true
 			}
 		}
 
-		if _, ok := strucType.Fields[name]; ok {
-			return fmt.Errorf("bad type %s: two fields named %s", struc, name)
+		if _, ok := object.Fields[name]; ok {
+			return fmt.Errorf("bad type %s: two fields named %s", typ, name)
 		}
 
-		built, err := sb.buildField(field, false)
+		built, err := sb.buildField(field)
 		if err != nil {
-			return fmt.Errorf("bad field %s on type %s: %s", name, struc, err)
+			return fmt.Errorf("bad field %s on type %s: %s", name, typ, err)
 		}
 		built.Name = name
 		built.Index = idx
-		strucType.Fields[name] = built
-		if key {
-			if strucType.Key != nil {
-				return fmt.Errorf("bad type %s: multiple key fields", struc)
-			}
-			strucType.Key = built.Resolve
-		}
 
-		built, err = sb.buildField(field, true)
-		if err != nil {
-			return fmt.Errorf("bad field %s on type %s: %s", name, struc, err)
-		}
-		built.Name = name
-		built.Index = idx
-		ptrType.Fields[name] = built
+		object.Fields[name] = built
 		if key {
-			if ptrType.Key != nil {
-				return fmt.Errorf("bad type %s: multiple key fields", struc)
+			if object.Key != nil {
+				return fmt.Errorf("bad type %s: multiple key fields", typ)
 			}
-			ptrType.Key = built.Resolve
+			object.Key = built.Resolve
 		}
 
 		idx++
@@ -572,21 +553,13 @@ func (sb *schemaBuilder) buildStruc(struc reflect.Type) error {
 	for _, name := range names {
 		method := methods[name]
 
-		built, err := sb.buildFunction(struc, reflect.ValueOf(method), false)
+		built, err := sb.buildFunction(typ, reflect.ValueOf(method))
 		if err != nil {
-			return fmt.Errorf("bad method %s on type %s: %s", name, struc, err)
+			return fmt.Errorf("bad method %s on type %s: %s", name, typ, err)
 		}
 		built.Name = name
 		built.Index = idx
-		strucType.Fields[name] = built
-
-		built, err = sb.buildFunction(struc, reflect.ValueOf(method), true)
-		if err != nil {
-			return fmt.Errorf("bad method %s on type %s: %s", name, struc, err)
-		}
-		built.Name = name
-		built.Index = idx
-		ptrType.Fields[name] = built
+		object.Fields[name] = built
 
 		idx++
 	}
@@ -640,17 +613,16 @@ func (sb *schemaBuilder) getType(t reflect.Type) (graphql.Type, error) {
 
 	// Structs
 	if t.Kind() == reflect.Struct {
-		if err := sb.buildStruc(t); err != nil {
+		if err := sb.buildStruct(t); err != nil {
 			return nil, err
 		}
 		return sb.types[t], nil
 	}
-
 	if t.Kind() == reflect.Ptr && t.Elem().Kind() == reflect.Struct {
-		if err := sb.buildStruc(t.Elem()); err != nil {
+		if err := sb.buildStruct(t.Elem()); err != nil {
 			return nil, err
 		}
-		return sb.types[t], nil
+		return sb.types[t.Elem()], nil
 	}
 
 	switch t.Kind() {
