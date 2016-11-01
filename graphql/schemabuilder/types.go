@@ -28,6 +28,13 @@ type Spec struct {
 	Methods Methods
 }
 
+func (s *Spec) FieldFunc(name string, f interface{}) {
+	if s.Methods == nil {
+		s.Methods = make(Methods)
+	}
+	s.Methods[name] = f
+}
+
 // A Methods map represents the set of methods exposed on a Spec.
 //
 // The name of each method should be the exposed GraphQL name of the method (ie

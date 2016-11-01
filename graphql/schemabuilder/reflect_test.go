@@ -248,64 +248,64 @@ type schema struct {
 }
 
 func (s *schema) Query() Spec {
-	return Spec{
+	spec := Spec{
 		Type: root{},
-		Methods: Methods{
-			"auto": func() auto {
-				return auto{Auto: "automagic"}
-			},
-			"alice": func(r *root) *user {
-				return &user{
-					Name: "alice",
-					Age:  10,
-				}
-			},
-			"sum": func(r *root, args struct{ A, B int64 }) (int64, error) {
-				return args.A + args.B, nil
-			},
-			"argsAndCtx": func(r *root, args struct{ A, B int64 }) (int64, error) {
-				return args.A + args.B, nil
-			},
-			"argsCtxAndSelectionSet": func(r *root, args struct{ A, B int64 }, s *graphql.SelectionSet) (int64, error) {
-				return int64(len(s.Selections)), nil
-			},
-			"ctxAndSelectionSet": func(r *root, s *graphql.SelectionSet) (int64, error) {
-				return int64(len(s.Selections)), nil
-			},
-			"noSource": func(ctx context.Context, args struct{ A, B int64 }) int64 {
-				return args.A + args.B*2
-			},
-
-			"bad": func(r *root) (bool, error) {
-				return false, errors.New("bad")
-			},
-			"justError": func(r *root, args struct{ Ok bool }) error {
-				if args.Ok {
-					return nil
-				} else {
-					return errors.New("bad")
-				}
-			},
-		},
 	}
+	spec.FieldFunc("auto", func() auto {
+		return auto{Auto: "automagic"}
+	})
+	spec.FieldFunc("alice", func(r *root) *user {
+		return &user{
+			Name: "alice",
+			Age:  10,
+		}
+	})
+	spec.FieldFunc("sum", func(r *root, args struct {
+		A, B int64
+	}) (int64, error) {
+		return args.A + args.B, nil
+	})
+	spec.FieldFunc("argsAndCtx", func(r *root, args struct {
+		A, B int64
+	}) (int64, error) {
+		return args.A + args.B, nil
+	})
+	spec.FieldFunc("argsCtxAndSelectionSet", func(r *root, args struct{ A, B int64 }, s *graphql.SelectionSet) (int64, error) {
+		return int64(len(s.Selections)), nil
+	})
+	spec.FieldFunc("ctxAndSelectionSet", func(r *root, s *graphql.SelectionSet) (int64, error) {
+		return int64(len(s.Selections)), nil
+	})
+	spec.FieldFunc("noSource", func(ctx context.Context, args struct{ A, B int64 }) int64 {
+		return args.A + args.B*2
+	})
+	spec.FieldFunc("bad", func(r *root) (bool, error) {
+		return false, errors.New("bad")
+	})
+	spec.FieldFunc("justError", func(r *root, args struct{ Ok bool }) error {
+		if args.Ok {
+			return nil
+		} else {
+			return errors.New("bad")
+		}
+	})
+	return spec
 }
 
 func (s *schema) Mutation() Spec {
 	return Spec{
-		Type:    empty{},
-		Methods: nil,
+		Type: empty{},
 	}
 }
 
 func (s *schema) User() Spec {
-	return Spec{
+	spec := Spec{
 		Type: user{},
-		Methods: Methods{
-			"ctx": func(ctx context.Context, u *user) bool {
-				return ctx.Value("flag").(bool)
-			},
-		},
 	}
+	spec.FieldFunc("ctx", func(ctx context.Context, u *user) bool {
+		return ctx.Value("flag").(bool)
+	})
+	return spec
 }
 
 func TestMakeSchema(t *testing.T) {

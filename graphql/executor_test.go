@@ -28,62 +28,62 @@ func panicFunction() int64 {
 }
 
 func (s *schema) Query() schemabuilder.Spec {
-	return schemabuilder.Spec{
+	spec := schemabuilder.Spec{
 		Type: root{},
-		Methods: schemabuilder.Methods{
-			"users": func() []*user {
-				return []*user{
-					{Name: "Alice", Age: 10},
-					{Name: "Bob", Age: 20},
-				}
-			},
-			"optional": func(args struct{ X *int64 }) int64 {
-				if args.X != nil {
-					return *args.X
-				}
-				return -1
-			},
-			"nilObject": func() *user {
-				return nil
-			},
-			"nilSlice": func() []*user {
-				return nil
-			},
-			"bad": func() (string, error) {
-				return "", errors.New("BAD")
-			},
-			"sum": func(args struct{ A, B int64 }) (int64, error) {
-				return args.A + args.B, nil
-			},
-			"ints": func() []int64 {
-				return []int64{1, 2, 3, 4}
-			},
-			"nested": func(r *root) *root {
-				return r
-			},
-			"ptr": func() *user {
-				return &user{
-					Name: "Charlie",
-					Age:  5,
-				}
-			},
-			"plain": func() user {
-				return user{
-					Name: "Jane",
-					Age:  5,
-				}
-			},
-			"optionalField": func(args struct{ Optional *int64 }) *int64 {
-				return args.Optional
-			},
-			"getCtx": func(ctx context.Context) (string, error) {
-				return ctx.Value("foo").(string), nil
-			},
-			"panic": func() int64 {
-				return panicFunction()
-			},
-		},
 	}
+	spec.FieldFunc("users", func() []*user {
+		return []*user{
+			{Name: "Alice", Age: 10},
+			{Name: "Bob", Age: 20},
+		}
+	})
+	spec.FieldFunc("optional", func(args struct{ X *int64 }) int64 {
+		if args.X != nil {
+			return *args.X
+		}
+		return -1
+	})
+	spec.FieldFunc("nilObject", func() *user {
+		return nil
+	})
+	spec.FieldFunc("nilSlice", func() []*user {
+		return nil
+	})
+	spec.FieldFunc("bad", func() (string, error) {
+		return "", errors.New("BAD")
+	})
+	spec.FieldFunc("sum", func(args struct{ A, B int64 }) (int64, error) {
+		return args.A + args.B, nil
+	})
+	spec.FieldFunc("ints", func() []int64 {
+		return []int64{1, 2, 3, 4}
+	})
+	spec.FieldFunc("nested", func(r *root) *root {
+		return r
+	})
+	spec.FieldFunc("ptr", func() *user {
+		return &user{
+			Name: "Charlie",
+			Age:  5,
+		}
+	})
+	spec.FieldFunc("plain", func() user {
+		return user{
+			Name: "Jane",
+			Age:  5,
+		}
+	})
+	spec.FieldFunc("optionalField", func(args struct{ Optional *int64 }) *int64 {
+		return args.Optional
+	})
+	spec.FieldFunc("getCtx", func(ctx context.Context) (string, error) {
+		return ctx.Value("foo").(string), nil
+	})
+	spec.FieldFunc("panic", func() int64 {
+		return panicFunction()
+	})
+
+	return spec
 }
 
 type empty struct{}
@@ -100,20 +100,19 @@ type user struct {
 }
 
 func (s *schema) User() schemabuilder.Spec {
-	return schemabuilder.Spec{
+	spec := schemabuilder.Spec{
 		Type: user{},
-		Methods: schemabuilder.Methods{
-			"byRef": func(u *user) string {
-				return "byRef"
-			},
-			"byVal": func(u user) string {
-				return "byVal"
-			},
-			"friends": func(u *user) []*user {
-				return []*user{}
-			},
-		},
 	}
+	spec.FieldFunc("byRef", func(u *user) string {
+		return "byRef"
+	})
+	spec.FieldFunc("byVal", func(u user) string {
+		return "byVal"
+	})
+	spec.FieldFunc("friends", func(u *user) []*user {
+		return []*user{}
+	})
+	return spec
 }
 
 var builtSchema = schemabuilder.MustBuildSchema(&schema{})

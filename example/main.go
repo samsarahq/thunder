@@ -40,12 +40,11 @@ type Server struct {
 type Query struct{}
 
 func (s *Server) Query() schemabuilder.Spec {
-	return schemabuilder.Spec{
+	spec := schemabuilder.Spec{
 		Type: Query{},
-		Methods: schemabuilder.Methods{
-			"messages": s.messages,
-		},
 	}
+	spec.FieldFunc("messages", s.messages)
+	return spec
 }
 
 func (s *Server) messages(ctx context.Context) ([]*Message, error) {
@@ -59,38 +58,36 @@ func (s *Server) messages(ctx context.Context) ([]*Message, error) {
 type Mutation struct{}
 
 func (s *Server) Mutation() schemabuilder.Spec {
-	return schemabuilder.Spec{
+	spec := schemabuilder.Spec{
 		Type: Mutation{},
-		Methods: schemabuilder.Methods{
-			"addMessage": func(ctx context.Context, args struct{ Text string }) error {
-				_, err := s.db.InsertRow(ctx, &Message{Text: args.Text})
-				return err
-			},
-			"deleteMessage": func(ctx context.Context, args struct{ Id int64 }) error {
-				return s.db.DeleteRow(ctx, &Message{Id: args.Id})
-			},
-			"addReaction": func(ctx context.Context, args struct {
-				MessageId int64
-				Reaction  string
-			}) error {
-				if _, ok := reactionTypes[args.Reaction]; !ok {
-					return errors.New("reaction not allowed")
-				}
-
-				_, err := s.db.InsertRow(ctx, &ReactionInstance{MessageId: args.MessageId, Reaction: args.Reaction})
-				return err
-			},
-		},
 	}
+	spec.FieldFunc("addMessage", func(ctx context.Context, args struct{ Text string }) error {
+		_, err := s.db.InsertRow(ctx, &Message{Text: args.Text})
+		return err
+	})
+	spec.FieldFunc("deleteMessage", func(ctx context.Context, args struct{ Id int64 }) error {
+		return s.db.DeleteRow(ctx, &Message{Id: args.Id})
+	})
+	spec.FieldFunc("addReaction", func(ctx context.Context, args struct {
+		MessageId int64
+		Reaction  string
+	}) error {
+		if _, ok := reactionTypes[args.Reaction]; !ok {
+			return errors.New("reaction not allowed")
+		}
+
+		_, err := s.db.InsertRow(ctx, &ReactionInstance{MessageId: args.MessageId, Reaction: args.Reaction})
+		return err
+	})
+	return spec
 }
 
 func (s *Server) Message() schemabuilder.Spec {
-	return schemabuilder.Spec{
+	spec := schemabuilder.Spec{
 		Type: Message{},
-		Methods: schemabuilder.Methods{
-			"reactions": s.messageReactions,
-		},
 	}
+	spec.FieldFunc("reactions", s.messageReactions)
+	return spec
 }
 
 func (s *Server) messageReactions(ctx context.Context, m *Message) ([]*Reaction, error) {
