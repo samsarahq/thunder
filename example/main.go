@@ -43,16 +43,14 @@ func (s *Server) Query() schemabuilder.Spec {
 	spec := schemabuilder.Spec{
 		Type: Query{},
 	}
-	spec.FieldFunc("messages", s.messages)
+	spec.FieldFunc("messages", func(ctx context.Context) ([]*Message, error) {
+		var result []*Message
+		if err := s.db.Query(ctx, &result, nil, nil); err != nil {
+			return nil, err
+		}
+		return result, nil
+	})
 	return spec
-}
-
-func (s *Server) messages(ctx context.Context) ([]*Message, error) {
-	var result []*Message
-	if err := s.db.Query(ctx, &result, nil, nil); err != nil {
-		return nil, err
-	}
-	return result, nil
 }
 
 type Mutation struct{}
@@ -75,7 +73,6 @@ func (s *Server) Mutation() schemabuilder.Spec {
 		if _, ok := reactionTypes[args.Reaction]; !ok {
 			return errors.New("reaction not allowed")
 		}
-
 		_, err := s.db.InsertRow(ctx, &ReactionInstance{MessageId: args.MessageId, Reaction: args.Reaction})
 		return err
 	})
@@ -86,33 +83,31 @@ func (s *Server) Message() schemabuilder.Spec {
 	spec := schemabuilder.Spec{
 		Type: Message{},
 	}
-	spec.FieldFunc("reactions", s.messageReactions)
-	return spec
-}
-
-func (s *Server) messageReactions(ctx context.Context, m *Message) ([]*Reaction, error) {
-	reactions := make(map[string]*Reaction)
-	for reactionType := range reactionTypes {
-		reactions[reactionType] = &Reaction{
-			Reaction: reactionType,
+	spec.FieldFunc("reactions", func(ctx context.Context, m *Message) ([]*Reaction, error) {
+		reactions := make(map[string]*Reaction)
+		for reactionType := range reactionTypes {
+			reactions[reactionType] = &Reaction{
+				Reaction: reactionType,
+			}
 		}
-	}
 
-	var instances []*ReactionInstance
-	if err := s.db.Query(ctx, &instances, sqlgen.Filter{"message_id": m.Id}, nil); err != nil {
-		return nil, err
-	}
-	for _, instance := range instances {
-		reactions[instance.Reaction].Count++
-	}
+		var instances []*ReactionInstance
+		if err := s.db.Query(ctx, &instances, sqlgen.Filter{"message_id": m.Id}, nil); err != nil {
+			return nil, err
+		}
+		for _, instance := range instances {
+			reactions[instance.Reaction].Count++
+		}
 
-	var result []*Reaction
-	for _, reaction := range reactions {
-		result = append(result, reaction)
-	}
-	slice.Sort(result, func(a, b int) bool { return result[a].Reaction < result[b].Reaction })
+		var result []*Reaction
+		for _, reaction := range reactions {
+			result = append(result, reaction)
+		}
+		slice.Sort(result, func(a, b int) bool { return result[a].Reaction < result[b].Reaction })
 
-	return result, nil
+		return result, nil
+	})
+	return spec
 }
 
 func main() {
