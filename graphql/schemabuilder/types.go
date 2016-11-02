@@ -24,6 +24,7 @@ package schemabuilder
 //     }
 //
 type Spec struct {
+	Name    string // Optional, defaults to Type's name.
 	Type    interface{}
 	Methods Methods
 }

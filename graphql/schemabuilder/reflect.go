@@ -480,16 +480,22 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 		return nil
 	}
 
-	object := &graphql.Object{
-		Name:   typ.Name(),
-		Fields: make(map[string]*graphql.Field),
-	}
-	sb.types[typ] = object
-
+	var name string
 	var methods Methods
 	if spec, ok := sb.specs[typ]; ok {
 		methods = spec.Methods
+		name = spec.Name
 	}
+
+	if name == "" {
+		name = typ.Name()
+	}
+
+	object := &graphql.Object{
+		Name:   name,
+		Fields: make(map[string]*graphql.Field),
+	}
+	sb.types[typ] = object
 
 	idx := 0
 
