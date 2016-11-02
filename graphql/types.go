@@ -68,10 +68,8 @@ type Field struct {
 }
 
 type Schema struct {
-	QueryRoot    interface{}
-	QueryType    Type
-	MutationRoot interface{}
-	MutationType Type
+	Query    Type
+	Mutation Type
 }
 
 // SelectionSet represents a core GraphQL query

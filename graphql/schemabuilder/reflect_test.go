@@ -310,7 +310,7 @@ func (s *schema) User() Spec {
 
 func TestMakeSchema(t *testing.T) {
 	schema := MustBuildSchema(&schema{})
-	obj := schema.QueryType.(*graphql.Object)
+	obj := schema.Query.(*graphql.Object)
 
 	if obj.Name != "root" {
 		t.Errorf("bad name '%s'", obj.Name)

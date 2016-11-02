@@ -700,10 +700,8 @@ func BuildSchema(server interface{}) (*graphql.Schema, error) {
 		return nil, err
 	}
 	return &graphql.Schema{
-		QueryRoot:    querySpec.Type,
-		QueryType:    queryTyp,
-		MutationRoot: mutationSpec.Type,
-		MutationType: mutationTyp,
+		Query:    queryTyp,
+		Mutation: mutationTyp,
 	}, nil
 }
 

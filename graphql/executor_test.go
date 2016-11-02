@@ -149,13 +149,13 @@ func TestExecuteGood(t *testing.T) {
     }
   `, map[string]interface{}{"var": float64(3)})
 
-	if err := graphql.PrepareQuery(builtSchema.QueryType, q); err != nil {
+	if err := graphql.PrepareQuery(builtSchema.Query, q); err != nil {
 		t.Error(err)
 	}
 
 	e := graphql.Executor{MaxConcurrency: 1}
 
-	result, err := e.Execute(ctx, builtSchema.QueryType, r, q)
+	result, err := e.Execute(ctx, builtSchema.Query, r, q)
 	if err != nil {
 		t.Error(err)
 	}
@@ -201,12 +201,12 @@ func TestBad(t *testing.T) {
     }
   `, map[string]interface{}{})
 
-	if err := graphql.PrepareQuery(builtSchema.QueryType, q); err != nil {
+	if err := graphql.PrepareQuery(builtSchema.Query, q); err != nil {
 		t.Error(err)
 	}
 
 	e := graphql.Executor{MaxConcurrency: 1}
-	_, err := e.Execute(context.Background(), builtSchema.QueryType, r, q)
+	_, err := e.Execute(context.Background(), builtSchema.Query, r, q)
 	if err == nil {
 		t.Error("expected bad error")
 	}
@@ -219,7 +219,7 @@ func TestMissingField(t *testing.T) {
     }
   `, map[string]interface{}{})
 
-	if err := graphql.PrepareQuery(builtSchema.QueryType, q); err == nil {
+	if err := graphql.PrepareQuery(builtSchema.Query, q); err == nil {
 		t.Error("expected error")
 	}
 }
@@ -231,7 +231,7 @@ func TestMissingSelectors(t *testing.T) {
     }
   `, map[string]interface{}{})
 
-	if err := graphql.PrepareQuery(builtSchema.QueryType, q); err == nil {
+	if err := graphql.PrepareQuery(builtSchema.Query, q); err == nil {
 		t.Error("expected error")
 	}
 }
@@ -243,7 +243,7 @@ func TestUnwantedSelectors(t *testing.T) {
     }
   `, map[string]interface{}{})
 
-	if err := graphql.PrepareQuery(builtSchema.QueryType, q); err == nil {
+	if err := graphql.PrepareQuery(builtSchema.Query, q); err == nil {
 		t.Error("expected error")
 	}
 }
@@ -255,7 +255,7 @@ func TestBadArgs(t *testing.T) {
     }
   `, map[string]interface{}{})
 
-	if err := graphql.PrepareQuery(builtSchema.QueryType, q); err == nil {
+	if err := graphql.PrepareQuery(builtSchema.Query, q); err == nil {
 		t.Error("expected error")
 	}
 }
@@ -269,13 +269,13 @@ func TestReportPanic(t *testing.T) {
 		}
   `, nil)
 
-	if err := graphql.PrepareQuery(builtSchema.QueryType, q); err != nil {
+	if err := graphql.PrepareQuery(builtSchema.Query, q); err != nil {
 		t.Error(err)
 	}
 
 	e := graphql.Executor{MaxConcurrency: 1}
 
-	_, err := e.Execute(context.Background(), builtSchema.QueryType, root{}, q)
+	_, err := e.Execute(context.Background(), builtSchema.Query, root{}, q)
 	if err == nil {
 		t.Error("expected error from panic")
 	}

@@ -131,7 +131,7 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 	if err != nil {
 		return err
 	}
-	if err := PrepareQuery(c.schema.QueryType, selectionSet); err != nil {
+	if err := PrepareQuery(c.schema.Query, selectionSet); err != nil {
 		return err
 	}
 
@@ -143,7 +143,7 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 
 	c.subscriptions[id] = reactive.NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
 		ctx = c.makeCtx(ctx)
-		current, err := e.Execute(ctx, c.schema.QueryType, c.schema.QueryRoot, selectionSet)
+		current, err := e.Execute(ctx, c.schema.Query, nil, selectionSet)
 		if err != nil {
 			c.writeOrClose(id, "error", sanitizeError(err))
 			go c.closeSubscription(id)
@@ -175,7 +175,7 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 	if err != nil {
 		return err
 	}
-	if err := PrepareQuery(c.schema.MutationType, selectionSet); err != nil {
+	if err := PrepareQuery(c.schema.Mutation, selectionSet); err != nil {
 		return err
 	}
 
@@ -185,7 +185,7 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 
 	c.subscriptions[id] = reactive.NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
 		ctx = c.makeCtx(context.Background())
-		current, err := e.Execute(ctx, c.schema.MutationType, c.schema.MutationRoot, selectionSet)
+		current, err := e.Execute(ctx, c.schema.Mutation, c.schema.Mutation, selectionSet)
 		if err != nil {
 			c.writeOrClose(id, "error", sanitizeError(err))
 			go c.closeSubscription(id)
