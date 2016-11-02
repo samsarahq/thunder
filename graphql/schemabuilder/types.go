@@ -26,7 +26,7 @@ package schemabuilder
 type Spec struct {
 	Name    string // Optional, defaults to Type's name.
 	Type    interface{}
-	Methods Methods
+	Methods Methods // Deprecated, use FieldFunc instead.
 }
 
 func (s *Spec) FieldFunc(name string, f interface{}) {
