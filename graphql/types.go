@@ -62,12 +62,8 @@ type Resolver func(ctx context.Context, source, args interface{}, selectionSet *
 //
 // Fields are responsible for computing their value themselves.
 type Field struct {
-	Name  string
-	Index int
-
-	Resolve Resolver
-	Type    Type
-
+	Resolve        Resolver
+	Type           Type
 	ParseArguments func(json interface{}) (interface{}, error)
 }
 

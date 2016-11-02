@@ -497,8 +497,6 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 	}
 	sb.types[typ] = object
 
-	idx := 0
-
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
 		if field.PkgPath != "" {
@@ -536,9 +534,6 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 		if err != nil {
 			return fmt.Errorf("bad field %s on type %s: %s", name, typ, err)
 		}
-		built.Name = name
-		built.Index = idx
-
 		object.Fields[name] = built
 		if key {
 			if object.Key != nil {
@@ -546,8 +541,6 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 			}
 			object.Key = built.Resolve
 		}
-
-		idx++
 	}
 
 	var names []string
@@ -563,22 +556,14 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 		if err != nil {
 			return fmt.Errorf("bad method %s on type %s: %s", name, typ, err)
 		}
-		built.Name = name
-		built.Index = idx
 		object.Fields[name] = built
-
-		idx++
 	}
 
 	object.Fields["__typename"] = &graphql.Field{
-		Name:  "__typename",
-		Index: idx,
-
 		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
 			return name, nil
 		},
-		Type: &graphql.Scalar{Type: "string"},
-
+		Type:           &graphql.Scalar{Type: "string"},
 		ParseArguments: nilParseArguments,
 	}
 
