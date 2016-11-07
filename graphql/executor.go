@@ -95,9 +95,10 @@ func executeObject(ctx context.Context, typ *Object, source interface{}, selecti
 	// don't need to recompute
 	key := objectCacheKey{typ: typ, source: source, selectionSet: selectionSet}
 
-	// some types can't be put in a map; for those, use a always different value as source
-	if !value.Type().Comparable() {
-		key.source = &struct{}{}
+	// some types can't be put in a map; for those, use a always different value
+	// as source
+	if value.IsValid() && !value.Type().Comparable() {
+		key.source = new(struct{})
 	}
 
 	return reactive.Cache(ctx, key, func(ctx context.Context) (interface{}, error) {

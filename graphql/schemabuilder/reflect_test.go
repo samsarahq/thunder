@@ -11,6 +11,184 @@ import (
 	"github.com/samsarahq/thunder/graphql"
 )
 
+type alias int64
+
+type root struct {
+	X     int64 `graphql:"yyy"`
+	Time  time.Time
+	Bytes []byte
+	Alias alias
+}
+
+type schema struct{}
+
+func panicFunction() int64 {
+	panic("oh no!")
+}
+
+func (s *schema) Query() Spec {
+	spec := Spec{
+		Type: root{},
+	}
+	spec.FieldFunc("users", func() []*user {
+		return []*user{
+			{Name: "Alice", Age: 10},
+			{Name: "Bob", Age: 20},
+		}
+	})
+	spec.FieldFunc("optional", func(args struct{ X *int64 }) int64 {
+		if args.X != nil {
+			return *args.X
+		}
+		return -1
+	})
+	spec.FieldFunc("nilObject", func() *user {
+		return nil
+	})
+	spec.FieldFunc("nilSlice", func() []*user {
+		return nil
+	})
+	spec.FieldFunc("bad", func() (string, error) {
+		return "", errors.New("BAD")
+	})
+	spec.FieldFunc("sum", func(args struct{ A, B int64 }) (int64, error) {
+		return args.A + args.B, nil
+	})
+	spec.FieldFunc("ints", func() []int64 {
+		return []int64{1, 2, 3, 4}
+	})
+	spec.FieldFunc("nested", func(r *root) *root {
+		return r
+	})
+	spec.FieldFunc("ptr", func() *user {
+		return &user{
+			Name: "Charlie",
+			Age:  5,
+		}
+	})
+	spec.FieldFunc("plain", func() user {
+		return user{
+			Name: "Jane",
+			Age:  5,
+		}
+	})
+	spec.FieldFunc("optionalField", func(args struct{ Optional *int64 }) *int64 {
+		return args.Optional
+	})
+	spec.FieldFunc("getCtx", func(ctx context.Context) (string, error) {
+		return ctx.Value("foo").(string), nil
+	})
+	spec.FieldFunc("panic", func() int64 {
+		return panicFunction()
+	})
+
+	return spec
+}
+
+type empty struct{}
+
+func (s *schema) Mutation() Spec {
+	return Spec{
+		Type: empty{},
+	}
+}
+
+type user struct {
+	Name string `graphql:",key"`
+	Age  int64
+}
+
+func (s *schema) User() Spec {
+	spec := Spec{
+		Type: user{},
+	}
+	spec.FieldFunc("byRef", func(u *user) string {
+		return "byRef"
+	})
+	spec.FieldFunc("byVal", func(u user) string {
+		return "byVal"
+	})
+	spec.FieldFunc("friends", func(u *user) []*user {
+		return []*user{}
+	})
+	return spec
+}
+
+func TestExecuteGood(t *testing.T) {
+	builtSchema := MustBuildSchema(&schema{})
+
+	r := root{X: 1234, Time: time.Unix(1458757911, 0).UTC(), Bytes: []byte("bar"), Alias: 999}
+
+	ctx := context.WithValue(context.Background(), "foo", "hello there")
+
+	q := graphql.MustParse(`
+		{
+			users {
+				name
+				foo: age
+				friends { name }
+			}
+			bar: yyy
+			ints
+			nested {
+				getCtx
+				sum(a: 1, b: $var)
+			}
+			nilObject { name }
+			nilSlice { name }
+			has: optional(x: 10)
+			hasNot: optional
+			hasField: optionalField(optional: 10)
+			hasNotField: optionalField
+			time
+			bytes
+			ptr { name age byRef byVal }
+			plain { name age byRef byVal }
+			alias
+		}
+	`, map[string]interface{}{"var": float64(3)})
+
+	if err := graphql.PrepareQuery(builtSchema.Query, q); err != nil {
+		t.Error(err)
+	}
+
+	e := graphql.Executor{MaxConcurrency: 1}
+
+	result, err := e.Execute(ctx, builtSchema.Query, r, q)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !reflect.DeepEqual(asJSON(result), parseJSON(`
+		{"users": [
+			{"name": "Alice", "foo": 10, "friends": []},
+			{"name": "Bob", "foo": 20, "friends": []}
+		],
+		"bar": 1234,
+		"nilObject": null,
+		"nilSlice": [],
+		"has": 10,
+		"hasNot": -1,
+		"hasField": 10,
+		"hasNotField": null,
+		"ints": [1, 2, 3, 4],
+		"nested": {
+			"getCtx": "hello there",
+			"sum": 4
+		},
+		"time": "2016-03-23T18:31:51Z",
+		"bytes": "YmFy",
+		"ptr": {"name": "Charlie", "age": 5, "byRef": "byRef", "byVal": "byVal"},
+		"plain": {"name": "Jane", "age": 5, "byRef": "byRef", "byVal": "byVal"},
+		"alias": 999}`)) {
+		t.Error("bad value")
+	}
+
+	if result.(*graphql.DiffableObject).Fields["users"].(*graphql.DiffableList).Items[0].(*graphql.DiffableObject).Key != "Alice" {
+		t.Error("expected key")
+	}
+}
+
 func testMakeGraphql(t *testing.T, s, expected string) {
 	actual := makeGraphql(s)
 	if actual != expected {
@@ -24,6 +202,14 @@ func TestMakeGraphql(t *testing.T) {
 	testMakeGraphql(t, "ABC", "aBC")
 }
 
+func marshalJSON(v interface{}) string {
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	return string(bytes)
+}
+
 func parseJSON(s string) interface{} {
 	var v interface{}
 	if err := json.Unmarshal([]byte(s), &v); err != nil {
@@ -32,11 +218,13 @@ func parseJSON(s string) interface{} {
 	return v
 }
 
+func asJSON(v interface{}) interface{} {
+	return parseJSON(marshalJSON(v))
+}
+
 type inner struct {
 	Custom float64 `graphql:"foo"`
 }
-
-type alias int64
 
 type kitchenSinkArgs struct {
 	Child           inner
@@ -91,18 +279,18 @@ func TestArgParser(t *testing.T) {
 	}
 
 	testArgParseOk(t, parser, parseJSON(`
-    {
-      "child": {"foo": 12.5},
-      "hello": 20,
-      "hello32": 20,
-      "hello16": 20,
-      "fooBar": "foo!",
-      "bool": true,
-      "ints": [1, 2, 3],
-      "base64": "Zm9v",
-      "alias": 999
-    }
-  `), kitchenSinkArgs{
+		{
+			"child": {"foo": 12.5},
+			"hello": 20,
+			"hello32": 20,
+			"hello16": 20,
+			"fooBar": "foo!",
+			"bool": true,
+			"ints": [1, 2, 3],
+			"base64": "Zm9v",
+			"alias": 999
+		}
+	`), kitchenSinkArgs{
 		Child:           inner{Custom: 12.5},
 		Hello:           20,
 		Hello32:         20,
@@ -120,21 +308,21 @@ func TestArgParser(t *testing.T) {
 	var ten = int64(10)
 
 	testArgParseOk(t, parser, parseJSON(`
-    {
-      "child": {"foo": 22.5},
-      "hello": 40,
-      "hello32": 40,
-      "hello16": 40,
-      "fooBar": "bar!",
-      "bool": false,
-      "optionalInt": 10,
-      "optionalStruct": {"foo": 20},
-      "ints": [6, 6, 6],
-      "optionalStructs": [{"foo": 1}, {"foo": 2}],
-      "base64": "MQ==",
-      "alias": 1234
-    }
-  `), kitchenSinkArgs{
+		{
+			"child": {"foo": 22.5},
+			"hello": 40,
+			"hello32": 40,
+			"hello16": 40,
+			"fooBar": "bar!",
+			"bool": false,
+			"optionalInt": 10,
+			"optionalStruct": {"foo": 20},
+			"ints": [6, 6, 6],
+			"optionalStructs": [{"foo": 1}, {"foo": 2}],
+			"base64": "MQ==",
+			"alias": 1234
+		}
+	`), kitchenSinkArgs{
 		Child:           inner{Custom: 22.5},
 		Hello:           40,
 		Hello32:         40,
@@ -150,64 +338,64 @@ func TestArgParser(t *testing.T) {
 	})
 
 	testArgParseBad(t, parser, parseJSON(`
-    {
-      "child": {"bar": 22.5},
-      "hello": 40,
-      "fooBar": "bar!",
-      "bool": false,
-      "ints": [1, 2, 3],
-      "base64": "Zm9v",
-      "alias": 999
-    }
-  `))
+		{
+			"child": {"bar": 22.5},
+			"hello": 40,
+			"fooBar": "bar!",
+			"bool": false,
+			"ints": [1, 2, 3],
+			"base64": "Zm9v",
+			"alias": 999
+		}
+	`))
 
 	testArgParseBad(t, parser, parseJSON(`
-    {
-      "child": {"foo": 22.5},
-      "hello": "xyz",
-      "fooBar": "bar!",
-      "bool": false,
-      "ints": [1, 2, 3],
-      "base64": "Zm9v",
-      "alias": 999
-    }
-  `))
+		{
+			"child": {"foo": 22.5},
+			"hello": "xyz",
+			"fooBar": "bar!",
+			"bool": false,
+			"ints": [1, 2, 3],
+			"base64": "Zm9v",
+			"alias": 999
+		}
+	`))
 
 	testArgParseBad(t, parser, parseJSON(`
-    {
-      "child": {"foo": 22.5},
-      "hello": 40,
-      "fooBar": {"xyz": "abc"},
-      "bool": false,
-      "ints": [1, 2, 3],
-      "base64": "Zm9v",
-      "alias": 999
-    }
-  `))
+		{
+			"child": {"foo": 22.5},
+			"hello": 40,
+			"fooBar": {"xyz": "abc"},
+			"bool": false,
+			"ints": [1, 2, 3],
+			"base64": "Zm9v",
+			"alias": 999
+		}
+	`))
 
 	testArgParseBad(t, parser, parseJSON(`
-    {
-      "child": {"foo": 22.5},
-      "hello": 40,
-      "fooBar": {"xyz": "abc"},
-      "bool": false,
-      "ints": [1, 2, "foo"],
-      "base64": "Zm9v",
-      "alias": 999
-    }
-  `))
+		{
+			"child": {"foo": 22.5},
+			"hello": 40,
+			"fooBar": {"xyz": "abc"},
+			"bool": false,
+			"ints": [1, 2, "foo"],
+			"base64": "Zm9v",
+			"alias": 999
+		}
+	`))
 
 	testArgParseBad(t, parser, parseJSON(`
-    {
-      "child": {"foo": 12.5},
-      "hello": 20,
-      "fooBar": "foo!",
-      "bool": true,
-      "ints": [1, 2, 3],
-      "base64": "a",
-      "alias": 999
-    }
-  `))
+		{
+			"child": {"foo": 12.5},
+			"hello": 20,
+			"fooBar": "foo!",
+			"bool": true,
+			"ints": [1, 2, 3],
+			"base64": "a",
+			"alias": 999
+		}
+	`))
 
 	if _, err := makeArgParser(reflect.TypeOf(&duplicate{})); err == nil {
 		t.Error("expected duplicate fields to fail")
@@ -221,229 +409,3 @@ func TestArgParser(t *testing.T) {
 		t.Error("expected unsupported fields to fail")
 	}
 }
-
-type user struct {
-	Name string `graphql:",key"`
-	Age  int64
-}
-
-type auto struct {
-	Auto string
-}
-
-type empty struct{}
-
-type root struct {
-	Foo      int64
-	Bar      string
-	Baz      []int64 `graphql:"array"`
-	Optional *int64
-	Time     time.Time
-	Bytes    []byte
-	Plain    user
-	Alias    alias
-}
-
-type schema struct {
-}
-
-func (s *schema) Query() Spec {
-	spec := Spec{
-		Type: root{},
-	}
-	spec.FieldFunc("auto", func() auto {
-		return auto{Auto: "automagic"}
-	})
-	spec.FieldFunc("alice", func(r *root) *user {
-		return &user{
-			Name: "alice",
-			Age:  10,
-		}
-	})
-	spec.FieldFunc("sum", func(r *root, args struct {
-		A, B int64
-	}) (int64, error) {
-		return args.A + args.B, nil
-	})
-	spec.FieldFunc("argsAndCtx", func(r *root, args struct {
-		A, B int64
-	}) (int64, error) {
-		return args.A + args.B, nil
-	})
-	spec.FieldFunc("argsCtxAndSelectionSet", func(r *root, args struct{ A, B int64 }, s *graphql.SelectionSet) (int64, error) {
-		return int64(len(s.Selections)), nil
-	})
-	spec.FieldFunc("ctxAndSelectionSet", func(r *root, s *graphql.SelectionSet) (int64, error) {
-		return int64(len(s.Selections)), nil
-	})
-	spec.FieldFunc("noSource", func(ctx context.Context, args struct{ A, B int64 }) int64 {
-		return args.A + args.B*2
-	})
-	spec.FieldFunc("bad", func(r *root) (bool, error) {
-		return false, errors.New("bad")
-	})
-	spec.FieldFunc("justError", func(r *root, args struct{ Ok bool }) error {
-		if args.Ok {
-			return nil
-		} else {
-			return errors.New("bad")
-		}
-	})
-	return spec
-}
-
-func (s *schema) Mutation() Spec {
-	return Spec{
-		Type: empty{},
-	}
-}
-
-func (s *schema) User() Spec {
-	spec := Spec{
-		Type: user{},
-	}
-	spec.FieldFunc("ctx", func(ctx context.Context, u *user) bool {
-		return ctx.Value("flag").(bool)
-	})
-	return spec
-}
-
-func TestMakeSchema(t *testing.T) {
-	schema := MustBuildSchema(&schema{})
-	obj := schema.Query.(*graphql.Object)
-
-	if obj.Name != "root" {
-		t.Errorf("bad name '%s'", obj.Name)
-	}
-
-	r := root{Foo: 10, Bar: "abc", Baz: []int64{1, 2, 3}, Optional: nil, Time: time.Unix(1458757911, 0).UTC(), Bytes: []byte("foo"), Alias: 1234}
-
-	if ret, err := obj.Fields["sum"].Resolve(context.Background(), r, struct{ A, B int64 }{A: 5, B: 5}, nil); err != nil || ret != int64(10) {
-		t.Error("bad sum")
-	}
-
-	if ret, err := obj.Fields["noSource"].Resolve(context.Background(), r, struct{ A, B int64 }{A: 3, B: 8}, nil); err != nil || ret != int64(19) {
-		t.Error("bad noSource")
-	}
-
-	alice, err := obj.Fields["alice"].Resolve(context.Background(), r, nil, nil)
-	if err != nil || !reflect.DeepEqual(alice, &user{Name: "alice", Age: 10}) {
-		t.Error("bad alice")
-	}
-
-	if ret, err := obj.Fields["ctxAndSelectionSet"].Resolve(context.Background(), r, nil, &graphql.SelectionSet{Selections: []*graphql.Selection{nil}}); err != nil || ret != int64(1) {
-		t.Error("bad selection set")
-	}
-
-	if ctx, err := obj.Fields["alice"].Type.(*graphql.Object).Fields["ctx"].Resolve(context.WithValue(context.Background(), "flag", true), alice, nil, nil); err != nil || ctx != true {
-		t.Error("bad ctx")
-	}
-
-	if key, err := obj.Fields["alice"].Type.(*graphql.Object).Key(context.Background(), alice, nil, nil); err != nil || key != "alice" {
-		t.Error("bad key")
-	}
-
-	if res, err := obj.Fields["bad"].Resolve(context.Background(), r, nil, nil); res != nil || err == nil {
-		t.Error("bad bad")
-	}
-
-	if res, err := obj.Fields["justError"].Resolve(context.Background(), r, struct{ Ok bool }{true}, nil); res != true || err != nil {
-		t.Error("bad ok justError")
-	}
-
-	if res, err := obj.Fields["justError"].Resolve(context.Background(), r, struct{ Ok bool }{false}, nil); res != nil || err == nil {
-		t.Error("bad bad justError")
-	}
-
-	if foo, err := obj.Fields["foo"].Resolve(context.Background(), r, nil, nil); err != nil || foo != int64(10) {
-		t.Error("bad foo")
-	}
-
-	if res, err := obj.Fields["auto"].Resolve(context.Background(), r, nil, nil); err != nil || !reflect.DeepEqual(res, auto{Auto: "automagic"}) {
-		t.Error("bad auto")
-	}
-
-	if res, err := obj.Fields["auto"].Type.(*graphql.Object).Fields["auto"].Resolve(context.Background(), auto{Auto: "automagic"}, nil, nil); err != nil || res != "automagic" {
-		t.Error("bad auto")
-	}
-
-	if optional, err := obj.Fields["optional"].Resolve(context.Background(), r, nil, nil); err != nil || optional != (*int64)(nil) {
-		t.Error("bad optional")
-	}
-
-	if array, err := obj.Fields["array"].Resolve(context.Background(), r, nil, nil); err != nil || !reflect.DeepEqual(array, []int64{1, 2, 3}) {
-		t.Error("bad array")
-	}
-
-	if ts, err := obj.Fields["time"].Resolve(context.Background(), r, nil, nil); err != nil || !ts.(time.Time).Equal(time.Unix(1458757911, 0).UTC()) {
-		t.Error("bad time")
-	}
-
-	if bytes, err := obj.Fields["bytes"].Resolve(context.Background(), r, nil, nil); err != nil || !reflect.DeepEqual(bytes, []byte("foo")) {
-		t.Error("bad bytes")
-	}
-
-	if plain, err := obj.Fields["plain"].Resolve(context.Background(), r, nil, nil); err != nil || !reflect.DeepEqual(plain, user{}) {
-		t.Error("bad plain")
-	}
-
-	if a, err := obj.Fields["alias"].Resolve(context.Background(), r, nil, nil); err != nil || a != alias(1234) {
-		t.Error("bad alias")
-	}
-
-	if name, err := obj.Fields["plain"].Type.(*graphql.Object).Fields["name"].Resolve(context.Background(), user{Name: "foo"}, nil, nil); err != nil || !reflect.DeepEqual(name, "foo") {
-		t.Error("bad name")
-	}
-
-	/*
-		if _, err := BuildSchema(&badType{}, &empty{}, []Spec{badTypeSpec, emptySpec}); err == nil {
-			t.Error("expected bad type to fail")
-		}
-
-		if _, err := BuildSchema(&badRet{}, &empty{}, []Spec{badRetSpec, emptySpec}); err == nil {
-			t.Error("expected bad ret to fail")
-		}
-
-		if _, err := BuildSchema(&badArgs{}, &empty{}, []Spec{badArgsSpec, emptySpec}); err == nil {
-			t.Error("expected bad args to fail")
-		}
-	*/
-}
-
-/*
-type badType struct {
-	// map not allowed
-	Baz map[string]int
-}
-
-var badTypeSpec = Spec{
-	Type:    badType{},
-	Methods: nil,
-}
-
-type badRet struct {
-}
-
-var badRetSpec = Spec{
-	Type: badType{},
-	Methods: Methods{
-		// map not allowed
-		"foo": func(r *badRet) map[string]int {
-			return nil
-		},
-	},
-}
-
-type badArgs struct {
-}
-
-var badArgsSpec = Spec{
-	Type: badType{},
-	Methods: Methods{
-		// args must be wrapped in struct
-		"foo": func(r *badArgs, x int) int {
-			return 0
-		},
-	},
-}
-*/
