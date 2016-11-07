@@ -482,9 +482,15 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 
 	var name string
 	var methods Methods
+	hasSpec := false
 	if spec, ok := sb.specs[typ]; ok {
 		methods = spec.Methods
 		name = spec.Name
+		hasSpec = true
+	}
+
+	if typ.Kind() == reflect.Interface && !hasSpec {
+		return fmt.Errorf("bad type %s: interface must have explicit spec", typ)
 	}
 
 	if name == "" {
@@ -497,49 +503,51 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 	}
 	sb.types[typ] = object
 
-	for i := 0; i < typ.NumField(); i++ {
-		field := typ.Field(i)
-		if field.PkgPath != "" {
-			continue
-		}
+	if typ.Kind() == reflect.Struct {
+		for i := 0; i < typ.NumField(); i++ {
+			field := typ.Field(i)
+			if field.PkgPath != "" {
+				continue
+			}
 
-		tags := strings.Split(field.Tag.Get("graphql"), ",")
-		var name string
-		if len(tags) > 0 {
-			name = tags[0]
-		}
-		if name == "" {
-			name = makeGraphql(field.Name)
-		}
-		if name == "-" {
-			continue
-		}
+			tags := strings.Split(field.Tag.Get("graphql"), ",")
+			var name string
+			if len(tags) > 0 {
+				name = tags[0]
+			}
+			if name == "" {
+				name = makeGraphql(field.Name)
+			}
+			if name == "-" {
+				continue
+			}
 
-		var key bool
+			var key bool
 
-		if len(tags) > 1 {
-			for _, tag := range tags[1:] {
-				if tag != "key" || key {
-					return fmt.Errorf("bad type %s: field %s has unexpected tag %s", typ, name, tag)
+			if len(tags) > 1 {
+				for _, tag := range tags[1:] {
+					if tag != "key" || key {
+						return fmt.Errorf("bad type %s: field %s has unexpected tag %s", typ, name, tag)
+					}
+					key = true
 				}
-				key = true
 			}
-		}
 
-		if _, ok := object.Fields[name]; ok {
-			return fmt.Errorf("bad type %s: two fields named %s", typ, name)
-		}
-
-		built, err := sb.buildField(field)
-		if err != nil {
-			return fmt.Errorf("bad field %s on type %s: %s", name, typ, err)
-		}
-		object.Fields[name] = built
-		if key {
-			if object.Key != nil {
-				return fmt.Errorf("bad type %s: multiple key fields", typ)
+			if _, ok := object.Fields[name]; ok {
+				return fmt.Errorf("bad type %s: two fields named %s", typ, name)
 			}
-			object.Key = built.Resolve
+
+			built, err := sb.buildField(field)
+			if err != nil {
+				return fmt.Errorf("bad field %s on type %s: %s", name, typ, err)
+			}
+			object.Fields[name] = built
+			if key {
+				if object.Key != nil {
+					return fmt.Errorf("bad type %s: multiple key fields", typ)
+				}
+				object.Key = built.Resolve
+			}
 		}
 	}
 
@@ -615,7 +623,7 @@ func (sb *schemaBuilder) getType(t reflect.Type) (graphql.Type, error) {
 	}
 
 	// Structs
-	if t.Kind() == reflect.Struct {
+	if t.Kind() == reflect.Struct || t.Kind() == reflect.Interface {
 		if err := sb.buildStruct(t); err != nil {
 			return nil, err
 		}
@@ -680,8 +688,13 @@ func BuildSchema(server interface{}) (*graphql.Schema, error) {
 
 	for _, spec := range specs {
 		typ := reflect.TypeOf(spec.Type)
-		if typ.Kind() != reflect.Struct {
-			return nil, fmt.Errorf("spec.Type should be a struct, not %s", typ.String())
+
+		if typ.Kind() == reflect.Ptr {
+			typ = typ.Elem()
+		}
+
+		if typ.Kind() != reflect.Struct && typ.Kind() != reflect.Interface {
+			return nil, fmt.Errorf("spec.Type should be a [*]struct or [*]interface, not %s", typ.String())
 		}
 
 		if _, ok := sb.specs[typ]; ok {
