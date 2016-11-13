@@ -82,10 +82,6 @@ func (s *schema) Query() Spec {
 		return panicFunction()
 	})
 
-	spec.FieldFunc("interfaceField", func() foo {
-		return nil
-	})
-
 	return spec
 }
 
@@ -95,20 +91,6 @@ func (s *schema) Mutation() Spec {
 	return Spec{
 		Type: empty{},
 	}
-}
-
-type foo interface{}
-
-func (s *schema) Foo() Spec {
-	spec := Spec{
-		Type: (*foo)(nil),
-	}
-
-	spec.FieldFunc("foo", func() string {
-		return "bar"
-	})
-
-	return spec
 }
 
 type user struct {
@@ -163,7 +145,6 @@ func TestExecuteGood(t *testing.T) {
 			ptr { name age byRef byVal }
 			plain { name age byRef byVal }
 			alias
-			interfaceField { foo }
 		}
 	`, map[string]interface{}{"var": float64(3)})
 
@@ -199,9 +180,7 @@ func TestExecuteGood(t *testing.T) {
 		"bytes": "YmFy",
 		"ptr": {"name": "Charlie", "age": 5, "byRef": "byRef", "byVal": "byVal"},
 		"plain": {"name": "Jane", "age": 5, "byRef": "byRef", "byVal": "byVal"},
-		"alias": 999,
-		"interfaceField": {"foo": "bar"}
-	}`)) {
+		"alias": 999}`)) {
 		t.Error("bad value")
 	}
 
