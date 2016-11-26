@@ -129,14 +129,6 @@ fragment Bar on Foo {
 
 func TestParseUnsupported(t *testing.T) {
 	_, err := Parse(`
-query foo {
-	bar
-}`, map[string]interface{}{})
-	if err == nil || err.Error() != "only support anonymous queries" {
-		t.Error("expected named query to fail", err)
-	}
-
-	_, err = Parse(`
 mutation foo {
 	bar
 }`, map[string]interface{}{})
