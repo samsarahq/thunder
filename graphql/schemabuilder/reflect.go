@@ -22,6 +22,9 @@ type argParser struct {
 }
 
 func nilParseArguments(args interface{}) (interface{}, error) {
+	if args == nil {
+		return nil, nil
+	}
 	if args, ok := args.(map[string]interface{}); !ok || len(args) != 0 {
 		return nil, graphql.NewSafeError("unexpected args")
 	}
