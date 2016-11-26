@@ -38,13 +38,13 @@ type Reaction struct {
 	Count    int
 }
 
-func (s *Server) Message() schemabuilder.Spec {
-	spec := schemabuilder.Spec{
+func (s *Server) Message() schemabuilder.Object {
+	object := schemabuilder.Object{
 		Type:        Message{},
 		Description: "A single message.",
 	}
 
-	spec.FieldFunc("reactions", func(ctx context.Context, m *Message) ([]*Reaction, error) {
+	object.FieldFunc("reactions", func(ctx context.Context, m *Message) ([]*Reaction, error) {
 		reactions := make(map[string]*Reaction)
 		for reactionType := range reactionTypes {
 			reactions[reactionType] = &Reaction{
@@ -69,13 +69,13 @@ func (s *Server) Message() schemabuilder.Spec {
 		return result, nil
 	})
 
-	return spec
+	return object
 }
 
-func (s *Server) Query() schemabuilder.Spec {
-	spec := schemabuilder.Spec{}
+func (s *Server) Query() schemabuilder.Object {
+	object := schemabuilder.Object{}
 
-	spec.FieldFunc("messages", func(ctx context.Context) ([]*Message, error) {
+	object.FieldFunc("messages", func(ctx context.Context) ([]*Message, error) {
 		var result []*Message
 		if err := s.db.Query(ctx, &result, nil, nil); err != nil {
 			return nil, err
@@ -83,22 +83,22 @@ func (s *Server) Query() schemabuilder.Spec {
 		return result, nil
 	})
 
-	return spec
+	return object
 }
 
-func (s *Server) Mutation() schemabuilder.Spec {
-	spec := schemabuilder.Spec{}
+func (s *Server) Mutation() schemabuilder.Object {
+	object := schemabuilder.Object{}
 
-	spec.FieldFunc("addMessage", func(ctx context.Context, args struct{ Text string }) error {
+	object.FieldFunc("addMessage", func(ctx context.Context, args struct{ Text string }) error {
 		_, err := s.db.InsertRow(ctx, &Message{Text: args.Text})
 		return err
 	})
 
-	spec.FieldFunc("deleteMessage", func(ctx context.Context, args struct{ Id int64 }) error {
+	object.FieldFunc("deleteMessage", func(ctx context.Context, args struct{ Id int64 }) error {
 		return s.db.DeleteRow(ctx, &Message{Id: args.Id})
 	})
 
-	spec.FieldFunc("addReaction", func(ctx context.Context, args struct {
+	object.FieldFunc("addReaction", func(ctx context.Context, args struct {
 		MessageId int64
 		Reaction  string
 	}) error {
@@ -109,7 +109,7 @@ func (s *Server) Mutation() schemabuilder.Spec {
 		return err
 	})
 
-	return spec
+	return object
 }
 
 func main() {

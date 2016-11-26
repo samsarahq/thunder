@@ -42,8 +42,8 @@ type InputValue struct {
 	DefaultValue string
 }
 
-func (s *introspectionSchema) InputValue() schemabuilder.Spec {
-	return schemabuilder.Spec{
+func (s *introspectionSchema) InputValue() schemabuilder.Object {
+	return schemabuilder.Object{
 		Name: "__InputValue",
 		Type: InputValue{},
 	}
@@ -56,8 +56,8 @@ type EnumValue struct {
 	DeprecationReason string
 }
 
-func (s *introspectionSchema) EnumValue() schemabuilder.Spec {
-	return schemabuilder.Spec{
+func (s *introspectionSchema) EnumValue() schemabuilder.Object {
+	return schemabuilder.Object{
 		Name: "__EnumValue",
 		Type: EnumValue{},
 	}
@@ -70,8 +70,8 @@ type Directive struct {
 	Args        []InputValue
 }
 
-func (s *introspectionSchema) Directive() schemabuilder.Spec {
-	return schemabuilder.Spec{
+func (s *introspectionSchema) Directive() schemabuilder.Object {
+	return schemabuilder.Object{
 		Name: "__Directive",
 		Type: Directive{},
 	}
@@ -85,8 +85,8 @@ type Schema struct {
 	Directives       []Directive
 }
 
-func (s *introspectionSchema) Schema() schemabuilder.Spec {
-	return schemabuilder.Spec{
+func (s *introspectionSchema) Schema() schemabuilder.Object {
+	return schemabuilder.Object{
 		Name: "__Schema",
 		Type: Schema{},
 	}
@@ -96,13 +96,13 @@ type Type struct {
 	Inner graphql.Type `graphql:"-"`
 }
 
-func (s *introspectionSchema) Type() schemabuilder.Spec {
-	spec := schemabuilder.Spec{
+func (s *introspectionSchema) Type() schemabuilder.Object {
+	object := schemabuilder.Object{
 		Name: "__type",
 		Type: Type{},
 	}
 
-	spec.FieldFunc("kind", func(t Type) TypeKind {
+	object.FieldFunc("kind", func(t Type) TypeKind {
 		switch t.Inner.(type) {
 		case *graphql.Object:
 			return OBJECT
@@ -115,7 +115,7 @@ func (s *introspectionSchema) Type() schemabuilder.Spec {
 		}
 	})
 
-	spec.FieldFunc("name", func(t Type) string {
+	object.FieldFunc("name", func(t Type) string {
 		switch t := t.Inner.(type) {
 		case *graphql.Object:
 			return t.Name
@@ -126,7 +126,7 @@ func (s *introspectionSchema) Type() schemabuilder.Spec {
 		}
 	})
 
-	spec.FieldFunc("description", func(t Type) string {
+	object.FieldFunc("description", func(t Type) string {
 		switch t := t.Inner.(type) {
 		case *graphql.Object:
 			return t.Description
@@ -135,11 +135,11 @@ func (s *introspectionSchema) Type() schemabuilder.Spec {
 		}
 	})
 
-	spec.FieldFunc("interfaces", func() []Type { return nil })
-	spec.FieldFunc("possibleTypes", func() []Type { return nil })
-	spec.FieldFunc("inputFields", func() []InputValue { return nil })
+	object.FieldFunc("interfaces", func() []Type { return nil })
+	object.FieldFunc("possibleTypes", func() []Type { return nil })
+	object.FieldFunc("inputFields", func() []InputValue { return nil })
 
-	spec.FieldFunc("fields", func(t Type, args struct {
+	object.FieldFunc("fields", func(t Type, args struct {
 		IncludeDeprecated *bool
 	}) []field {
 		var fields []field
@@ -157,7 +157,7 @@ func (s *introspectionSchema) Type() schemabuilder.Spec {
 		return fields
 	})
 
-	spec.FieldFunc("ofType", func(t Type) *Type {
+	object.FieldFunc("ofType", func(t Type) *Type {
 		switch t := t.Inner.(type) {
 		case *graphql.List:
 			return &Type{Inner: t.Type}
@@ -166,11 +166,11 @@ func (s *introspectionSchema) Type() schemabuilder.Spec {
 		}
 	})
 
-	spec.FieldFunc("enumValues", func(args struct{ IncludeDeprecated *bool }) []EnumValue {
+	object.FieldFunc("enumValues", func(args struct{ IncludeDeprecated *bool }) []EnumValue {
 		return nil
 	})
 
-	return spec
+	return object
 }
 
 type field struct {
@@ -182,13 +182,11 @@ type field struct {
 	DeprecationReason string
 }
 
-func (s *introspectionSchema) Field() schemabuilder.Spec {
-	spec := schemabuilder.Spec{
-		Name: "__field",
+func (s *introspectionSchema) Field() schemabuilder.Object {
+	return schemabuilder.Object{
+		Name: "__Field",
 		Type: field{},
 	}
-
-	return spec
 }
 
 func collectTypes(typ graphql.Type, types map[string]graphql.Type) {
@@ -202,8 +200,10 @@ func collectTypes(typ graphql.Type, types map[string]graphql.Type) {
 		for _, field := range typ.Fields {
 			collectTypes(field.Type, types)
 		}
+
 	case *graphql.List:
 		collectTypes(typ.Type, types)
+
 	case *graphql.Scalar:
 		if _, ok := types[typ.Type]; ok {
 			return
@@ -212,14 +212,10 @@ func collectTypes(typ graphql.Type, types map[string]graphql.Type) {
 	}
 }
 
-type query struct{}
+func (s *introspectionSchema) Query() schemabuilder.Object {
+	object := schemabuilder.Object{}
 
-func (s *introspectionSchema) Query() schemabuilder.Spec {
-	spec := schemabuilder.Spec{
-		Type: query{},
-	}
-
-	spec.FieldFunc("__schema", func() *Schema {
+	object.FieldFunc("__schema", func() *Schema {
 		var types []Type
 
 		for _, typ := range s.types {
@@ -233,24 +229,20 @@ func (s *introspectionSchema) Query() schemabuilder.Spec {
 		}
 	})
 
-	spec.FieldFunc("__type", func(args struct{ Name string }) *Type {
+	object.FieldFunc("__type", func(args struct{ Name string }) *Type {
 		if typ, ok := s.types[args.Name]; ok {
 			return &Type{Inner: typ}
 		}
 		return nil
 	})
 
-	return spec
+	return object
 }
 
 type mutation struct{}
 
-func (s *introspectionSchema) Mutation() schemabuilder.Spec {
-	spec := schemabuilder.Spec{
-		Type: mutation{},
-	}
-
-	return spec
+func (s *introspectionSchema) Mutation() schemabuilder.Object {
+	return schemabuilder.Object{}
 }
 
 func AddIntrospectionToSchema(schema *graphql.Schema) {

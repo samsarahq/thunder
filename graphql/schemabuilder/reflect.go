@@ -299,8 +299,8 @@ func makeSliceParser(typ reflect.Type) (*argParser, error) {
 }
 
 type schemaBuilder struct {
-	types map[reflect.Type]graphql.Type
-	specs map[reflect.Type]Spec
+	types   map[reflect.Type]graphql.Type
+	objects map[reflect.Type]Object
 }
 
 var errType reflect.Type
@@ -486,10 +486,10 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 	var name string
 	var description string
 	var methods Methods
-	if spec, ok := sb.specs[typ]; ok {
-		name = spec.Name
-		description = spec.Description
-		methods = spec.Methods
+	if object, ok := sb.objects[typ]; ok {
+		name = object.Name
+		description = object.Description
+		methods = object.Methods
 	}
 
 	if name == "" {
@@ -635,7 +635,7 @@ func (sb *schemaBuilder) getType(t reflect.Type) (graphql.Type, error) {
 		return &graphql.List{Type: typ}, nil
 
 	default:
-		return nil, fmt.Errorf("bad type %s: should be a scalar, slice, or spec type", t)
+		return nil, fmt.Errorf("bad type %s: should be a scalar, slice, or struct type", t)
 	}
 }
 
@@ -643,43 +643,43 @@ type query struct{}
 type mutation struct{}
 
 func BuildSchema(server interface{}) (*graphql.Schema, error) {
-	// build specs by calling methods on server
-	var specs []Spec
+	// build objects by calling methods on server
+	var objects []Object
 
 	value := reflect.ValueOf(server)
 	serverTyp := value.Type()
 
 	var hasQuery, hasMutation bool
-	var querySpec, mutationSpec Spec
+	var queryObject, mutationObject Object
 
 	for i := 0; i < serverTyp.NumMethod(); i++ {
 		method := serverTyp.Method(i)
-		if method.Type.NumIn() == 1 && method.Type.NumOut() == 1 && method.Type.Out(0) == reflect.TypeOf(Spec{}) {
-			spec := method.Func.Call([]reflect.Value{value})[0].Interface().(Spec)
+		if method.Type.NumIn() == 1 && method.Type.NumOut() == 1 && method.Type.Out(0) == reflect.TypeOf(Object{}) {
+			object := method.Func.Call([]reflect.Value{value})[0].Interface().(Object)
 
 			if method.Name == "Query" {
 				hasQuery = true
-				if spec.Type == nil {
-					spec.Type = query{}
+				if object.Type == nil {
+					object.Type = query{}
 				}
-				if spec.Name == "" {
-					spec.Name = "Query"
+				if object.Name == "" {
+					object.Name = "Query"
 				}
-				querySpec = spec
+				queryObject = object
 			}
 
 			if method.Name == "Mutation" {
 				hasMutation = true
-				if spec.Type == nil {
-					spec.Type = mutation{}
+				if object.Type == nil {
+					object.Type = mutation{}
 				}
-				if spec.Name == "" {
-					spec.Name = "Mutation"
+				if object.Name == "" {
+					object.Name = "Mutation"
 				}
-				mutationSpec = spec
+				mutationObject = object
 			}
 
-			specs = append(specs, spec)
+			objects = append(objects, object)
 		}
 	}
 
@@ -688,28 +688,28 @@ func BuildSchema(server interface{}) (*graphql.Schema, error) {
 	}
 
 	sb := &schemaBuilder{
-		types: make(map[reflect.Type]graphql.Type),
-		specs: make(map[reflect.Type]Spec),
+		types:   make(map[reflect.Type]graphql.Type),
+		objects: make(map[reflect.Type]Object),
 	}
 
-	for _, spec := range specs {
-		typ := reflect.TypeOf(spec.Type)
+	for _, object := range objects {
+		typ := reflect.TypeOf(object.Type)
 		if typ.Kind() != reflect.Struct {
-			return nil, fmt.Errorf("spec.Type should be a struct, not %s", typ.String())
+			return nil, fmt.Errorf("object.Type should be a struct, not %s", typ.String())
 		}
 
-		if _, ok := sb.specs[typ]; ok {
-			return nil, fmt.Errorf("duplicate spec for %s", typ.String())
+		if _, ok := sb.objects[typ]; ok {
+			return nil, fmt.Errorf("duplicate object for %s", typ.String())
 		}
 
-		sb.specs[typ] = spec
+		sb.objects[typ] = object
 	}
 
-	queryTyp, err := sb.getType(reflect.TypeOf(querySpec.Type))
+	queryTyp, err := sb.getType(reflect.TypeOf(queryObject.Type))
 	if err != nil {
 		return nil, err
 	}
-	mutationTyp, err := sb.getType(reflect.TypeOf(mutationSpec.Type))
+	mutationTyp, err := sb.getType(reflect.TypeOf(mutationObject.Type))
 	if err != nil {
 		return nil, err
 	}

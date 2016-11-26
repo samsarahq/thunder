@@ -26,69 +26,69 @@ func panicFunction() int64 {
 	panic("oh no!")
 }
 
-func (s *schema) Query() Spec {
-	spec := Spec{
+func (s *schema) Query() Object {
+	object := Object{
 		Type: root{},
 	}
-	spec.FieldFunc("users", func() []*user {
+	object.FieldFunc("users", func() []*user {
 		return []*user{
 			{Name: "Alice", Age: 10},
 			{Name: "Bob", Age: 20},
 		}
 	})
-	spec.FieldFunc("optional", func(args struct{ X *int64 }) int64 {
+	object.FieldFunc("optional", func(args struct{ X *int64 }) int64 {
 		if args.X != nil {
 			return *args.X
 		}
 		return -1
 	})
-	spec.FieldFunc("nilObject", func() *user {
+	object.FieldFunc("nilObject", func() *user {
 		return nil
 	})
-	spec.FieldFunc("nilSlice", func() []*user {
+	object.FieldFunc("nilSlice", func() []*user {
 		return nil
 	})
-	spec.FieldFunc("bad", func() (string, error) {
+	object.FieldFunc("bad", func() (string, error) {
 		return "", errors.New("BAD")
 	})
-	spec.FieldFunc("sum", func(args struct{ A, B int64 }) (int64, error) {
+	object.FieldFunc("sum", func(args struct{ A, B int64 }) (int64, error) {
 		return args.A + args.B, nil
 	})
-	spec.FieldFunc("ints", func() []int64 {
+	object.FieldFunc("ints", func() []int64 {
 		return []int64{1, 2, 3, 4}
 	})
-	spec.FieldFunc("nested", func(r *root) *root {
+	object.FieldFunc("nested", func(r *root) *root {
 		return r
 	})
-	spec.FieldFunc("ptr", func() *user {
+	object.FieldFunc("ptr", func() *user {
 		return &user{
 			Name: "Charlie",
 			Age:  5,
 		}
 	})
-	spec.FieldFunc("plain", func() user {
+	object.FieldFunc("plain", func() user {
 		return user{
 			Name: "Jane",
 			Age:  5,
 		}
 	})
-	spec.FieldFunc("optionalField", func(args struct{ Optional *int64 }) *int64 {
+	object.FieldFunc("optionalField", func(args struct{ Optional *int64 }) *int64 {
 		return args.Optional
 	})
-	spec.FieldFunc("getCtx", func(ctx context.Context) (string, error) {
+	object.FieldFunc("getCtx", func(ctx context.Context) (string, error) {
 		return ctx.Value("foo").(string), nil
 	})
-	spec.FieldFunc("panic", func() int64 {
+	object.FieldFunc("panic", func() int64 {
 		return panicFunction()
 	})
 
-	return spec
+	return object
 }
 
 type empty struct{}
 
-func (s *schema) Mutation() Spec {
-	return Spec{
+func (s *schema) Mutation() Object {
+	return Object{
 		Type: empty{},
 	}
 }
@@ -98,20 +98,20 @@ type user struct {
 	Age  int64
 }
 
-func (s *schema) User() Spec {
-	spec := Spec{
+func (s *schema) User() Object {
+	object := Object{
 		Type: user{},
 	}
-	spec.FieldFunc("byRef", func(u *user) string {
+	object.FieldFunc("byRef", func(u *user) string {
 		return "byRef"
 	})
-	spec.FieldFunc("byVal", func(u user) string {
+	object.FieldFunc("byVal", func(u user) string {
 		return "byVal"
 	})
-	spec.FieldFunc("friends", func(u *user) []*user {
+	object.FieldFunc("friends", func(u *user) []*user {
 		return []*user{}
 	})
-	return spec
+	return object
 }
 
 func TestExecuteGood(t *testing.T) {
