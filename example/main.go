@@ -7,6 +7,7 @@ import (
 
 	"github.com/bradfitz/slice"
 	"github.com/samsarahq/thunder/graphql"
+	"github.com/samsarahq/thunder/graphql/introspection"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 	"github.com/samsarahq/thunder/livesql"
 	"github.com/samsarahq/thunder/sqlgen"
@@ -124,6 +125,8 @@ func main() {
 		db: liveDB,
 	}
 	graphqlSchema := schemabuilder.MustBuildSchema(server)
+
+	introspection.AddIntrospectionToSchema(graphqlSchema)
 
 	http.Handle("/graphql", graphql.Handler(graphqlSchema))
 	if err := http.ListenAndServe(":3030", nil); err != nil {

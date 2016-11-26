@@ -6,32 +6,18 @@ import { connection } from './store';
 
 import '../node_modules/graphiql/graphiql.css';
 
-const graphQLSchema = buildSchema(`
-  type Message {
-    id: Int
-    text: String
-    reactions: [Reaction]
-  }
-
-  type Reaction {
-    reaction: String
-    count: Int
-  }
-
-  type Query {
-    messages: [Message]
-  }
-`);
-
 function graphQLFetcher({query, variables}) {
   return {
-    subscribe({next, error, complete}) {
+    subscribe(subscriber) {
+      const next = subscriber.next || subscriber;
+      const {error, complete} = subscriber;
+
       const subscription = connection.subscribe({
         query: query,
         variables: {},
         observer: ({state, valid, error, value}) => {
           if (valid) {
-            next(value);
+            next({data: value});
           } else {
             next({state, error});
           }
@@ -47,6 +33,6 @@ function graphQLFetcher({query, variables}) {
   };
 }
 
-export function GraphiQLWithFetcherAndSchema() {
-  return <GraphiQL fetcher={graphQLFetcher} schema={graphQLSchema} />;
+export function GraphiQLWithFetcher() {
+  return <GraphiQL fetcher={graphQLFetcher} />;
 }

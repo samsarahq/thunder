@@ -1,6 +1,6 @@
 import React from 'react';
 import { connectGraphQL, mutate } from './store';
-import { GraphiQLWithFetcherAndSchema } from './graphiql';
+import { GraphiQLWithFetcher } from './graphiql';
 
 const Editor = React.createClass({
   getInitialState() {
@@ -69,7 +69,7 @@ Messages = connectGraphQL(Messages, () => ({
 
 function App() {
   if (window.location.pathname === "/graphiql") {
-    return <GraphiQLWithFetcherAndSchema />;
+    return <GraphiQLWithFetcher />;
   } else {
     return <Messages />;
   }
