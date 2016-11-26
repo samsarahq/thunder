@@ -28,9 +28,10 @@ func (s *Scalar) String() string {
 
 // Object is a value with several fields
 type Object struct {
-	Name   string
-	Key    Resolver
-	Fields map[string]*Field
+	Name        string
+	Description string
+	Key         Resolver
+	Fields      map[string]*Field
 }
 
 func (o *Object) isType() {}

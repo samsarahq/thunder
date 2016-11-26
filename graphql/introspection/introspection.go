@@ -126,7 +126,15 @@ func (s *introspectionSchema) Type() schemabuilder.Spec {
 		}
 	})
 
-	spec.FieldFunc("description", func() string { return "" })
+	spec.FieldFunc("description", func(t Type) string {
+		switch t := t.Inner.(type) {
+		case *graphql.Object:
+			return t.Description
+		default:
+			return ""
+		}
+	})
+
 	spec.FieldFunc("interfaces", func() []Type { return nil })
 	spec.FieldFunc("possibleTypes", func() []Type { return nil })
 	spec.FieldFunc("inputFields", func() []InputValue { return nil })

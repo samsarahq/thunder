@@ -13,14 +13,18 @@ import (
 	"github.com/samsarahq/thunder/sqlgen"
 )
 
-var reactionTypes = map[string]bool{
-	":)": true,
-	":(": true,
+type Server struct {
+	db *livesql.LiveDB
 }
 
 type Message struct {
 	Id   int64 `sql:",primary" graphql:",key"`
 	Text string
+}
+
+var reactionTypes = map[string]bool{
+	":)": true,
+	":(": true,
 }
 
 type ReactionInstance struct {
@@ -34,56 +38,12 @@ type Reaction struct {
 	Count    int
 }
 
-type Server struct {
-	db *livesql.LiveDB
-}
-
-type Query struct{}
-
-func (s *Server) Query() schemabuilder.Spec {
-	spec := schemabuilder.Spec{
-		Type: Query{},
-	}
-	spec.FieldFunc("messages", func(ctx context.Context) ([]*Message, error) {
-		var result []*Message
-		if err := s.db.Query(ctx, &result, nil, nil); err != nil {
-			return nil, err
-		}
-		return result, nil
-	})
-	return spec
-}
-
-type Mutation struct{}
-
-func (s *Server) Mutation() schemabuilder.Spec {
-	spec := schemabuilder.Spec{
-		Type: Mutation{},
-	}
-	spec.FieldFunc("addMessage", func(ctx context.Context, args struct{ Text string }) error {
-		_, err := s.db.InsertRow(ctx, &Message{Text: args.Text})
-		return err
-	})
-	spec.FieldFunc("deleteMessage", func(ctx context.Context, args struct{ Id int64 }) error {
-		return s.db.DeleteRow(ctx, &Message{Id: args.Id})
-	})
-	spec.FieldFunc("addReaction", func(ctx context.Context, args struct {
-		MessageId int64
-		Reaction  string
-	}) error {
-		if _, ok := reactionTypes[args.Reaction]; !ok {
-			return errors.New("reaction not allowed")
-		}
-		_, err := s.db.InsertRow(ctx, &ReactionInstance{MessageId: args.MessageId, Reaction: args.Reaction})
-		return err
-	})
-	return spec
-}
-
 func (s *Server) Message() schemabuilder.Spec {
 	spec := schemabuilder.Spec{
-		Type: Message{},
+		Type:        Message{},
+		Description: "A single message.",
 	}
+
 	spec.FieldFunc("reactions", func(ctx context.Context, m *Message) ([]*Reaction, error) {
 		reactions := make(map[string]*Reaction)
 		for reactionType := range reactionTypes {
@@ -108,6 +68,47 @@ func (s *Server) Message() schemabuilder.Spec {
 
 		return result, nil
 	})
+
+	return spec
+}
+
+func (s *Server) Query() schemabuilder.Spec {
+	spec := schemabuilder.Spec{}
+
+	spec.FieldFunc("messages", func(ctx context.Context) ([]*Message, error) {
+		var result []*Message
+		if err := s.db.Query(ctx, &result, nil, nil); err != nil {
+			return nil, err
+		}
+		return result, nil
+	})
+
+	return spec
+}
+
+func (s *Server) Mutation() schemabuilder.Spec {
+	spec := schemabuilder.Spec{}
+
+	spec.FieldFunc("addMessage", func(ctx context.Context, args struct{ Text string }) error {
+		_, err := s.db.InsertRow(ctx, &Message{Text: args.Text})
+		return err
+	})
+
+	spec.FieldFunc("deleteMessage", func(ctx context.Context, args struct{ Id int64 }) error {
+		return s.db.DeleteRow(ctx, &Message{Id: args.Id})
+	})
+
+	spec.FieldFunc("addReaction", func(ctx context.Context, args struct {
+		MessageId int64
+		Reaction  string
+	}) error {
+		if _, ok := reactionTypes[args.Reaction]; !ok {
+			return errors.New("reaction not allowed")
+		}
+		_, err := s.db.InsertRow(ctx, &ReactionInstance{MessageId: args.MessageId, Reaction: args.Reaction})
+		return err
+	})
+
 	return spec
 }
 

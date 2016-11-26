@@ -484,10 +484,12 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 	}
 
 	var name string
+	var description string
 	var methods Methods
 	if spec, ok := sb.specs[typ]; ok {
-		methods = spec.Methods
 		name = spec.Name
+		description = spec.Description
+		methods = spec.Methods
 	}
 
 	if name == "" {
@@ -495,8 +497,9 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 	}
 
 	object := &graphql.Object{
-		Name:   name,
-		Fields: make(map[string]*graphql.Field),
+		Name:        name,
+		Description: description,
+		Fields:      make(map[string]*graphql.Field),
 	}
 	sb.types[typ] = object
 
@@ -636,6 +639,9 @@ func (sb *schemaBuilder) getType(t reflect.Type) (graphql.Type, error) {
 	}
 }
 
+type query struct{}
+type mutation struct{}
+
 func BuildSchema(server interface{}) (*graphql.Schema, error) {
 	// build specs by calling methods on server
 	var specs []Spec
@@ -650,17 +656,30 @@ func BuildSchema(server interface{}) (*graphql.Schema, error) {
 		method := serverTyp.Method(i)
 		if method.Type.NumIn() == 1 && method.Type.NumOut() == 1 && method.Type.Out(0) == reflect.TypeOf(Spec{}) {
 			spec := method.Func.Call([]reflect.Value{value})[0].Interface().(Spec)
-			specs = append(specs, spec)
 
 			if method.Name == "Query" {
 				hasQuery = true
+				if spec.Type == nil {
+					spec.Type = query{}
+				}
+				if spec.Name == "" {
+					spec.Name = "Query"
+				}
 				querySpec = spec
 			}
 
 			if method.Name == "Mutation" {
 				hasMutation = true
+				if spec.Type == nil {
+					spec.Type = mutation{}
+				}
+				if spec.Name == "" {
+					spec.Name = "Mutation"
+				}
 				mutationSpec = spec
 			}
+
+			specs = append(specs, spec)
 		}
 	}
 
