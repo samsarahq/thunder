@@ -338,9 +338,6 @@ func Parse(source string, vars map[string]interface{}) (*SelectionSet, error) {
 			if definition.Operation != "query" {
 				return nil, NewSafeError("only support queries")
 			}
-			if definition.Name != nil {
-				return nil, NewSafeError("only support anonymous queries")
-			}
 			if queryDefinition != nil {
 				return nil, NewSafeError("only support a single query")
 			}
