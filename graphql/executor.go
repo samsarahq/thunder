@@ -98,7 +98,7 @@ func executeObject(ctx context.Context, typ *Object, source interface{}, selecti
 	// some types can't be put in a map; for those, use a always different value
 	// as source
 	if value.IsValid() && !value.Type().Comparable() {
-		key.source = new(struct{})
+		key.source = new(byte)
 	}
 
 	return reactive.Cache(ctx, key, func(ctx context.Context) (interface{}, error) {
