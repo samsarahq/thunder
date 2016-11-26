@@ -117,16 +117,16 @@ func main() {
 	sqlgenSchema.MustRegisterType("messages", sqlgen.AutoIncrement, Message{})
 	sqlgenSchema.MustRegisterType("reaction_instances", sqlgen.AutoIncrement, ReactionInstance{})
 
-	liveDB, err := livesql.Open("localhost", 3307, "root", "", "chat", sqlgenSchema)
+	db, err := livesql.Open("localhost", 3307, "root", "", "chat", sqlgenSchema)
 	if err != nil {
 		panic(err)
 	}
 
 	server := &Server{
-		db: liveDB,
+		db: db,
 	}
-	graphqlSchema := schemabuilder.MustBuildSchema(server)
 
+	graphqlSchema := schemabuilder.MustBuildSchema(server)
 	introspection.AddIntrospectionToSchema(graphqlSchema)
 
 	http.Handle("/graphql", graphql.Handler(graphqlSchema))
