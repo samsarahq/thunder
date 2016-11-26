@@ -13,6 +13,11 @@ import (
 	"github.com/samsarahq/thunder/reactive"
 )
 
+func isNilArgs(args interface{}) bool {
+	m, ok := args.(map[string]interface{})
+	return args == nil || (ok && len(m) == 0)
+}
+
 // PrepareQuery checks that the given selectionSet matches the schema typ, and
 // parses the args in selectionSet
 func PrepareQuery(typ Type, selectionSet *SelectionSet) error {
@@ -28,6 +33,16 @@ func PrepareQuery(typ Type, selectionSet *SelectionSet) error {
 			return NewSafeError("object field must have selections")
 		}
 		for _, selection := range selectionSet.Selections {
+			if selection.Name == "__typename" {
+				if !isNilArgs(selection.Args) {
+					return NewSafeError(`error parsing args for "__typename": no args expected`)
+				}
+				if selection.SelectionSet != nil {
+					return NewSafeError(`scalar field "__typename" must have no selection`)
+				}
+				continue
+			}
+
 			field, ok := typ.Fields[selection.Name]
 			if !ok {
 				return NewSafeError(`unknown field "%s"`, selection.Name)
@@ -108,6 +123,11 @@ func executeObject(ctx context.Context, typ *Object, source interface{}, selecti
 
 		// for every selection, resolve the value and store it in the output object
 		for _, selection := range selections {
+			if selection.Name == "__typename" {
+				fields[selection.Alias] = typ.Name
+				continue
+			}
+
 			field := typ.Fields[selection.Name]
 			value, err := safeResolve(ctx, field, source, selection.Args, selection.SelectionSet)
 			if err != nil {

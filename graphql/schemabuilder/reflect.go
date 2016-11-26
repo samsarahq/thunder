@@ -562,14 +562,6 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 		object.Fields[name] = built
 	}
 
-	object.Fields["__typename"] = &graphql.Field{
-		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
-			return name, nil
-		},
-		Type:           &graphql.Scalar{Type: "string"},
-		ParseArguments: nilParseArguments,
-	}
-
 	return nil
 }
 
