@@ -122,11 +122,7 @@ func main() {
 		panic(err)
 	}
 
-	server := &Server{
-		db: db,
-	}
-
-	graphqlSchema := schemabuilder.MustBuildSchema(server)
+	graphqlSchema := schemabuilder.MustBuildSchema(&Server{db: db})
 	introspection.AddIntrospectionToSchema(graphqlSchema)
 
 	http.Handle("/graphql", graphql.Handler(graphqlSchema))

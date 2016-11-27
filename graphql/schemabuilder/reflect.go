@@ -642,14 +642,18 @@ func (sb *schemaBuilder) getType(t reflect.Type) (graphql.Type, error) {
 type query struct{}
 type mutation struct{}
 
-func BuildSchema(server interface{}) (*graphql.Schema, error) {
+type Server interface {
+	Query() Object
+	Mutation() Object
+}
+
+func BuildSchema(server Server) (*graphql.Schema, error) {
 	// build objects by calling methods on server
 	var objects []Object
 
 	value := reflect.ValueOf(server)
 	serverTyp := value.Type()
 
-	var hasQuery, hasMutation bool
 	var queryObject, mutationObject Object
 
 	for i := 0; i < serverTyp.NumMethod(); i++ {
@@ -658,7 +662,6 @@ func BuildSchema(server interface{}) (*graphql.Schema, error) {
 			object := method.Func.Call([]reflect.Value{value})[0].Interface().(Object)
 
 			if method.Name == "Query" {
-				hasQuery = true
 				if object.Type == nil {
 					object.Type = query{}
 				}
@@ -669,7 +672,6 @@ func BuildSchema(server interface{}) (*graphql.Schema, error) {
 			}
 
 			if method.Name == "Mutation" {
-				hasMutation = true
 				if object.Type == nil {
 					object.Type = mutation{}
 				}
@@ -681,10 +683,6 @@ func BuildSchema(server interface{}) (*graphql.Schema, error) {
 
 			objects = append(objects, object)
 		}
-	}
-
-	if !hasQuery || !hasMutation {
-		return nil, errors.New("Missing Query() or Mutation() functions on server")
 	}
 
 	sb := &schemaBuilder{
@@ -720,7 +718,7 @@ func BuildSchema(server interface{}) (*graphql.Schema, error) {
 }
 
 // MustBuildSchema builds a schema and panics if an error occurs
-func MustBuildSchema(server interface{}) *graphql.Schema {
+func MustBuildSchema(server Server) *graphql.Schema {
 	built, err := BuildSchema(server)
 	if err != nil {
 		panic(err)
