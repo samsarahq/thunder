@@ -366,26 +366,25 @@ func (sb *schemaBuilder) buildFunction(typ reflect.Type, fun reflect.Value) (*gr
 	// Parse return values. The first return value must be the actual value, and
 	// the second value can optionally be an error.
 
+	out := make([]reflect.Type, 0, funcType.NumOut())
+	for i := 0; i < funcType.NumOut(); i++ {
+		out = append(out, funcType.Out(i))
+	}
+
 	var hasRet, hasError bool
-	switch funcType.NumOut() {
-	case 1:
-		if funcType.Out(0) == errType {
-			hasRet = false
-			hasError = true
-		} else {
-			hasRet = true
-			hasError = false
-		}
 
-	case 2:
+	if len(out) > 0 && out[0] != errType {
 		hasRet = true
-		hasError = true
-		if funcType.Out(1) != errType {
-			return nil, fmt.Errorf("%s's second return value should be an error", funcType)
-		}
+		out = out[1:]
+	}
 
-	default:
-		return nil, fmt.Errorf("%s should return 1 or 2 values", funcType)
+	if len(out) > 0 && out[0] == errType {
+		hasError = true
+		out = out[1:]
+	}
+
+	if len(out) != 0 {
+		return nil, fmt.Errorf("%s return values should [result][, error]", funcType)
 	}
 
 	var retType graphql.Type
@@ -494,6 +493,9 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 
 	if name == "" {
 		name = typ.Name()
+		if name == "" {
+			return fmt.Errorf("bad type %s: should have a name", typ)
+		}
 	}
 
 	object := &graphql.Object{
