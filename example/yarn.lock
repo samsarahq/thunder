@@ -3296,7 +3296,7 @@ lodash.isarray@^3.0.0:
   version "3.0.4"
   resolved "https://registry.yarnpkg.com/lodash.isarray/-/lodash.isarray-3.0.4.tgz#79e4eb88c36a8122af86f844aa9bcd851b5fbb55"
 
-lodash.isequal@4.4.0:
+lodash.isequal@4.4.0, lodash.isequal@^4.4.0:
   version "4.4.0"
   resolved "https://registry.yarnpkg.com/lodash.isequal/-/lodash.isequal-4.4.0.tgz#6295768e98e14dc15ce8d362ef6340db82852031"
 
@@ -4909,6 +4909,12 @@ throat@^3.0.0:
 through@^2.3.6:
   version "2.3.8"
   resolved "https://registry.yarnpkg.com/through/-/through-2.3.8.tgz#0dd4c9ffaabc357960b1b724115d7e0e86a2e1f5"
+
+"thunder-client@file:../../thunder-client":
+  version "0.0.4"
+  dependencies:
+    lodash.isequal "^4.4.0"
+    react "^15.4.1"
 
 timers-browserify@^1.0.1:
   version "1.4.2"

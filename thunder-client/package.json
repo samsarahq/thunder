@@ -1,0 +1,21 @@
+{
+  "name": "@samsara/thunder-client",
+  "version": "0.0.4",
+  "description": "JavaScript client for Thunder (github.com/samsarahq/thunder)",
+  "main": "./lib/src/index.js",
+  "typings": "./lib/src/index.d.ts",
+  "repository": "github.com/samsarahq/thunder",
+  "author": "Samsara Networks, Inc",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "lodash.isequal": "^4.4.0",
+    "react": "^15.4.1"
+  },
+  "devDependencies": {
+    "@types/react": "^0.14.50",
+    "typescript": "^2.1.4"
+  }
+}

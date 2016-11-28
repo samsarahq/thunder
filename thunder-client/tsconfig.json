@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "es2015",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "sourceMap": true,
+    "declaration": true,
+    "lib": ["dom", "es2015"],
+    "rootDir": ".",
+    "outDir": "lib",
+    "noImplicitAny": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "strictNullChecks": true
+  },
+  "files": [
+    "typings.d.ts",
+    "src/index.ts"
+  ]
+}
