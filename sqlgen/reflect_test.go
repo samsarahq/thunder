@@ -303,7 +303,7 @@ func TestSelectOptions(t *testing.T) {
 		Table:   "users",
 		Columns: []string{"id", "name", "age", "optional"},
 		Options: &SelectOptions{
-			Where:   "id = ? AND name LIKE ?",
+			Where:   "(id = ?) AND (name LIKE ?)",
 			Values:  []interface{}{10, "abc%"},
 			OrderBy: "name",
 			Limit:   20,

@@ -36,7 +36,7 @@ func (s *SelectOptions) IncludeFilter(table *Table, filter Filter) error {
 
 	if filterWhere != "" {
 		if s.Where != "" {
-			s.Where = filterWhere + " AND " + s.Where
+			s.Where = fmt.Sprintf("(%s) AND (%s)", filterWhere, s.Where)
 			s.Values = append(filterValues, s.Values...)
 		} else {
 			s.Where, s.Values = filterWhere, filterValues
