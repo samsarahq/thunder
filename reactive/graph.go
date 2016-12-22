@@ -149,6 +149,9 @@ func (n *node) addOut(to *node) {
 	// it's fine to add a dependency if n has already been invalidated; from a
 	// reference counting perspective, that's what we want
 	if !to.released {
+		if n.out == nil {
+			n.out = make(map[*node]struct{})
+		}
 		n.out[to] = struct{}{}
 		to.in = append(to.in, n)
 	}

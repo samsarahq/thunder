@@ -100,7 +100,7 @@ type Resource struct {
 // NewResource creates a new Resource
 func NewResource() *Resource {
 	return &Resource{
-		node: node{out: make(map[*node]struct{})},
+		node: node{},
 	}
 }
 
@@ -141,7 +141,7 @@ func run(ctx context.Context, f ComputeFunc) (*computation, error) {
 	c := &computation{
 		// this node will be freed either when the computation fails, or by our
 		// caller
-		node: node{out: make(map[*node]struct{})},
+		node: node{},
 	}
 
 	childCtx := context.WithValue(ctx, computationKey{}, c)
