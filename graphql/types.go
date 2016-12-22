@@ -66,6 +66,8 @@ type Field struct {
 	Resolve        Resolver
 	Type           Type
 	ParseArguments func(json interface{}) (interface{}, error)
+
+	Expensive bool
 }
 
 type Schema struct {

@@ -455,6 +455,7 @@ func (sb *schemaBuilder) buildFunction(typ reflect.Type, fun reflect.Value) (*gr
 		},
 		Type:           retType,
 		ParseArguments: argParser.Parse,
+		Expensive:      hasContext,
 	}, nil
 }
 
