@@ -7,8 +7,6 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/hashicorp/go-multierror"
-
 	"github.com/samsarahq/thunder"
 	"github.com/samsarahq/thunder/reactive"
 )
@@ -93,72 +91,95 @@ func safeResolve(ctx context.Context, field *Field, source, args interface{}, se
 	return field.Resolve(ctx, source, args, selectionSet)
 }
 
-type objectCacheKey struct {
-	typ          *Object
-	source       interface{}
-	selectionSet *SelectionSet
+type resolveAndExecuteCacheKey struct {
+	field     *Field
+	source    interface{}
+	selection *Selection
+}
+
+func (e *Executor) resolveAndExecute(ctx context.Context, field *Field, source interface{}, selection *Selection) (interface{}, error) {
+	if field.Expensive {
+		// TODO: Skip goroutine for cached value
+		return fork(func() (interface{}, error) {
+			value := reflect.ValueOf(source)
+			// cache the body of resolve and excecute so that if the source doesn't change, we
+			// don't need to recompute
+			key := resolveAndExecuteCacheKey{field: field, source: source, selection: selection}
+
+			// some types can't be put in a map; for those, use a always different value
+			// as source
+			if value.IsValid() && !value.Type().Comparable() {
+				// TODO: Warn, or somehow prevent using type-system?
+				key.source = new(byte)
+			}
+
+			// TODO: Consider cacheing resolve and execute independently
+			return reactive.Cache(ctx, key, func(ctx context.Context) (interface{}, error) {
+				value, err := safeResolve(ctx, field, source, selection.Args, selection.SelectionSet)
+				if err != nil {
+					return nil, err
+				}
+				e.mu.Lock()
+				value, err = e.execute(ctx, field.Type, value, selection.SelectionSet)
+				e.mu.Unlock()
+
+				if err != nil {
+					return nil, err
+				}
+				return await(value)
+			})
+		}), nil
+	}
+
+	value, err := safeResolve(ctx, field, source, selection.Args, selection.SelectionSet)
+	if err != nil {
+		return nil, err
+	}
+	return e.execute(ctx, field.Type, value, selection.SelectionSet)
 }
 
 // executeObject executes an object query
-func executeObject(ctx context.Context, typ *Object, source interface{}, selectionSet *SelectionSet) (interface{}, error) {
+func (e *Executor) executeObject(ctx context.Context, typ *Object, source interface{}, selectionSet *SelectionSet) (interface{}, error) {
 	value := reflect.ValueOf(source)
 	if value.Kind() == reflect.Ptr && value.IsNil() {
 		return nil, nil
 	}
 
-	// cache the body of executeObject so that if the source doesn't change, we
-	// don't need to recompute
-	key := objectCacheKey{typ: typ, source: source, selectionSet: selectionSet}
+	selections := Flatten(selectionSet)
 
-	// some types can't be put in a map; for those, use a always different value
-	// as source
-	if value.IsValid() && !value.Type().Comparable() {
-		key.source = new(byte)
+	fields := make(map[string]interface{})
+
+	// for every selection, resolve the value and store it in the output object
+	for _, selection := range selections {
+		if selection.Name == "__typename" {
+			fields[selection.Alias] = typ.Name
+			continue
+		}
+
+		field := typ.Fields[selection.Name]
+		resolved, err := e.resolveAndExecute(ctx, field, source, selection)
+		if err != nil {
+			return nil, err
+		}
+		fields[selection.Alias] = resolved
 	}
 
-	return reactive.Cache(ctx, key, func(ctx context.Context) (interface{}, error) {
-		selections := Flatten(selectionSet)
-
-		fields := make(map[string]interface{})
-
-		// for every selection, resolve the value and store it in the output object
-		for _, selection := range selections {
-			if selection.Name == "__typename" {
-				fields[selection.Alias] = typ.Name
-				continue
-			}
-
-			field := typ.Fields[selection.Name]
-			value, err := safeResolve(ctx, field, source, selection.Args, selection.SelectionSet)
-			if err != nil {
-				return nil, err
-			}
-
-			resolved, err := execute(ctx, field.Type, value, selection.SelectionSet)
-			if err != nil {
-				return nil, err
-			}
-			fields[selection.Alias] = resolved
+	var key interface{}
+	if typ.Key != nil {
+		value, err := e.resolveAndExecute(ctx, &Field{Type: &Scalar{Type: "string"}, Resolve: typ.Key}, source, &Selection{})
+		if err != nil {
+			return nil, err
 		}
+		key = value
+	}
 
-		// if the source has a key, store it to detect changing objects
-		var key interface{}
-		if typ.Key != nil {
-			value, err := typ.Key(ctx, source, nil, nil)
-			if err != nil {
-				return nil, err
-			}
-			key = value
-		}
-
-		return &DiffableObject{Key: key, Fields: fields}, nil
-	})
+	return &awaitableDiffableObject{Fields: fields, Key: key}, nil
 }
 
 var emptyDiffableList = &DiffableList{Items: []interface{}{}}
 
 // executeList executes a set query
-func executeList(ctx context.Context, typ *List, source interface{}, selectionSet *SelectionSet) (interface{}, error) {
+func (e *Executor) executeList(ctx context.Context, typ *List, source interface{}, selectionSet *SelectionSet) (interface{}, error) {
 	if reflect.ValueOf(source).IsNil() {
 		return emptyDiffableList, nil
 	}
@@ -168,56 +189,20 @@ func executeList(ctx context.Context, typ *List, source interface{}, selectionSe
 	items := make([]interface{}, slice.Len())
 
 	// resolve every element in the slice
-	if selectionSet != nil && selectionSet.Complex {
-		var wg sync.WaitGroup
-		var mu sync.Mutex
-		var errs *multierror.Error
-
-		for i := 0; i < slice.Len(); i++ {
-			wg.Add(1)
-			go func(i int) {
-				defer wg.Done()
-
-				thunder.AcquireGoroutineToken(ctx)
-				defer thunder.ReleaseGoroutineToken(ctx)
-
-				value := slice.Index(i)
-				resolved, err := execute(ctx, typ.Type, value.Interface(), selectionSet)
-				if err != nil {
-					mu.Lock()
-					errs = multierror.Append(errs, err)
-					mu.Unlock()
-					return
-				}
-
-				items[i] = resolved
-			}(i)
+	for i := 0; i < slice.Len(); i++ {
+		value := slice.Index(i)
+		resolved, err := e.execute(ctx, typ.Type, value.Interface(), selectionSet)
+		if err != nil {
+			return nil, err
 		}
-
-		thunder.ReleaseGoroutineToken(ctx)
-		wg.Wait()
-		thunder.AcquireGoroutineToken(ctx)
-
-		if errs != nil {
-			return nil, errs
-		}
-
-	} else {
-		for i := 0; i < slice.Len(); i++ {
-			value := slice.Index(i)
-			resolved, err := execute(ctx, typ.Type, value.Interface(), selectionSet)
-			if err != nil {
-				return nil, err
-			}
-			items[i] = resolved
-		}
+		items[i] = resolved
 	}
 
-	return &DiffableList{Items: items}, nil
+	return &awaitableDiffableList{Items: items}, nil
 }
 
 // execute executes a query by dispatches according to typ
-func execute(ctx context.Context, typ Type, source interface{}, selectionSet *SelectionSet) (interface{}, error) {
+func (e *Executor) execute(ctx context.Context, typ Type, source interface{}, selectionSet *SelectionSet) (interface{}, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -225,20 +210,28 @@ func execute(ctx context.Context, typ Type, source interface{}, selectionSet *Se
 	case *Scalar:
 		return source, nil
 	case *Object:
-		return executeObject(ctx, typ, source, selectionSet)
+		return e.executeObject(ctx, typ, source, selectionSet)
 	case *List:
-		return executeList(ctx, typ, source, selectionSet)
+		return e.executeList(ctx, typ, source, selectionSet)
 	default:
-		panic("unknown type kind")
+		panic(typ)
 	}
 }
 
 type Executor struct {
 	MaxConcurrency int
+
+	mu sync.Mutex
 }
 
 // Execute executes a query by dispatches according to typ
 func (e *Executor) Execute(ctx context.Context, typ Type, source interface{}, selectionSet *SelectionSet) (interface{}, error) {
 	ctx = thunder.WithConcurrencyLimiter(ctx, e.MaxConcurrency)
-	return execute(ctx, typ, source, selectionSet)
+	e.mu.Lock()
+	value, err := e.execute(ctx, typ, source, selectionSet)
+	e.mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
+	return await(value)
 }
