@@ -110,6 +110,8 @@ func (s *introspectionSchema) Type() schemabuilder.Object {
 			return SCALAR
 		case *graphql.List:
 			return LIST
+		case *graphql.InputObject:
+			return INPUT_OBJECT
 		default:
 			return ""
 		}
@@ -121,6 +123,8 @@ func (s *introspectionSchema) Type() schemabuilder.Object {
 			return t.Name
 		case *graphql.Scalar:
 			return t.Type
+		case *graphql.InputObject:
+			return t.Name
 		default:
 			return ""
 		}
@@ -137,7 +141,22 @@ func (s *introspectionSchema) Type() schemabuilder.Object {
 
 	object.FieldFunc("interfaces", func() []Type { return nil })
 	object.FieldFunc("possibleTypes", func() []Type { return nil })
-	object.FieldFunc("inputFields", func() []InputValue { return nil })
+
+	object.FieldFunc("inputFields", func(t Type) []InputValue {
+		var fields []InputValue
+
+		switch t := t.Inner.(type) {
+		case *graphql.InputObject:
+			for name, f := range t.InputFields {
+				fields = append(fields, InputValue{
+					Name: name,
+					Type: Type{Inner: f},
+				})
+			}
+		}
+
+		return fields
+	})
 
 	object.FieldFunc("fields", func(t Type, args struct {
 		IncludeDeprecated *bool
@@ -147,9 +166,18 @@ func (s *introspectionSchema) Type() schemabuilder.Object {
 		switch t := t.Inner.(type) {
 		case *graphql.Object:
 			for name, f := range t.Fields {
+				var args []InputValue
+				for name, a := range f.Args {
+					args = append(args, InputValue{
+						Name: name,
+						Type: Type{Inner: a},
+					})
+				}
+
 				fields = append(fields, field{
 					Name: name,
 					Type: Type{Inner: f.Type},
+					Args: args,
 				})
 			}
 		}
@@ -199,6 +227,10 @@ func collectTypes(typ graphql.Type, types map[string]graphql.Type) {
 
 		for _, field := range typ.Fields {
 			collectTypes(field.Type, types)
+
+			for _, arg := range field.Args {
+				collectTypes(arg, types)
+			}
 		}
 
 	case *graphql.List:
@@ -209,6 +241,16 @@ func collectTypes(typ graphql.Type, types map[string]graphql.Type) {
 			return
 		}
 		types[typ.Type] = typ
+
+	case *graphql.InputObject:
+		if _, ok := types[typ.Name]; ok {
+			return
+		}
+		types[typ.Name] = typ
+
+		for _, field := range typ.InputFields {
+			collectTypes(field, types)
+		}
 	}
 }
 

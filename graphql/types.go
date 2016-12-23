@@ -45,16 +45,28 @@ type List struct {
 	Type Type
 }
 
-func (s *List) isType() {}
+func (l *List) isType() {}
 
-func (s *List) String() string {
-	return fmt.Sprintf("[%s]", s.Type)
+func (l *List) String() string {
+	return fmt.Sprintf("[%s]", l.Type)
 }
 
-// Verify *Scalar, *Object, and *List implement Type
+type InputObject struct {
+	Name        string
+	InputFields map[string]Type
+}
+
+func (io *InputObject) isType() {}
+
+func (io *InputObject) String() string {
+	return io.Name
+}
+
+// Verify *Scalar, *Object, *List, and *InputObject implement Type
 var _ Type = &Scalar{}
 var _ Type = &Object{}
 var _ Type = &List{}
+var _ Type = &InputObject{}
 
 // A Resolver calculates the value of a field of an object
 type Resolver func(ctx context.Context, source, args interface{}, selectionSet *SelectionSet) (interface{}, error)
@@ -65,6 +77,7 @@ type Resolver func(ctx context.Context, source, args interface{}, selectionSet *
 type Field struct {
 	Resolve        Resolver
 	Type           Type
+	Args           map[string]Type
 	ParseArguments func(json interface{}) (interface{}, error)
 
 	Expensive bool

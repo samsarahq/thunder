@@ -133,13 +133,13 @@ var scalarArgParsers = map[reflect.Type]*argParser{
 	},
 }
 
-func getScalarArgParser(typ reflect.Type) (*argParser, bool) {
+func getScalarArgParser(typ reflect.Type) (*argParser, graphql.Type, bool) {
 	for match, argParser := range scalarArgParsers {
 		if internal.TypesIdenticalOrScalarAliases(match, typ) {
-			return argParser, true
+			return argParser, &graphql.Scalar{Type: typ.Name()}, true
 		}
 	}
-	return nil, false
+	return nil, nil, false
 }
 
 func init() {
@@ -154,27 +154,34 @@ type argField struct {
 	optional bool
 }
 
-func makeArgParser(typ reflect.Type) (*argParser, error) {
-	if parser, ok := getScalarArgParser(typ); ok {
-		return parser, nil
+func makeArgParser(typ reflect.Type) (*argParser, graphql.Type, error) {
+	if parser, argType, ok := getScalarArgParser(typ); ok {
+		return parser, argType, nil
 	}
 
 	switch typ.Kind() {
 	case reflect.Struct:
-		return makeStructParser(typ)
+		parser, argType, err := makeStructParser(typ)
+		if err != nil {
+			return nil, nil, err
+		}
+		if argType.(*graphql.InputObject).Name == "" {
+			return nil, nil, fmt.Errorf("bad type %s: should have a name", typ)
+		}
+		return parser, argType, err
 	case reflect.Slice:
 		return makeSliceParser(typ)
 	case reflect.Ptr:
 		return makePtrParser(typ)
 	default:
-		return nil, fmt.Errorf("bad arg type %s: should be struct, scalar, pointer, or a slice", typ)
+		return nil, nil, fmt.Errorf("bad arg type %s: should be struct, scalar, pointer, or a slice", typ)
 	}
 }
 
-func makePtrParser(typ reflect.Type) (*argParser, error) {
-	inner, err := makeArgParser(typ.Elem())
+func makePtrParser(typ reflect.Type) (*argParser, graphql.Type, error) {
+	inner, argType, err := makeArgParser(typ.Elem())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	return &argParser{
@@ -192,11 +199,19 @@ func makePtrParser(typ reflect.Type) (*argParser, error) {
 			return nil
 		},
 		Type: typ,
-	}, nil
+	}, argType, nil
 }
 
-func makeStructParser(typ reflect.Type) (*argParser, error) {
+func makeStructParser(typ reflect.Type) (*argParser, graphql.Type, error) {
 	fields := make(map[string]argField)
+
+	argType := &graphql.InputObject{
+		Name:        typ.Name(),
+		InputFields: make(map[string]graphql.Type),
+	}
+	if argType.Name != "" && !strings.HasSuffix(argType.Name, "Input") {
+		argType.Name += "Input"
+	}
 
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
@@ -204,7 +219,7 @@ func makeStructParser(typ reflect.Type) (*argParser, error) {
 			continue
 		}
 		if field.Anonymous {
-			return nil, fmt.Errorf("bad arg type %s: anonymous fields not supported", typ)
+			return nil, nil, fmt.Errorf("bad arg type %s: anonymous fields not supported", typ)
 		}
 		tags := strings.Split(field.Tag.Get("graphql"), ",")
 		var name string
@@ -223,25 +238,26 @@ func makeStructParser(typ reflect.Type) (*argParser, error) {
 		if len(tags) > 1 {
 			for _, tag := range tags[1:] {
 				if tag != "key" || key {
-					return nil, fmt.Errorf("bad type %s: field %s has unexpected tag %s", typ, name, tag)
+					return nil, nil, fmt.Errorf("bad type %s: field %s has unexpected tag %s", typ, name, tag)
 				}
 				key = true
 			}
 		}
 
 		if _, ok := fields[name]; ok {
-			return nil, fmt.Errorf("bad arg type %s: duplicate field %s", typ, name)
+			return nil, nil, fmt.Errorf("bad arg type %s: duplicate field %s", typ, name)
 		}
 
-		parser, err := makeArgParser(field.Type)
+		parser, fieldArgTyp, err := makeArgParser(field.Type)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		fields[name] = argField{
 			field:  field,
 			parser: parser,
 		}
+		argType.InputFields[name] = fieldArgTyp
 	}
 
 	return &argParser{
@@ -268,13 +284,13 @@ func makeStructParser(typ reflect.Type) (*argParser, error) {
 			return nil
 		},
 		Type: typ,
-	}, nil
+	}, argType, nil
 }
 
-func makeSliceParser(typ reflect.Type) (*argParser, error) {
-	inner, err := makeArgParser(typ.Elem())
+func makeSliceParser(typ reflect.Type) (*argParser, graphql.Type, error) {
+	inner, argType, err := makeArgParser(typ.Elem())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	return &argParser{
@@ -295,7 +311,7 @@ func makeSliceParser(typ reflect.Type) (*argParser, error) {
 			return nil
 		},
 		Type: typ,
-	}, nil
+	}, &graphql.List{Type: argType}, nil
 }
 
 type schemaBuilder struct {
@@ -330,6 +346,7 @@ func (sb *schemaBuilder) buildFunction(typ reflect.Type, fun reflect.Value) (*gr
 	}
 
 	var argParser *argParser
+	var argType graphql.Type
 	var ptrFunc bool
 	var hasContext, hasSource, hasArgs, hasSelectionSet bool
 
@@ -347,7 +364,7 @@ func (sb *schemaBuilder) buildFunction(typ reflect.Type, fun reflect.Value) (*gr
 	if len(in) > 0 && in[0] != selectionSetType {
 		hasArgs = true
 		var err error
-		if argParser, err = makeArgParser(in[0]); err != nil {
+		if argParser, argType, err = makeStructParser(in[0]); err != nil {
 			return nil, err
 		}
 		in = in[1:]
@@ -402,6 +419,18 @@ func (sb *schemaBuilder) buildFunction(typ reflect.Type, fun reflect.Value) (*gr
 		}
 	}
 
+	args := make(map[string]graphql.Type)
+	if hasArgs {
+		inputObject, ok := argType.(*graphql.InputObject)
+		if !ok {
+			return nil, fmt.Errorf("%s's args should be an object", funcType)
+		}
+
+		for name, typ := range inputObject.InputFields {
+			args[name] = typ
+		}
+	}
+
 	return &graphql.Field{
 		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
 			// Set up function arguments.
@@ -453,6 +482,7 @@ func (sb *schemaBuilder) buildFunction(typ reflect.Type, fun reflect.Value) (*gr
 
 			return result, nil
 		},
+		Args:           args,
 		Type:           retType,
 		ParseArguments: argParser.Parse,
 		Expensive:      hasContext,
