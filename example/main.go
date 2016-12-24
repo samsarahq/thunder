@@ -38,11 +38,10 @@ type Reaction struct {
 	Count    int
 }
 
-func (s *Server) Message() schemabuilder.Object {
-	object := schemabuilder.Object{
-		Type:        Message{},
-		Description: "A single message.",
-	}
+func (s *Server) registerMessage(schema *schemabuilder.Schema) {
+	object := schema.Object("Message", Message{})
+
+	object.Description = "A single message."
 
 	object.FieldFunc("reactions", func(ctx context.Context, m *Message) ([]*Reaction, error) {
 		reactions := make(map[string]*Reaction)
@@ -68,12 +67,10 @@ func (s *Server) Message() schemabuilder.Object {
 
 		return result, nil
 	})
-
-	return object
 }
 
-func (s *Server) Query() schemabuilder.Object {
-	object := schemabuilder.Object{}
+func (s *Server) registerQuery(schema *schemabuilder.Schema) {
+	object := schema.Query()
 
 	object.FieldFunc("messages", func(ctx context.Context) ([]*Message, error) {
 		var result []*Message
@@ -82,12 +79,10 @@ func (s *Server) Query() schemabuilder.Object {
 		}
 		return result, nil
 	})
-
-	return object
 }
 
-func (s *Server) Mutation() schemabuilder.Object {
-	object := schemabuilder.Object{}
+func (s *Server) registerMutation(schema *schemabuilder.Schema) {
+	object := schema.Mutation()
 
 	object.FieldFunc("addMessage", func(ctx context.Context, args struct{ Text string }) error {
 		_, err := s.db.InsertRow(ctx, &Message{Text: args.Text})
@@ -108,8 +103,16 @@ func (s *Server) Mutation() schemabuilder.Object {
 		_, err := s.db.InsertRow(ctx, &ReactionInstance{MessageId: args.MessageId, Reaction: args.Reaction})
 		return err
 	})
+}
 
-	return object
+func (s *Server) Schema() *graphql.Schema {
+	schema := schemabuilder.NewSchema()
+
+	s.registerQuery(schema)
+	s.registerMutation(schema)
+	s.registerMessage(schema)
+
+	return schema.MustBuild()
 }
 
 func main() {
@@ -122,7 +125,8 @@ func main() {
 		panic(err)
 	}
 
-	graphqlSchema := schemabuilder.MustBuildSchema(&Server{db: db})
+	server := &Server{db: db}
+	graphqlSchema := server.Schema()
 	introspection.AddIntrospectionToSchema(graphqlSchema)
 
 	http.Handle("/graphql", graphql.Handler(graphqlSchema))

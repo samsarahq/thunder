@@ -5,7 +5,7 @@ import (
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 )
 
-type introspectionSchema struct {
+type introspection struct {
 	types    map[string]graphql.Type
 	query    graphql.Type
 	mutation graphql.Type
@@ -42,11 +42,8 @@ type InputValue struct {
 	DefaultValue string
 }
 
-func (s *introspectionSchema) InputValue() schemabuilder.Object {
-	return schemabuilder.Object{
-		Name: "__InputValue",
-		Type: InputValue{},
-	}
+func (s *introspection) registerInputValue(schema *schemabuilder.Schema) {
+	schema.Object("__InputValue", InputValue{})
 }
 
 type EnumValue struct {
@@ -56,11 +53,8 @@ type EnumValue struct {
 	DeprecationReason string
 }
 
-func (s *introspectionSchema) EnumValue() schemabuilder.Object {
-	return schemabuilder.Object{
-		Name: "__EnumValue",
-		Type: EnumValue{},
-	}
+func (s *introspection) registerEnumValue(schema *schemabuilder.Schema) {
+	schema.Object("__EnumValue", EnumValue{})
 }
 
 type Directive struct {
@@ -70,11 +64,8 @@ type Directive struct {
 	Args        []InputValue
 }
 
-func (s *introspectionSchema) Directive() schemabuilder.Object {
-	return schemabuilder.Object{
-		Name: "__Directive",
-		Type: Directive{},
-	}
+func (s *introspection) registerDirective(schema *schemabuilder.Schema) {
+	schema.Object("__Directive", Directive{})
 }
 
 type Schema struct {
@@ -85,22 +76,16 @@ type Schema struct {
 	Directives       []Directive
 }
 
-func (s *introspectionSchema) Schema() schemabuilder.Object {
-	return schemabuilder.Object{
-		Name: "__Schema",
-		Type: Schema{},
-	}
+func (s *introspection) registerSchema(schema *schemabuilder.Schema) {
+	schema.Object("__Schema", Schema{})
 }
 
 type Type struct {
 	Inner graphql.Type `graphql:"-"`
 }
 
-func (s *introspectionSchema) Type() schemabuilder.Object {
-	object := schemabuilder.Object{
-		Name: "__type",
-		Type: Type{},
-	}
+func (s *introspection) registerType(schema *schemabuilder.Schema) {
+	object := schema.Object("__Type", Type{})
 
 	object.FieldFunc("kind", func(t Type) TypeKind {
 		switch t.Inner.(type) {
@@ -197,8 +182,6 @@ func (s *introspectionSchema) Type() schemabuilder.Object {
 	object.FieldFunc("enumValues", func(args struct{ IncludeDeprecated *bool }) []EnumValue {
 		return nil
 	})
-
-	return object
 }
 
 type field struct {
@@ -210,11 +193,8 @@ type field struct {
 	DeprecationReason string
 }
 
-func (s *introspectionSchema) Field() schemabuilder.Object {
-	return schemabuilder.Object{
-		Name: "__Field",
-		Type: field{},
-	}
+func (s *introspection) registerField(schema *schemabuilder.Schema) {
+	schema.Object("__Field", field{})
 }
 
 func collectTypes(typ graphql.Type, types map[string]graphql.Type) {
@@ -254,8 +234,8 @@ func collectTypes(typ graphql.Type, types map[string]graphql.Type) {
 	}
 }
 
-func (s *introspectionSchema) Query() schemabuilder.Object {
-	object := schemabuilder.Object{}
+func (s *introspection) registerQuery(schema *schemabuilder.Schema) {
+	object := schema.Query()
 
 	object.FieldFunc("__schema", func() *Schema {
 		var types []Type
@@ -277,14 +257,25 @@ func (s *introspectionSchema) Query() schemabuilder.Object {
 		}
 		return nil
 	})
-
-	return object
 }
 
-type mutation struct{}
+func (s *introspection) registerMutation(schema *schemabuilder.Schema) {
+	schema.Mutation()
+}
 
-func (s *introspectionSchema) Mutation() schemabuilder.Object {
-	return schemabuilder.Object{}
+func (s *introspection) Schema() *graphql.Schema {
+	schema := schemabuilder.NewSchema()
+
+	s.registerDirective(schema)
+	s.registerEnumValue(schema)
+	s.registerField(schema)
+	s.registerInputValue(schema)
+	s.registerMutation(schema)
+	s.registerQuery(schema)
+	s.registerSchema(schema)
+	s.registerType(schema)
+
+	return schema.MustBuild()
 }
 
 func AddIntrospectionToSchema(schema *graphql.Schema) {
@@ -292,12 +283,12 @@ func AddIntrospectionToSchema(schema *graphql.Schema) {
 	collectTypes(schema.Query, types)
 	collectTypes(schema.Mutation, types)
 
-	is := &introspectionSchema{
+	is := &introspection{
 		types:    types,
 		query:    schema.Query,
 		mutation: schema.Mutation,
 	}
-	isSchema := schemabuilder.MustBuildSchema(is)
+	isSchema := is.Schema()
 
 	query := schema.Query.(*graphql.Object)
 

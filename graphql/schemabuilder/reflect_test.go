@@ -13,111 +13,97 @@ import (
 
 type alias int64
 
-type root struct {
+type Root struct {
 	X     int64 `graphql:"yyy"`
 	Time  time.Time
 	Bytes []byte
 	Alias alias
 }
 
-type schema struct{}
+type User struct {
+	Name string `graphql:",key"`
+	Age  int
+}
 
 func panicFunction() int64 {
 	panic("oh no!")
 }
 
-func (s *schema) Query() Object {
-	object := Object{
-		Type: root{},
-	}
-	object.FieldFunc("users", func() []*user {
-		return []*user{
+func TestExecuteGood(t *testing.T) {
+	schema := NewSchema()
+
+	query := schema.Query()
+	query.FieldFunc("users", func() []*User {
+		return []*User{
 			{Name: "Alice", Age: 10},
 			{Name: "Bob", Age: 20},
 		}
 	})
-	object.FieldFunc("optional", func(args struct{ X *int64 }) int64 {
+	query.FieldFunc("optional", func(args struct{ X *int64 }) int64 {
 		if args.X != nil {
 			return *args.X
 		}
 		return -1
 	})
-	object.FieldFunc("nilObject", func() *user {
+	query.FieldFunc("nilObject", func() *User {
 		return nil
 	})
-	object.FieldFunc("nilSlice", func() []*user {
+	query.FieldFunc("nilSlice", func() []*User {
 		return nil
 	})
-	object.FieldFunc("bad", func() (string, error) {
+	query.FieldFunc("bad", func() (string, error) {
 		return "", errors.New("BAD")
 	})
-	object.FieldFunc("sum", func(args struct{ A, B int64 }) (int64, error) {
+	query.FieldFunc("sum", func(args struct{ A, B int64 }) (int64, error) {
 		return args.A + args.B, nil
 	})
-	object.FieldFunc("ints", func() []int64 {
+	query.FieldFunc("ints", func() []int64 {
 		return []int64{1, 2, 3, 4}
 	})
-	object.FieldFunc("nested", func(r *root) *root {
-		return r
-	})
-	object.FieldFunc("ptr", func() *user {
-		return &user{
+	query.FieldFunc("ptr", func() *User {
+		return &User{
 			Name: "Charlie",
 			Age:  5,
 		}
 	})
-	object.FieldFunc("plain", func() user {
-		return user{
+	query.FieldFunc("plain", func() User {
+		return User{
 			Name: "Jane",
 			Age:  5,
 		}
 	})
-	object.FieldFunc("optionalField", func(args struct{ Optional *int64 }) *int64 {
+	query.FieldFunc("optionalField", func(args struct{ Optional *int64 }) *int64 {
 		return args.Optional
 	})
-	object.FieldFunc("getCtx", func(ctx context.Context) (string, error) {
+	query.FieldFunc("getCtx", func(ctx context.Context) (string, error) {
 		return ctx.Value("foo").(string), nil
 	})
-	object.FieldFunc("panic", func() int64 {
+	query.FieldFunc("panic", func() int64 {
 		return panicFunction()
 	})
+	query.FieldFunc("root", func() Root {
+		return Root{X: 1234, Time: time.Unix(1458757911, 0).UTC(), Bytes: []byte("bar"), Alias: 999}
+	})
 
-	return object
-}
+	_ = schema.Mutation()
 
-type empty struct{}
+	root := schema.Object("root", Root{})
+	root.FieldFunc("nested", func(r *Root) *Root {
+		return r
+	})
 
-func (s *schema) Mutation() Object {
-	return Object{
-		Type: empty{},
-	}
-}
-
-type user struct {
-	Name string `graphql:",key"`
-	Age  int64
-}
-
-func (s *schema) User() Object {
-	object := Object{
-		Type: user{},
-	}
-	object.FieldFunc("byRef", func(u *user) string {
+	user := schema.Object("User", User{})
+	user.FieldFunc("byRef", func(u *User) string {
 		return "byRef"
 	})
-	object.FieldFunc("byVal", func(u user) string {
+	user.FieldFunc("byVal", func(u User) string {
 		return "byVal"
 	})
-	object.FieldFunc("friends", func(u *user) []*user {
-		return []*user{}
+	user.FieldFunc("friends", func(u *User) []*User {
+		return []*User{}
 	})
-	return object
-}
 
-func TestExecuteGood(t *testing.T) {
-	builtSchema := MustBuildSchema(&schema{})
-
-	r := root{X: 1234, Time: time.Unix(1458757911, 0).UTC(), Bytes: []byte("bar"), Alias: 999}
+	builtSchema := schema.MustBuild()
 
 	ctx := context.WithValue(context.Background(), "foo", "hello there")
 
@@ -128,23 +114,18 @@ func TestExecuteGood(t *testing.T) {
 				foo: age
 				friends { name }
 			}
-			bar: yyy
 			ints
-			nested {
-				getCtx
-				sum(a: 1, b: $var)
-			}
+			getCtx
+			sum(a: 1, b: $var)
 			nilObject { name }
 			nilSlice { name }
 			has: optional(x: 10)
 			hasNot: optional
 			hasField: optionalField(optional: 10)
 			hasNotField: optionalField
-			time
-			bytes
 			ptr { name age byRef byVal }
 			plain { name age byRef byVal }
-			alias
+			root { nested { time bar: yyy bytes alias } }
 		}
 	`, map[string]interface{}{"var": float64(3)})
 
@@ -154,7 +135,7 @@ func TestExecuteGood(t *testing.T) {
 
 	e := graphql.Executor{MaxConcurrency: 1}
 
-	result, err := e.Execute(ctx, builtSchema.Query, r, q)
+	result, err := e.Execute(ctx, builtSchema.Query, nil, q)
 	if err != nil {
 		t.Error(err)
 	}
@@ -164,7 +145,6 @@ func TestExecuteGood(t *testing.T) {
 			{"name": "Alice", "foo": 10, "friends": []},
 			{"name": "Bob", "foo": 20, "friends": []}
 		],
-		"bar": 1234,
 		"nilObject": null,
 		"nilSlice": [],
 		"has": 10,
@@ -172,15 +152,12 @@ func TestExecuteGood(t *testing.T) {
 		"hasField": 10,
 		"hasNotField": null,
 		"ints": [1, 2, 3, 4],
-		"nested": {
-			"getCtx": "hello there",
-			"sum": 4
-		},
-		"time": "2016-03-23T18:31:51Z",
-		"bytes": "YmFy",
+		"getCtx": "hello there",
+		"sum": 4,
 		"ptr": {"name": "Charlie", "age": 5, "byRef": "byRef", "byVal": "byVal"},
 		"plain": {"name": "Jane", "age": 5, "byRef": "byRef", "byVal": "byVal"},
-		"alias": 999}`)) {
+		"root": {"nested": {"time": "2016-03-23T18:31:51Z", "bytes": "YmFy", "bar": 1234, "alias": 999}}
+		}`)) {
 		t.Error("bad value")
 	}
 

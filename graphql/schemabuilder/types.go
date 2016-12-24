@@ -2,27 +2,6 @@ package schemabuilder
 
 // A Object represents a Go type and set of methods to be converted into an
 // Object in a GraphQL schema.
-//
-// A Object allows a developer to specify the type to be exposed, an optional key
-// field (used for computing efficient deltas), and an optional set of methods
-// that can be invoked on the exposed method.
-//
-// An example spec for a struct User could then look as follows:
-//
-//     type User struct {
-//         Id   int64  `graphql:",key'`
-//         Name string
-//     }
-//
-//     var userObject = Object{
-//         Type:    User{},
-//         Methods: Methods{
-//             "friends": func(u *User) []*User{
-//                  return []*User{alice, bob},
-//             },
-//         }
-//     }
-//
 type Object struct {
 	Name        string // Optional, defaults to Type's name.
 	Description string
@@ -30,6 +9,24 @@ type Object struct {
 	Methods     Methods // Deprecated, use FieldFunc instead.
 }
 
+// FieldFunc exposes a field on an object. The function f can take a number of
+// optional arguments:
+// func([ctx context.Context], [o *Type], [args struct {}]) ([Result], [error])
+//
+// For example, for an object of type User, a fullName field might take just an
+// instance of the object:
+//    user.FieldFunc("fullName", func(u *User) string {
+//       return u.FirstName + " " + u.LastName
+//    })
+//
+// An addUser mutation field might take both a context and arguments:
+//    mutation.FieldFunc("addUser", func(ctx context.Context, args struct{
+//        FirstName string
+//        LastName  string
+//    }) (int, error) {
+//        userID, err := db.AddUser(ctx, args.FirstName, args.LastName)
+//        return userID, err
+//    })
 func (s *Object) FieldFunc(name string, f interface{}) {
 	if s.Methods == nil {
 		s.Methods = make(Methods)
@@ -38,9 +35,4 @@ func (s *Object) FieldFunc(name string, f interface{}) {
 }
 
 // A Methods map represents the set of methods exposed on a Object.
-//
-// The name of each method should be the exposed GraphQL name of the method (ie
-// "friends", not "Friends"), and the values should be functions that take the
-// a value from the Object's Type as a first argument. Because different methods
-// have different types, the Methods map uses interface{} to store the methods.
 type Methods map[string]interface{}

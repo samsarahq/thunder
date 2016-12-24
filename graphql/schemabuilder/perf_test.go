@@ -10,53 +10,24 @@ import (
 	"github.com/samsarahq/thunder/reactive"
 )
 
-type perfUser struct {
-	Name string
-	age  int
-}
+func BenchmarkSimpleExecute(b *testing.B) {
+	schema := NewSchema()
 
-type perfRoot struct {
-}
-
-type perfSchema struct{}
-
-func (s *perfSchema) User() Object {
-	object := Object{
-		Type: perfUser{},
-	}
-	object.FieldFunc("age", func(u *perfUser) int {
-		return u.age
-	})
-	return object
-}
-
-func (s *perfSchema) Query() Object {
-	object := Object{
-		Type: perfRoot{},
-	}
-	object.FieldFunc("users", func() []*perfUser {
-		users := make([]*perfUser, 5000)
+	query := schema.Query()
+	query.FieldFunc("users", func() []*User {
+		users := make([]*User, 5000)
 		for i := range users {
-			users[i] = &perfUser{
+			users[i] = &User{
 				Name: "user" + fmt.Sprint(i),
-				age:  i,
+				Age:  i,
 			}
 		}
 		return users
 	})
-	return object
-}
 
-type perfEmpty struct{}
+	_ = schema.Mutation()
 
-func (s *perfSchema) Mutation() Object {
-	return Object{
-		Type: perfEmpty{},
-	}
-}
-
-func BenchmarkSimpleExecute(b *testing.B) {
-	builtSchema := MustBuildSchema(&perfSchema{})
+	builtSchema := schema.MustBuild()
 	ctx := context.Background()
 
 	q := graphql.MustParse(`
@@ -77,7 +48,7 @@ func BenchmarkSimpleExecute(b *testing.B) {
 		reactive.NewRerunner(ctx, func(ctx context.Context) (interface{}, error) {
 			e := graphql.Executor{MaxConcurrency: 1}
 
-			_, err := e.Execute(ctx, builtSchema.Query, perfRoot{}, q)
+			_, err := e.Execute(ctx, builtSchema.Query, nil, q)
 			if err != nil {
 				b.Error(err)
 			}

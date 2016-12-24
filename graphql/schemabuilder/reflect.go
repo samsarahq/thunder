@@ -316,7 +316,7 @@ func makeSliceParser(typ reflect.Type) (*argParser, graphql.Type, error) {
 
 type schemaBuilder struct {
 	types   map[reflect.Type]graphql.Type
-	objects map[reflect.Type]Object
+	objects map[reflect.Type]*Object
 }
 
 var errType reflect.Type
@@ -672,58 +672,53 @@ func (sb *schemaBuilder) getType(t reflect.Type) (graphql.Type, error) {
 	}
 }
 
-type query struct{}
-type mutation struct{}
-
-type Server interface {
-	Query() Object
-	Mutation() Object
+type Schema struct {
+	objects []*Object
 }
 
-func BuildSchema(server Server) (*graphql.Schema, error) {
-	// build objects by calling methods on server
-	var objects []Object
+func NewSchema() *Schema {
+	return &Schema{}
+}
 
-	value := reflect.ValueOf(server)
-	serverTyp := value.Type()
+func (s *Schema) Object(name string, typ interface{}) *Object {
+	object := &Object{
+		Name: name,
+		Type: typ,
+	}
+	s.objects = append(s.objects, object)
+	return object
+}
 
-	var queryObject, mutationObject Object
+type query struct{}
 
-	for i := 0; i < serverTyp.NumMethod(); i++ {
-		method := serverTyp.Method(i)
-		if method.Type.NumIn() == 1 && method.Type.NumOut() == 1 && method.Type.Out(0) == reflect.TypeOf(Object{}) {
-			object := method.Func.Call([]reflect.Value{value})[0].Interface().(Object)
+func (s *Schema) Query() *Object {
+	return s.Object("Query", query{})
+}
 
-			if method.Name == "Query" {
-				if object.Type == nil {
-					object.Type = query{}
-				}
-				if object.Name == "" {
-					object.Name = "Query"
-				}
-				queryObject = object
-			}
+type mutation struct{}
 
-			if method.Name == "Mutation" {
-				if object.Type == nil {
-					object.Type = mutation{}
-				}
-				if object.Name == "" {
-					object.Name = "Mutation"
-				}
-				mutationObject = object
-			}
+func (s *Schema) Mutation() *Object {
+	return s.Object("Mutation", mutation{})
+}
 
-			objects = append(objects, object)
+func (s *Schema) Build() (*graphql.Schema, error) {
+	var queryObject, mutationObject *Object
+
+	for _, object := range s.objects {
+		if object.Name == "Query" {
+			queryObject = object
+		}
+		if object.Name == "Mutation" {
+			mutationObject = object
 		}
 	}
 
 	sb := &schemaBuilder{
 		types:   make(map[reflect.Type]graphql.Type),
-		objects: make(map[reflect.Type]Object),
+		objects: make(map[reflect.Type]*Object),
 	}
 
-	for _, object := range objects {
+	for _, object := range s.objects {
 		typ := reflect.TypeOf(object.Type)
 		if typ.Kind() != reflect.Struct {
 			return nil, fmt.Errorf("object.Type should be a struct, not %s", typ.String())
@@ -751,8 +746,8 @@ func BuildSchema(server Server) (*graphql.Schema, error) {
 }
 
 // MustBuildSchema builds a schema and panics if an error occurs
-func MustBuildSchema(server Server) *graphql.Schema {
-	built, err := BuildSchema(server)
+func (s *Schema) MustBuild() *graphql.Schema {
+	built, err := s.Build()
 	if err != nil {
 		panic(err)
 	}
