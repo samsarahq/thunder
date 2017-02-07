@@ -46,7 +46,7 @@ func BenchmarkSimpleExecute(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		done := make(chan struct{}, 0)
 		reactive.NewRerunner(ctx, func(ctx context.Context) (interface{}, error) {
-			e := graphql.Executor{MaxConcurrency: 1}
+			e := graphql.Executor{}
 
 			_, err := e.Execute(ctx, builtSchema.Query, nil, q)
 			if err != nil {

@@ -80,7 +80,7 @@ func TestEndToEndAwaitAndCache(t *testing.T) {
 
 	start := time.Now()
 	rerunner := reactive.NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
-		e := graphql.Executor{MaxConcurrency: 1}
+		e := graphql.Executor{}
 		result, err := e.Execute(ctx, builtSchema.Query, nil, q)
 		if err != nil {
 			t.Error(err)

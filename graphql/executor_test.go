@@ -120,7 +120,7 @@ func TestBasic(t *testing.T) {
 	if err := PrepareQuery(query, q); err != nil {
 		t.Error(err)
 	}
-	e := Executor{MaxConcurrency: 1}
+	e := Executor{}
 	result, err := e.Execute(context.Background(), query, nil, q)
 	if err != nil {
 		t.Error(err)
@@ -209,7 +209,7 @@ func TestError(t *testing.T) {
 		t.Error(err)
 	}
 
-	e := Executor{MaxConcurrency: 1}
+	e := Executor{}
 	_, err := e.Execute(context.Background(), query, nil, q)
 	if err == nil || !strings.Contains(err.Error(), "test error") {
 		t.Error("expected test error")
@@ -231,7 +231,7 @@ func TestPanic(t *testing.T) {
 		t.Error(err)
 	}
 
-	e := Executor{MaxConcurrency: 1}
+	e := Executor{}
 
 	_, err := e.Execute(context.Background(), query, nil, q)
 	if err == nil || !strings.Contains(err.Error(), "test panic") {

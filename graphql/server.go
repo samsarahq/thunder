@@ -15,9 +15,8 @@ import (
 )
 
 const (
-	MaxSubscriptions    = 200
-	MaxQueryParallelism = 50
-	MinRerunInterval    = 1 * time.Second
+	MaxSubscriptions = 200
+	MinRerunInterval = 1 * time.Second
 )
 
 type MakeCtxFunc func(context.Context) context.Context
@@ -137,9 +136,7 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 
 	var previous interface{}
 
-	e := Executor{
-		MaxConcurrency: MaxQueryParallelism,
-	}
+	e := Executor{}
 
 	c.subscriptions[id] = reactive.NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
 		ctx = c.makeCtx(ctx)
@@ -179,9 +176,7 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 		return err
 	}
 
-	e := Executor{
-		MaxConcurrency: MaxQueryParallelism,
-	}
+	e := Executor{}
 
 	c.subscriptions[id] = reactive.NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
 		ctx = c.makeCtx(context.Background())

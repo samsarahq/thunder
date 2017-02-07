@@ -7,7 +7,6 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/samsarahq/thunder"
 	"github.com/samsarahq/thunder/reactive"
 )
 
@@ -219,14 +218,11 @@ func (e *Executor) execute(ctx context.Context, typ Type, source interface{}, se
 }
 
 type Executor struct {
-	MaxConcurrency int
-
 	mu sync.Mutex
 }
 
 // Execute executes a query by dispatches according to typ
 func (e *Executor) Execute(ctx context.Context, typ Type, source interface{}, selectionSet *SelectionSet) (interface{}, error) {
-	ctx = thunder.WithConcurrencyLimiter(ctx, e.MaxConcurrency)
 	e.mu.Lock()
 	value, err := e.execute(ctx, typ, source, selectionSet)
 	e.mu.Unlock()

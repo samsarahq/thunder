@@ -133,7 +133,7 @@ func TestExecuteGood(t *testing.T) {
 		t.Error(err)
 	}
 
-	e := graphql.Executor{MaxConcurrency: 1}
+	e := graphql.Executor{}
 
 	result, err := e.Execute(ctx, builtSchema.Query, nil, q)
 	if err != nil {
