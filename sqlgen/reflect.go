@@ -369,6 +369,9 @@ func (s *Schema) ParseRows(query *SelectQuery, res *sql.Rows) ([]interface{}, er
 		}
 		rows = append(rows, row)
 	}
+	if err := res.Err(); err != nil {
+		return nil, err
+	}
 	return rows, nil
 }
 

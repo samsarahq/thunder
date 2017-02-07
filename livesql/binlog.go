@@ -141,6 +141,9 @@ func fetchColumns(conn *sql.DB, database string, table string) ([]string, error)
 
 		columns = append(columns, column)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 
 	return columns, nil
 }
