@@ -1,5 +1,7 @@
 package graphql
 
+import "fmt"
+
 type awaitable interface {
 	await() (interface{}, error)
 }
@@ -42,7 +44,7 @@ func (a *awaitableDiffableObject) await() (interface{}, error) {
 		if f, ok := v.(awaitable); ok {
 			value, err := f.await()
 			if err != nil {
-				return nil, err
+				return nil, nestPathError(k, err)
 			}
 			a.Fields[k] = value
 		}
@@ -66,7 +68,7 @@ func (a *awaitableDiffableList) await() (interface{}, error) {
 		if f, ok := v.(awaitable); ok {
 			value, err := f.await()
 			if err != nil {
-				return nil, err
+				return nil, nestPathError(fmt.Sprint(i), err)
 			}
 			a.Items[i] = value
 		}

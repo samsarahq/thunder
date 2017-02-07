@@ -59,6 +59,7 @@ type mutateMessage struct {
 }
 
 type SanitizedError interface {
+	error
 	SanitizedError() string
 }
 

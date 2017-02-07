@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"reflect"
@@ -9,6 +10,43 @@ import (
 
 	"github.com/samsarahq/thunder/reactive"
 )
+
+type pathError struct {
+	inner error
+	path  []string
+}
+
+func nestPathError(key string, err error) error {
+	// Don't nest SanitzedError's, as they are intended for human consumption.
+	if se, ok := err.(SanitizedError); ok {
+		return se
+	}
+
+	if pe, ok := err.(*pathError); ok {
+		return &pathError{
+			inner: pe.inner,
+			path:  append(pe.path, key),
+		}
+	}
+
+	return &pathError{
+		inner: err,
+		path:  []string{key},
+	}
+}
+
+func (pe *pathError) Error() string {
+	var buffer bytes.Buffer
+	for i := len(pe.path) - 1; i >= 0; i-- {
+		if i < len(pe.path)-1 {
+			buffer.WriteString(".")
+		}
+		buffer.WriteString(pe.path[i])
+	}
+	buffer.WriteString(": ")
+	buffer.WriteString(pe.inner.Error())
+	return buffer.String()
+}
 
 func isNilArgs(args interface{}) bool {
 	m, ok := args.(map[string]interface{})
@@ -158,7 +196,7 @@ func (e *Executor) executeObject(ctx context.Context, typ *Object, source interf
 		field := typ.Fields[selection.Name]
 		resolved, err := e.resolveAndExecute(ctx, field, source, selection)
 		if err != nil {
-			return nil, err
+			return nil, nestPathError(selection.Alias, err)
 		}
 		fields[selection.Alias] = resolved
 	}
@@ -167,7 +205,7 @@ func (e *Executor) executeObject(ctx context.Context, typ *Object, source interf
 	if typ.Key != nil {
 		value, err := e.resolveAndExecute(ctx, &Field{Type: &Scalar{Type: "string"}, Resolve: typ.Key}, source, &Selection{})
 		if err != nil {
-			return nil, err
+			return nil, nestPathError("__key", err)
 		}
 		key = value
 	}
@@ -192,7 +230,7 @@ func (e *Executor) executeList(ctx context.Context, typ *List, source interface{
 		value := slice.Index(i)
 		resolved, err := e.execute(ctx, typ.Type, value.Interface(), selectionSet)
 		if err != nil {
-			return nil, err
+			return nil, nestPathError(fmt.Sprint(i), err)
 		}
 		items[i] = resolved
 	}

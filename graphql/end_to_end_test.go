@@ -2,6 +2,7 @@ package graphql_test
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"sync"
 	"testing"
@@ -19,6 +20,78 @@ type User struct {
 }
 
 type Slow struct {
+}
+
+func TestPathError(t *testing.T) {
+	schema := schemabuilder.NewSchema()
+
+	type Inner struct{}
+
+	query := schema.Query()
+	query.FieldFunc("inner", func() Inner {
+		return Inner{}
+	})
+
+	query.FieldFunc("safe", func() error {
+		return graphql.NewSafeError("safe safe")
+	})
+
+	_ = schema.Mutation()
+
+	type Expensive struct{}
+
+	inner := schema.Object("inner", Inner{})
+	inner.FieldFunc("expensive", func(ctx context.Context) Expensive {
+		return Expensive{}
+	})
+	inner.FieldFunc("inners", func(ctx context.Context) []Inner {
+		return []Inner{Inner{}}
+	})
+
+	nested := schema.Object("expensive", Expensive{})
+	nested.FieldFunc("expensives", func(ctx context.Context) []Expensive {
+		return []Expensive{Expensive{}}
+	})
+
+	nested.FieldFunc("err", func() error {
+		return errors.New("no good, bad")
+	})
+
+	builtSchema := schema.MustBuild()
+
+	q := graphql.MustParse(`
+		{
+			inner { inners { expensive { expensives { err } } } }
+        }`, nil)
+
+	if err := graphql.PrepareQuery(builtSchema.Query, q); err != nil {
+		t.Error(err)
+	}
+
+	e := graphql.Executor{}
+	_, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
+	if err == nil || err.Error() != "inner.inners.0.expensive.expensives.0.err: no good, bad" {
+		t.Errorf("bad error: %v", err)
+	}
+
+	q = graphql.MustParse(`
+		{
+			safe
+		}`, nil)
+
+	if err := graphql.PrepareQuery(builtSchema.Query, q); err != nil {
+		t.Error(err)
+	}
+
+	e = graphql.Executor{}
+	_, err = e.Execute(context.Background(), builtSchema.Query, nil, q)
+	if err == nil || err.Error() != "safe safe" {
+		t.Errorf("bad error: %v", err)
+	}
+	if _, ok := err.(graphql.SanitizedError); !ok {
+		t.Errorf("safe not safe")
+	}
+
 }
 
 // TestEndToEndAwaitAndCache tests that slow fields get run in parallel and cached.
