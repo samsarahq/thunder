@@ -167,6 +167,15 @@ func (db *DB) WithTx(ctx context.Context) (context.Context, *sql.Tx, error) {
 	return context.WithValue(ctx, txKey{db: db}, tx), tx, nil
 }
 
+func (db *DB) WithExistingTx(ctx context.Context, tx *sql.Tx) (context.Context, error) {
+	maybeTx := ctx.Value(txKey{db: db})
+	if maybeTx != nil {
+		return nil, errors.New("already in a tx")
+	}
+
+	return context.WithValue(ctx, txKey{db: db}, tx), nil
+}
+
 func (db *DB) HasTx(ctx context.Context) bool {
 	return ctx.Value(txKey{db: db}) != nil
 }
