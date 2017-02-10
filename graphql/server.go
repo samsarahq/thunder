@@ -20,15 +20,20 @@ const (
 )
 
 type MakeCtxFunc func(context.Context) context.Context
-type ReportErrorFunc func(err error, tags map[string]string)
+
+type GraphqlLogger interface {
+	StartExecution(ctx context.Context, tags map[string]string, initial bool)
+	FinishedExecution(ctx context.Context, tags map[string]string, delay time.Duration)
+	Error(ctx context.Context, err error, tags map[string]string)
+}
 
 type conn struct {
 	writeMu sync.Mutex
 	socket  *websocket.Conn
 
-	schema      *Schema
-	makeCtx     MakeCtxFunc
-	reportError ReportErrorFunc
+	schema  *Schema
+	makeCtx MakeCtxFunc
+	logger  GraphqlLogger
 
 	url string
 
@@ -139,20 +144,29 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 
 	e := Executor{}
 
+	initial := true
+	tags := map[string]string{"url": c.url, "query": subscribe.Query, "queryVariables": mustMarshalJson(subscribe.Variables), "id": id}
+
 	c.subscriptions[id] = reactive.NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
 		ctx = c.makeCtx(ctx)
+
+		start := time.Now()
+		c.logger.StartExecution(ctx, tags, initial)
 		current, err := e.Execute(ctx, c.schema.Query, nil, selectionSet)
+		c.logger.FinishedExecution(ctx, tags, time.Since(start))
+
 		if err != nil {
 			c.writeOrClose(id, "error", sanitizeError(err))
 			go c.closeSubscription(id)
 			if _, ok := err.(SanitizedError); !ok {
-				c.reportError(err, map[string]string{"url": c.url, "query": subscribe.Query, "queryVariables": mustMarshalJson(subscribe.Variables)})
+				c.logger.Error(ctx, err, tags)
 			}
 			return nil, err
 		}
 
 		delta, diff := Diff(previous, current)
 		previous = current
+		initial = false
 
 		if diff {
 			c.writeOrClose(id, "update", PrepareForMarshal(delta))
@@ -179,14 +193,21 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 
 	e := Executor{}
 
+	tags := map[string]string{"url": c.url, "query": mutate.Query, "queryVariables": mustMarshalJson(mutate.Variables), "id": id}
+
 	c.subscriptions[id] = reactive.NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
 		ctx = c.makeCtx(context.Background())
+
+		start := time.Now()
+		c.logger.StartExecution(ctx, tags, true)
 		current, err := e.Execute(ctx, c.schema.Mutation, c.schema.Mutation, selectionSet)
+		c.logger.FinishedExecution(ctx, tags, time.Since(start))
+
 		if err != nil {
 			c.writeOrClose(id, "error", sanitizeError(err))
 			go c.closeSubscription(id)
 			if _, ok := err.(SanitizedError); !ok {
-				c.reportError(err, map[string]string{"url": c.url, "query": mutate.Query, "queryVariables": mustMarshalJson(mutate.Variables)})
+				c.logger.Error(ctx, err, tags)
 			}
 			return nil, err
 		}
@@ -257,6 +278,17 @@ func (c *conn) handle(e *inEnvelope) error {
 	}
 }
 
+type simpleLogger struct {
+}
+
+func (s *simpleLogger) StartExecution(ctx context.Context, tags map[string]string, initial bool) {
+}
+func (s *simpleLogger) FinishedExecution(ctx context.Context, tags map[string]string, delay time.Duration) {
+}
+func (s *simpleLogger) Error(ctx context.Context, err error, tags map[string]string) {
+	log.Printf("error:%v\n%s", tags, err)
+}
+
 func Handler(schema *Schema) http.Handler {
 	upgrader := &websocket.Upgrader{
 		ReadBufferSize:  1024,
@@ -277,21 +309,18 @@ func Handler(schema *Schema) http.Handler {
 		makeCtx := func(ctx context.Context) context.Context {
 			return ctx
 		}
-		reportError := func(err error, tags map[string]string) {
-			log.Println("error:%v\n%s", tags, err)
-		}
 
-		ServeJSONSocket(socket, schema, makeCtx, reportError)
+		ServeJSONSocket(socket, schema, makeCtx, &simpleLogger{})
 	})
 }
 
-func ServeJSONSocket(socket *websocket.Conn, schema *Schema, makeCtx MakeCtxFunc, reportError ReportErrorFunc) {
+func ServeJSONSocket(socket *websocket.Conn, schema *Schema, makeCtx MakeCtxFunc, logger GraphqlLogger) {
 	c := &conn{
 		socket: socket,
 
-		schema:      schema,
-		makeCtx:     makeCtx,
-		reportError: reportError,
+		schema:  schema,
+		makeCtx: makeCtx,
+		logger:  logger,
 
 		subscriptions: make(map[string]*reactive.Rerunner),
 	}
