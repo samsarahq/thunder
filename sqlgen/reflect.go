@@ -89,26 +89,17 @@ func (b *NullBytes) Value() (driver.Value, error) {
 }
 
 // Types should implement both the sql.Scanner and driver.Valuer interface.
-var scannableTypes = map[reflect.Type]reflect.Type{
+var defaultScannableTypes = map[reflect.Type]func() Scannable{
 	// These types should not be pointer types; pointer types are handled
 	// automatically and are treated as optional fields.
-	reflect.TypeOf(string("")):  reflect.TypeOf(sql.NullString{}),
-	reflect.TypeOf(int64(0)):    reflect.TypeOf(sql.NullInt64{}),
-	reflect.TypeOf(int32(0)):    reflect.TypeOf(sql.NullInt64{}),
-	reflect.TypeOf(int16(0)):    reflect.TypeOf(sql.NullInt64{}),
-	reflect.TypeOf(bool(false)): reflect.TypeOf(sql.NullBool{}),
-	reflect.TypeOf(float64(0)):  reflect.TypeOf(sql.NullFloat64{}),
-	reflect.TypeOf([]byte{}):    reflect.TypeOf(NullBytes{}),
-	reflect.TypeOf(time.Time{}): reflect.TypeOf(mysql.NullTime{}),
-}
-
-func getScannableType(typ reflect.Type) (reflect.Type, bool) {
-	for match, scannable := range scannableTypes {
-		if internal.TypesIdenticalOrScalarAliases(typ, match) {
-			return scannable, true
-		}
-	}
-	return nil, false
+	reflect.TypeOf(string("")):  func() Scannable { return new(sql.NullString) },
+	reflect.TypeOf(int64(0)):    func() Scannable { return new(sql.NullInt64) },
+	reflect.TypeOf(int32(0)):    func() Scannable { return new(sql.NullInt64) },
+	reflect.TypeOf(int16(0)):    func() Scannable { return new(sql.NullInt64) },
+	reflect.TypeOf(bool(false)): func() Scannable { return new(sql.NullBool) },
+	reflect.TypeOf(float64(0)):  func() Scannable { return new(sql.NullFloat64) },
+	reflect.TypeOf([]byte{}):    func() Scannable { return new(NullBytes) },
+	reflect.TypeOf(time.Time{}): func() Scannable { return new(mysql.NullTime) },
 }
 
 // BuildStruct constructs a struct value defined by table and based on scannables
@@ -191,7 +182,7 @@ type Column struct {
 	Index []int
 	Order int
 
-	Scannable reflect.Type
+	Scannable func() Scannable
 	Type      reflect.Type
 }
 
@@ -206,7 +197,7 @@ type Table struct {
 	Scannables *sync.Pool
 }
 
-func buildDescriptor(table string, primaryKeyType PrimaryKeyType, typ reflect.Type) (*Table, error) {
+func (s *Schema) buildDescriptor(table string, primaryKeyType PrimaryKeyType, typ reflect.Type) (*Table, error) {
 	if typ.Kind() != reflect.Struct {
 		return nil, fmt.Errorf("bad type %s: not a struct", typ)
 	}
@@ -250,12 +241,12 @@ func buildDescriptor(table string, primaryKeyType PrimaryKeyType, typ reflect.Ty
 			return nil, fmt.Errorf("bad type %s: duplicate column %s", typ, column)
 		}
 
-		var scannable reflect.Type
+		var scannable func() Scannable
 
 		if field.Type.Kind() == reflect.Ptr {
-			scannable, _ = getScannableType(field.Type.Elem())
+			scannable, _ = s.scalarTypes[field.Type.Elem()]
 		} else {
-			scannable, _ = getScannableType(field.Type)
+			scannable, _ = s.scalarTypes[field.Type]
 		}
 
 		if scannable == nil {
@@ -292,7 +283,7 @@ func buildDescriptor(table string, primaryKeyType PrimaryKeyType, typ reflect.Ty
 		New: func() interface{} {
 			scannables := make([]interface{}, len(columns))
 			for i, column := range columns {
-				scannables[i] = reflect.New(column.Scannable).Interface()
+				scannables[i] = column.Scannable()
 			}
 			return scannables
 		},
@@ -310,15 +301,63 @@ func buildDescriptor(table string, primaryKeyType PrimaryKeyType, typ reflect.Ty
 	}, nil
 }
 
+type Scannable interface {
+	sql.Scanner
+	driver.Valuer
+}
+
 type Schema struct {
 	ByName map[string]*Table
 	ByType map[reflect.Type]*Table
+
+	scalarTypes map[reflect.Type]func() Scannable
 }
 
 func NewSchema() *Schema {
+	scalarTypes := make(map[reflect.Type]func() Scannable)
+	for typ, scannable := range defaultScannableTypes {
+		scalarTypes[typ] = scannable
+	}
+
 	return &Schema{
 		ByName: make(map[string]*Table),
 		ByType: make(map[reflect.Type]*Table),
+
+		scalarTypes: scalarTypes,
+	}
+}
+
+func (s *Schema) RegisterCustomScalar(scalar interface{}, makeScannable func() Scannable) error {
+	scalarTyp := reflect.TypeOf(scalar)
+	if scalarTyp.Kind() == reflect.Ptr {
+		return fmt.Errorf("scalar type %v must not be a pointer", scalarTyp)
+	}
+	if _, ok := s.scalarTypes[scalarTyp]; ok {
+		return fmt.Errorf("duplicate scalar type %v", scalarTyp)
+	}
+	s.scalarTypes[scalarTyp] = makeScannable
+	return nil
+}
+
+func (s *Schema) MustRegisterCustomScalar(scalar interface{}, makeScannable func() Scannable) {
+	if err := s.RegisterCustomScalar(scalar, makeScannable); err != nil {
+		panic(err)
+	}
+}
+
+func (s *Schema) RegisterSimpleScalar(scalar interface{}) error {
+	typ := reflect.TypeOf(scalar)
+	for match, scannable := range defaultScannableTypes {
+		if internal.TypesIdenticalOrScalarAliases(typ, match) {
+			return s.RegisterCustomScalar(scalar, scannable)
+		}
+	}
+	return errors.New("unknown scalar")
+}
+
+func (s *Schema) MustRegisterSimpleScalar(scalar interface{}) {
+	if err := s.RegisterSimpleScalar(scalar); err != nil {
+		panic(err)
 	}
 }
 
@@ -331,7 +370,7 @@ func (s *Schema) RegisterType(table string, primaryKeyType PrimaryKeyType, value
 		return fmt.Errorf("type %s registered twice", typ)
 	}
 
-	descriptor, err := buildDescriptor(table, primaryKeyType, typ)
+	descriptor, err := s.buildDescriptor(table, primaryKeyType, typ)
 	if err != nil {
 		return err
 	}

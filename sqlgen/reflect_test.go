@@ -1,7 +1,8 @@
 package sqlgen
 
 import (
-	"database/sql"
+	"database/sql/driver"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -50,88 +51,34 @@ type unsupported struct {
 	A byte
 }
 
-func TestBuildDescriptor(t *testing.T) {
-	desc, err := buildDescriptor("", AutoIncrement, reflect.TypeOf(simple{}))
-	if err != nil {
+func TestRegisterType(t *testing.T) {
+	s := NewSchema()
+	s.RegisterSimpleScalar(alias(0))
+	if err := s.RegisterType("simple", AutoIncrement, simple{}); err != nil {
 		t.Fatal(err)
 	}
 
-	if !reflect.DeepEqual(desc.Columns, []*Column{
-		{
-			Name:    "a",
-			Primary: true,
-
-			Index: []int{0},
-			Order: 0,
-
-			Scannable: reflect.TypeOf(sql.NullInt64{}),
-			Type:      reflect.TypeOf(int64(0)),
-		},
-		{
-			Name:    "foo_id",
-			Primary: true,
-
-			Index: []int{1},
-			Order: 1,
-
-			Scannable: reflect.TypeOf(sql.NullString{}),
-			Type:      reflect.TypeOf(string("")),
-		},
-		{
-			Name:    "column",
-			Primary: false,
-
-			Index: []int{3},
-			Order: 2,
-
-			Scannable: reflect.TypeOf(sql.NullFloat64{}),
-			Type:      reflect.TypeOf(float64(0)),
-		},
-		{
-			Name:    "d",
-			Primary: false,
-
-			Index: []int{4},
-			Order: 3,
-
-			Scannable: reflect.TypeOf(sql.NullInt64{}),
-			Type:      reflect.PtrTo(reflect.TypeOf(int64(0))),
-		},
-		{
-			Name:    "e",
-			Primary: false,
-
-			Index: []int{5},
-			Order: 4,
-
-			Scannable: reflect.TypeOf(sql.NullInt64{}),
-			Type:      reflect.TypeOf(alias(0)),
-		},
-	}) {
-		t.Error("bad columns")
-	}
-
-	if _, err := buildDescriptor("", AutoIncrement, reflect.TypeOf(noprimary{})); err == nil {
+	if err := s.RegisterType("a", AutoIncrement, noprimary{}); err == nil {
 		t.Error("expected no primary to fail")
 	}
 
-	if _, err := buildDescriptor("", AutoIncrement, reflect.TypeOf(1)); err == nil {
+	if err := s.RegisterType("b", AutoIncrement, 1); err == nil {
 		t.Error("expected int to fail")
 	}
 
-	if _, err := buildDescriptor("", AutoIncrement, reflect.TypeOf(&simple{})); err == nil {
+	if err := s.RegisterType("c", AutoIncrement, &simple{}); err == nil {
 		t.Error("expected pointer to struct to fail")
 	}
 
-	if _, err := buildDescriptor("", AutoIncrement, reflect.TypeOf(duplicate{})); err == nil {
+	if err := s.RegisterType("d", AutoIncrement, duplicate{}); err == nil {
 		t.Error("expected duplicate fields to fail")
 	}
 
-	if _, err := buildDescriptor("", AutoIncrement, reflect.TypeOf(&anonymous{})); err == nil {
+	if err := s.RegisterType("e", AutoIncrement, &anonymous{}); err == nil {
 		t.Error("expected anonymous fields to fail")
 	}
 
-	if _, err := buildDescriptor("", AutoIncrement, reflect.TypeOf(&unsupported{})); err == nil {
+	if err := s.RegisterType("f", AutoIncrement, &unsupported{}); err == nil {
 		t.Error("expected unsupported fields to fail")
 	}
 }
@@ -150,11 +97,11 @@ func TestBuildStruct(t *testing.T) {
 	}
 	table := s.ByName["users"]
 
-	var id sql.NullInt64
-	var name sql.NullString
-	var age sql.NullInt64
-	var optional sql.NullString
-	scannables := []interface{}{&id, &name, &age, &optional}
+	scannables := table.Scannables.Get().([]interface{})
+	id := scannables[0].(Scannable)
+	name := scannables[1].(Scannable)
+	age := scannables[2].(Scannable)
+	optional := scannables[3].(Scannable)
 
 	id.Scan(10)
 	name.Scan("bob")
@@ -179,6 +126,72 @@ func TestBuildStruct(t *testing.T) {
 		Name:     "",
 		Age:      5,
 		Optional: &foo,
+	}) {
+		t.Error("bad build")
+	}
+}
+
+type customSuffixer struct {
+	Valid  bool
+	String string
+}
+
+func (c *customSuffixer) Scan(value interface{}) error {
+	if value == nil {
+		c.String = ""
+		c.Valid = false
+	}
+	switch value := value.(type) {
+	case nil:
+		c.String = ""
+		c.Valid = false
+	case string:
+		c.String = string(value) + "-FOO"
+		c.Valid = true
+	default:
+		return fmt.Errorf("cannot convert %v to string", value)
+	}
+	return nil
+}
+
+func (c *customSuffixer) Value() (driver.Value, error) {
+	if !c.Valid {
+		return nil, nil
+	}
+	return c.String, nil
+}
+
+type IntAlias int64
+type SuffixString string
+
+type custom struct {
+	Id           int64 `sql:",primary"`
+	IntAlias     IntAlias
+	SuffixString SuffixString
+}
+
+func TestBuildStructWithAlias(t *testing.T) {
+	s := NewSchema()
+	s.MustRegisterCustomScalar(SuffixString(""), func() Scannable { return new(customSuffixer) })
+	s.MustRegisterSimpleScalar(IntAlias(0))
+
+	if err := s.RegisterType("customs", AutoIncrement, custom{}); err != nil {
+		t.Fatal(err)
+	}
+	table := s.ByName["customs"]
+
+	scannables := table.Scannables.Get().([]interface{})
+	id := scannables[0].(Scannable)
+	intAlias := scannables[1].(Scannable)
+	suffixString := scannables[2].(Scannable)
+
+	id.Scan(10)
+	intAlias.Scan(int64(20))
+	suffixString.Scan("foo")
+	if !reflect.DeepEqual(BuildStruct(table, scannables), &custom{
+		Id:           10,
+		IntAlias:     20,
+		SuffixString: "foo-FOO",
 	}) {
 		t.Error("bad build")
 	}
