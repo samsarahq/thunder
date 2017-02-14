@@ -7,6 +7,8 @@ type Object struct {
 	Description string
 	Type        interface{}
 	Methods     Methods // Deprecated, use FieldFunc instead.
+
+	key string
 }
 
 // FieldFunc exposes a field on an object. The function f can take a number of
@@ -32,6 +34,10 @@ func (s *Object) FieldFunc(name string, f interface{}) {
 		s.Methods = make(Methods)
 	}
 	s.Methods[name] = f
+}
+
+func (s *Object) Key(f string) {
+	s.key = f
 }
 
 // A Methods map represents the set of methods exposed on a Object.

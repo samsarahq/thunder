@@ -516,10 +516,12 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 	var name string
 	var description string
 	var methods Methods
+	var objectKey string
 	if object, ok := sb.objects[typ]; ok {
 		name = object.Name
 		description = object.Description
 		methods = object.Methods
+		objectKey = object.key
 	}
 
 	if name == "" {
@@ -580,6 +582,10 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 			}
 			object.Key = built.Resolve
 		}
+	}
+
+	if objectKey != "" {
+		object.Key = object.Fields[objectKey].Resolve
 	}
 
 	var names []string
