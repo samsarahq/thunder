@@ -19,6 +19,12 @@ const (
 	MinRerunInterval = 1 * time.Second
 )
 
+type JSONSocket interface {
+	ReadJSON(value interface{}) error
+	WriteJSON(value interface{}) error
+	Close() error
+}
+
 type MakeCtxFunc func(context.Context) context.Context
 
 type GraphqlLogger interface {
@@ -29,7 +35,7 @@ type GraphqlLogger interface {
 
 type conn struct {
 	writeMu sync.Mutex
-	socket  *websocket.Conn
+	socket  JSONSocket
 
 	schema  *Schema
 	makeCtx MakeCtxFunc
@@ -314,7 +320,7 @@ func Handler(schema *Schema) http.Handler {
 	})
 }
 
-func ServeJSONSocket(socket *websocket.Conn, schema *Schema, makeCtx MakeCtxFunc, logger GraphqlLogger) {
+func ServeJSONSocket(socket JSONSocket, schema *Schema, makeCtx MakeCtxFunc, logger GraphqlLogger) {
 	c := &conn{
 		socket: socket,
 
