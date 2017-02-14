@@ -87,6 +87,7 @@ func NewBinlog(ldb *LiveDB, host string, port uint16, username, password, databa
 	if _, err := rand.Read(slaveId); err != nil {
 		return nil, err
 	}
+
 	syncer := replication.NewBinlogSyncer(&replication.BinlogSyncerConfig{
 		ServerID: binary.LittleEndian.Uint32(slaveId),
 		Host:     host,

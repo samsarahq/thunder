@@ -136,7 +136,11 @@ var scalarArgParsers = map[reflect.Type]*argParser{
 func getScalarArgParser(typ reflect.Type) (*argParser, graphql.Type, bool) {
 	for match, argParser := range scalarArgParsers {
 		if internal.TypesIdenticalOrScalarAliases(match, typ) {
-			return argParser, &graphql.Scalar{Type: typ.Name()}, true
+			name, ok := getScalar(typ)
+			if !ok {
+				panic(typ)
+			}
+			return argParser, &graphql.Scalar{Type: name}, true
 		}
 	}
 	return nil, nil, false
@@ -607,29 +611,29 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 	return nil
 }
 
-var scalars = map[reflect.Type]bool{
-	reflect.TypeOf(bool(false)): true,
-	reflect.TypeOf(int(0)):      true,
-	reflect.TypeOf(int8(0)):     true,
-	reflect.TypeOf(int16(0)):    true,
-	reflect.TypeOf(int32(0)):    true,
-	reflect.TypeOf(int64(0)):    true,
-	reflect.TypeOf(uint(0)):     true,
-	reflect.TypeOf(uint8(0)):    true,
-	reflect.TypeOf(uint16(0)):   true,
-	reflect.TypeOf(uint32(0)):   true,
-	reflect.TypeOf(uint64(0)):   true,
-	reflect.TypeOf(float32(0)):  true,
-	reflect.TypeOf(float64(0)):  true,
-	reflect.TypeOf(string("")):  true,
-	reflect.TypeOf(time.Time{}): true,
-	reflect.TypeOf([]byte{}):    true,
+var scalars = map[reflect.Type]string{
+	reflect.TypeOf(bool(false)): "bool",
+	reflect.TypeOf(int(0)):      "int",
+	reflect.TypeOf(int8(0)):     "int8",
+	reflect.TypeOf(int16(0)):    "int16",
+	reflect.TypeOf(int32(0)):    "int32",
+	reflect.TypeOf(int64(0)):    "int64",
+	reflect.TypeOf(uint(0)):     "uint",
+	reflect.TypeOf(uint8(0)):    "uint8",
+	reflect.TypeOf(uint16(0)):   "uint16",
+	reflect.TypeOf(uint32(0)):   "uint32",
+	reflect.TypeOf(uint64(0)):   "uint64",
+	reflect.TypeOf(float32(0)):  "float32",
+	reflect.TypeOf(float64(0)):  "float64",
+	reflect.TypeOf(string("")):  "string",
+	reflect.TypeOf(time.Time{}): "Time",
+	reflect.TypeOf([]byte{}):    "bytes",
 }
 
 func getScalar(typ reflect.Type) (string, bool) {
-	for match := range scalars {
+	for match, name := range scalars {
 		if internal.TypesIdenticalOrScalarAliases(match, typ) {
-			return typ.String(), true
+			return name, true
 		}
 	}
 	return "", false
@@ -647,7 +651,7 @@ func (sb *schemaBuilder) getType(t reflect.Type) (graphql.Type, error) {
 	}
 	if t.Kind() == reflect.Ptr {
 		if typ, ok := getScalar(t.Elem()); ok {
-			return &graphql.Scalar{Type: "*" + typ}, nil
+			return &graphql.Scalar{Type: typ}, nil // XXX: prefix typ with "*"
 		}
 	}
 
