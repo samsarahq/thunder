@@ -16,7 +16,7 @@ import (
 
 const (
 	MaxSubscriptions = 200
-	MinRerunInterval = 1 * time.Second
+	MinRerunInterval = 5 * time.Second
 )
 
 type JSONSocket interface {
