@@ -29,7 +29,7 @@ type MakeCtxFunc func(context.Context) context.Context
 
 type GraphqlLogger interface {
 	StartExecution(ctx context.Context, tags map[string]string, initial bool)
-	FinishedExecution(ctx context.Context, tags map[string]string, delay time.Duration)
+	FinishExecution(ctx context.Context, tags map[string]string, delay time.Duration)
 	Error(ctx context.Context, err error, tags map[string]string)
 }
 
@@ -159,7 +159,7 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 		start := time.Now()
 		c.logger.StartExecution(ctx, tags, initial)
 		current, err := e.Execute(ctx, c.schema.Query, nil, selectionSet)
-		c.logger.FinishedExecution(ctx, tags, time.Since(start))
+		c.logger.FinishExecution(ctx, tags, time.Since(start))
 
 		if err != nil {
 			c.writeOrClose(id, "error", sanitizeError(err))
@@ -212,7 +212,7 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 		start := time.Now()
 		c.logger.StartExecution(ctx, tags, true)
 		current, err := e.Execute(ctx, c.schema.Mutation, c.schema.Mutation, selectionSet)
-		c.logger.FinishedExecution(ctx, tags, time.Since(start))
+		c.logger.FinishExecution(ctx, tags, time.Since(start))
 
 		if err != nil {
 			c.writeOrClose(id, "error", sanitizeError(err))
@@ -299,7 +299,7 @@ type simpleLogger struct {
 
 func (s *simpleLogger) StartExecution(ctx context.Context, tags map[string]string, initial bool) {
 }
-func (s *simpleLogger) FinishedExecution(ctx context.Context, tags map[string]string, delay time.Duration) {
+func (s *simpleLogger) FinishExecution(ctx context.Context, tags map[string]string, delay time.Duration) {
 }
 func (s *simpleLogger) Error(ctx context.Context, err error, tags map[string]string) {
 	log.Printf("error:%v\n%s", tags, err)
