@@ -35,6 +35,13 @@ func nestPathError(key string, err error) error {
 	}
 }
 
+func extractPathError(err error) error {
+	if pe, ok := err.(*pathError); ok {
+		return pe.inner
+	}
+	return err
+}
+
 func (pe *pathError) Error() string {
 	var buffer bytes.Buffer
 	for i := len(pe.path) - 1; i >= 0; i-- {

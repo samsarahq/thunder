@@ -164,6 +164,11 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 		if err != nil {
 			c.writeOrClose(id, "error", sanitizeError(err))
 			go c.closeSubscription(id)
+
+			if extractPathError(err) == context.Canceled {
+				return nil, err
+			}
+
 			if _, ok := err.(SanitizedError); !ok {
 				c.logger.Error(ctx, err, tags)
 			}
@@ -212,6 +217,11 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 		if err != nil {
 			c.writeOrClose(id, "error", sanitizeError(err))
 			go c.closeSubscription(id)
+
+			if extractPathError(err) == context.Canceled {
+				return nil, err
+			}
+
 			if _, ok := err.(SanitizedError); !ok {
 				c.logger.Error(ctx, err, tags)
 			}
