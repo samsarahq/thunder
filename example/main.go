@@ -1,4 +1,4 @@
-package main
+package example
 
 import (
 	"context"
@@ -105,14 +105,18 @@ func (s *Server) registerMutation(schema *schemabuilder.Schema) {
 	})
 }
 
-func (s *Server) Schema() *graphql.Schema {
+func (s *Server) SchemaBuilderSchema() *schemabuilder.Schema {
 	schema := schemabuilder.NewSchema()
 
 	s.registerQuery(schema)
 	s.registerMutation(schema)
 	s.registerMessage(schema)
 
-	return schema.MustBuild()
+	return schema
+}
+
+func (s *Server) Schema() *graphql.Schema {
+	return s.SchemaBuilderSchema().MustBuild()
 }
 
 func main() {

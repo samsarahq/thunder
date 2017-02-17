@@ -1,0 +1,256 @@
+{
+  "__schema": {
+    "directives": [],
+    "mutationType": {
+      "name": "Mutation"
+    },
+    "queryType": {
+      "name": "Query"
+    },
+    "types": [
+      {
+        "description": "A single message.",
+        "enumValues": [],
+        "fields": [
+          {
+            "args": [],
+            "deprecationReason": "",
+            "description": "",
+            "isDeprecated": false,
+            "name": "id",
+            "type": {
+              "kind": "SCALAR",
+              "name": "int64",
+              "ofType": null
+            }
+          },
+          {
+            "args": [],
+            "deprecationReason": "",
+            "description": "",
+            "isDeprecated": false,
+            "name": "reactions",
+            "type": {
+              "kind": "LIST",
+              "name": "",
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "Reaction",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "args": [],
+            "deprecationReason": "",
+            "description": "",
+            "isDeprecated": false,
+            "name": "text",
+            "type": {
+              "kind": "SCALAR",
+              "name": "string",
+              "ofType": null
+            }
+          }
+        ],
+        "inputFields": [],
+        "interfaces": [],
+        "kind": "OBJECT",
+        "name": "Message",
+        "possibleTypes": []
+      },
+      {
+        "description": "",
+        "enumValues": [],
+        "fields": [
+          {
+            "args": [
+              {
+                "defaultValue": "",
+                "description": "",
+                "name": "text",
+                "type": {
+                  "kind": "SCALAR",
+                  "name": "string",
+                  "ofType": null
+                }
+              }
+            ],
+            "deprecationReason": "",
+            "description": "",
+            "isDeprecated": false,
+            "name": "addMessage",
+            "type": {
+              "kind": "SCALAR",
+              "name": "bool",
+              "ofType": null
+            }
+          },
+          {
+            "args": [
+              {
+                "defaultValue": "",
+                "description": "",
+                "name": "messageId",
+                "type": {
+                  "kind": "SCALAR",
+                  "name": "int64",
+                  "ofType": null
+                }
+              },
+              {
+                "defaultValue": "",
+                "description": "",
+                "name": "reaction",
+                "type": {
+                  "kind": "SCALAR",
+                  "name": "string",
+                  "ofType": null
+                }
+              }
+            ],
+            "deprecationReason": "",
+            "description": "",
+            "isDeprecated": false,
+            "name": "addReaction",
+            "type": {
+              "kind": "SCALAR",
+              "name": "bool",
+              "ofType": null
+            }
+          },
+          {
+            "args": [
+              {
+                "defaultValue": "",
+                "description": "",
+                "name": "id",
+                "type": {
+                  "kind": "SCALAR",
+                  "name": "int64",
+                  "ofType": null
+                }
+              }
+            ],
+            "deprecationReason": "",
+            "description": "",
+            "isDeprecated": false,
+            "name": "deleteMessage",
+            "type": {
+              "kind": "SCALAR",
+              "name": "bool",
+              "ofType": null
+            }
+          }
+        ],
+        "inputFields": [],
+        "interfaces": [],
+        "kind": "OBJECT",
+        "name": "Mutation",
+        "possibleTypes": []
+      },
+      {
+        "description": "",
+        "enumValues": [],
+        "fields": [
+          {
+            "args": [],
+            "deprecationReason": "",
+            "description": "",
+            "isDeprecated": false,
+            "name": "messages",
+            "type": {
+              "kind": "LIST",
+              "name": "",
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "Message",
+                "ofType": null
+              }
+            }
+          }
+        ],
+        "inputFields": [],
+        "interfaces": [],
+        "kind": "OBJECT",
+        "name": "Query",
+        "possibleTypes": []
+      },
+      {
+        "description": "",
+        "enumValues": [],
+        "fields": [
+          {
+            "args": [],
+            "deprecationReason": "",
+            "description": "",
+            "isDeprecated": false,
+            "name": "count",
+            "type": {
+              "kind": "SCALAR",
+              "name": "int",
+              "ofType": null
+            }
+          },
+          {
+            "args": [],
+            "deprecationReason": "",
+            "description": "",
+            "isDeprecated": false,
+            "name": "reaction",
+            "type": {
+              "kind": "SCALAR",
+              "name": "string",
+              "ofType": null
+            }
+          }
+        ],
+        "inputFields": [],
+        "interfaces": [],
+        "kind": "OBJECT",
+        "name": "Reaction",
+        "possibleTypes": []
+      },
+      {
+        "description": "",
+        "enumValues": [],
+        "fields": [],
+        "inputFields": [],
+        "interfaces": [],
+        "kind": "SCALAR",
+        "name": "bool",
+        "possibleTypes": []
+      },
+      {
+        "description": "",
+        "enumValues": [],
+        "fields": [],
+        "inputFields": [],
+        "interfaces": [],
+        "kind": "SCALAR",
+        "name": "int",
+        "possibleTypes": []
+      },
+      {
+        "description": "",
+        "enumValues": [],
+        "fields": [],
+        "inputFields": [],
+        "interfaces": [],
+        "kind": "SCALAR",
+        "name": "int64",
+        "possibleTypes": []
+      },
+      {
+        "description": "",
+        "enumValues": [],
+        "fields": [],
+        "inputFields": [],
+        "interfaces": [],
+        "kind": "SCALAR",
+        "name": "string",
+        "possibleTypes": []
+      }
+    ]
+  }
+}
