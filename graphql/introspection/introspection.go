@@ -1,6 +1,9 @@
 package introspection
 
 import (
+	"context"
+	"encoding/json"
+	"io/ioutil"
 	"strings"
 
 	"github.com/bradfitz/slice"
@@ -305,4 +308,34 @@ func AddIntrospectionToSchema(schema *graphql.Schema) {
 	}
 
 	schema.Query = isQuery
+}
+
+// ComputeSchemaJSON returns the result of executing a GraphQL introspection
+// query.
+func ComputeSchemaJSON(schemaBuilderSchema schemabuilder.Schema) ([]byte, error) {
+	schema := schemaBuilderSchema.MustBuild()
+	AddIntrospectionToSchema(schema)
+
+	b, err := ioutil.ReadFile("introspection.graphql")
+	if err != nil {
+		panic(err)
+	}
+	introspectionQuery := string(b)
+
+	selectionSet, err := graphql.Parse(introspectionQuery, map[string]interface{}{})
+	if err != nil {
+		return nil, err
+	}
+
+	if err := graphql.PrepareQuery(schema.Query, selectionSet); err != nil {
+		return nil, err
+	}
+
+	executor := graphql.Executor{}
+	value, err := executor.Execute(context.Background(), schema.Query, nil, selectionSet)
+	if err != nil {
+		return nil, err
+	}
+
+	return json.MarshalIndent(value, "", "  ")
 }
