@@ -273,7 +273,7 @@ func (s *introspection) registerMutation(schema *schemabuilder.Schema) {
 	schema.Mutation()
 }
 
-func (s *introspection) Schema() *graphql.Schema {
+func (s *introspection) schema() *graphql.Schema {
 	schema := schemabuilder.NewSchema()
 
 	s.registerDirective(schema)
@@ -298,7 +298,7 @@ func AddIntrospectionToSchema(schema *graphql.Schema) {
 		query:    schema.Query,
 		mutation: schema.Mutation,
 	}
-	isSchema := is.Schema()
+	isSchema := is.schema()
 
 	query := schema.Query.(*graphql.Object)
 
