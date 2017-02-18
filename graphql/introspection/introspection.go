@@ -1,6 +1,9 @@
 package introspection
 
 import (
+	"strings"
+
+	"github.com/bradfitz/slice"
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 )
@@ -140,6 +143,7 @@ func (s *introspection) registerType(schema *schemabuilder.Schema) {
 			}
 		}
 
+		slice.Sort(fields, func(i, j int) bool { return strings.Compare(fields[i].Name, fields[j].Name) < 0 })
 		return fields
 	})
 
@@ -158,6 +162,7 @@ func (s *introspection) registerType(schema *schemabuilder.Schema) {
 						Type: Type{Inner: a},
 					})
 				}
+				slice.Sort(args, func(i, j int) bool { return strings.Compare(args[i].Name, args[j].Name) < 0 })
 
 				fields = append(fields, field{
 					Name: name,
@@ -166,6 +171,7 @@ func (s *introspection) registerType(schema *schemabuilder.Schema) {
 				})
 			}
 		}
+		slice.Sort(fields, func(i, j int) bool { return strings.Compare(fields[i].Name, fields[j].Name) < 0 })
 
 		return fields
 	})
@@ -243,6 +249,7 @@ func (s *introspection) registerQuery(schema *schemabuilder.Schema) {
 		for _, typ := range s.types {
 			types = append(types, Type{Inner: typ})
 		}
+		slice.Sort(types, func(i, j int) bool { return strings.Compare(types[i].Inner.String(), types[j].Inner.String()) < 0 })
 
 		return &Schema{
 			Types:        types,
