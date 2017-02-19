@@ -9,6 +9,26 @@
     },
     "types": [
       {
+        "description": "",
+        "enumValues": [],
+        "fields": [],
+        "inputFields": [],
+        "interfaces": [],
+        "kind": "SCALAR",
+        "name": "Boolean",
+        "possibleTypes": []
+      },
+      {
+        "description": "",
+        "enumValues": [],
+        "fields": [],
+        "inputFields": [],
+        "interfaces": [],
+        "kind": "SCALAR",
+        "name": "Int",
+        "possibleTypes": []
+      },
+      {
         "description": "A single message.",
         "enumValues": [],
         "fields": [
@@ -48,7 +68,7 @@
             "name": "text",
             "type": {
               "kind": "SCALAR",
-              "name": "string",
+              "name": "String",
               "ofType": null
             }
           }
@@ -71,7 +91,7 @@
                 "name": "text",
                 "type": {
                   "kind": "SCALAR",
-                  "name": "string",
+                  "name": "String",
                   "ofType": null
                 }
               }
@@ -82,7 +102,7 @@
             "name": "addMessage",
             "type": {
               "kind": "SCALAR",
-              "name": "bool",
+              "name": "Boolean",
               "ofType": null
             }
           },
@@ -104,7 +124,7 @@
                 "name": "reaction",
                 "type": {
                   "kind": "SCALAR",
-                  "name": "string",
+                  "name": "String",
                   "ofType": null
                 }
               }
@@ -115,7 +135,7 @@
             "name": "addReaction",
             "type": {
               "kind": "SCALAR",
-              "name": "bool",
+              "name": "Boolean",
               "ofType": null
             }
           },
@@ -138,7 +158,7 @@
             "name": "deleteMessage",
             "type": {
               "kind": "SCALAR",
-              "name": "bool",
+              "name": "Boolean",
               "ofType": null
             }
           }
@@ -188,7 +208,7 @@
             "name": "count",
             "type": {
               "kind": "SCALAR",
-              "name": "int",
+              "name": "Int",
               "ofType": null
             }
           },
@@ -200,7 +220,7 @@
             "name": "reaction",
             "type": {
               "kind": "SCALAR",
-              "name": "string",
+              "name": "String",
               "ofType": null
             }
           }
@@ -218,17 +238,7 @@
         "inputFields": [],
         "interfaces": [],
         "kind": "SCALAR",
-        "name": "bool",
-        "possibleTypes": []
-      },
-      {
-        "description": "",
-        "enumValues": [],
-        "fields": [],
-        "inputFields": [],
-        "interfaces": [],
-        "kind": "SCALAR",
-        "name": "int",
+        "name": "String",
         "possibleTypes": []
       },
       {
@@ -239,16 +249,6 @@
         "interfaces": [],
         "kind": "SCALAR",
         "name": "int64",
-        "possibleTypes": []
-      },
-      {
-        "description": "",
-        "enumValues": [],
-        "fields": [],
-        "inputFields": [],
-        "interfaces": [],
-        "kind": "SCALAR",
-        "name": "string",
         "possibleTypes": []
       }
     ]
