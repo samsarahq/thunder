@@ -3,7 +3,6 @@ package introspection
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
 	"strings"
 
 	"github.com/bradfitz/slice"
@@ -315,12 +314,6 @@ func AddIntrospectionToSchema(schema *graphql.Schema) {
 func ComputeSchemaJSON(schemaBuilderSchema schemabuilder.Schema) ([]byte, error) {
 	schema := schemaBuilderSchema.MustBuild()
 	AddIntrospectionToSchema(schema)
-
-	b, err := ioutil.ReadFile("introspection.graphql")
-	if err != nil {
-		panic(err)
-	}
-	introspectionQuery := string(b)
 
 	selectionSet, err := graphql.Parse(introspectionQuery, map[string]interface{}{})
 	if err != nil {
