@@ -612,8 +612,8 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 }
 
 var scalars = map[reflect.Type]string{
-	reflect.TypeOf(bool(false)): "bool",
-	reflect.TypeOf(int(0)):      "int",
+	reflect.TypeOf(bool(false)): "Boolean",
+	reflect.TypeOf(int(0)):      "Int",
 	reflect.TypeOf(int8(0)):     "int8",
 	reflect.TypeOf(int16(0)):    "int16",
 	reflect.TypeOf(int32(0)):    "int32",
@@ -624,8 +624,8 @@ var scalars = map[reflect.Type]string{
 	reflect.TypeOf(uint32(0)):   "uint32",
 	reflect.TypeOf(uint64(0)):   "uint64",
 	reflect.TypeOf(float32(0)):  "float32",
-	reflect.TypeOf(float64(0)):  "float64",
-	reflect.TypeOf(string("")):  "string",
+	reflect.TypeOf(float64(0)):  "Float",
+	reflect.TypeOf(string("")):  "String",
 	reflect.TypeOf(time.Time{}): "Time",
 	reflect.TypeOf([]byte{}):    "bytes",
 }
