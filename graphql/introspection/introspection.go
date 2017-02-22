@@ -3,8 +3,6 @@ package introspection
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
-	"strings"
 
 	"github.com/bradfitz/slice"
 	"github.com/samsarahq/thunder/graphql"
@@ -146,7 +144,7 @@ func (s *introspection) registerType(schema *schemabuilder.Schema) {
 			}
 		}
 
-		slice.Sort(fields, func(i, j int) bool { return strings.Compare(fields[i].Name, fields[j].Name) < 0 })
+		slice.Sort(fields, func(i, j int) bool { return fields[i].Name < fields[j].Name })
 		return fields
 	})
 
@@ -165,7 +163,7 @@ func (s *introspection) registerType(schema *schemabuilder.Schema) {
 						Type: Type{Inner: a},
 					})
 				}
-				slice.Sort(args, func(i, j int) bool { return strings.Compare(args[i].Name, args[j].Name) < 0 })
+				slice.Sort(args, func(i, j int) bool { return args[i].Name < args[j].Name })
 
 				fields = append(fields, field{
 					Name: name,
@@ -174,7 +172,7 @@ func (s *introspection) registerType(schema *schemabuilder.Schema) {
 				})
 			}
 		}
-		slice.Sort(fields, func(i, j int) bool { return strings.Compare(fields[i].Name, fields[j].Name) < 0 })
+		slice.Sort(fields, func(i, j int) bool { return fields[i].Name < fields[j].Name })
 
 		return fields
 	})
@@ -252,7 +250,7 @@ func (s *introspection) registerQuery(schema *schemabuilder.Schema) {
 		for _, typ := range s.types {
 			types = append(types, Type{Inner: typ})
 		}
-		slice.Sort(types, func(i, j int) bool { return strings.Compare(types[i].Inner.String(), types[j].Inner.String()) < 0 })
+		slice.Sort(types, func(i, j int) bool { return types[i].Inner.String() < types[j].Inner.String() })
 
 		return &Schema{
 			Types:        types,
@@ -315,12 +313,6 @@ func AddIntrospectionToSchema(schema *graphql.Schema) {
 func ComputeSchemaJSON(schemaBuilderSchema schemabuilder.Schema) ([]byte, error) {
 	schema := schemaBuilderSchema.MustBuild()
 	AddIntrospectionToSchema(schema)
-
-	b, err := ioutil.ReadFile("introspection.graphql")
-	if err != nil {
-		panic(err)
-	}
-	introspectionQuery := string(b)
 
 	selectionSet, err := graphql.Parse(introspectionQuery, map[string]interface{}{})
 	if err != nil {
