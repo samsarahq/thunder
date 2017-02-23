@@ -145,15 +145,12 @@ type resolveAndExecuteCacheKey struct {
 }
 
 func (e *Executor) resolveAndExecute(ctx context.Context, field *Field, source interface{}, selection *Selection) (interface{}, error) {
-	var span opentracing.Span
-	if _, ok := field.Type.(*Scalar); !ok {
-		span, ctx = opentracing.StartSpanFromContext(ctx, fmt.Sprintf("thunder.graphql.resolve(%s)", selection.Alias))
-		span.LogFields(
-			log.Bool("expensive", field.Expensive),
-		)
-	}
-
 	if field.Expensive {
+		var span opentracing.Span
+		if _, ok := field.Type.(*Scalar); !ok {
+			span, ctx = opentracing.StartSpanFromContext(ctx, fmt.Sprintf("thunder.graphql.resolve(%s)", selection.Alias))
+		}
+
 		// TODO: Skip goroutine for cached value
 		return fork(func() (interface{}, error) {
 			value := reflect.ValueOf(source)
@@ -169,17 +166,7 @@ func (e *Executor) resolveAndExecute(ctx context.Context, field *Field, source i
 			}
 
 			// TODO: Consider cacheing resolve and execute independently
-			fromCache := true
-			defer func() {
-				if span != nil {
-					span.LogFields(
-						log.Bool("cached", fromCache),
-					)
-					span.Finish()
-				}
-			}()
-			return reactive.Cache(ctx, key, func(ctx context.Context) (interface{}, error) {
-				fromCache = false
+			resolvedValue, valueFromCache, err := reactive.CacheWithStatus(ctx, key, func(ctx context.Context) (interface{}, error) {
 				value, err := safeResolve(ctx, field, source, selection.Args, selection.SelectionSet)
 				if err != nil {
 					return nil, err
@@ -193,14 +180,16 @@ func (e *Executor) resolveAndExecute(ctx context.Context, field *Field, source i
 				}
 				return await(value)
 			})
+
+			if span != nil {
+				span.LogFields(log.Bool("fromCache", valueFromCache))
+				span.Finish()
+			}
+
+			return resolvedValue, err
 		}), nil
 	}
 
-	defer func() {
-		if span != nil {
-			span.Finish()
-		}
-	}()
 	value, err := safeResolve(ctx, field, source, selection.Args, selection.SelectionSet)
 	if err != nil {
 		return nil, err
