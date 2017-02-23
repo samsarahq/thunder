@@ -4,6 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+
+	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/log"
 )
 
 // DB uses a *sql.DB connection that is established by its owner. DB assumes the
@@ -33,9 +36,15 @@ func (db *DB) Query(ctx context.Context, result interface{}, filter Filter, opti
 	if err != nil {
 		return err
 	}
-	querySql, fields := query.ToSQL()
+	clause, fields := query.ToSQL()
 
-	res, err := db.QueryExecer(ctx).Query(querySql, fields...)
+	if span := opentracing.SpanFromContext(ctx); span != nil {
+		span, ctx = opentracing.StartSpanFromContext(ctx, "thunder.sqlgen.UpsertRow")
+		span.LogFields(log.String("query", clause))
+		defer span.Finish()
+	}
+
+	res, err := db.QueryExecer(ctx).Query(clause, fields...)
 	if err != nil {
 		return err
 	}
@@ -62,6 +71,12 @@ func (db *DB) QueryRow(ctx context.Context, result interface{}, filter Filter, o
 		return err
 	}
 	querySql, fields := query.ToSQL()
+
+	if span := opentracing.SpanFromContext(ctx); span != nil {
+		span, ctx = opentracing.StartSpanFromContext(ctx, "thunder.sqlgen.QueryRow")
+		span.LogFields(log.String("query", querySql))
+		defer span.Finish()
+	}
 
 	res, err := db.QueryExecer(ctx).Query(querySql, fields...)
 	if err != nil {
@@ -91,6 +106,13 @@ func (db *DB) InsertRow(ctx context.Context, row interface{}) (sql.Result, error
 	}
 
 	clause, args := query.ToSQL()
+
+	if span := opentracing.SpanFromContext(ctx); span != nil {
+		span, ctx = opentracing.StartSpanFromContext(ctx, "thunder.sqlgen.InsertRow")
+		span.LogFields(log.String("query", clause))
+		defer span.Finish()
+	}
+
 	return db.QueryExecer(ctx).Exec(clause, args...)
 }
 
@@ -108,6 +130,13 @@ func (db *DB) UpsertRow(ctx context.Context, row interface{}) (sql.Result, error
 	}
 
 	clause, args := query.ToSQL()
+
+	if span := opentracing.SpanFromContext(ctx); span != nil {
+		span, ctx = opentracing.StartSpanFromContext(ctx, "thunder.sqlgen.UpsertRow")
+		span.LogFields(log.String("query", clause))
+		defer span.Finish()
+	}
+
 	return db.QueryExecer(ctx).Exec(clause, args...)
 }
 
@@ -125,6 +154,13 @@ func (db *DB) UpdateRow(ctx context.Context, row interface{}) error {
 	}
 
 	clause, args := query.ToSQL()
+
+	if span := opentracing.SpanFromContext(ctx); span != nil {
+		span, ctx = opentracing.StartSpanFromContext(ctx, "thunder.sqlgen.UpdateRow")
+		span.LogFields(log.String("query", clause))
+		defer span.Finish()
+	}
+
 	_, err = db.QueryExecer(ctx).Exec(clause, args...)
 	return err
 }
@@ -143,6 +179,13 @@ func (db *DB) DeleteRow(ctx context.Context, row interface{}) error {
 	}
 
 	clause, args := query.ToSQL()
+
+	if span := opentracing.SpanFromContext(ctx); span != nil {
+		span, ctx = opentracing.StartSpanFromContext(ctx, "thunder.sqlgen.DeleteRow")
+		span.LogFields(log.String("query", clause))
+		defer span.Finish()
+	}
+
 	_, err = db.QueryExecer(ctx).Exec(clause, args...)
 	return err
 }
