@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/samsarahq/thunder/reactive"
 )
 
@@ -157,9 +158,11 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 		ctx = c.makeCtx(ctx)
 
 		start := time.Now()
+		span, ctx := opentracing.StartSpanFromContext(ctx, "thunder.subscription")
 		c.logger.StartExecution(ctx, tags, initial)
 		current, err := e.Execute(ctx, c.schema.Query, nil, selectionSet)
 		c.logger.FinishExecution(ctx, tags, time.Since(start))
+		span.Finish()
 
 		if err != nil {
 			c.writeOrClose(id, "error", sanitizeError(err))
