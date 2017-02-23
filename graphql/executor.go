@@ -9,6 +9,9 @@ import (
 	"sync"
 
 	"github.com/samsarahq/thunder/reactive"
+
+	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/log"
 )
 
 type pathError struct {
@@ -142,6 +145,14 @@ type resolveAndExecuteCacheKey struct {
 }
 
 func (e *Executor) resolveAndExecute(ctx context.Context, field *Field, source interface{}, selection *Selection) (interface{}, error) {
+	var span opentracing.Span
+	if _, ok := field.Type.(*Scalar); !ok {
+		span, ctx = opentracing.StartSpanFromContext(ctx, fmt.Sprintf("thunder.graphql.resolve(%s)", selection.Alias))
+		span.LogFields(
+			log.Bool("expensive", field.Expensive),
+		)
+	}
+
 	if field.Expensive {
 		// TODO: Skip goroutine for cached value
 		return fork(func() (interface{}, error) {
@@ -158,7 +169,17 @@ func (e *Executor) resolveAndExecute(ctx context.Context, field *Field, source i
 			}
 
 			// TODO: Consider cacheing resolve and execute independently
+			fromCache := true
+			defer func() {
+				if span != nil {
+					span.LogFields(
+						log.Bool("cached", fromCache),
+					)
+					span.Finish()
+				}
+			}()
 			return reactive.Cache(ctx, key, func(ctx context.Context) (interface{}, error) {
+				fromCache = false
 				value, err := safeResolve(ctx, field, source, selection.Args, selection.SelectionSet)
 				if err != nil {
 					return nil, err
@@ -175,6 +196,11 @@ func (e *Executor) resolveAndExecute(ctx context.Context, field *Field, source i
 		}), nil
 	}
 
+	defer func() {
+		if span != nil {
+			span.Finish()
+		}
+	}()
 	value, err := safeResolve(ctx, field, source, selection.Args, selection.SelectionSet)
 	if err != nil {
 		return nil, err
