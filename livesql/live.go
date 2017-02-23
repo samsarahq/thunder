@@ -5,6 +5,8 @@ import (
 	"errors"
 	"sync"
 
+	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/log"
 	"github.com/samsarahq/thunder/reactive"
 	"github.com/samsarahq/thunder/sqlgen"
 )
@@ -111,17 +113,26 @@ type queryCacheKey struct {
 
 // query reactively performs a SelectQuery
 func (ldb *LiveDB) query(ctx context.Context, query *sqlgen.SelectQuery, filter sqlgen.Filter) ([]interface{}, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "thunder.livesql.query")
+	fromCache := true
+	defer func() {
+		span.LogFields(log.Bool("cached", fromCache))
+		span.Finish()
+	}()
+
 	if ldb.HasTx(ctx) {
 		return nil, errors.New("can't use both tx and rerunner")
 	}
 
 	clause, args := query.ToSQL()
+	span.LogFields(log.String("query", clause))
 
 	// Build a cache key for the query. Convert the args slice into an array so
 	// it can be stored as a map key.
 	key := queryCacheKey{clause: clause, args: toArray(args)}
 
 	result, err := reactive.Cache(ctx, key, func(ctx context.Context) (interface{}, error) {
+		fromCache = false
 		// Build a tester for the dependency.
 		tester, err := ldb.Schema.MakeTester(query.Table, filter)
 		if err != nil {
