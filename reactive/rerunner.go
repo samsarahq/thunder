@@ -2,9 +2,12 @@ package reactive
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 )
+
+var DebugCacheMutates = false
 
 // locker is a collection of mutexes indexed by arbitrary keys
 type locker struct {
@@ -52,9 +55,15 @@ func (l *locker) Unlock(k interface{}) {
 	l.mu.Unlock()
 }
 
+type debugValue struct {
+	value interface{}
+	copy  *snapshot
+}
+
 type rerunnerContext struct {
 	cache       *cache
 	computation *computation
+	debugValues []debugValue
 }
 
 type rerunnerContextKey struct{}
@@ -165,6 +174,15 @@ func run(ctx context.Context, f ComputeFunc) (*computation, error) {
 	}
 	c.value = value
 
+	if DebugCacheMutates {
+		for _, dv := range rerunnerContext.debugValues {
+			if !verifyDefensiveCopy(dv.value, dv.copy) {
+				go c.node.release()
+				return nil, errors.New("cached value changed")
+			}
+		}
+	}
+
 	return c, nil
 }
 
@@ -192,6 +210,11 @@ func CacheWithStatus(ctx context.Context, key interface{}, f ComputeFunc) (inter
 		return nil, false, err
 	}
 	cache.set(key, child)
+
+	rerunnerContext.debugValues = append(rerunnerContext.debugValues, debugValue{
+		value: child.value,
+		copy:  defensiveCopy(child.value),
+	})
 
 	child.node.addOut(&computation.node)
 	return child.value, false, nil

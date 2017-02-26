@@ -3,6 +3,7 @@ package reactive
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -260,4 +261,32 @@ func TestMinRerunInterval(t *testing.T) {
 	run = NewExpect()
 	r.Strobe()
 	run.Expect(t, "expected rerun")
+}
+
+// TestModifyCache tests that modifying the cache in debug mode causes a panic
+func TestModifyCache(t *testing.T) {
+	DebugCacheMutates = true
+	defer func() { DebugCacheMutates = false }()
+
+	run := NewExpect()
+
+	NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
+		_, err := Cache(ctx, "outer", func(ctx context.Context) (interface{}, error) {
+			ret, _ := Cache(ctx, "inner", func(ctx context.Context) (interface{}, error) {
+				return map[string]string{"foo": "bar"}, nil
+			})
+			m := ret.(map[string]string)
+			m["foo"] = "baz"
+			return nil, nil
+		})
+		if err == nil || !strings.Contains(err.Error(), "cached value changed") {
+			t.Error("expected err")
+		}
+
+		run.Trigger()
+
+		return nil, nil
+	}, 1*time.Second)
+
+	run.Expect(t, "expected run")
 }
