@@ -52,6 +52,13 @@ func (l *locker) Unlock(k interface{}) {
 	l.mu.Unlock()
 }
 
+type rerunnerContext struct {
+	cache       *cache
+	computation *computation
+}
+
+type rerunnerContextKey struct{}
+
 type computation struct {
 	node  node
 	value interface{}
@@ -121,22 +128,21 @@ func (r *Resource) Cleanup(f func()) {
 	r.node.handleRelease(f)
 }
 
-type computationKey struct{}
-type cacheKey struct{}
-
 func AddDependency(ctx context.Context, r *Resource) {
 	if !HasRerunner(ctx) {
 		r.node.addOut(&node{released: true})
 		return
 	}
 
-	computation := ctx.Value(computationKey{}).(*computation)
-	r.node.addOut(&computation.node)
+	rerunnerContext := ctx.Value(rerunnerContextKey{}).(*rerunnerContext)
+	r.node.addOut(&rerunnerContext.computation.node)
 }
 
 type ComputeFunc func(context.Context) (interface{}, error)
 
 func run(ctx context.Context, f ComputeFunc) (*computation, error) {
+	parentRerunnerContext := ctx.Value(rerunnerContextKey{}).(*rerunnerContext)
+
 	// build result computation and local computation Ctx
 	c := &computation{
 		// this node will be freed either when the computation fails, or by our
@@ -144,7 +150,12 @@ func run(ctx context.Context, f ComputeFunc) (*computation, error) {
 		node: node{},
 	}
 
-	childCtx := context.WithValue(ctx, computationKey{}, c)
+	rerunnerContext := &rerunnerContext{
+		cache:       parentRerunnerContext.cache,
+		computation: c,
+	}
+
+	childCtx := context.WithValue(ctx, rerunnerContextKey{}, rerunnerContext)
 
 	// Compute f and write the results to the c
 	value, err := f(childCtx)
@@ -152,7 +163,6 @@ func run(ctx context.Context, f ComputeFunc) (*computation, error) {
 		go c.node.release()
 		return nil, err
 	}
-
 	c.value = value
 
 	return c, nil
@@ -164,8 +174,10 @@ func CacheWithStatus(ctx context.Context, key interface{}, f ComputeFunc) (inter
 		return val, false, err
 	}
 
-	cache := ctx.Value(cacheKey{}).(*cache)
-	computation := ctx.Value(computationKey{}).(*computation)
+	rerunnerContext := ctx.Value(rerunnerContextKey{}).(*rerunnerContext)
+
+	cache := rerunnerContext.cache
+	computation := rerunnerContext.computation
 
 	cache.locker.Lock(key)
 	defer cache.locker.Unlock(key)
@@ -244,7 +256,9 @@ func (r *Rerunner) run() {
 	}
 
 	r.cache.cleanInvalidated()
-	ctx := context.WithValue(r.ctx, cacheKey{}, r.cache)
+	ctx := context.WithValue(r.ctx, rerunnerContextKey{}, &rerunnerContext{
+		cache: r.cache,
+	})
 
 	// Run f, and release the old computation right after.
 	computation, err := run(ctx, r.f)
@@ -281,5 +295,5 @@ func (r *Rerunner) Stop() {
 }
 
 func HasRerunner(ctx context.Context) bool {
-	return ctx.Value(computationKey{}) != nil
+	return ctx.Value(rerunnerContextKey{}) != nil
 }
