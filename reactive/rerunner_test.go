@@ -258,6 +258,6 @@ func TestMinRerunInterval(t *testing.T) {
 	run.Expect(t, "expected run")
 
 	run = NewExpect()
-	r.Invalidate()
+	r.Strobe()
 	run.Expect(t, "expected rerun")
 }
