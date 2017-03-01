@@ -62,11 +62,23 @@ func (io *InputObject) String() string {
 	return io.Name
 }
 
-// Verify *Scalar, *Object, *List, and *InputObject implement Type
+// NonNull is a non-nullable other value
+type NonNull struct {
+	Type Type
+}
+
+func (n *NonNull) isType() {}
+
+func (n *NonNull) String() string {
+	return fmt.Sprintf("%s!", n.Type)
+}
+
+// Verify *Scalar, *Object, *List, *InputObject, and *NonNull implement Type
 var _ Type = &Scalar{}
 var _ Type = &Object{}
 var _ Type = &List{}
 var _ Type = &InputObject{}
+var _ Type = &NonNull{}
 
 // A Resolver calculates the value of a field of an object
 type Resolver func(ctx context.Context, source, args interface{}, selectionSet *SelectionSet) (interface{}, error)
