@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"sort"
 
-	"github.com/bradfitz/slice"
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/introspection"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
@@ -63,7 +63,7 @@ func (s *Server) registerMessage(schema *schemabuilder.Schema) {
 		for _, reaction := range reactions {
 			result = append(result, reaction)
 		}
-		slice.Sort(result, func(a, b int) bool { return result[a].Reaction < result[b].Reaction })
+		sort.Slice(result, func(a, b int) bool { return result[a].Reaction < result[b].Reaction })
 
 		return result, nil
 	})

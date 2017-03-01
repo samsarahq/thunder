@@ -3,8 +3,8 @@ package introspection
 import (
 	"context"
 	"encoding/json"
+	"sort"
 
-	"github.com/bradfitz/slice"
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 )
@@ -144,7 +144,7 @@ func (s *introspection) registerType(schema *schemabuilder.Schema) {
 			}
 		}
 
-		slice.Sort(fields, func(i, j int) bool { return fields[i].Name < fields[j].Name })
+		sort.Slice(fields, func(i, j int) bool { return fields[i].Name < fields[j].Name })
 		return fields
 	})
 
@@ -163,7 +163,7 @@ func (s *introspection) registerType(schema *schemabuilder.Schema) {
 						Type: Type{Inner: a},
 					})
 				}
-				slice.Sort(args, func(i, j int) bool { return args[i].Name < args[j].Name })
+				sort.Slice(args, func(i, j int) bool { return args[i].Name < args[j].Name })
 
 				fields = append(fields, field{
 					Name: name,
@@ -172,7 +172,7 @@ func (s *introspection) registerType(schema *schemabuilder.Schema) {
 				})
 			}
 		}
-		slice.Sort(fields, func(i, j int) bool { return fields[i].Name < fields[j].Name })
+		sort.Slice(fields, func(i, j int) bool { return fields[i].Name < fields[j].Name })
 
 		return fields
 	})
@@ -250,7 +250,7 @@ func (s *introspection) registerQuery(schema *schemabuilder.Schema) {
 		for _, typ := range s.types {
 			types = append(types, Type{Inner: typ})
 		}
-		slice.Sort(types, func(i, j int) bool { return types[i].Inner.String() < types[j].Inner.String() })
+		sort.Slice(types, func(i, j int) bool { return types[i].Inner.String() < types[j].Inner.String() })
 
 		return &Schema{
 			Types:        types,
