@@ -9,137 +9,23 @@
     },
     "types": [
       {
-        "description": "A single message.",
-        "enumValues": [],
-        "fields": [
-          {
-            "args": [],
-            "deprecationReason": "",
-            "description": "",
-            "isDeprecated": false,
-            "name": "id",
-            "type": {
-              "kind": "SCALAR",
-              "name": "int64",
-              "ofType": null
-            }
-          },
-          {
-            "args": [],
-            "deprecationReason": "",
-            "description": "",
-            "isDeprecated": false,
-            "name": "reactions",
-            "type": {
-              "kind": "LIST",
-              "name": "",
-              "ofType": {
-                "kind": "OBJECT",
-                "name": "Reaction",
-                "ofType": null
-              }
-            }
-          },
-          {
-            "args": [],
-            "deprecationReason": "",
-            "description": "",
-            "isDeprecated": false,
-            "name": "text",
-            "type": {
-              "kind": "SCALAR",
-              "name": "string",
-              "ofType": null
-            }
-          }
-        ],
-        "inputFields": [],
-        "interfaces": [],
-        "kind": "OBJECT",
-        "name": "Message",
-        "possibleTypes": []
-      },
-      {
         "description": "",
         "enumValues": [],
         "fields": [
           {
-            "args": [
-              {
-                "defaultValue": "",
-                "description": "",
-                "name": "text",
-                "type": {
-                  "kind": "SCALAR",
-                  "name": "string",
-                  "ofType": null
-                }
-              }
-            ],
+            "args": [],
             "deprecationReason": "",
             "description": "",
             "isDeprecated": false,
-            "name": "addMessage",
+            "name": "sayHi",
             "type": {
-              "kind": "SCALAR",
-              "name": "bool",
-              "ofType": null
-            }
-          },
-          {
-            "args": [
-              {
-                "defaultValue": "",
-                "description": "",
-                "name": "messageId",
-                "type": {
-                  "kind": "SCALAR",
-                  "name": "int64",
-                  "ofType": null
-                }
-              },
-              {
-                "defaultValue": "",
-                "description": "",
-                "name": "reaction",
-                "type": {
-                  "kind": "SCALAR",
-                  "name": "string",
-                  "ofType": null
-                }
+              "kind": "NON_NULL",
+              "name": "",
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "bool",
+                "ofType": null
               }
-            ],
-            "deprecationReason": "",
-            "description": "",
-            "isDeprecated": false,
-            "name": "addReaction",
-            "type": {
-              "kind": "SCALAR",
-              "name": "bool",
-              "ofType": null
-            }
-          },
-          {
-            "args": [
-              {
-                "defaultValue": "",
-                "description": "",
-                "name": "id",
-                "type": {
-                  "kind": "SCALAR",
-                  "name": "int64",
-                  "ofType": null
-                }
-              }
-            ],
-            "deprecationReason": "",
-            "description": "",
-            "isDeprecated": false,
-            "name": "deleteMessage",
-            "type": {
-              "kind": "SCALAR",
-              "name": "bool",
-              "ofType": null
             }
           }
         ],
@@ -158,15 +44,27 @@
             "deprecationReason": "",
             "description": "",
             "isDeprecated": false,
-            "name": "messages",
+            "name": "me",
             "type": {
-              "kind": "LIST",
+              "kind": "NON_NULL",
               "name": "",
               "ofType": {
                 "kind": "OBJECT",
-                "name": "Message",
+                "name": "User",
                 "ofType": null
               }
+            }
+          },
+          {
+            "args": [],
+            "deprecationReason": "",
+            "description": "",
+            "isDeprecated": false,
+            "name": "noone",
+            "type": {
+              "kind": "OBJECT",
+              "name": "User",
+              "ofType": null
             }
           }
         ],
@@ -185,10 +83,71 @@
             "deprecationReason": "",
             "description": "",
             "isDeprecated": false,
-            "name": "count",
+            "name": "friends",
+            "type": {
+              "kind": "NON_NULL",
+              "name": "",
+              "ofType": {
+                "kind": "LIST",
+                "name": "",
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": "",
+                  "ofType": {
+                    "kind": "OBJECT",
+                    "name": "User",
+                    "ofType": null
+                  }
+                }
+              }
+            }
+          },
+          {
+            "args": [
+              {
+                "defaultValue": "",
+                "description": "",
+                "name": "include",
+                "type": {
+                  "kind": "INPUT_OBJECT",
+                  "name": "UserInput",
+                  "ofType": null
+                }
+              },
+              {
+                "defaultValue": "",
+                "description": "",
+                "name": "other",
+                "type": {
+                  "kind": "SCALAR",
+                  "name": "string",
+                  "ofType": null
+                }
+              }
+            ],
+            "deprecationReason": "",
+            "description": "",
+            "isDeprecated": false,
+            "name": "greet",
+            "type": {
+              "kind": "NON_NULL",
+              "name": "",
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "string",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "args": [],
+            "deprecationReason": "",
+            "description": "",
+            "isDeprecated": false,
+            "name": "maybeAge",
             "type": {
               "kind": "SCALAR",
-              "name": "int",
+              "name": "int64",
               "ofType": null
             }
           },
@@ -197,7 +156,43 @@
             "deprecationReason": "",
             "description": "",
             "isDeprecated": false,
-            "name": "reaction",
+            "name": "name",
+            "type": {
+              "kind": "NON_NULL",
+              "name": "",
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "string",
+                "ofType": null
+              }
+            }
+          }
+        ],
+        "inputFields": [],
+        "interfaces": [],
+        "kind": "OBJECT",
+        "name": "User",
+        "possibleTypes": []
+      },
+      {
+        "description": "",
+        "enumValues": [],
+        "fields": [],
+        "inputFields": [
+          {
+            "defaultValue": "",
+            "description": "",
+            "name": "maybeAge",
+            "type": {
+              "kind": "SCALAR",
+              "name": "int64",
+              "ofType": null
+            }
+          },
+          {
+            "defaultValue": "",
+            "description": "",
+            "name": "name",
             "type": {
               "kind": "SCALAR",
               "name": "string",
@@ -205,10 +200,9 @@
             }
           }
         ],
-        "inputFields": [],
         "interfaces": [],
-        "kind": "OBJECT",
-        "name": "Reaction",
+        "kind": "INPUT_OBJECT",
+        "name": "UserInput",
         "possibleTypes": []
       },
       {
@@ -219,16 +213,6 @@
         "interfaces": [],
         "kind": "SCALAR",
         "name": "bool",
-        "possibleTypes": []
-      },
-      {
-        "description": "",
-        "enumValues": [],
-        "fields": [],
-        "inputFields": [],
-        "interfaces": [],
-        "kind": "SCALAR",
-        "name": "int",
         "possibleTypes": []
       },
       {
