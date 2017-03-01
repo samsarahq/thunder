@@ -113,6 +113,9 @@ func PrepareQuery(typ Type, selectionSet *SelectionSet) error {
 	case *List:
 		return PrepareQuery(typ.Type, selectionSet)
 
+	case *NonNull:
+		return PrepareQuery(typ.Type, selectionSet)
+
 	default:
 		panic("unknown type kind")
 	}
@@ -272,6 +275,8 @@ func (e *Executor) execute(ctx context.Context, typ Type, source interface{}, se
 		return e.executeObject(ctx, typ, source, selectionSet)
 	case *List:
 		return e.executeList(ctx, typ, source, selectionSet)
+	case *NonNull:
+		return e.execute(ctx, typ.Type, source, selectionSet)
 	default:
 		panic(typ)
 	}

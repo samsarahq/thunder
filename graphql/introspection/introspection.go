@@ -101,6 +101,8 @@ func (s *introspection) registerType(schema *schemabuilder.Schema) {
 			return LIST
 		case *graphql.InputObject:
 			return INPUT_OBJECT
+		case *graphql.NonNull:
+			return NON_NULL
 		default:
 			return ""
 		}
@@ -181,6 +183,8 @@ func (s *introspection) registerType(schema *schemabuilder.Schema) {
 		switch t := t.Inner.(type) {
 		case *graphql.List:
 			return &Type{Inner: t.Type}
+		case *graphql.NonNull:
+			return &Type{Inner: t.Type}
 		default:
 			return nil
 		}
@@ -238,6 +242,9 @@ func collectTypes(typ graphql.Type, types map[string]graphql.Type) {
 		for _, field := range typ.InputFields {
 			collectTypes(field, types)
 		}
+
+	case *graphql.NonNull:
+		collectTypes(typ.Type, types)
 	}
 }
 
