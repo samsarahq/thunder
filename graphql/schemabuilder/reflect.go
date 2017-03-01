@@ -647,7 +647,7 @@ func (sb *schemaBuilder) getType(t reflect.Type) (graphql.Type, error) {
 	// Support scalars and optional scalars. Scalars have precedence over structs
 	// to have eg. time.Time function as a scalar.
 	if typ, ok := getScalar(t); ok {
-		return &graphql.Scalar{Type: typ}, nil
+		return &graphql.NonNull{Type: &graphql.Scalar{Type: typ}}, nil
 	}
 	if t.Kind() == reflect.Ptr {
 		if typ, ok := getScalar(t.Elem()); ok {
@@ -660,7 +660,7 @@ func (sb *schemaBuilder) getType(t reflect.Type) (graphql.Type, error) {
 		if err := sb.buildStruct(t); err != nil {
 			return nil, err
 		}
-		return sb.types[t], nil
+		return &graphql.NonNull{Type: sb.types[t]}, nil
 	}
 	if t.Kind() == reflect.Ptr && t.Elem().Kind() == reflect.Struct {
 		if err := sb.buildStruct(t.Elem()); err != nil {
@@ -675,7 +675,13 @@ func (sb *schemaBuilder) getType(t reflect.Type) (graphql.Type, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &graphql.List{Type: typ}, nil
+
+		// Wrap all slice elements in NonNull.
+		if _, ok := typ.(*graphql.NonNull); !ok {
+			typ = &graphql.NonNull{Type: typ}
+		}
+
+		return &graphql.NonNull{Type: &graphql.List{Type: typ}}, nil
 
 	default:
 		return nil, fmt.Errorf("bad type %s: should be a scalar, slice, or struct type", t)
@@ -712,17 +718,6 @@ func (s *Schema) Mutation() *Object {
 }
 
 func (s *Schema) Build() (*graphql.Schema, error) {
-	var queryObject, mutationObject *Object
-
-	for _, object := range s.objects {
-		if object.Name == "Query" {
-			queryObject = object
-		}
-		if object.Name == "Mutation" {
-			mutationObject = object
-		}
-	}
-
 	sb := &schemaBuilder{
 		types:   make(map[reflect.Type]graphql.Type),
 		objects: make(map[reflect.Type]*Object),
@@ -741,11 +736,11 @@ func (s *Schema) Build() (*graphql.Schema, error) {
 		sb.objects[typ] = object
 	}
 
-	queryTyp, err := sb.getType(reflect.TypeOf(queryObject.Type))
+	queryTyp, err := sb.getType(reflect.TypeOf(&query{}))
 	if err != nil {
 		return nil, err
 	}
-	mutationTyp, err := sb.getType(reflect.TypeOf(mutationObject.Type))
+	mutationTyp, err := sb.getType(reflect.TypeOf(&mutation{}))
 	if err != nil {
 		return nil, err
 	}
