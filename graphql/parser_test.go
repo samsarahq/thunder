@@ -15,7 +15,7 @@ func TestParseSupported(t *testing.T) {
 		alias: bar
 		baz(arg: 3) {
 			bah(x: 1, y: "123", z: true)
-			hum(foo: {x: $var})
+			hum(foo: {x: $var}, bug: [1, 2, [4, 5]])
 		}
 		... on Foo {
 			asd
@@ -77,6 +77,10 @@ fragment Bar on Foo {
 										Args: map[string]interface{}{
 											"foo": map[string]interface{}{
 												"x": "var value!!",
+											},
+											"bug": []interface{}{
+												float64(1), float64(2),
+												[]interface{}{float64(4), float64(5)},
 											},
 										},
 									},
