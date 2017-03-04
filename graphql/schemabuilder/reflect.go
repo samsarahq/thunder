@@ -159,6 +159,22 @@ type argField struct {
 }
 
 func makeArgParser(typ reflect.Type) (*argParser, graphql.Type, error) {
+	if typ.Kind() == reflect.Ptr {
+		parser, argType, err := makeArgParserInner(typ.Elem())
+		if err != nil {
+			return nil, nil, err
+		}
+		return wrapPtrParser(parser), argType, nil
+	}
+
+	parser, argType, err := makeArgParserInner(typ)
+	if err != nil {
+		return nil, nil, err
+	}
+	return parser, &graphql.NonNull{Type: argType}, nil
+}
+
+func makeArgParserInner(typ reflect.Type) (*argParser, graphql.Type, error) {
 	if parser, argType, ok := getScalarArgParser(typ); ok {
 		return parser, argType, nil
 	}
@@ -172,22 +188,15 @@ func makeArgParser(typ reflect.Type) (*argParser, graphql.Type, error) {
 		if argType.(*graphql.InputObject).Name == "" {
 			return nil, nil, fmt.Errorf("bad type %s: should have a name", typ)
 		}
-		return parser, argType, err
+		return parser, argType, nil
 	case reflect.Slice:
 		return makeSliceParser(typ)
-	case reflect.Ptr:
-		return makePtrParser(typ)
 	default:
 		return nil, nil, fmt.Errorf("bad arg type %s: should be struct, scalar, pointer, or a slice", typ)
 	}
 }
 
-func makePtrParser(typ reflect.Type) (*argParser, graphql.Type, error) {
-	inner, argType, err := makeArgParser(typ.Elem())
-	if err != nil {
-		return nil, nil, err
-	}
-
+func wrapPtrParser(inner *argParser) *argParser {
 	return &argParser{
 		FromJSON: func(value interface{}, dest reflect.Value) error {
 			if value == nil {
@@ -195,15 +204,15 @@ func makePtrParser(typ reflect.Type) (*argParser, graphql.Type, error) {
 				return nil
 			}
 
-			ptr := reflect.New(typ.Elem())
+			ptr := reflect.New(inner.Type)
 			if err := inner.FromJSON(value, ptr.Elem()); err != nil {
 				return err
 			}
 			dest.Set(ptr)
 			return nil
 		},
-		Type: typ,
-	}, argType, nil
+		Type: reflect.PtrTo(inner.Type),
+	}
 }
 
 func makeStructParser(typ reflect.Type) (*argParser, graphql.Type, error) {

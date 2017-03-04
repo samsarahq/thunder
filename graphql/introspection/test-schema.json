@@ -119,9 +119,13 @@
                 "description": "",
                 "name": "other",
                 "type": {
-                  "kind": "SCALAR",
-                  "name": "string",
-                  "ofType": null
+                  "kind": "NON_NULL",
+                  "name": "",
+                  "ofType": {
+                    "kind": "SCALAR",
+                    "name": "string",
+                    "ofType": null
+                  }
                 }
               }
             ],
@@ -194,9 +198,13 @@
             "description": "",
             "name": "name",
             "type": {
-              "kind": "SCALAR",
-              "name": "string",
-              "ofType": null
+              "kind": "NON_NULL",
+              "name": "",
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "string",
+                "ofType": null
+              }
             }
           }
         ],
