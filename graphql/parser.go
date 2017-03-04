@@ -53,6 +53,16 @@ func valueToJson(value ast.Value, vars map[string]interface{}) (interface{}, err
 			obj[name] = value
 		}
 		return obj, nil
+	case *ast.ListValue:
+		list := make([]interface{}, 0, len(value.Values))
+		for _, item := range value.Values {
+			value, err := valueToJson(item, vars)
+			if err != nil {
+				return nil, err
+			}
+			list = append(list, value)
+		}
+		return list, nil
 	default:
 		return nil, NewSafeError("unsupported value type: %s", value.GetKind())
 	}
