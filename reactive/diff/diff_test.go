@@ -1,51 +1,31 @@
-package graphql_test
+package diff_test
 
 import (
-	"encoding/json"
 	"reflect"
 	"testing"
 
-	"github.com/samsarahq/thunder/graphql"
+	"github.com/samsarahq/thunder/internal"
+	"github.com/samsarahq/thunder/reactive/diff"
 )
 
-func marshalJSON(v interface{}) string {
-	bytes, err := json.Marshal(v)
-	if err != nil {
-		panic(err)
-	}
-	return string(bytes)
-}
-
-func parseJSON(s string) interface{} {
-	var v interface{}
-	if err := json.Unmarshal([]byte(s), &v); err != nil {
-		panic(err)
-	}
-	return v
-}
-
-func asJSON(v interface{}) interface{} {
-	return parseJSON(marshalJSON(v))
-}
-
-func obj(key string, fields map[string]interface{}) *graphql.DiffableObject {
+func obj(key string, fields map[string]interface{}) *diff.Object {
 	if fields == nil {
 		fields = map[string]interface{}{}
 	}
-	return &graphql.DiffableObject{
+	return &diff.Object{
 		Key:    key,
 		Fields: fields,
 	}
 }
 
-func list(items ...interface{}) *graphql.DiffableList {
-	return &graphql.DiffableList{
+func list(items ...interface{}) *diff.List {
+	return &diff.List{
 		Items: items,
 	}
 }
 
 func TestDiffListString(t *testing.T) {
-	delta, _ := graphql.Diff(list(
+	delta, _ := diff.Diff(list(
 		"0",
 		"1",
 		"2",
@@ -58,7 +38,7 @@ func TestDiffListString(t *testing.T) {
 		"4",
 	))
 
-	if !reflect.DeepEqual(asJSON(graphql.PrepareForMarshal(delta)), parseJSON(`
+	if !reflect.DeepEqual(internal.AsJSON(diff.PrepareForMarshal(delta)), internal.ParseJSON(`
 		{"$": [3, -1, [0, 2], -1], "1": "-1", "4": "4"}
 	`)) {
 		t.Error("bad reorder")
@@ -66,7 +46,7 @@ func TestDiffListString(t *testing.T) {
 }
 
 func TestDiffListOrder(t *testing.T) {
-	delta, _ := graphql.Diff(list(
+	delta, _ := diff.Diff(list(
 		obj("0", nil),
 		obj("1", nil),
 		obj("2", nil),
@@ -79,13 +59,13 @@ func TestDiffListOrder(t *testing.T) {
 		obj("4", nil),
 	))
 
-	if !reflect.DeepEqual(asJSON(graphql.PrepareForMarshal(delta)), parseJSON(`
+	if !reflect.DeepEqual(internal.AsJSON(diff.PrepareForMarshal(delta)), internal.ParseJSON(`
 		{"$": [3, -1, [0, 2], -1], "1": [{}], "4": [{}]}
 	`)) {
 		t.Error("bad reorder")
 	}
 
-	_, changed := graphql.Diff(list(
+	_, changed := diff.Diff(list(
 		obj("0", nil),
 		obj("1", nil),
 		obj("2", nil),
@@ -100,7 +80,7 @@ func TestDiffListOrder(t *testing.T) {
 		t.Error("bad identical")
 	}
 
-	delta, _ = graphql.Diff(list(
+	delta, _ = diff.Diff(list(
 		obj("0", nil),
 		obj("1", nil),
 		obj("2", nil),
@@ -110,13 +90,13 @@ func TestDiffListOrder(t *testing.T) {
 		obj("1", nil),
 	))
 
-	if !reflect.DeepEqual(asJSON(graphql.PrepareForMarshal(delta)), parseJSON(`
+	if !reflect.DeepEqual(internal.AsJSON(diff.PrepareForMarshal(delta)), internal.ParseJSON(`
 		{"$": [[0, 2]]}
 	`)) {
 		t.Error("bad truncated")
 	}
 
-	delta, _ = graphql.Diff(list(
+	delta, _ = diff.Diff(list(
 		obj("0", nil),
 		obj("1", nil),
 	), list(
@@ -125,7 +105,7 @@ func TestDiffListOrder(t *testing.T) {
 		obj("2", nil),
 	))
 
-	if !reflect.DeepEqual(asJSON(graphql.PrepareForMarshal(delta)), parseJSON(`
+	if !reflect.DeepEqual(internal.AsJSON(diff.PrepareForMarshal(delta)), internal.ParseJSON(`
 		{"$": [[0, 2], -1], "2": [{}]}
 	`)) {
 		t.Error("bad appended")
@@ -133,7 +113,7 @@ func TestDiffListOrder(t *testing.T) {
 }
 
 func TestDiffObjects(t *testing.T) {
-	delta, _ := graphql.Diff(obj("a", map[string]interface{}{
+	delta, _ := diff.Diff(obj("a", map[string]interface{}{
 		"changed": 0,
 		"removed": "foo",
 		"same":    "bar",
@@ -141,24 +121,24 @@ func TestDiffObjects(t *testing.T) {
 		"changed": 1,
 		"same":    "bar",
 	}))
-	if !reflect.DeepEqual(asJSON(graphql.PrepareForMarshal(delta)), parseJSON(`
+	if !reflect.DeepEqual(internal.AsJSON(diff.PrepareForMarshal(delta)), internal.ParseJSON(`
 		{"changed": 1, "removed": []}
 	`)) {
 		t.Error("bad diff")
 	}
 
-	delta, _ = graphql.Diff(obj("a", map[string]interface{}{
+	delta, _ = diff.Diff(obj("a", map[string]interface{}{
 		"foo": "bar",
 	}), obj("b", map[string]interface{}{
 		"foo": "bar",
 	}))
-	if !reflect.DeepEqual(asJSON(graphql.PrepareForMarshal(delta)), parseJSON(`
+	if !reflect.DeepEqual(internal.AsJSON(diff.PrepareForMarshal(delta)), internal.ParseJSON(`
 		[{"foo": "bar"}]
 	`)) {
 		t.Error("bad changed key")
 	}
 
-	_, changed := graphql.Diff(obj("a", map[string]interface{}{
+	_, changed := diff.Diff(obj("a", map[string]interface{}{
 		"foo": "bar",
 	}), obj("a", map[string]interface{}{
 		"foo": "bar",
@@ -170,7 +150,7 @@ func TestDiffObjects(t *testing.T) {
 }
 
 func TestKitchenSink(t *testing.T) {
-	delta, _ := graphql.Diff(obj("a", map[string]interface{}{
+	delta, _ := diff.Diff(obj("a", map[string]interface{}{
 		"users": list(
 			obj("alice", map[string]interface{}{
 				"age": 30,
@@ -201,7 +181,7 @@ func TestKitchenSink(t *testing.T) {
 		"bar": "baz",
 	}))
 
-	if !reflect.DeepEqual(asJSON(graphql.PrepareForMarshal(delta)), parseJSON(`
+	if !reflect.DeepEqual(internal.AsJSON(diff.PrepareForMarshal(delta)), internal.ParseJSON(`
 		{"foo": [], "bar": "baz", "users": {
 			"$": [1, 0],
 			"1": {"age": 30000, "address": {"city": "berkeley"}}

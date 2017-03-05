@@ -2,13 +2,14 @@ package schemabuilder
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/samsarahq/thunder/graphql"
+	"github.com/samsarahq/thunder/internal"
+	"github.com/samsarahq/thunder/reactive/diff"
 )
 
 type alias int64
@@ -140,7 +141,7 @@ func TestExecuteGood(t *testing.T) {
 		t.Error(err)
 	}
 
-	if !reflect.DeepEqual(asJSON(result), parseJSON(`
+	if !reflect.DeepEqual(internal.AsJSON(result), internal.ParseJSON(`
 		{"users": [
 			{"name": "Alice", "foo": 10, "friends": []},
 			{"name": "Bob", "foo": 20, "friends": []}
@@ -161,7 +162,7 @@ func TestExecuteGood(t *testing.T) {
 		t.Error("bad value")
 	}
 
-	if result.(*graphql.DiffableObject).Fields["users"].(*graphql.DiffableList).Items[0].(*graphql.DiffableObject).Key != "Alice" {
+	if result.(*diff.Object).Fields["users"].(*diff.List).Items[0].(*diff.Object).Key != "Alice" {
 		t.Error("expected key")
 	}
 }
@@ -177,26 +178,6 @@ func TestMakeGraphql(t *testing.T) {
 	testMakeGraphql(t, "FooBar", "fooBar")
 	testMakeGraphql(t, "OrganizationId", "organizationId")
 	testMakeGraphql(t, "ABC", "aBC")
-}
-
-func marshalJSON(v interface{}) string {
-	bytes, err := json.Marshal(v)
-	if err != nil {
-		panic(err)
-	}
-	return string(bytes)
-}
-
-func parseJSON(s string) interface{} {
-	var v interface{}
-	if err := json.Unmarshal([]byte(s), &v); err != nil {
-		panic(err)
-	}
-	return v
-}
-
-func asJSON(v interface{}) interface{} {
-	return parseJSON(marshalJSON(v))
 }
 
 type inner struct {
@@ -255,7 +236,7 @@ func TestArgParser(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	testArgParseOk(t, parser, parseJSON(`
+	testArgParseOk(t, parser, internal.ParseJSON(`
 		{
 			"child": {"foo": 12.5},
 			"hello": 20,
@@ -284,7 +265,7 @@ func TestArgParser(t *testing.T) {
 
 	var ten = int64(10)
 
-	testArgParseOk(t, parser, parseJSON(`
+	testArgParseOk(t, parser, internal.ParseJSON(`
 		{
 			"child": {"foo": 22.5},
 			"hello": 40,
@@ -314,7 +295,7 @@ func TestArgParser(t *testing.T) {
 		Alias:           1234,
 	})
 
-	testArgParseBad(t, parser, parseJSON(`
+	testArgParseBad(t, parser, internal.ParseJSON(`
 		{
 			"child": {"bar": 22.5},
 			"hello": 40,
@@ -326,7 +307,7 @@ func TestArgParser(t *testing.T) {
 		}
 	`))
 
-	testArgParseBad(t, parser, parseJSON(`
+	testArgParseBad(t, parser, internal.ParseJSON(`
 		{
 			"child": {"foo": 22.5},
 			"hello": "xyz",
@@ -338,7 +319,7 @@ func TestArgParser(t *testing.T) {
 		}
 	`))
 
-	testArgParseBad(t, parser, parseJSON(`
+	testArgParseBad(t, parser, internal.ParseJSON(`
 		{
 			"child": {"foo": 22.5},
 			"hello": 40,
@@ -350,7 +331,7 @@ func TestArgParser(t *testing.T) {
 		}
 	`))
 
-	testArgParseBad(t, parser, parseJSON(`
+	testArgParseBad(t, parser, internal.ParseJSON(`
 		{
 			"child": {"foo": 22.5},
 			"hello": 40,
@@ -362,7 +343,7 @@ func TestArgParser(t *testing.T) {
 		}
 	`))
 
-	testArgParseBad(t, parser, parseJSON(`
+	testArgParseBad(t, parser, internal.ParseJSON(`
 		{
 			"child": {"foo": 12.5},
 			"hello": 20,

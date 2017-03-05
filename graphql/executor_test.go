@@ -2,34 +2,14 @@ package graphql
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/samsarahq/thunder/internal"
 )
-
-func marshalJSON(v interface{}) string {
-	bytes, err := json.Marshal(v)
-	if err != nil {
-		panic(err)
-	}
-	return string(bytes)
-}
-
-func parseJSON(s string) interface{} {
-	var v interface{}
-	if err := json.Unmarshal([]byte(s), &v); err != nil {
-		panic(err)
-	}
-	return v
-}
-
-func asJSON(v interface{}) interface{} {
-	return parseJSON(marshalJSON(v))
-}
 
 func makeQuery() *Object {
 	noArguments := func(json interface{}) (interface{}, error) {
@@ -126,7 +106,7 @@ func TestBasic(t *testing.T) {
 		t.Error(err)
 	}
 
-	if !reflect.DeepEqual(asJSON(result), parseJSON(`
+	if !reflect.DeepEqual(internal.AsJSON(result), internal.ParseJSON(`
 		{
 			"static": "static",
 			"a": {
@@ -142,7 +122,7 @@ func TestBasic(t *testing.T) {
 				{"value": 3}
 			]
 		}`)) {
-		t.Error("bad value", spew.Sdump(asJSON(result)))
+		t.Error("bad value", spew.Sdump(internal.AsJSON(result)))
 	}
 }
 

@@ -4,6 +4,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/samsarahq/thunder/reactive/diff"
 )
 
 func TestAwait(t *testing.T) {
@@ -35,10 +37,10 @@ func TestAwait(t *testing.T) {
 		t.Errorf("fork did not run in parallel: %v > 100ms", duration)
 	}
 
-	if !reflect.DeepEqual(final, &DiffableObject{
+	if !reflect.DeepEqual(final, &diff.Object{
 		Fields: map[string]interface{}{
 			"a": "b",
-			"b": &DiffableList{
+			"b": &diff.List{
 				Items: []interface{}{0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
 			},
 		}}) {

@@ -10,6 +10,7 @@ import (
 
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
+	"github.com/samsarahq/thunder/internal"
 	"github.com/samsarahq/thunder/reactive"
 )
 
@@ -159,7 +160,7 @@ func TestEndToEndAwaitAndCache(t *testing.T) {
 			t.Error(err)
 		}
 
-		results <- asJSON(result)
+		results <- internal.AsJSON(result)
 		return nil, nil
 	}, 0)
 	defer rerunner.Stop()
@@ -169,7 +170,7 @@ func TestEndToEndAwaitAndCache(t *testing.T) {
 	if duration > 150*time.Millisecond {
 		t.Errorf("did not execute in parallel; duration %v > 150ms", duration)
 	}
-	if !reflect.DeepEqual(result, parseJSON(`
+	if !reflect.DeepEqual(result, internal.ParseJSON(`
 		{"users": [
 			{"name": "Alice", "slow": {"count": true}},
 			{"name": "Bob", "slow": {"count": true}},
@@ -188,7 +189,7 @@ func TestEndToEndAwaitAndCache(t *testing.T) {
 	if duration > 150*time.Millisecond {
 		t.Errorf("did not execute in parallel; duration %v > 150ms", duration)
 	}
-	if !reflect.DeepEqual(result, parseJSON(`
+	if !reflect.DeepEqual(result, internal.ParseJSON(`
 		{"users": [
 			{"name": "Alice", "slow": {"count": true}},
 			{"name": "Bob", "slow": {"count": true}},

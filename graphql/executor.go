@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/samsarahq/thunder/reactive"
+	"github.com/samsarahq/thunder/reactive/diff"
 
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
@@ -238,7 +239,7 @@ func (e *Executor) executeObject(ctx context.Context, typ *Object, source interf
 	return &awaitableDiffableObject{Fields: fields, Key: key}, nil
 }
 
-var emptyDiffableList = &DiffableList{Items: []interface{}{}}
+var emptyDiffableList = &diff.List{Items: []interface{}{}}
 
 // executeList executes a set query
 func (e *Executor) executeList(ctx context.Context, typ *List, source interface{}, selectionSet *SelectionSet) (interface{}, error) {

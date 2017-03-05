@@ -13,6 +13,7 @@ import (
 	"github.com/gorilla/websocket"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/samsarahq/thunder/reactive"
+	"github.com/samsarahq/thunder/reactive/diff"
 )
 
 const (
@@ -178,12 +179,12 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 			return nil, err
 		}
 
-		delta, diff := Diff(previous, current)
+		delta, changed := diff.Diff(previous, current)
 		previous = current
 		initial = false
 
-		if diff {
-			c.writeOrClose(id, "update", PrepareForMarshal(delta))
+		if changed {
+			c.writeOrClose(id, "update", diff.PrepareForMarshal(delta))
 		}
 
 		return nil, nil
@@ -231,8 +232,8 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 			return nil, err
 		}
 
-		delta, _ := Diff(nil, current)
-		c.writeOrClose(id, "result", PrepareForMarshal(delta))
+		delta, _ := diff.Diff(nil, current)
+		c.writeOrClose(id, "result", diff.PrepareForMarshal(delta))
 
 		return nil, errors.New("stop")
 	}, MinRerunInterval)
