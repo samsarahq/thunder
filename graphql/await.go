@@ -1,6 +1,10 @@
 package graphql
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/samsarahq/thunder/reactive/diff"
+)
 
 type awaitable interface {
 	await() (interface{}, error)
@@ -37,7 +41,7 @@ func (t *thunk) await() (interface{}, error) {
 	return t.value, t.err
 }
 
-type awaitableDiffableObject DiffableObject
+type awaitableDiffableObject diff.Object
 
 func (a *awaitableDiffableObject) await() (interface{}, error) {
 	for k, v := range a.Fields {
@@ -58,10 +62,10 @@ func (a *awaitableDiffableObject) await() (interface{}, error) {
 		a.Key = value
 	}
 
-	return (*DiffableObject)(a), nil
+	return (*diff.Object)(a), nil
 }
 
-type awaitableDiffableList DiffableList
+type awaitableDiffableList diff.List
 
 func (a *awaitableDiffableList) await() (interface{}, error) {
 	for i, v := range a.Items {
@@ -73,5 +77,5 @@ func (a *awaitableDiffableList) await() (interface{}, error) {
 			a.Items[i] = value
 		}
 	}
-	return (*DiffableList)(a), nil
+	return (*diff.List)(a), nil
 }

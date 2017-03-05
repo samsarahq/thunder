@@ -1,4 +1,4 @@
-package graphql
+package diff
 
 import (
 	"encoding/json"
@@ -87,27 +87,27 @@ func PrepareForMarshal(delta interface{}) interface{} {
 	}
 }
 
-// A DiffableObject is a diffable value representing a JSON object
+// A Object is a diffable value representing a JSON object
 //
 // Normal map[string]interface{} are not diffable because they are not
 // comparable (that is, Go panics when you try a == b).  Additionally,
-// DiffableObjects have a Key useful for lining up objects in two different
+// Objects have a Key useful for lining up objects in two different
 // arrays.
-type DiffableObject struct {
+type Object struct {
 	Key    interface{}
 	Fields map[string]interface{}
 }
 
 // MarshalJSON implements the json.Marshal interface.
-func (o *DiffableObject) MarshalJSON() ([]byte, error) {
+func (o *Object) MarshalJSON() ([]byte, error) {
 	return json.Marshal(o.Fields)
 }
 
 // Diff implements the Diffable interface.
 //
 // An object delta consists of a delta for each changed child element
-func (o *DiffableObject) Diff(old interface{}) (interface{}, bool) {
-	oldObject, ok := old.(*DiffableObject)
+func (o *Object) Diff(old interface{}) (interface{}, bool) {
+	oldObject, ok := old.(*Object)
 	if !ok || o.Key != oldObject.Key {
 		return o, true
 	}
@@ -138,17 +138,17 @@ func (o *DiffableObject) Diff(old interface{}) (interface{}, bool) {
 	return delta, true
 }
 
-type DiffableList struct {
+type List struct {
 	Items []interface{}
 }
 
 // MarshalJSON implements the json.Marshal interface.
-func (l *DiffableList) MarshalJSON() ([]byte, error) {
+func (l *List) MarshalJSON() ([]byte, error) {
 	return json.Marshal(l.Items)
 }
 
 func reorderKey(i interface{}) interface{} {
-	if object, ok := i.(*DiffableObject); ok && object.Key != "" {
+	if object, ok := i.(*Object); ok && object.Key != "" {
 		return object.Key
 	}
 	if reflect.TypeOf(i).Comparable() {
@@ -215,8 +215,8 @@ func compressReorderIndices(indices []int) []interface{} {
 // A list delta consists of a set of reorder indices stored in $ (as in
 // computeReorderIndices) and for each new index an optional delta with the
 // previous value.
-func (l *DiffableList) Diff(old interface{}) (interface{}, bool) {
-	oldList, ok := old.(*DiffableList)
+func (l *List) Diff(old interface{}) (interface{}, bool) {
+	oldList, ok := old.(*List)
 	if !ok {
 		return l, true
 	}
