@@ -1,19 +1,31 @@
 package graphql
 
-import (
-	"fmt"
-
-	"github.com/samsarahq/thunder/reactive/diff"
-)
-
-type awaitable interface {
-	await() (interface{}, error)
-}
+import "fmt"
 
 func await(value interface{}) (interface{}, error) {
-	if f, ok := value.(awaitable); ok {
-		return f.await()
+	switch value := value.(type) {
+	case *thunk:
+		return value.await()
+
+	case map[string]interface{}:
+		for k, v := range value {
+			v, err := await(v)
+			if err != nil {
+				return nil, nestPathError(k, err)
+			}
+			value[k] = v
+		}
+
+	case []interface{}:
+		for i, v := range value {
+			v, err := await(v)
+			if err != nil {
+				return nil, nestPathError(fmt.Sprint(i), err)
+			}
+			value[i] = v
+		}
 	}
+
 	return value, nil
 }
 
@@ -39,43 +51,4 @@ func fork(f func() (interface{}, error)) *thunk {
 func (t *thunk) await() (interface{}, error) {
 	<-t.done
 	return t.value, t.err
-}
-
-type awaitableDiffableObject diff.Object
-
-func (a *awaitableDiffableObject) await() (interface{}, error) {
-	for k, v := range a.Fields {
-		if f, ok := v.(awaitable); ok {
-			value, err := f.await()
-			if err != nil {
-				return nil, nestPathError(k, err)
-			}
-			a.Fields[k] = value
-		}
-	}
-
-	if f, ok := a.Key.(awaitable); ok {
-		value, err := f.await()
-		if err != nil {
-			return nil, err
-		}
-		a.Key = value
-	}
-
-	return (*diff.Object)(a), nil
-}
-
-type awaitableDiffableList diff.List
-
-func (a *awaitableDiffableList) await() (interface{}, error) {
-	for i, v := range a.Items {
-		if f, ok := v.(awaitable); ok {
-			value, err := f.await()
-			if err != nil {
-				return nil, nestPathError(fmt.Sprint(i), err)
-			}
-			a.Items[i] = value
-		}
-	}
-	return (*diff.List)(a), nil
 }

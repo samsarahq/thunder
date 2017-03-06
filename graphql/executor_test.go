@@ -111,15 +111,17 @@ func TestBasic(t *testing.T) {
 			"static": "static",
 			"a": {
 				"value": 0,
+				"__key": 0,
 				"nested": {
-					"value": 1
+					"value": 1,
+					"__key": 1
 				}
 			},
 			"as": [
-				{"value": 0},
-				{"value": 1},
-				{"value": 2},
-				{"value": 3}
+				{"value": 0, "__key": 0},
+				{"value": 1, "__key": 1},
+				{"value": 2, "__key": 2},
+				{"value": 3, "__key": 3}
 			]
 		}`)) {
 		t.Error("bad value", spew.Sdump(internal.AsJSON(result)))

@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	"github.com/samsarahq/thunder/reactive"
-	"github.com/samsarahq/thunder/reactive/diff"
 
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
@@ -227,24 +226,23 @@ func (e *Executor) executeObject(ctx context.Context, typ *Object, source interf
 		fields[selection.Alias] = resolved
 	}
 
-	var key interface{}
 	if typ.Key != nil {
 		value, err := e.resolveAndExecute(ctx, &Field{Type: &Scalar{Type: "string"}, Resolve: typ.Key}, source, &Selection{})
 		if err != nil {
 			return nil, nestPathError("__key", err)
 		}
-		key = value
+		fields["__key"] = value
 	}
 
-	return &awaitableDiffableObject{Fields: fields, Key: key}, nil
+	return fields, nil
 }
 
-var emptyDiffableList = &diff.List{Items: []interface{}{}}
+var emptyList = []interface{}{}
 
 // executeList executes a set query
 func (e *Executor) executeList(ctx context.Context, typ *List, source interface{}, selectionSet *SelectionSet) (interface{}, error) {
 	if reflect.ValueOf(source).IsNil() {
-		return emptyDiffableList, nil
+		return emptyList, nil
 	}
 
 	// iterate over arbitrary slice types using reflect
@@ -261,7 +259,7 @@ func (e *Executor) executeList(ctx context.Context, typ *List, source interface{
 		items[i] = resolved
 	}
 
-	return &awaitableDiffableList{Items: items}, nil
+	return items, nil
 }
 
 // execute executes a query by dispatches according to typ
