@@ -4,27 +4,22 @@ import (
 	"reflect"
 	"testing"
 	"time"
-
-	"github.com/samsarahq/thunder/reactive/diff"
 )
 
 func TestAwait(t *testing.T) {
 	start := time.Now()
 
-	list := &awaitableDiffableList{}
-	obj := &awaitableDiffableObject{
-		Fields: map[string]interface{}{
-			"a": "b",
-			"b": list,
-		},
-	}
-
+	list := []interface{}{}
 	for i := 0; i < 10; i++ {
 		copy := i
-		list.Items = append(list.Items, fork(func() (interface{}, error) {
+		list = append(list, fork(func() (interface{}, error) {
 			time.Sleep(50 * time.Millisecond)
 			return copy, nil
 		}))
+	}
+	obj := map[string]interface{}{
+		"a": "b",
+		"b": list,
 	}
 
 	final, err := await(obj)
@@ -37,13 +32,10 @@ func TestAwait(t *testing.T) {
 		t.Errorf("fork did not run in parallel: %v > 100ms", duration)
 	}
 
-	if !reflect.DeepEqual(final, &diff.Object{
-		Fields: map[string]interface{}{
-			"a": "b",
-			"b": &diff.List{
-				Items: []interface{}{0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
-			},
-		}}) {
+	if !reflect.DeepEqual(final, map[string]interface{}{
+		"a": "b",
+		"b": []interface{}{0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
+	}) {
 		t.Errorf("bad final %v", final)
 	}
 }

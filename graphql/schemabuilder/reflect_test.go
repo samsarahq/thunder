@@ -9,7 +9,6 @@ import (
 
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/internal"
-	"github.com/samsarahq/thunder/reactive/diff"
 )
 
 type alias int64
@@ -143,8 +142,8 @@ func TestExecuteGood(t *testing.T) {
 
 	if !reflect.DeepEqual(internal.AsJSON(result), internal.ParseJSON(`
 		{"users": [
-			{"name": "Alice", "foo": 10, "friends": []},
-			{"name": "Bob", "foo": 20, "friends": []}
+			{"name": "Alice", "foo": 10, "friends": [], "__key": "Alice"},
+			{"name": "Bob", "foo": 20, "friends": [], "__key": "Bob"}
 		],
 		"nilObject": null,
 		"nilSlice": [],
@@ -155,15 +154,11 @@ func TestExecuteGood(t *testing.T) {
 		"ints": [1, 2, 3, 4],
 		"getCtx": "hello there",
 		"sum": 4,
-		"ptr": {"name": "Charlie", "age": 5, "byRef": "byRef", "byVal": "byVal"},
-		"plain": {"name": "Jane", "age": 5, "byRef": "byRef", "byVal": "byVal"},
+		"ptr": {"name": "Charlie", "age": 5, "byRef": "byRef", "byVal": "byVal", "__key": "Charlie"},
+		"plain": {"name": "Jane", "age": 5, "byRef": "byRef", "byVal": "byVal", "__key": "Jane"},
 		"root": {"nested": {"time": "2016-03-23T18:31:51Z", "bytes": "YmFy", "bar": 1234, "alias": 999}}
 		}`)) {
 		t.Error("bad value")
-	}
-
-	if result.(*diff.Object).Fields["users"].(*diff.List).Items[0].(*diff.Object).Key != "Alice" {
-		t.Error("expected key")
 	}
 }
 

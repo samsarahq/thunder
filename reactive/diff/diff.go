@@ -1,159 +1,196 @@
+// Package diff computes diffs for updating JSON objects. It uses a lightweight
+// field-by-field diffing algorithm suitable for comparing graphql result
+// objects, but perhaps not for other JSON objects.
+//
+// For each field, a diff represents an update as
+// - a recursive diff, stored as an object.
+// - a complex replacement of the original field's value, stored as the new value in a 1-element array.
+// - a scalar replacement, stored as the raw new value.
+// - a deletion of the old field, stored as a 0-element array.
+//
+// For example, consider the following objects old, new, and the resulting
+// diff:
+//
+//    old = {
+//      "name": "bob",
+//      "address": {"state": "ca", "city": "sf"},
+//      "age": 30
+//    }
+//    new = {
+//      "name": "alice",
+//      "address": {"state": "ca", "city": "oakland"},
+//      "friends": ["bob", "charlie]
+//    }
+//    diff = {
+//      "name": "alice",
+//      "address": {"city": "oakland"},
+//      "age": [],
+//      "friends": [["bob", "charlie]]
+//    }
+//
+// The diff updates the name field to "alice", stored as a scalar. The diff
+// updates the address recursively, keeping the state, but changing the city
+// to "oakland". The diff deletes the age field with a 0-element array, and
+// add a new complex friends field, stored in 1-element array.
+//
+// Array diffs are represented as object diffs with an optional reordering
+// field stored in the "$" property. This reordering field holds a compressed
+// of indices, indicating for each value in the new array the location of the
+// element in the previous array. This makes for small diffs of long arrays
+// that contain some permuted objects.
+//
+// For example, consider the following arrays old, new, and the resulting
+// reordering:
+//
+//   old = [0, 1, 2, 3]
+//   new = [1, 2, 3, 4]
+//   reordering = [1, 2, 3, -1]
+//
+// The reordering indicates that the first 3 elements of the new array can
+// be found at positions 1, 2, 3 and of the old array. The fourth item in
+// the new array was not found in the old array.
+//
+// To compress this reodering array, we replace runs of adjacent indices
+// as a tuple [start, length], so that the compressed reordering becomes
+//
+//   reordering = [1, 2, 3, -1]
+//   compressed = [[1, 3], -1]
+//
+// Finally, to identify complex objects in arrays, package diffs uses
+// a special "__key" field in objects. This must be a comparable value
+// that allows the algorithm to line up values in arrays. For example,
+//
+//   old = [
+//     {"__key": 10, "name": "bob", "age": 20"},
+//     {"__key": 13, "name": "alice"}
+//   ]
+//   new = [
+//     {"__key": 13, "name": "alice"}
+//     {"__key": 10, "name": "bob", "age": 23},
+//   ]
+//   diff = {
+//		"$": [1, 0],
+//      "1": {"age": 23}
+//   }
+//
+// Here, the diff first switches the order of the elements in the array,
+// using the __key field to identify the two objects, and then updates
+// the "age" field in the second element of the array to 23.
 package diff
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 )
 
-// A Diffable type can compute a delta from an old value
-//
-// old is not guaranteed to be the same type as the callee
-type Diffable interface {
-	Diff(old interface{}) (delta interface{}, changed bool)
+var emptyArray = []interface{}{}
+
+// markRemoved returns a 0-element JSON array to indicate a removed field.
+func markRemoved() interface{} {
+	return emptyArray
 }
 
-// Diff computes a deltas between two values
-//
-// All values passed into Diff must be comparable
-func Diff(old interface{}, new interface{}) (interface{}, bool) {
-	if old == new {
-		return nil, false
-	}
-
-	if new, ok := new.(Diffable); ok {
-		return new.Diff(old)
-	}
-
-	return new, true
-}
-
-// Update is a type of delta
-//
-// Deltas represent updates to JSON trees. An updates modifies the named keys
-// from a container.
-type Update map[string]interface{}
-
-// Delete is a type of delta
-//
-// A Delete{} deletes a value from its container.
-type Delete struct{}
-
-// MarshalJSON implements the json.Marshal interface.
-func (d Delete) MarshalJSON() ([]byte, error) {
-	return []byte("[]"), nil
-}
-
-// tagged is a helper to wrap a value in array brackets when marshaled
-type tagged []interface{}
-
-// untagged is a helper to signal to PrepareForMarshal that a value should not
-// be tagged with array brackets
-type untagged struct {
-	inner interface{}
-}
-
-// PrepareForMarshal converts a delta into a value ready to be sent over a JSON
-// socket
-//
-// PrepareForMarshal passes Update and Delte objects straight through. All
-// other values that could look like deltas are tagged by wrapping them in []
-// array brackets so the receiver can distinguish them from deltas.
-func PrepareForMarshal(delta interface{}) interface{} {
-	switch delta := delta.(type) {
-	case Update:
-		// recursively wrap values inside of an Update
-		for k, v := range delta {
-			delta[k] = PrepareForMarshal(v)
+// stripKey recursively creates a new JSON object with all __key fields
+// removed.
+func stripKey(i interface{}) interface{} {
+	switch i := i.(type) {
+	case map[string]interface{}:
+		r := make(map[string]interface{})
+		for k, v := range i {
+			if k == "__key" {
+				continue
+			}
+			r[k] = stripKey(v)
 		}
-		return delta
+		return r
+	case []interface{}:
+		r := make([]interface{}, 0, len(i))
+		for v := range i {
+			r = append(r, stripKey(v))
+		}
+		return r
+	default:
+		return i
+	}
+}
 
-	case Delete:
-		// pass through the Delete{}
-		return delta
-
+// markReplaced returns either a scalar value or a 1-element array
+// wrapping a complex value to indicate an updated field.
+//
+// markReplaced strips __key fields from any complex value.
+func markReplaced(i interface{}) interface{} {
+	switch i := i.(type) {
 	case bool, int, int8, int16, int32, int64,
 		uint, uint8, uint16, uint32, uint64,
 		float32, float64, string:
-		// pass through values that don't look like deltas
-		return delta
-
-	case untagged:
-		return delta.inner
+		// Pass through i that don't look like deltas.
+		return i
 
 	default:
-		// wrap all other values
-		return tagged{delta}
+		// Wrap all other values.
+		return []interface{}{stripKey(i)}
 	}
 }
 
-// A Object is a diffable value representing a JSON object
-//
-// Normal map[string]interface{} are not diffable because they are not
-// comparable (that is, Go panics when you try a == b).  Additionally,
-// Objects have a Key useful for lining up objects in two different
-// arrays.
-type Object struct {
-	Key    interface{}
-	Fields map[string]interface{}
-}
-
-// MarshalJSON implements the json.Marshal interface.
-func (o *Object) MarshalJSON() ([]byte, error) {
-	return json.Marshal(o.Fields)
-}
-
-// Diff implements the Diffable interface.
-//
-// An object delta consists of a delta for each changed child element
-func (o *Object) Diff(old interface{}) (interface{}, bool) {
-	oldObject, ok := old.(*Object)
-	if !ok || o.Key != oldObject.Key {
-		return o, true
+// diffMap computes a diff between two maps by comparing fields key-by-key.
+func diffMap(old map[string]interface{}, newAny interface{}) interface{} {
+	// Verify the type of new.
+	new, ok := newAny.(map[string]interface{})
+	if !ok {
+		return markReplaced(new)
 	}
-	oldFields, newFields := oldObject.Fields, o.Fields
 
-	delta := make(Update)
-	// find deleted fields
-	for k := range oldFields {
-		if _, ok := newFields[k]; !ok {
-			delta[k] = Delete{}
+	// Check if two map are identical by comparing their pointers, and
+	// short-circuit if so.
+	if reflect.ValueOf(old).Pointer() == reflect.ValueOf(new).Pointer() {
+		return nil
+	}
+
+	// Assert that the __key fields, if present, are equal.
+	if old["__key"] != new["__key"] {
+		return markReplaced(new)
+	}
+
+	// Build the diff.
+	d := make(map[string]interface{})
+
+	// Handle deleted fields.
+	for k := range old {
+		if _, ok := new[k]; !ok {
+			d[k] = markRemoved()
 		}
 	}
-	// find changed and added fields
-	for k := range newFields {
-		if _, ok := oldFields[k]; ok {
-			if d, changed := Diff(oldFields[k], newFields[k]); changed {
-				delta[k] = d
+
+	// Handle changed fields.
+	for k, newV := range new {
+		if oldV, ok := old[k]; ok {
+			if innerD := Diff(oldV, newV); innerD != nil {
+				d[k] = innerD
 			}
-
 		} else {
-			delta[k] = newFields[k]
+			d[k] = newV
 		}
 	}
 
-	if len(delta) == 0 {
-		return nil, false
+	// Check if the diff is empty.
+	if len(d) == 0 {
+		return nil
 	}
-	return delta, true
+	return d
 }
 
-type List struct {
-	Items []interface{}
-}
-
-// MarshalJSON implements the json.Marshal interface.
-func (l *List) MarshalJSON() ([]byte, error) {
-	return json.Marshal(l.Items)
-}
-
+// reoderKey returns the key to use for a
 func reorderKey(i interface{}) interface{} {
-	if object, ok := i.(*Object); ok && object.Key != "" {
-		return object.Key
+	if object, ok := i.(map[string]interface{}); ok {
+		if key, ok := object["__key"]; ok {
+			return key
+		}
 	}
+
 	if reflect.TypeOf(i).Comparable() {
 		return i
 	}
+
 	return nil
 }
 
@@ -161,15 +198,16 @@ func reorderKey(i interface{}) interface{} {
 // item in new
 //
 // If an item in new is not present in old, the index is -1. Objects are
-// identified using the Key field.
-func computeReorderIndices(oldItems, newItems []interface{}) []int {
+// identified using the __key field, if present. Otherwise, the values are used
+// as map keys if they are comparable.
+func computeReorderIndices(old, new []interface{}) []int {
 	oldIndices := make(map[interface{}]int)
-	for i, item := range oldItems {
+	for i, item := range old {
 		oldIndices[reorderKey(item)] = i
 	}
 
-	indices := make([]int, len(newItems))
-	for i, item := range newItems {
+	indices := make([]int, len(new))
+	for i, item := range new {
 		if index, ok := oldIndices[reorderKey(item)]; ok {
 			indices[i] = index
 		} else {
@@ -188,10 +226,10 @@ func compressReorderIndices(indices []int) []interface{} {
 	compressed := make([]interface{}, 0)
 	i := 0
 	for i < len(indices) {
-		// j represents the end of the current run
+		// j represents the end of the current run.
 		j := i
 		for j < len(indices) && indices[j] != -1 && indices[j]-indices[i] == j-i {
-			// increment j while the run continues
+			// Increment j while the run continues.
 			j++
 		}
 
@@ -210,50 +248,69 @@ func compressReorderIndices(indices []int) []interface{} {
 	return compressed
 }
 
-// Diff implements the Diffable interface.
-//
-// A list delta consists of a set of reorder indices stored in $ (as in
-// computeReorderIndices) and for each new index an optional delta with the
-// previous value.
-func (l *List) Diff(old interface{}) (interface{}, bool) {
-	oldList, ok := old.(*List)
+// diffArray computes a diff between two arrays by first reordering the
+// elements and then comparing elements one-by-one.
+func diffArray(old []interface{}, newAny interface{}) interface{} {
+	// Verify the type of new.
+	new, ok := newAny.([]interface{})
 	if !ok {
-		return l, true
+		return markReplaced(new)
 	}
-	oldItems, newItems := oldList.Items, l.Items
 
-	delta := make(Update)
+	// Check if two arrays are identical by comparing their pointers and length,
+	// and short-circuit if so.
+	if len(old) == len(new) && reflect.ValueOf(old).Pointer() == reflect.ValueOf(new).Pointer() {
+		return nil
+	}
 
-	// compute reorder indices
-	indices := computeReorderIndices(oldItems, newItems)
+	d := make(map[string]interface{})
 
-	// same order
-	orderChanged := len(oldItems) != len(newItems)
-	for i := range newItems {
+	// Compute reorder indices.
+	indices := computeReorderIndices(old, new)
+
+	// Check if the reorder indices can be omitted.
+	orderChanged := len(old) != len(indices)
+	for i := range indices {
 		if indices[i] != i {
 			orderChanged = true
 		}
 	}
 	if orderChanged {
-		compressed := compressReorderIndices(indices)
-		delta["$"] = untagged{inner: compressed}
+		d["$"] = compressReorderIndices(indices)
 	}
 
-	// compute child deltas
-	for i, new := range newItems {
-		var old interface{}
-		if indices[i] != -1 {
-			old = oldItems[indices[i]]
+	// Compare the array elements.
+	for i, newI := range new {
+		var oldI interface{}
+		if j := indices[i]; j != -1 {
+			oldI = old[j]
 		}
-
-		if d, changed := Diff(old, new); changed {
-			delta[fmt.Sprint(i)] = d
+		if innerD := Diff(oldI, newI); innerD != nil {
+			d[fmt.Sprint(i)] = innerD
 		}
 	}
 
-	// an empty delta modifies no objects and reorders no items
-	if len(delta) == 0 {
-		return nil, false
+	// Check if the diff is empty.
+	if len(d) == 0 {
+		return nil
 	}
-	return delta, true
+	return d
+}
+
+// Diff computes a diff between two JSON objects. See the package comment for
+// details of the algorithm and the diff format.
+//
+// A nil diff indicates that the old and new objects are equal.
+func Diff(old interface{}, new interface{}) interface{} {
+	switch old := old.(type) {
+	case map[string]interface{}:
+		return diffMap(old, new)
+	case []interface{}:
+		return diffArray(old, new)
+	default:
+		if old != new {
+			return markReplaced(new)
+		}
+		return nil
+	}
 }

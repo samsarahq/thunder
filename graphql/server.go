@@ -179,12 +179,12 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 			return nil, err
 		}
 
-		delta, changed := diff.Diff(previous, current)
+		d := diff.Diff(previous, current)
 		previous = current
 		initial = false
 
-		if changed {
-			c.writeOrClose(id, "update", diff.PrepareForMarshal(delta))
+		if initial || d != nil {
+			c.writeOrClose(id, "update", d)
 		}
 
 		return nil, nil
@@ -232,8 +232,7 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 			return nil, err
 		}
 
-		delta, _ := diff.Diff(nil, current)
-		c.writeOrClose(id, "result", diff.PrepareForMarshal(delta))
+		c.writeOrClose(id, "result", diff.Diff(nil, current))
 
 		return nil, errors.New("stop")
 	}, MinRerunInterval)
