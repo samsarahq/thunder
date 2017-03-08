@@ -12,8 +12,9 @@ import (
 
 	"github.com/gorilla/websocket"
 	opentracing "github.com/opentracing/opentracing-go"
+
+	"github.com/samsarahq/thunder/diff"
 	"github.com/samsarahq/thunder/reactive"
-	"github.com/samsarahq/thunder/reactive/diff"
 )
 
 const (
