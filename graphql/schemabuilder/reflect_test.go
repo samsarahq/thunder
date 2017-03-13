@@ -25,6 +25,9 @@ type User struct {
 	Age  int
 }
 
+type WeirdKey struct {
+}
+
 func panicFunction() int64 {
 	panic("oh no!")
 }
@@ -85,6 +88,10 @@ func TestExecuteGood(t *testing.T) {
 		return Root{X: 1234, Time: time.Unix(1458757911, 0).UTC(), Bytes: []byte("bar"), Alias: 999}
 	})
 
+	query.FieldFunc("weirdKey", func() WeirdKey {
+		return WeirdKey{}
+	})
+
 	_ = schema.Mutation()
 
 	root := schema.Object("root", Root{})
@@ -101,6 +108,12 @@ func TestExecuteGood(t *testing.T) {
 	})
 	user.FieldFunc("friends", func(u *User) []*User {
 		return []*User{}
+	})
+
+	weirdKey := schema.Object("weirdKey", WeirdKey{})
+	weirdKey.Key("key")
+	weirdKey.FieldFunc("key", func(w WeirdKey) int64 {
+		return -1
 	})
 
 	builtSchema := schema.MustBuild()
@@ -126,6 +139,7 @@ func TestExecuteGood(t *testing.T) {
 			ptr { name age byRef byVal }
 			plain { name age byRef byVal }
 			root { nested { time bar: yyy bytes alias } }
+			weirdKey { key }
 		}
 	`, map[string]interface{}{"var": float64(3)})
 
@@ -156,7 +170,8 @@ func TestExecuteGood(t *testing.T) {
 		"sum": 4,
 		"ptr": {"name": "Charlie", "age": 5, "byRef": "byRef", "byVal": "byVal", "__key": "Charlie"},
 		"plain": {"name": "Jane", "age": 5, "byRef": "byRef", "byVal": "byVal", "__key": "Jane"},
-		"root": {"nested": {"time": "2016-03-23T18:31:51Z", "bytes": "YmFy", "bar": 1234, "alias": 999}}
+		"root": {"nested": {"time": "2016-03-23T18:31:51Z", "bytes": "YmFy", "bar": 1234, "alias": 999}},
+		"weirdKey": {"key": -1, "__key": -1}
 		}`)) {
 		t.Error("bad value")
 	}

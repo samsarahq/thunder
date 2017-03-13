@@ -597,10 +597,6 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 		}
 	}
 
-	if objectKey != "" {
-		object.Key = object.Fields[objectKey].Resolve
-	}
-
 	var names []string
 	for name := range methods {
 		names = append(names, name)
@@ -615,6 +611,10 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 			return fmt.Errorf("bad method %s on type %s: %s", name, typ, err)
 		}
 		object.Fields[name] = built
+	}
+
+	if objectKey != "" {
+		object.Key = object.Fields[objectKey].Resolve
 	}
 
 	return nil
