@@ -105,7 +105,7 @@ func StripKey(i interface{}) interface{} {
 		return r
 	case []interface{}:
 		r := make([]interface{}, 0, len(i))
-		for v := range i {
+		for _, v := range i {
 			r = append(r, StripKey(v))
 		}
 		return r

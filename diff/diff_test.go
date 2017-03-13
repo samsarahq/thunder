@@ -29,6 +29,27 @@ func TestDiffListString(t *testing.T) {
 	}
 }
 
+func TestStripKey(t *testing.T) {
+	d := diff.StripKey(map[string]interface{}{
+		"__key": "foo",
+		"arr": []interface{}{
+			"x",
+			"y",
+			"z",
+			map[string]interface{}{
+				"__key": "bar",
+				"q":     "w",
+			},
+		},
+	})
+
+	if !reflect.DeepEqual(internal.AsJSON(d), internal.ParseJSON(`
+		{"arr": ["x", "y", "z", {"q": "w"}]}
+	`)) {
+		t.Error("bad reorder")
+	}
+}
+
 func TestDiffListOrder(t *testing.T) {
 	d := diff.Diff([]interface{}{
 		map[string]interface{}{"__key": "0"},
