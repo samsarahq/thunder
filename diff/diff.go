@@ -90,9 +90,9 @@ func markRemoved() interface{} {
 	return emptyArray
 }
 
-// stripKey recursively creates a new JSON object with all __key fields
+// StripKey recursively creates a new JSON object with all __key fields
 // removed.
-func stripKey(i interface{}) interface{} {
+func StripKey(i interface{}) interface{} {
 	switch i := i.(type) {
 	case map[string]interface{}:
 		r := make(map[string]interface{})
@@ -100,13 +100,13 @@ func stripKey(i interface{}) interface{} {
 			if k == "__key" {
 				continue
 			}
-			r[k] = stripKey(v)
+			r[k] = StripKey(v)
 		}
 		return r
 	case []interface{}:
 		r := make([]interface{}, 0, len(i))
 		for v := range i {
-			r = append(r, stripKey(v))
+			r = append(r, StripKey(v))
 		}
 		return r
 	default:
@@ -128,7 +128,7 @@ func markReplaced(i interface{}) interface{} {
 
 	default:
 		// Wrap all other values.
-		return []interface{}{stripKey(i)}
+		return []interface{}{StripKey(i)}
 	}
 }
 
