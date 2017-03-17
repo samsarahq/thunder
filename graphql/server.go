@@ -46,6 +46,8 @@ type conn struct {
 
 	url string
 
+	mutateMu sync.Mutex
+
 	mu            sync.Mutex
 	subscriptions map[string]*reactive.Rerunner
 }
@@ -212,6 +214,10 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 	tags := map[string]string{"url": c.url, "query": mutate.Query, "queryVariables": mustMarshalJson(mutate.Variables), "id": id}
 
 	c.subscriptions[id] = reactive.NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
+		// Serialize all mutates for a given connection.
+		c.mutateMu.Lock()
+		defer c.mutateMu.Unlock()
+
 		ctx = c.makeCtx(context.Background())
 
 		start := time.Now()
