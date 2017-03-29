@@ -345,8 +345,8 @@ func Parse(source string, vars map[string]interface{}) (*SelectionSet, error) {
 			fragmentDefinitions[name] = definition
 
 		case *ast.OperationDefinition:
-			if definition.Operation != "query" {
-				return nil, NewSafeError("only support queries")
+			if definition.Operation != "query" && definition.Operation != "mutation" {
+				return nil, NewSafeError("only support queries or mutations")
 			}
 			if queryDefinition != nil {
 				return nil, NewSafeError("only support a single query")

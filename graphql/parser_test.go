@@ -129,18 +129,35 @@ fragment Bar on Foo {
 	if !reflect.DeepEqual(selections, expected) {
 		t.Error("unexpected parse")
 	}
+
+	selections, err = Parse(`
+mutation foo($var: bar) {
+	baz
+}
+`, map[string]interface{}{
+		"var": "var value!!",
+	})
+	if err != nil {
+		t.Error("unexpected error", err)
+	}
+
+	expected = &SelectionSet{
+		Selections: []*Selection{
+			{
+				Name:  "baz",
+				Alias: "baz",
+				Args:  map[string]interface{}{},
+			},
+		},
+	}
+
+	if !reflect.DeepEqual(selections, expected) {
+		t.Error("unexpected parse")
+	}
 }
 
 func TestParseUnsupported(t *testing.T) {
-	_, err := Parse(`
-mutation foo {
-	bar
-}`, map[string]interface{}{})
-	if err == nil || err.Error() != "only support queries" {
-		t.Error("expected mutation to fail", err)
-	}
-
-	_, err = Parse(``, map[string]interface{}{})
+	_, err := Parse(``, map[string]interface{}{})
 	if err == nil || err.Error() != "must have a single query" {
 		t.Error("expected missing query to fail", err)
 	}
