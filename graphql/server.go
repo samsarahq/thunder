@@ -40,9 +40,10 @@ type conn struct {
 	writeMu sync.Mutex
 	socket  JSONSocket
 
-	schema  *Schema
-	makeCtx MakeCtxFunc
-	logger  GraphqlLogger
+	schema               *Schema
+	makeCtx              MakeCtxFunc
+	logger               GraphqlLogger
+	subscriptionAdapters []ExecutionAdapter
 
 	url string
 
@@ -164,7 +165,8 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 		start := time.Now()
 		span, ctx := opentracing.StartSpanFromContext(ctx, "thunder.subscription")
 		c.logger.StartExecution(ctx, tags, initial)
-		current, err := e.Execute(ctx, c.schema.Query, nil, selectionSet)
+		execute := wrapAdapters(e.Execute, c.subscriptionAdapters...)
+		current, err := execute(ctx, c.schema.Query, nil, selectionSet)
 		c.logger.FinishExecution(ctx, tags, time.Since(start))
 		span.Finish()
 
@@ -340,13 +342,14 @@ func Handler(schema *Schema) http.Handler {
 	})
 }
 
-func ServeJSONSocket(socket JSONSocket, schema *Schema, makeCtx MakeCtxFunc, logger GraphqlLogger) {
+func ServeJSONSocket(socket JSONSocket, schema *Schema, makeCtx MakeCtxFunc, logger GraphqlLogger, subscriptionAdapters ...ExecutionAdapter) {
 	c := &conn{
 		socket: socket,
 
-		schema:  schema,
-		makeCtx: makeCtx,
-		logger:  logger,
+		schema:               schema,
+		makeCtx:              makeCtx,
+		logger:               logger,
+		subscriptionAdapters: subscriptionAdapters,
 
 		subscriptions: make(map[string]*reactive.Rerunner),
 	}
