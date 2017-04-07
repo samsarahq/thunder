@@ -14,6 +14,17 @@ import (
 	"github.com/opentracing/opentracing-go/log"
 )
 
+type HandlerFunc func(ctx context.Context, typ Type, source interface{}, selectionSet *SelectionSet) (interface{}, error)
+type ExecutionAdapter func(next HandlerFunc) HandlerFunc
+
+func wrapAdapters(h HandlerFunc, adapters ...ExecutionAdapter) HandlerFunc {
+	for i := len(adapters) - 1; i >= 0; i-- {
+		adapter := adapters[i]
+		h = adapter(h)
+	}
+	return h
+}
+
 type pathError struct {
 	inner error
 	path  []string
