@@ -156,7 +156,7 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 	e := Executor{}
 
 	initial := true
-	tags := map[string]string{"url": c.url, "query": subscribe.Query, "queryVariables": mustMarshalJson(subscribe.Variables), "id": id}
+	tags := map[string]string{"url": c.url, "queryType": "subscribe", "query": subscribe.Query, "queryVariables": mustMarshalJson(subscribe.Variables), "id": id}
 
 	c.subscriptions[id] = reactive.NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
 		ctx = c.makeCtx(ctx)
@@ -211,7 +211,7 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 
 	e := Executor{}
 
-	tags := map[string]string{"url": c.url, "query": mutate.Query, "queryVariables": mustMarshalJson(mutate.Variables), "id": id}
+	tags := map[string]string{"url": c.url, "queryType": "mutate", "query": mutate.Query, "queryVariables": mustMarshalJson(mutate.Variables), "id": id}
 
 	c.subscriptions[id] = reactive.NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
 		// Serialize all mutates for a given connection.
