@@ -1,4 +1,4 @@
-package livesql
+package internal
 
 import (
 	"reflect"
@@ -6,9 +6,9 @@ import (
 )
 
 func testToArray(t *testing.T, s []interface{}, expected interface{}) {
-	actual := toArray(s)
+	actual := ToArray(s)
 	if !reflect.DeepEqual(actual, expected) {
-		t.Errorf("toArray(%v) = %v, expected %v", s, actual, expected)
+		t.Errorf("ToArray(%v) = %v, expected %v", s, actual, expected)
 	}
 }
 
