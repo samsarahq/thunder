@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
@@ -33,7 +34,7 @@ func (db *DB) query(ctx context.Context, query *BaseSelectQuery) ([]interface{},
 	clause, fields := selectQuery.ToSQL()
 
 	if span := opentracing.SpanFromContext(ctx); span != nil {
-		span, ctx = opentracing.StartSpanFromContext(ctx, "thunder.sqlgen.query")
+		span, ctx = opentracing.StartSpanFromContext(ctx, fmt.Sprintf("thunder.sqlgen.BaseQuery(%s)", selectQuery.Table))
 		span.LogFields(log.String("query", clause))
 		defer span.Finish()
 	}
