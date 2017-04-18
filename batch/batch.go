@@ -23,28 +23,21 @@ import (
 	"time"
 )
 
-// A SingleFunc is a function that computes a result for a single input value.
-type SingleFunc func(ctx context.Context, arg interface{}) (interface{}, error)
-
-// A ManyFunc is a function that computes many results for many input values at once.
-type ManyFunc func(ctx context.Context, args []interface{}) ([]interface{}, error)
-
-// A ShardFunc is a function that computation a shard for a given input value.
-type ShardFunc func(arg interface{}) interface{}
-
 // DefaultMaxDuration is the default MaxDuration for Func.
 var DefaultMaxDuration = 200 * time.Microsecond
 
-// A Func transforms a ManyFunc into a SingleFunc (as Func.Invoke) that
-// uses batching.
+// A Func transforms a function that takes a batch of inputs (Func.Many) into a
+// function that takes single inputs (Func.Invoke). Multiple concurrenct
+// invocations of Func.Invoke get combined into a single call to Func.Many.
 type Func struct {
-	// Many is the required ManyFunc
-	Many ManyFunc
-	// Shard optionally splits different classes of arguments into independent
+	// Many computes a function for a batch of inputs. For example, a Func
+	// might fetch multiple rows from MySQL.
+	Many func(ctx context.Context, args []interface{}) ([]interface{}, error)
+	// Shard optionally splits different classes of inputs into independent
 	// invocations of Many. For example, a Func that fetches rows from a SQL
 	// database might shard by table so that each invocation of Many only has to
 	// fetch rows from a single table.
-	Shard ShardFunc
+	Shard func(arg interface{}) (shard interface{})
 	// MaxSize optionally limits the size of a batch. After receiving MaxSize
 	// invocations, Many will be invoked even if some goroutines are stil running.
 	// Zero, the default, means no limit.
@@ -101,16 +94,19 @@ func HasBatching(ctx context.Context) bool {
 	return ctx.Value(batchContextKey{}) != nil
 }
 
-// safeInvoke invokes ManyFunc, recovering panics and handling the case when
+// safeInvoke invokes f, recovering panics and handling the case when
 // len(result) != len(args).
-func safeInvoke(ctx context.Context, f ManyFunc, args []interface{}) (result []interface{}, err error) {
+func safeInvoke(
+	ctx context.Context,
+	f func(context.Context, []interface{}) ([]interface{}, error),
+	args []interface{}) (result []interface{}, err error) {
 	defer func() {
 		if p := recover(); p != nil {
 			result = nil
-			err = fmt.Errorf("ManyFunc paniced: %v", p)
+			err = fmt.Errorf("Func.Many panicked: %v", p)
 		} else if err == nil && len(result) != len(args) {
 			result = nil
-			err = errors.New("ManyFunc returned incorrect number of results")
+			err = errors.New("Func.Many returned incorrect number of results")
 		}
 	}()
 
