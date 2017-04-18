@@ -24,6 +24,24 @@ func NewDB(conn *sql.DB, schema *Schema) *DB {
 	}
 }
 
+func (db *DB) query(ctx context.Context, query *sqlgen.SelectQuery) ([]interface{}, error) {
+	clause, fields := query.ToSQL()
+
+	if span := opentracing.SpanFromContext(ctx); span != nil {
+		span, ctx = opentracing.StartSpanFromContext(ctx, "thunder.sqlgen.query")
+		span.LogFields(log.String("query", querySql))
+		defer span.Finish()
+	}
+
+	res, err := db.QueryExecer(ctx).Query(querySql, fields...)
+	if err != nil {
+		return err
+	}
+	defer res.Close()
+
+	return db.Schema.ParseRows(query, res)
+}
+
 // Query fetches a collection of rows from the database
 //
 // result should be a pointer to a slice of pointers to structs, for example:
@@ -36,21 +54,8 @@ func (db *DB) Query(ctx context.Context, result interface{}, filter Filter, opti
 	if err != nil {
 		return err
 	}
-	clause, fields := query.ToSQL()
 
-	if span := opentracing.SpanFromContext(ctx); span != nil {
-		span, ctx = opentracing.StartSpanFromContext(ctx, "thunder.sqlgen.UpsertRow")
-		span.LogFields(log.String("query", clause))
-		defer span.Finish()
-	}
-
-	res, err := db.QueryExecer(ctx).Query(clause, fields...)
-	if err != nil {
-		return err
-	}
-	defer res.Close()
-
-	rows, err := db.Schema.ParseRows(query, res)
+	rows, err := db.query(ctx, query)
 	if err != nil {
 		return err
 	}
@@ -70,21 +75,8 @@ func (db *DB) QueryRow(ctx context.Context, result interface{}, filter Filter, o
 	if err != nil {
 		return err
 	}
-	querySql, fields := query.ToSQL()
 
-	if span := opentracing.SpanFromContext(ctx); span != nil {
-		span, ctx = opentracing.StartSpanFromContext(ctx, "thunder.sqlgen.QueryRow")
-		span.LogFields(log.String("query", querySql))
-		defer span.Finish()
-	}
-
-	res, err := db.QueryExecer(ctx).Query(querySql, fields...)
-	if err != nil {
-		return err
-	}
-	defer res.Close()
-
-	rows, err := db.Schema.ParseRows(query, res)
+	rows, err := db.query(ctx, query)
 	if err != nil {
 		return err
 	}
