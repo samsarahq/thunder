@@ -455,28 +455,45 @@ func makeWhere(table *Table, filter Filter) (*SimpleWhere, error) {
 	}, nil
 }
 
-// makeSelect builds a new SelectQuery for table with filter
-func (s *Schema) makeSelect(typ reflect.Type, filter Filter, options *SelectOptions) (*SelectQuery, error) {
+type BaseSelectQuery struct {
+	Table   *Table
+	Filter  Filter
+	Options *SelectOptions
+}
+
+func (b *BaseSelectQuery) MakeSelectQuery() (*SelectQuery, error) {
+	var columns []string
+	for _, column := range b.Table.Columns {
+		columns = append(columns, column.Name)
+	}
+
+	options := b.Options
+	if options == nil {
+		options = &SelectOptions{}
+	}
+	// XXX: This assumes a BaseSelectQuery is only used once, as it modifies the
+	// options struct. That's true for now, but should be cleaned up.
+	if err := options.IncludeFilter(b.Table, b.Filter); err != nil {
+		return nil, err
+	}
+
+	return &SelectQuery{
+		Table:   b.Table.Name,
+		Columns: columns,
+		Options: options,
+	}, nil
+}
+
+// makeSelect builds a new BaseQuery for table with filter
+func (s *Schema) makeSelect(typ reflect.Type, filter Filter, options *SelectOptions) (*BaseSelectQuery, error) {
 	table, err := s.get(typ)
 	if err != nil {
 		return nil, err
 	}
 
-	var columns []string
-	for _, column := range table.Columns {
-		columns = append(columns, column.Name)
-	}
-
-	if options == nil {
-		options = &SelectOptions{}
-	}
-	if err := options.IncludeFilter(table, filter); err != nil {
-		return nil, err
-	}
-
-	return &SelectQuery{
-		Table:   table.Name,
-		Columns: columns,
+	return &BaseSelectQuery{
+		Table:   table,
+		Filter:  filter,
 		Options: options,
 	}, nil
 }
@@ -502,7 +519,7 @@ func checkQueryTypeShape(typ reflect.Type) (reflect.Type, error) {
 	return typ, nil
 }
 
-func (s *Schema) MakeSelect(result interface{}, filter Filter, options *SelectOptions) (*SelectQuery, error) {
+func (s *Schema) MakeSelect(result interface{}, filter Filter, options *SelectOptions) (*BaseSelectQuery, error) {
 	ptr := reflect.ValueOf(result)
 	typ, err := checkQueryTypeShape(ptr.Type())
 	if err != nil {
@@ -529,7 +546,7 @@ func checkQueryRowTypeShape(typ reflect.Type) (reflect.Type, error) {
 	return typ, nil
 }
 
-func (s *Schema) MakeSelectRow(result interface{}, filter Filter, options *SelectOptions) (*SelectQuery, error) {
+func (s *Schema) MakeSelectRow(result interface{}, filter Filter, options *SelectOptions) (*BaseSelectQuery, error) {
 	ptr := reflect.ValueOf(result)
 	typ, err := checkQueryRowTypeShape(ptr.Type())
 	if err != nil {

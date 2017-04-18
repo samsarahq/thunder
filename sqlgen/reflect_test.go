@@ -254,13 +254,9 @@ func TestMakeSelect(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if !reflect.DeepEqual(query, &SelectQuery{
-		Table:   "users",
-		Columns: []string{"id", "name", "age", "optional"},
-		Options: &SelectOptions{
-			Where:  "id = ?",
-			Values: []interface{}{10},
-		},
+	if !reflect.DeepEqual(query, &BaseSelectQuery{
+		Table:  s.ByName["users"],
+		Filter: Filter{"id": 10},
 	}) {
 		t.Error("bad select")
 	}
@@ -269,13 +265,9 @@ func TestMakeSelect(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if !reflect.DeepEqual(query, &SelectQuery{
-		Table:   "users",
-		Columns: []string{"id", "name", "age", "optional"},
-		Options: &SelectOptions{
-			Where:  "",
-			Values: nil,
-		},
+	if !reflect.DeepEqual(query, &BaseSelectQuery{
+		Table:  s.ByName["users"],
+		Filter: Filter{},
 	}) {
 		t.Error("bad select")
 	}
@@ -284,13 +276,9 @@ func TestMakeSelect(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if !reflect.DeepEqual(query, &SelectQuery{
-		Table:   "users",
-		Columns: []string{"id", "name", "age", "optional"},
-		Options: &SelectOptions{
-			Where:  "name = ? AND age = ?",
-			Values: []interface{}{"bob", 10},
-		},
+	if !reflect.DeepEqual(query, &BaseSelectQuery{
+		Table:  s.ByName["users"],
+		Filter: Filter{"name": "bob", "age": 10},
 	}) {
 		t.Error("bad select")
 	}
@@ -312,12 +300,12 @@ func TestSelectOptions(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if !reflect.DeepEqual(query, &SelectQuery{
-		Table:   "users",
-		Columns: []string{"id", "name", "age", "optional"},
+	if !reflect.DeepEqual(query, &BaseSelectQuery{
+		Table:  s.ByName["users"],
+		Filter: Filter{"id": 10},
 		Options: &SelectOptions{
-			Where:   "(id = ?) AND (name LIKE ?)",
-			Values:  []interface{}{10, "abc%"},
+			Where:   "name LIKE ?",
+			Values:  []interface{}{"abc%"},
 			OrderBy: "name",
 			Limit:   20,
 		},
@@ -332,12 +320,10 @@ func TestSelectOptions(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if !reflect.DeepEqual(query, &SelectQuery{
-		Table:   "users",
-		Columns: []string{"id", "name", "age", "optional"},
+	if !reflect.DeepEqual(query, &BaseSelectQuery{
+		Table: s.ByName["users"],
 		Options: &SelectOptions{
-			Where:  "1=2",
-			Values: nil,
+			Where: "1=2",
 		},
 	}) {
 		t.Error("bad select")
@@ -350,12 +336,10 @@ func TestSelectOptions(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if !reflect.DeepEqual(query, &SelectQuery{
-		Table:   "users",
-		Columns: []string{"id", "name", "age", "optional"},
+	if !reflect.DeepEqual(query, &BaseSelectQuery{
+		Table:  s.ByName["users"],
+		Filter: Filter{"name": "bob", "age": 10},
 		Options: &SelectOptions{
-			Where:   "name = ? AND age = ?",
-			Values:  []interface{}{"bob", 10},
 			OrderBy: "age",
 			Limit:   5,
 		},
@@ -375,13 +359,9 @@ func TestMakeSelectRow(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if !reflect.DeepEqual(query, &SelectQuery{
-		Table:   "users",
-		Columns: []string{"id", "name", "age", "optional"},
-		Options: &SelectOptions{
-			Where:  "name = ?",
-			Values: []interface{}{"alice"},
-		},
+	if !reflect.DeepEqual(query, &BaseSelectQuery{
+		Table:  s.ByName["users"],
+		Filter: Filter{"name": "alice"},
 	}) {
 		t.Error("bad select")
 	}
