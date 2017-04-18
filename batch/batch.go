@@ -96,6 +96,11 @@ func WithBatching(ctx context.Context) context.Context {
 	return context.WithValue(ctx, batchContextKey{}, bctx)
 }
 
+// HasBatching returns if the given context has batching support.
+func HasBatching(ctx context.Context) bool {
+	return ctx.Value(batchContextKey{}) != nil
+}
+
 // safeInvoke invokes ManyFunc, recovering panics and handling the case when
 // len(result) != len(args).
 func safeInvoke(ctx context.Context, f ManyFunc, args []interface{}) (result []interface{}, err error) {
