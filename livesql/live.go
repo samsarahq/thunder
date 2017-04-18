@@ -2,7 +2,6 @@ package livesql
 
 import (
 	"context"
-	"errors"
 	"sync"
 
 	"github.com/samsarahq/thunder/internal"
@@ -112,8 +111,8 @@ type queryCacheKey struct {
 
 // query reactively performs a SelectQuery
 func (ldb *LiveDB) query(ctx context.Context, query *sqlgen.BaseSelectQuery) ([]interface{}, error) {
-	if ldb.HasTx(ctx) {
-		return nil, errors.New("can't use both tx and rerunner")
+	if !reactive.HasRerunner(ctx) || ldb.HasTx(ctx) {
+		return ldb.DB.BaseQuery(ctx, query)
 	}
 
 	selectQuery, err := query.MakeSelectQuery()
@@ -162,10 +161,6 @@ func (ldb *LiveDB) query(ctx context.Context, query *sqlgen.BaseSelectQuery) ([]
 //   if err := ldb.Query(ctx, &users, nil, nil); err != nil {
 //
 func (ldb *LiveDB) Query(ctx context.Context, result interface{}, filter sqlgen.Filter, options *sqlgen.SelectOptions) error {
-	if !reactive.HasRerunner(ctx) || ldb.HasTx(ctx) {
-		return ldb.DB.Query(ctx, result, filter, options)
-	}
-
 	query, err := ldb.Schema.MakeSelect(result, filter, options)
 	if err != nil {
 		return err
@@ -188,10 +183,6 @@ func (ldb *LiveDB) Query(ctx context.Context, result interface{}, filter sqlgen.
 //   if err := ldb.Query(ctx, &user, Filter{"id": 10}, nil); err != nil {
 //
 func (ldb *LiveDB) QueryRow(ctx context.Context, result interface{}, filter sqlgen.Filter, options *sqlgen.SelectOptions) error {
-	if !reactive.HasRerunner(ctx) || ldb.HasTx(ctx) {
-		return ldb.DB.QueryRow(ctx, result, filter, options)
-	}
-
 	query, err := ldb.Schema.MakeSelectRow(result, filter, options)
 	if err != nil {
 		return err
