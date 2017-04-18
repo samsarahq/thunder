@@ -138,12 +138,8 @@ func (ldb *LiveDB) query(ctx context.Context, query *sqlgen.BaseSelectQuery) ([]
 		ldb.tracker.registerDependency(ctx, query.Table.Name, tester)
 
 		// Perform the query.
-		res, err := ldb.Conn.Query(clause, args...)
-		if err != nil {
-			return nil, err
-		}
-		defer res.Close()
-		return ldb.Schema.ParseRows(selectQuery, res)
+		// XXX: This will build the SQL string again... :(
+		return ldb.DB.BaseQuery(ctx, query)
 	})
 
 	if err != nil {

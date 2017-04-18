@@ -13,6 +13,7 @@ import (
 	"github.com/gorilla/websocket"
 	opentracing "github.com/opentracing/opentracing-go"
 
+	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/diff"
 	"github.com/samsarahq/thunder/reactive"
 )
@@ -160,6 +161,7 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 
 	c.subscriptions[id] = reactive.NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
 		ctx = c.makeCtx(ctx)
+		ctx = batch.WithBatching(ctx)
 
 		start := time.Now()
 		span, ctx := opentracing.StartSpanFromContext(ctx, "thunder.subscription")
@@ -219,6 +221,7 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 		defer c.mutateMu.Unlock()
 
 		ctx = c.makeCtx(context.Background())
+		ctx = batch.WithBatching(ctx)
 
 		start := time.Now()
 		c.logger.StartExecution(ctx, tags, true)

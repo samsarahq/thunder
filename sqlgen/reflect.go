@@ -778,3 +778,14 @@ func (s *Schema) MakeTester(table string, filter Filter) (Tester, error) {
 		values:  values,
 	}, nil
 }
+
+func (t *Table) extractRow(row interface{}) Filter {
+	f := make(Filter)
+
+	struc := reflect.ValueOf(row).Elem()
+	for _, column := range t.Columns {
+		f[column.Name] = struc.FieldByIndex(column.Index).Interface()
+	}
+
+	return f
+}
