@@ -8,6 +8,7 @@ import (
 
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
+	"github.com/samsarahq/thunder/batch"
 )
 
 // DB uses a *sql.DB connection that is established by its owner. DB assumes the
@@ -16,16 +17,94 @@ import (
 type DB struct {
 	Conn   *sql.DB
 	Schema *Schema
+
+	batchFetch *batch.Func
 }
 
 func NewDB(conn *sql.DB, schema *Schema) *DB {
-	return &DB{
+	db := &DB{
 		Conn:   conn,
 		Schema: schema,
 	}
+
+	db.batchFetch = &batch.Func{
+		Many: func(ctx context.Context, items []interface{}) ([]interface{}, error) {
+			table := items[0].(*BaseSelectQuery).Table
+
+			if span := opentracing.SpanFromContext(ctx); span != nil {
+				span, ctx = opentracing.StartSpanFromContext(ctx, fmt.Sprintf("thunder.sqlgen.BatchQuery(%s)", table.Name))
+				defer span.Finish()
+			}
+
+			// First, build the SQL query.
+			filters := make([]Filter, 0, len(items))
+			for _, item := range items {
+				filters = append(filters, item.(*BaseSelectQuery).Filter)
+			}
+			clause, args := makeBatchQuery(filters)
+			query, err := db.Schema.makeSelect(table.Type, nil, &SelectOptions{
+				Where:  clause,
+				Values: args,
+			})
+			if err != nil {
+				return nil, err
+			}
+			selectQuery, err := query.MakeSelectQuery()
+			if err != nil {
+				return nil, err
+			}
+			clause, args = selectQuery.ToSQL()
+
+			// Then, run the SQL query.
+			res, err := db.Conn.Query(clause, args...)
+			if err != nil {
+				return nil, err
+			}
+			defer res.Close()
+			rows, err := db.Schema.ParseRows(selectQuery, res)
+			if err != nil {
+				return nil, err
+			}
+
+			// Finally, match the returned rows against the queries.
+			matcher := newMatcher()
+			for i, item := range items {
+				query := item.(*BaseSelectQuery)
+				matcher.add(i, query.Filter)
+			}
+			results := make([][]interface{}, len(items))
+			for _, row := range rows {
+				f := table.extractRow(row)
+				for _, idx := range matcher.match(f) {
+					i := idx.(int)
+					results[i] = append(results[i], row)
+				}
+			}
+
+			// Convert the [][]interface{} return type into a []interface{} to satisfy
+			// the Batch interface.
+			rawResults := make([]interface{}, 0, len(items))
+			for _, result := range results {
+				rawResults = append(rawResults, result)
+			}
+			return rawResults, nil
+		},
+		Shard: func(item interface{}) interface{} {
+			return item.(*BaseSelectQuery).Table
+		},
+	}
+	return db
 }
 
-func (db *DB) query(ctx context.Context, query *BaseSelectQuery) ([]interface{}, error) {
+func (db *DB) BaseQuery(ctx context.Context, query *BaseSelectQuery) ([]interface{}, error) {
+	if query.Options == nil && !db.HasTx(ctx) && batch.HasBatching(ctx) {
+		rows, err := db.batchFetch.Invoke(ctx, query)
+		if err != nil {
+			return nil, err
+		}
+		return rows.([]interface{}), nil
+	}
+
 	selectQuery, err := query.MakeSelectQuery()
 	if err != nil {
 		return nil, err
@@ -61,7 +140,7 @@ func (db *DB) Query(ctx context.Context, result interface{}, filter Filter, opti
 		return err
 	}
 
-	rows, err := db.query(ctx, query)
+	rows, err := db.BaseQuery(ctx, query)
 	if err != nil {
 		return err
 	}
@@ -82,7 +161,7 @@ func (db *DB) QueryRow(ctx context.Context, result interface{}, filter Filter, o
 		return err
 	}
 
-	rows, err := db.query(ctx, query)
+	rows, err := db.BaseQuery(ctx, query)
 	if err != nil {
 		return err
 	}
