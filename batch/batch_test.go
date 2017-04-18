@@ -198,7 +198,7 @@ func TestPanic(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			if _, err := f(ctx, i); err == nil || !strings.Contains(err.Error(), "paniced: foo") {
+			if _, err := f(ctx, i); err == nil || !strings.Contains(err.Error(), "panicked: foo") {
 				t.Error(err, i)
 			}
 		}(i)
