@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/samsarahq/thunder/internal"
 	"github.com/samsarahq/thunder/reactive"
 	"github.com/samsarahq/thunder/sqlgen"
 )
@@ -124,7 +125,7 @@ func (ldb *LiveDB) query(ctx context.Context, query *sqlgen.BaseSelectQuery) ([]
 
 	// Build a cache key for the query. Convert the args slice into an array so
 	// it can be stored as a map key.
-	key := queryCacheKey{clause: clause, args: toArray(args)}
+	key := queryCacheKey{clause: clause, args: internal.ToArray(args)}
 
 	result, err := reactive.Cache(ctx, key, func(ctx context.Context) (interface{}, error) {
 		// Build a tester for the dependency.
