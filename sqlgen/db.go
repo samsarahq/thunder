@@ -24,22 +24,27 @@ func NewDB(conn *sql.DB, schema *Schema) *DB {
 	}
 }
 
-func (db *DB) query(ctx context.Context, query *sqlgen.SelectQuery) ([]interface{}, error) {
-	clause, fields := query.ToSQL()
+func (db *DB) query(ctx context.Context, query *BaseSelectQuery) ([]interface{}, error) {
+	selectQuery, err := query.MakeSelectQuery()
+	if err != nil {
+		return nil, err
+	}
+
+	clause, fields := selectQuery.ToSQL()
 
 	if span := opentracing.SpanFromContext(ctx); span != nil {
 		span, ctx = opentracing.StartSpanFromContext(ctx, "thunder.sqlgen.query")
-		span.LogFields(log.String("query", querySql))
+		span.LogFields(log.String("query", clause))
 		defer span.Finish()
 	}
 
-	res, err := db.QueryExecer(ctx).Query(querySql, fields...)
+	res, err := db.QueryExecer(ctx).Query(clause, fields...)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer res.Close()
 
-	return db.Schema.ParseRows(query, res)
+	return db.Schema.ParseRows(selectQuery, res)
 }
 
 // Query fetches a collection of rows from the database

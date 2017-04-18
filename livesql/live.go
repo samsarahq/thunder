@@ -112,7 +112,7 @@ type queryCacheKey struct {
 }
 
 // query reactively performs a SelectQuery
-func (ldb *LiveDB) query(ctx context.Context, query *sqlgen.SelectQuery, filter sqlgen.Filter) ([]interface{}, error) {
+func (ldb *LiveDB) query(ctx context.Context, query *sqlgen.BaseSelectQuery) ([]interface{}, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "thunder.livesql.query")
 	defer span.Finish()
 
@@ -120,7 +120,12 @@ func (ldb *LiveDB) query(ctx context.Context, query *sqlgen.SelectQuery, filter 
 		return nil, errors.New("can't use both tx and rerunner")
 	}
 
-	clause, args := query.ToSQL()
+	selectQuery, err := query.MakeSelectQuery()
+	if err != nil {
+		return nil, err
+	}
+
+	clause, args := selectQuery.ToSQL()
 	span.LogFields(log.String("query", clause))
 
 	// Build a cache key for the query. Convert the args slice into an array so
@@ -129,14 +134,14 @@ func (ldb *LiveDB) query(ctx context.Context, query *sqlgen.SelectQuery, filter 
 
 	result, valueFromCache, err := reactive.CacheWithStatus(ctx, key, func(ctx context.Context) (interface{}, error) {
 		// Build a tester for the dependency.
-		tester, err := ldb.Schema.MakeTester(query.Table, filter)
+		tester, err := ldb.Schema.MakeTester(query.Table.Name, query.Filter)
 		if err != nil {
 			return nil, err
 		}
 
 		// Register the dependency before we do the query to not miss any updates
 		// between querying and registering.
-		ldb.tracker.registerDependency(ctx, query.Table, tester)
+		ldb.tracker.registerDependency(ctx, query.Table.Name, tester)
 
 		// Perform the query.
 		res, err := ldb.Conn.Query(clause, args...)
@@ -144,7 +149,7 @@ func (ldb *LiveDB) query(ctx context.Context, query *sqlgen.SelectQuery, filter 
 			return nil, err
 		}
 		defer res.Close()
-		return ldb.Schema.ParseRows(query, res)
+		return ldb.Schema.ParseRows(selectQuery, res)
 	})
 
 	span.LogFields(log.Bool("fromCache", valueFromCache))
@@ -172,7 +177,7 @@ func (ldb *LiveDB) Query(ctx context.Context, result interface{}, filter sqlgen.
 		return err
 	}
 
-	rows, err := ldb.query(ctx, query, filter)
+	rows, err := ldb.query(ctx, query)
 	if err != nil {
 		return err
 	}
@@ -198,7 +203,7 @@ func (ldb *LiveDB) QueryRow(ctx context.Context, result interface{}, filter sqlg
 		return err
 	}
 
-	rows, err := ldb.query(ctx, query, filter)
+	rows, err := ldb.query(ctx, query)
 	if err != nil {
 		return err
 	}
