@@ -70,11 +70,15 @@ func NewDB(conn *sql.DB, schema *Schema) *DB {
 			matcher := newMatcher()
 			for i, item := range items {
 				query := item.(*BaseSelectQuery)
-				matcher.add(i, query.Filter)
+				// XXX: This needs more rigor, and a test. For now, call coerceMap on rows
+				// and filters to flatten out all pointers to values, etc., to copy what
+				// the row tester does when matching against the binlog. This way, a filter
+				// specifying age=48 will match a value *age=48.
+				matcher.add(i, coerceMap(query.Filter))
 			}
 			results := make([][]interface{}, len(items))
 			for _, row := range rows {
-				f := table.extractRow(row)
+				f := coerceMap(table.extractRow(row))
 				for _, idx := range matcher.match(f) {
 					i := idx.(int)
 					results[i] = append(results[i], row)

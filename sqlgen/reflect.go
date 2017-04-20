@@ -737,6 +737,14 @@ func coerce(v reflect.Value) interface{} {
 	return v.Interface()
 }
 
+func coerceMap(m map[string]interface{}) map[string]interface{} {
+	c := make(map[string]interface{})
+	for k, v := range m {
+		c[k] = coerce(reflect.ValueOf(v))
+	}
+	return c
+}
+
 func (t *tester) Test(row interface{}) bool {
 	if row == nil {
 		return false
