@@ -95,7 +95,7 @@ func TestBasic(t *testing.T) {
 		static
 		a { value nested { value } }
 		as { value }
-	}`, nil)
+	}`, nil).SelectionSet
 
 	if err := PrepareQuery(query, q); err != nil {
 		t.Error(err)
@@ -185,7 +185,7 @@ func TestError(t *testing.T) {
 		{
 			error
 		}
-	`, map[string]interface{}{})
+	`, map[string]interface{}{}).SelectionSet
 
 	if err := PrepareQuery(query, q); err != nil {
 		t.Error(err)
@@ -207,7 +207,7 @@ func TestPanic(t *testing.T) {
 		{
 			panic
 		}
-	`, nil)
+	`, nil).SelectionSet
 
 	if err := PrepareQuery(query, q); err != nil {
 		t.Error(err)

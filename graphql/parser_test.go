@@ -8,7 +8,7 @@ import (
 )
 
 func TestParseSupported(t *testing.T) {
-	selections, err := Parse(`
+	query, err := Parse(`
 {
 	foo {
 		alias: bar
@@ -34,80 +34,84 @@ fragment Bar on Foo {
 		t.Error("unexpected error", err)
 	}
 
-	expected := &SelectionSet{
-		Complex: true,
-		Selections: []*Selection{
-			{
-				Name:  "foo",
-				Alias: "foo",
-				Args:  map[string]interface{}{},
-				SelectionSet: &SelectionSet{
-					Complex: true,
-					Selections: []*Selection{
-						{
-							Name:  "bar",
-							Alias: "alias",
-							Args:  map[string]interface{}{},
-						},
-						{
-							Name:  "bar",
-							Alias: "alias",
-							Args:  map[string]interface{}{},
-						},
-						{
-							Name:  "baz",
-							Alias: "baz",
-							Args: map[string]interface{}{
-								"arg": float64(3),
+	expected := &Query{
+		Name: "",
+		Kind: "query",
+		SelectionSet: &SelectionSet{
+			Complex: true,
+			Selections: []*Selection{
+				{
+					Name:  "foo",
+					Alias: "foo",
+					Args:  map[string]interface{}{},
+					SelectionSet: &SelectionSet{
+						Complex: true,
+						Selections: []*Selection{
+							{
+								Name:  "bar",
+								Alias: "alias",
+								Args:  map[string]interface{}{},
 							},
-							SelectionSet: &SelectionSet{
-								Selections: []*Selection{
-									{
-										Name:  "bah",
-										Alias: "bah",
-										Args: map[string]interface{}{
-											"x": float64(1),
-											"y": "123",
-											"z": true,
-										},
-									},
-									{
-										Name:  "hum",
-										Alias: "hum",
-										Args: map[string]interface{}{
-											"foo": map[string]interface{}{
-												"x": "var value!!",
+							{
+								Name:  "bar",
+								Alias: "alias",
+								Args:  map[string]interface{}{},
+							},
+							{
+								Name:  "baz",
+								Alias: "baz",
+								Args: map[string]interface{}{
+									"arg": float64(3),
+								},
+								SelectionSet: &SelectionSet{
+									Selections: []*Selection{
+										{
+											Name:  "bah",
+											Alias: "bah",
+											Args: map[string]interface{}{
+												"x": float64(1),
+												"y": "123",
+												"z": true,
 											},
-											"bug": []interface{}{
-												float64(1), float64(2),
-												[]interface{}{float64(4), float64(5)},
+										},
+										{
+											Name:  "hum",
+											Alias: "hum",
+											Args: map[string]interface{}{
+												"foo": map[string]interface{}{
+													"x": "var value!!",
+												},
+												"bug": []interface{}{
+													float64(1), float64(2),
+													[]interface{}{float64(4), float64(5)},
+												},
 											},
 										},
 									},
 								},
 							},
 						},
-					},
-					Fragments: []*Fragment{
-						{
-							On: "Foo",
-							SelectionSet: &SelectionSet{
-								Selections: []*Selection{
-									{
-										Name:  "asd",
-										Alias: "asd",
-										Args:  map[string]interface{}{},
+						Fragments: []*Fragment{
+							{
+								On: "Foo",
+								SelectionSet: &SelectionSet{
+									Selections: []*Selection{
+										{
+											Name:  "asd",
+											Alias: "asd",
+											Args:  map[string]interface{}{},
+										},
 									},
-								},
-								Fragments: []*Fragment{
-									{
-										On: "Foo",
-										SelectionSet: &SelectionSet{
-											Selections: []*Selection{
-												{
-													Name:  "zxc",
-													Alias: "zxc",
-													Args:  map[string]interface{}{},
+									Fragments: []*Fragment{
+										{
+											On: "Foo",
+											SelectionSet: &SelectionSet{
+												Selections: []*Selection{
+													{
+														Name:  "zxc",
+														Alias: "zxc",
+														Args:  map[string]interface{}{},
+													},
 												},
 											},
 										},
@@ -117,20 +121,20 @@ fragment Bar on Foo {
 						},
 					},
 				},
-			},
-			{
-				Name:  "xyz",
-				Alias: "xyz",
-				Args:  map[string]interface{}{},
+				{
+					Name:  "xyz",
+					Alias: "xyz",
+					Args:  map[string]interface{}{},
+				},
 			},
 		},
 	}
 
-	if !reflect.DeepEqual(selections, expected) {
+	if !reflect.DeepEqual(query, expected) {
 		t.Error("unexpected parse")
 	}
 
-	selections, err = Parse(`
+	query, err = Parse(`
 mutation foo($var: bar) {
 	baz
 }
@@ -141,17 +145,20 @@ mutation foo($var: bar) {
 		t.Error("unexpected error", err)
 	}
 
-	expected = &SelectionSet{
-		Selections: []*Selection{
-			{
-				Name:  "baz",
-				Alias: "baz",
-				Args:  map[string]interface{}{},
+	expected = &Query{
+		Name: "foo",
+		Kind: "mutation",
+		SelectionSet: &SelectionSet{
+			Selections: []*Selection{
+				{
+					Name:  "baz",
+					Alias: "baz",
+					Args:  map[string]interface{}{},
+				},
 			},
 		},
 	}
-
-	if !reflect.DeepEqual(selections, expected) {
+	if !reflect.DeepEqual(query, expected) {
 		t.Error("unexpected parse")
 	}
 }

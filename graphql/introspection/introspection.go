@@ -321,17 +321,17 @@ func ComputeSchemaJSON(schemaBuilderSchema schemabuilder.Schema) ([]byte, error)
 	schema := schemaBuilderSchema.MustBuild()
 	AddIntrospectionToSchema(schema)
 
-	selectionSet, err := graphql.Parse(introspectionQuery, map[string]interface{}{})
+	query, err := graphql.Parse(introspectionQuery, map[string]interface{}{})
 	if err != nil {
 		return nil, err
 	}
 
-	if err := graphql.PrepareQuery(schema.Query, selectionSet); err != nil {
+	if err := graphql.PrepareQuery(schema.Query, query.SelectionSet); err != nil {
 		return nil, err
 	}
 
 	executor := graphql.Executor{}
-	value, err := executor.Execute(context.Background(), schema.Query, nil, selectionSet)
+	value, err := executor.Execute(context.Background(), schema.Query, nil, query.SelectionSet)
 	if err != nil {
 		return nil, err
 	}

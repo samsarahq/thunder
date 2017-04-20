@@ -143,11 +143,11 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 		return NewSafeError("too many subscriptions")
 	}
 
-	selectionSet, err := Parse(subscribe.Query, subscribe.Variables)
+	query, err := Parse(subscribe.Query, subscribe.Variables)
 	if err != nil {
 		return err
 	}
-	if err := PrepareQuery(c.schema.Query, selectionSet); err != nil {
+	if err := PrepareQuery(c.schema.Query, query.SelectionSet); err != nil {
 		return err
 	}
 
@@ -156,7 +156,7 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 	e := Executor{}
 
 	initial := true
-	tags := map[string]string{"url": c.url, "queryType": "subscribe", "query": subscribe.Query, "queryVariables": mustMarshalJson(subscribe.Variables), "id": id}
+	tags := map[string]string{"url": c.url, "queryType": query.Kind, "queryName": query.Name, "query": subscribe.Query, "queryVariables": mustMarshalJson(subscribe.Variables), "id": id}
 
 	c.subscriptions[id] = reactive.NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
 		ctx = c.makeCtx(ctx)
@@ -164,7 +164,7 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 		start := time.Now()
 		span, ctx := opentracing.StartSpanFromContext(ctx, "thunder.subscription")
 		c.logger.StartExecution(ctx, tags, initial)
-		current, err := e.Execute(ctx, c.schema.Query, nil, selectionSet)
+		current, err := e.Execute(ctx, c.schema.Query, nil, query.SelectionSet)
 		c.logger.FinishExecution(ctx, tags, time.Since(start))
 		span.Finish()
 
@@ -201,17 +201,17 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	selectionSet, err := Parse(mutate.Query, mutate.Variables)
+	query, err := Parse(mutate.Query, mutate.Variables)
 	if err != nil {
 		return err
 	}
-	if err := PrepareQuery(c.schema.Mutation, selectionSet); err != nil {
+	if err := PrepareQuery(c.schema.Mutation, query.SelectionSet); err != nil {
 		return err
 	}
 
 	e := Executor{}
 
-	tags := map[string]string{"url": c.url, "queryType": "mutate", "query": mutate.Query, "queryVariables": mustMarshalJson(mutate.Variables), "id": id}
+	tags := map[string]string{"url": c.url, "queryType": query.Kind, "queryName": query.Name, "query": mutate.Query, "queryVariables": mustMarshalJson(mutate.Variables), "id": id}
 
 	c.subscriptions[id] = reactive.NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
 		// Serialize all mutates for a given connection.
@@ -222,7 +222,7 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 
 		start := time.Now()
 		c.logger.StartExecution(ctx, tags, true)
-		current, err := e.Execute(ctx, c.schema.Mutation, c.schema.Mutation, selectionSet)
+		current, err := e.Execute(ctx, c.schema.Mutation, c.schema.Mutation, query.SelectionSet)
 		c.logger.FinishExecution(ctx, tags, time.Since(start))
 
 		if err != nil {

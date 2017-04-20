@@ -63,7 +63,7 @@ func TestPathError(t *testing.T) {
 	q := graphql.MustParse(`
 		{
 			inner { inners { expensive { expensives { err } } } }
-        }`, nil)
+        }`, nil).SelectionSet
 
 	if err := graphql.PrepareQuery(builtSchema.Query, q); err != nil {
 		t.Error(err)
@@ -78,7 +78,7 @@ func TestPathError(t *testing.T) {
 	q = graphql.MustParse(`
 		{
 			safe
-		}`, nil)
+		}`, nil).SelectionSet
 
 	if err := graphql.PrepareQuery(builtSchema.Query, q); err != nil {
 		t.Error(err)
@@ -144,7 +144,7 @@ func TestEndToEndAwaitAndCache(t *testing.T) {
 				name
 				slow { count }
             }
-        }`, nil)
+        }`, nil).SelectionSet
 
 	if err := graphql.PrepareQuery(builtSchema.Query, q); err != nil {
 		t.Error(err)

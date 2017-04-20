@@ -320,13 +320,19 @@ func determineComplex(selectionSet *SelectionSet) {
 	visit(selectionSet)
 }
 
-// Parse parses an input GraphQL string into a *SelectionSet query
+type Query struct {
+	Name string
+	Kind string
+	*SelectionSet
+}
+
+// Parse parses an input GraphQL string into a *Query
 //
 // Parse validates that the query looks syntactically correct and
 // contains no cycles or unused fragments or immediate conflicts. However, it
 // does not validate that the query is legal under a given schema, which
 // instead is done by PrepareQuery.
-func Parse(source string, vars map[string]interface{}) (*SelectionSet, error) {
+func Parse(source string, vars map[string]interface{}) (*Query, error) {
 	document, err := parser.Parse(parser.ParseParams{Source: source})
 	if err != nil {
 		return nil, NewSafeError(err.Error())
@@ -362,6 +368,12 @@ func Parse(source string, vars map[string]interface{}) (*SelectionSet, error) {
 		return nil, NewSafeError("must have a single query")
 	}
 
+	kind := queryDefinition.Operation
+	var name string
+	if queryDefinition.Name != nil {
+		name = queryDefinition.Name.Value
+	}
+
 	globalFragments := make(map[string]*Fragment)
 	for name, fragment := range fragmentDefinitions {
 		globalFragments[name] = &Fragment{
@@ -392,15 +404,19 @@ func Parse(source string, vars map[string]interface{}) (*SelectionSet, error) {
 
 	determineComplex(selectionSet)
 
-	return selectionSet, nil
+	return &Query{
+		Name:         name,
+		Kind:         kind,
+		SelectionSet: selectionSet,
+	}, nil
 }
 
-func MustParse(query string, vars map[string]interface{}) *SelectionSet {
-	selectionSet, err := Parse(query, vars)
+func MustParse(source string, vars map[string]interface{}) *Query {
+	query, err := Parse(source, vars)
 	if err != nil {
 		panic(err)
 	}
-	return selectionSet
+	return query
 }
 
 // Flatten takes a SelectionSet and flattens it into an array of selections
