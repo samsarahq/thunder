@@ -158,10 +158,10 @@ func run(ctx context.Context, f ComputeFunc) (*computation, error) {
 	return c, nil
 }
 
-func CacheWithStatus(ctx context.Context, key interface{}, f ComputeFunc) (interface{}, bool, error) {
+func Cache(ctx context.Context, key interface{}, f ComputeFunc) (interface{}, error) {
 	if !HasRerunner(ctx) {
 		val, err := f(ctx)
-		return val, false, err
+		return val, err
 	}
 
 	cache := ctx.Value(cacheKey{}).(*cache)
@@ -172,22 +172,17 @@ func CacheWithStatus(ctx context.Context, key interface{}, f ComputeFunc) (inter
 
 	if child := cache.get(key); child != nil {
 		child.node.addOut(&computation.node)
-		return child.value, true, nil
+		return child.value, nil
 	}
 
 	child, err := run(ctx, f)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	cache.set(key, child)
 
 	child.node.addOut(&computation.node)
-	return child.value, false, nil
-}
-
-func Cache(ctx context.Context, key interface{}, f ComputeFunc) (interface{}, error) {
-	value, _, err := CacheWithStatus(ctx, key, f)
-	return value, err
+	return child.value, nil
 }
 
 // Rerunner automatically reruns a computation whenever its dependencies
