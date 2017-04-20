@@ -141,7 +141,7 @@ func TestExecuteGood(t *testing.T) {
 			root { nested { time bar: yyy bytes alias } }
 			weirdKey { key }
 		}
-	`, map[string]interface{}{"var": float64(3)})
+	`, map[string]interface{}{"var": float64(3)}).SelectionSet
 
 	if err := graphql.PrepareQuery(builtSchema.Query, q); err != nil {
 		t.Error(err)
