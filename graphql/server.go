@@ -42,6 +42,7 @@ type conn struct {
 	socket  JSONSocket
 
 	schema  *Schema
+	ctx     context.Context
 	makeCtx MakeCtxFunc
 	logger  GraphqlLogger
 
@@ -159,7 +160,7 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 	initial := true
 	tags := map[string]string{"url": c.url, "queryType": query.Kind, "queryName": query.Name, "query": subscribe.Query, "queryVariables": mustMarshalJson(subscribe.Variables), "id": id}
 
-	c.subscriptions[id] = reactive.NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
+	c.subscriptions[id] = reactive.NewRerunner(c.ctx, func(ctx context.Context) (interface{}, error) {
 		ctx = c.makeCtx(ctx)
 		ctx = batch.WithBatching(ctx)
 
@@ -215,12 +216,12 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 
 	tags := map[string]string{"url": c.url, "queryType": query.Kind, "queryName": query.Name, "query": mutate.Query, "queryVariables": mustMarshalJson(mutate.Variables), "id": id}
 
-	c.subscriptions[id] = reactive.NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
+	c.subscriptions[id] = reactive.NewRerunner(c.ctx, func(ctx context.Context) (interface{}, error) {
 		// Serialize all mutates for a given connection.
 		c.mutateMu.Lock()
 		defer c.mutateMu.Unlock()
 
-		ctx = c.makeCtx(context.Background())
+		ctx = c.makeCtx(ctx)
 		ctx = batch.WithBatching(ctx)
 
 		start := time.Now()
@@ -339,13 +340,14 @@ func Handler(schema *Schema) http.Handler {
 			return ctx
 		}
 
-		ServeJSONSocket(socket, schema, makeCtx, &simpleLogger{})
+		ServeJSONSocket(r.Context(), socket, schema, makeCtx, &simpleLogger{})
 	})
 }
 
-func ServeJSONSocket(socket JSONSocket, schema *Schema, makeCtx MakeCtxFunc, logger GraphqlLogger) {
+func ServeJSONSocket(ctx context.Context, socket JSONSocket, schema *Schema, makeCtx MakeCtxFunc, logger GraphqlLogger) {
 	c := &conn{
 		socket: socket,
+		ctx:    ctx,
 
 		schema:  schema,
 		makeCtx: makeCtx,
