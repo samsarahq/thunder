@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"net/http"
 	"sort"
@@ -119,12 +120,51 @@ func (s *Server) Schema() *graphql.Schema {
 	return s.SchemaBuilderSchema().MustBuild()
 }
 
+func EnsureDB() error {
+	db, err := sql.Open("mysql", "root:@tcp(localhost:3307)/")
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	stmts := []string{
+		`
+			CREATE DATABASE IF NOT EXISTS thunder_chat
+		`,
+		`
+			CREATE TABLE IF NOT EXISTS thunder_chat.messages (
+				id   BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+				text TEXT
+			)
+		`,
+		`
+			CREATE TABLE IF NOT EXISTS thunder_chat.reaction_instances (
+				id   BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+				message_id BIGINT,
+				reaction VARCHAR(16)
+			)
+		`,
+	}
+
+	for _, stmt := range stmts {
+		if _, err := db.Exec(stmt); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func main() {
 	sqlgenSchema := sqlgen.NewSchema()
 	sqlgenSchema.MustRegisterType("messages", sqlgen.AutoIncrement, Message{})
 	sqlgenSchema.MustRegisterType("reaction_instances", sqlgen.AutoIncrement, ReactionInstance{})
 
-	db, err := livesql.Open("localhost", 3307, "root", "", "chat", sqlgenSchema)
+	if err := EnsureDB(); err != nil {
+		panic(err)
+	}
+
+	db, err := livesql.Open("localhost", 3307, "root", "", "thunder_chat", sqlgenSchema)
 	if err != nil {
 		panic(err)
 	}

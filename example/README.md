@@ -1,7 +1,6 @@
 This directory contains a basic example of Thunder. The code is organized as follows:
 
 - All server code can be found in the `main.go` file.
-- The `db/` directory contains MySQL schema and configuration files.
 - The `client/` directory contains a JavaScript client.
 
 ## Dependencies
@@ -11,17 +10,8 @@ and [Node](https://nodejs.org/).
 
 ## Running the database
 
-To start the database, run `docker-compose -f db/docker-compose.yml up` to
+To start the database, run `docker-compose -f ../ci/docker-compose.yml up` to
 start a MySQL server on port 3307, properly configured for use with Thunder. 
-
-Then, install [github.com/mattes/migrate](https://github.com/mattes/migrate)
-using `go get github.com/mattes/migrate` and run `migrate -url
-mysql://root:@tcp(127.0.0.1:3307)/chat -path ./db/migrations up` to set-up the
-database's schema.
-
-Now you can access the database with `mysql -h 127.0.0.1 --port=3307 -uroot
-chat`. Try inserting a new message by running
-`INSERT INTO messages (text) VALUES ("Hello, world!");`
 
 ## Running the server
 
