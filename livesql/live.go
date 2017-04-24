@@ -98,10 +98,13 @@ type LiveDB struct {
 
 // NewLiveDB constructs a new LiveDB
 func NewLiveDB(db *sqlgen.DB) *LiveDB {
-	return &LiveDB{
-		DB:      db,
+	dbCopy := *db
+	ldb := &LiveDB{
+		DB:      &dbCopy,
 		tracker: newDbTracker(),
 	}
+	dbCopy.BaseQueryer = ldb
+	return ldb
 }
 
 type queryCacheKey struct {
@@ -109,8 +112,7 @@ type queryCacheKey struct {
 	args   interface{}
 }
 
-// query reactively performs a SelectQuery
-func (ldb *LiveDB) query(ctx context.Context, query *sqlgen.BaseSelectQuery) ([]interface{}, error) {
+func (ldb *LiveDB) BaseQuery(ctx context.Context, query *sqlgen.BaseSelectQuery) ([]interface{}, error) {
 	if !reactive.HasRerunner(ctx) || ldb.HasTx(ctx) {
 		return ldb.DB.BaseQuery(ctx, query)
 	}
@@ -146,48 +148,4 @@ func (ldb *LiveDB) query(ctx context.Context, query *sqlgen.BaseSelectQuery) ([]
 		return nil, err
 	}
 	return result.([]interface{}), nil
-}
-
-// Query fetches a collection of rows from the database and will invalidate ctx
-// when the query result changes
-//
-// result should be a pointer to a slice of pointers to structs, for example:
-//
-//   var users []*User
-//   if err := ldb.Query(ctx, &users, nil, nil); err != nil {
-//
-func (ldb *LiveDB) Query(ctx context.Context, result interface{}, filter sqlgen.Filter, options *sqlgen.SelectOptions) error {
-	query, err := ldb.Schema.MakeSelect(result, filter, options)
-	if err != nil {
-		return err
-	}
-
-	rows, err := ldb.query(ctx, query)
-	if err != nil {
-		return err
-	}
-
-	return sqlgen.CopySlice(result, rows)
-}
-
-// QueryRow fetches a single row from the database and will invalidate ctx when
-// the query result changes
-//
-// result should be a pointer to a pointer to a struct, for example:
-//
-//   var user *User
-//   if err := ldb.Query(ctx, &user, Filter{"id": 10}, nil); err != nil {
-//
-func (ldb *LiveDB) QueryRow(ctx context.Context, result interface{}, filter sqlgen.Filter, options *sqlgen.SelectOptions) error {
-	query, err := ldb.Schema.MakeSelectRow(result, filter, options)
-	if err != nil {
-		return err
-	}
-
-	rows, err := ldb.query(ctx, query)
-	if err != nil {
-		return err
-	}
-
-	return sqlgen.CopySingletonSlice(result, rows)
 }

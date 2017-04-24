@@ -15,8 +15,9 @@ import (
 // database connection exists and is alive at all times during the lifecycle of
 // the object.
 type DB struct {
-	Conn   *sql.DB
-	Schema *Schema
+	Conn        *sql.DB
+	Schema      *Schema
+	BaseQueryer BaseQueryer
 
 	batchFetch *batch.Func
 }
@@ -26,6 +27,7 @@ func NewDB(conn *sql.DB, schema *Schema) *DB {
 		Conn:   conn,
 		Schema: schema,
 	}
+	db.BaseQueryer = db
 
 	db.batchFetch = &batch.Func{
 		Many: func(ctx context.Context, items []interface{}) ([]interface{}, error) {
@@ -100,6 +102,10 @@ func NewDB(conn *sql.DB, schema *Schema) *DB {
 	return db
 }
 
+type BaseQueryer interface {
+	BaseQuery(ctx context.Context, query *BaseSelectQuery) ([]interface{}, error)
+}
+
 func (db *DB) BaseQuery(ctx context.Context, query *BaseSelectQuery) ([]interface{}, error) {
 	if query.Options == nil && !db.HasTx(ctx) && batch.HasBatching(ctx) {
 		rows, err := db.batchFetch.Invoke(ctx, query)
@@ -144,7 +150,7 @@ func (db *DB) Query(ctx context.Context, result interface{}, filter Filter, opti
 		return err
 	}
 
-	rows, err := db.BaseQuery(ctx, query)
+	rows, err := db.BaseQueryer.BaseQuery(ctx, query)
 	if err != nil {
 		return err
 	}
@@ -165,7 +171,7 @@ func (db *DB) QueryRow(ctx context.Context, result interface{}, filter Filter, o
 		return err
 	}
 
-	rows, err := db.BaseQuery(ctx, query)
+	rows, err := db.BaseQueryer.BaseQuery(ctx, query)
 	if err != nil {
 		return err
 	}
