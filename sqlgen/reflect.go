@@ -53,12 +53,12 @@ const (
 	UniqueId
 )
 
-type NullBytes struct {
+type nullBytes struct {
 	Bytes []byte
 	Valid bool
 }
 
-func (b *NullBytes) Scan(value interface{}) error {
+func (b *nullBytes) Scan(value interface{}) error {
 	if value == nil {
 		b.Bytes = nil
 		b.Valid = false
@@ -81,7 +81,7 @@ func (b *NullBytes) Scan(value interface{}) error {
 	return nil
 }
 
-func (b *NullBytes) Value() (driver.Value, error) {
+func (b *nullBytes) Value() (driver.Value, error) {
 	if !b.Valid {
 		return nil, nil
 	}
@@ -98,7 +98,7 @@ var defaultScannableTypes = map[reflect.Type]func() Scannable{
 	reflect.TypeOf(int16(0)):    func() Scannable { return new(sql.NullInt64) },
 	reflect.TypeOf(bool(false)): func() Scannable { return new(sql.NullBool) },
 	reflect.TypeOf(float64(0)):  func() Scannable { return new(sql.NullFloat64) },
-	reflect.TypeOf([]byte{}):    func() Scannable { return new(NullBytes) },
+	reflect.TypeOf([]byte{}):    func() Scannable { return new(nullBytes) },
 	reflect.TypeOf(time.Time{}): func() Scannable { return new(mysql.NullTime) },
 }
 
@@ -138,7 +138,7 @@ func parseQueryRow(table *Table, scanner *sql.Rows) (interface{}, error) {
 	return BuildStruct(table, scannables), nil
 }
 
-func CopySlice(result interface{}, rows []interface{}) error {
+func copySlice(result interface{}, rows []interface{}) error {
 	ptr := reflect.ValueOf(result)
 	slice := ptr.Elem()
 	slice.Set(reflect.MakeSlice(slice.Type(), len(rows), len(rows)))
@@ -149,7 +149,7 @@ func CopySlice(result interface{}, rows []interface{}) error {
 	return nil
 }
 
-func CopySingletonSlice(result interface{}, rows []interface{}) error {
+func copySingletonSlice(result interface{}, rows []interface{}) error {
 	ptr := reflect.ValueOf(result)
 
 	switch len(rows) {
@@ -394,7 +394,7 @@ func (s *Schema) get(typ reflect.Type) (*Table, error) {
 	return table, nil
 }
 
-func (s *Schema) ParseRows(query *SelectQuery, res *sql.Rows) ([]interface{}, error) {
+func (s *Schema) parseRows(query *SelectQuery, res *sql.Rows) ([]interface{}, error) {
 	table, ok := s.ByName[query.Table]
 	if !ok {
 		return nil, errors.New("unknown table")
@@ -428,8 +428,8 @@ func (l whereElemsByIndex) Len() int           { return len(l) }
 func (l whereElemsByIndex) Less(a, b int) bool { return l[a].column.Order < l[b].column.Order }
 func (l whereElemsByIndex) Swap(a, b int)      { l[a], l[b] = l[b], l[a] }
 
-// makeWhere builds a new SimpleWhere for table from filter
-func makeWhere(table *Table, filter Filter) (*SimpleWhere, error) {
+// makeWhere builds a new simpleWhere for table from filter
+func makeWhere(table *Table, filter Filter) (*simpleWhere, error) {
 	var l whereElemsByIndex
 
 	for name, value := range filter {
@@ -449,7 +449,7 @@ func makeWhere(table *Table, filter Filter) (*SimpleWhere, error) {
 		values = append(values, elem.value)
 	}
 
-	return &SimpleWhere{
+	return &simpleWhere{
 		Columns: columns,
 		Values:  values,
 	}, nil
@@ -569,8 +569,8 @@ func checkMutateRowTypeShape(typ reflect.Type) (reflect.Type, error) {
 	return typ, nil
 }
 
-// MakeInsertRow builds a new InsertQuery to insert row
-func (s *Schema) MakeInsertRow(row interface{}) (*InsertQuery, error) {
+// makeInsertRow builds a new insertQuery to insert row
+func (s *Schema) makeInsertRow(row interface{}) (*insertQuery, error) {
 	ptr := reflect.ValueOf(row)
 	typ, err := checkMutateRowTypeShape(ptr.Type())
 	if err != nil {
@@ -595,15 +595,15 @@ func (s *Schema) MakeInsertRow(row interface{}) (*InsertQuery, error) {
 		values = append(values, value)
 	}
 
-	return &InsertQuery{
+	return &insertQuery{
 		Table:   table.Name,
 		Columns: columns,
 		Values:  values,
 	}, nil
 }
 
-// MakeUpsertRow builds a new UpsertQuery to upsqrt row
-func (s *Schema) MakeUpsertRow(row interface{}) (*UpsertQuery, error) {
+// makeUpsertRow builds a new upsertQuery to upsqrt row
+func (s *Schema) makeUpsertRow(row interface{}) (*upsertQuery, error) {
 	ptr := reflect.ValueOf(row)
 	typ, err := checkMutateRowTypeShape(ptr.Type())
 	if err != nil {
@@ -629,15 +629,15 @@ func (s *Schema) MakeUpsertRow(row interface{}) (*UpsertQuery, error) {
 		values = append(values, value)
 	}
 
-	return &UpsertQuery{
+	return &upsertQuery{
 		Table:   table.Name,
 		Columns: columns,
 		Values:  values,
 	}, nil
 }
 
-// MakeUpdateRow builds a new UpdateQuery to update row
-func (s *Schema) MakeUpdateRow(row interface{}) (*UpdateQuery, error) {
+// makeUpdateRow builds a new updateQuery to update row
+func (s *Schema) makeUpdateRow(row interface{}) (*updateQuery, error) {
 	ptr := reflect.ValueOf(row)
 	typ, err := checkMutateRowTypeShape(ptr.Type())
 	if err != nil {
@@ -664,19 +664,19 @@ func (s *Schema) MakeUpdateRow(row interface{}) (*UpdateQuery, error) {
 		}
 	}
 
-	return &UpdateQuery{
+	return &updateQuery{
 		Table:   table.Name,
 		Columns: columns,
 		Values:  values,
-		Where: &SimpleWhere{
+		Where: &simpleWhere{
 			Columns: whereColumns,
 			Values:  whereValues,
 		},
 	}, nil
 }
 
-// MakeDeleteRow builds a new DeleteQuery to delete row
-func (s *Schema) MakeDeleteRow(row interface{}) (*DeleteQuery, error) {
+// makeDeleteRow builds a new deleteQuery to delete row
+func (s *Schema) makeDeleteRow(row interface{}) (*deleteQuery, error) {
 	ptr := reflect.ValueOf(row)
 	typ, err := checkMutateRowTypeShape(ptr.Type())
 	if err != nil {
@@ -702,9 +702,9 @@ func (s *Schema) MakeDeleteRow(row interface{}) (*DeleteQuery, error) {
 		values = append(values, value)
 	}
 
-	return &DeleteQuery{
+	return &deleteQuery{
 		Table: table.Name,
-		Where: &SimpleWhere{
+		Where: &simpleWhere{
 			Columns: columns,
 			Values:  values,
 		},

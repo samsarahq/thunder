@@ -18,17 +18,17 @@ func testQuery(q query, sql string, values []interface{}, t *testing.T) {
 }
 
 func TestSimpleWhere(t *testing.T) {
-	testQuery(&SimpleWhere{
+	testQuery(&simpleWhere{
 		Columns: []string{},
 		Values:  []interface{}{},
 	}, "", []interface{}{}, t)
 
-	testQuery(&SimpleWhere{
+	testQuery(&simpleWhere{
 		Columns: []string{"foo"},
 		Values:  []interface{}{1},
 	}, "foo = ?", []interface{}{1}, t)
 
-	testQuery(&SimpleWhere{
+	testQuery(&simpleWhere{
 		Columns: []string{"foo", "bar"},
 		Values:  []interface{}{1, 2},
 	}, "foo = ? AND bar = ?", []interface{}{1, 2}, t)
@@ -82,19 +82,19 @@ func TestSelectQuery(t *testing.T) {
 }
 
 func TestInsertQuery(t *testing.T) {
-	testQuery(&InsertQuery{
+	testQuery(&insertQuery{
 		Table:   "foo",
 		Columns: []string{"bar"},
 		Values:  []interface{}{3},
 	}, "INSERT INTO foo (bar) VALUES (?)", []interface{}{3}, t)
 
-	testQuery(&InsertQuery{
+	testQuery(&insertQuery{
 		Table:   "foo2",
 		Columns: []string{"bar", "baz"},
 		Values:  []interface{}{3, "buh"},
 	}, "INSERT INTO foo2 (bar, baz) VALUES (?, ?)", []interface{}{3, "buh"}, t)
 
-	testQuery(&InsertQuery{
+	testQuery(&insertQuery{
 		Table:   "foo3",
 		Columns: []string{},
 		Values:  []interface{}{},
@@ -102,13 +102,13 @@ func TestInsertQuery(t *testing.T) {
 }
 
 func TestUpsertQuery(t *testing.T) {
-	testQuery(&UpsertQuery{
+	testQuery(&upsertQuery{
 		Table:   "foo",
 		Columns: []string{"bar"},
 		Values:  []interface{}{10},
 	}, "INSERT INTO foo (bar) VALUES (?) ON DUPLICATE KEY UPDATE bar=VALUES(bar)", []interface{}{10}, t)
 
-	testQuery(&UpsertQuery{
+	testQuery(&upsertQuery{
 		Table:   "foo",
 		Columns: []string{"bar", "baz"},
 		Values:  []interface{}{10, "buh"},
@@ -116,21 +116,21 @@ func TestUpsertQuery(t *testing.T) {
 }
 
 func TestUpdateQuery(t *testing.T) {
-	testQuery(&UpdateQuery{
+	testQuery(&updateQuery{
 		Table:   "foo",
 		Columns: []string{"bar"},
 		Values:  []interface{}{10},
-		Where: &SimpleWhere{
+		Where: &simpleWhere{
 			Columns: []string{"bar"},
 			Values:  []interface{}{3},
 		},
 	}, "UPDATE foo SET bar = ? WHERE bar = ?", []interface{}{10, 3}, t)
 
-	testQuery(&UpdateQuery{
+	testQuery(&updateQuery{
 		Table:   "foo2",
 		Columns: []string{"bar", "baz"},
 		Values:  []interface{}{10, "xyz"},
-		Where: &SimpleWhere{
+		Where: &simpleWhere{
 			Columns: []string{"bar"},
 			Values:  []interface{}{3},
 		},
@@ -138,17 +138,17 @@ func TestUpdateQuery(t *testing.T) {
 }
 
 func TestDeleteQuery(t *testing.T) {
-	testQuery(&DeleteQuery{
+	testQuery(&deleteQuery{
 		Table: "foo",
-		Where: &SimpleWhere{
+		Where: &simpleWhere{
 			Columns: []string{"bar"},
 			Values:  []interface{}{3},
 		},
 	}, "DELETE FROM foo WHERE bar = ?", []interface{}{3}, t)
 
-	testQuery(&DeleteQuery{
+	testQuery(&deleteQuery{
 		Table: "foo",
-		Where: &SimpleWhere{
+		Where: &simpleWhere{
 			Columns: []string{},
 			Values:  []interface{}{},
 		},

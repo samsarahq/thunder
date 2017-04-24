@@ -63,7 +63,7 @@ func NewDB(conn *sql.DB, schema *Schema) *DB {
 				return nil, err
 			}
 			defer res.Close()
-			rows, err := db.Schema.ParseRows(selectQuery, res)
+			rows, err := db.Schema.parseRows(selectQuery, res)
 			if err != nil {
 				return nil, err
 			}
@@ -134,7 +134,7 @@ func (db *DB) BaseQuery(ctx context.Context, query *BaseSelectQuery) ([]interfac
 	}
 	defer res.Close()
 
-	return db.Schema.ParseRows(selectQuery, res)
+	return db.Schema.parseRows(selectQuery, res)
 }
 
 // Query fetches a collection of rows from the database
@@ -155,7 +155,7 @@ func (db *DB) Query(ctx context.Context, result interface{}, filter Filter, opti
 		return err
 	}
 
-	return CopySlice(result, rows)
+	return copySlice(result, rows)
 }
 
 // QueryRow fetches a single row from the database
@@ -176,7 +176,7 @@ func (db *DB) QueryRow(ctx context.Context, result interface{}, filter Filter, o
 		return err
 	}
 
-	return CopySingletonSlice(result, rows)
+	return copySingletonSlice(result, rows)
 }
 
 // InsertRow inserts a single row into the database
@@ -187,7 +187,7 @@ func (db *DB) QueryRow(ctx context.Context, result interface{}, filter Filter, o
 //   if err := db.InsertRow(ctx, user); err != nil {
 //
 func (db *DB) InsertRow(ctx context.Context, row interface{}) (sql.Result, error) {
-	query, err := db.Schema.MakeInsertRow(row)
+	query, err := db.Schema.makeInsertRow(row)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +211,7 @@ func (db *DB) InsertRow(ctx context.Context, row interface{}) (sql.Result, error
 //   if err := db.UpsertRow(ctx, user); err != nil {
 //
 func (db *DB) UpsertRow(ctx context.Context, row interface{}) (sql.Result, error) {
-	query, err := db.Schema.MakeUpsertRow(row)
+	query, err := db.Schema.makeUpsertRow(row)
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +235,7 @@ func (db *DB) UpsertRow(ctx context.Context, row interface{}) (sql.Result, error
 //   if err := db.UpdateRow(ctx, user); err != nil {
 //
 func (db *DB) UpdateRow(ctx context.Context, row interface{}) error {
-	query, err := db.Schema.MakeUpdateRow(row)
+	query, err := db.Schema.makeUpdateRow(row)
 	if err != nil {
 		return err
 	}
@@ -260,7 +260,7 @@ func (db *DB) UpdateRow(ctx context.Context, row interface{}) error {
 //   if err := db.DeleteRow(ctx, user); err != nil {
 //
 func (db *DB) DeleteRow(ctx context.Context, row interface{}) error {
-	query, err := db.Schema.MakeDeleteRow(row)
+	query, err := db.Schema.makeDeleteRow(row)
 	if err != nil {
 		return err
 	}

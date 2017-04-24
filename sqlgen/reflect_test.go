@@ -208,7 +208,7 @@ func TestMakeWhere(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if !reflect.DeepEqual(where, &SimpleWhere{
+	if !reflect.DeepEqual(where, &simpleWhere{
 		Columns: []string{"id"},
 		Values:  []interface{}{10},
 	}) {
@@ -219,7 +219,7 @@ func TestMakeWhere(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if !reflect.DeepEqual(where, &SimpleWhere{
+	if !reflect.DeepEqual(where, &simpleWhere{
 		Columns: []string{"id", "name", "age"},
 		Values:  []interface{}{10, "bob", 30},
 	}) {
@@ -230,7 +230,7 @@ func TestMakeWhere(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if !reflect.DeepEqual(where, &SimpleWhere{
+	if !reflect.DeepEqual(where, &simpleWhere{
 		Columns: []string{},
 		Values:  []interface{}{},
 	}) {
@@ -373,14 +373,14 @@ func TestMakeInsertAutoIncrement(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	query, err := s.MakeInsertRow(&user{
+	query, err := s.makeInsertRow(&user{
 		Name: "bob",
 		Age:  20,
 	})
 	if err != nil {
 		t.Error(err)
 	}
-	if !reflect.DeepEqual(query, &InsertQuery{
+	if !reflect.DeepEqual(query, &insertQuery{
 		Table:   "users",
 		Columns: []string{"name", "age", "optional"},
 		Values:  []interface{}{"bob", int64(20), nil},
@@ -395,7 +395,7 @@ func TestMakeUpsertAutoIncrement(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := s.MakeUpsertRow(&user{
+	_, err := s.makeUpsertRow(&user{
 		Name: "bob",
 		Age:  20,
 	})
@@ -411,7 +411,7 @@ func TestMakeUpsertUniqueId(t *testing.T) {
 	}
 
 	var temp = "temp"
-	query, err := s.MakeUpsertRow(&user{
+	query, err := s.makeUpsertRow(&user{
 		Id:       5,
 		Name:     "alice",
 		Age:      30,
@@ -420,7 +420,7 @@ func TestMakeUpsertUniqueId(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if !reflect.DeepEqual(query, &UpsertQuery{
+	if !reflect.DeepEqual(query, &upsertQuery{
 		Table:   "users",
 		Columns: []string{"id", "name", "age", "optional"},
 		Values:  []interface{}{int64(5), "alice", int64(30), "temp"},
@@ -435,7 +435,7 @@ func TestMakeUpdateAutoIncrement(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	query, err := s.MakeUpdateRow(&user{
+	query, err := s.makeUpdateRow(&user{
 		Id:   10,
 		Name: "bob",
 		Age:  20,
@@ -443,11 +443,11 @@ func TestMakeUpdateAutoIncrement(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if !reflect.DeepEqual(query, &UpdateQuery{
+	if !reflect.DeepEqual(query, &updateQuery{
 		Table:   "users",
 		Columns: []string{"name", "age", "optional"},
 		Values:  []interface{}{"bob", int64(20), nil},
-		Where: &SimpleWhere{
+		Where: &simpleWhere{
 			Columns: []string{"id"},
 			Values:  []interface{}{int64(10)},
 		},
@@ -463,7 +463,7 @@ func TestMakeUpdateUniqueId(t *testing.T) {
 	}
 
 	var temp = "temp"
-	query, err := s.MakeUpdateRow(&user{
+	query, err := s.makeUpdateRow(&user{
 		Id:       20,
 		Name:     "alice",
 		Age:      40,
@@ -472,11 +472,11 @@ func TestMakeUpdateUniqueId(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if !reflect.DeepEqual(query, &UpdateQuery{
+	if !reflect.DeepEqual(query, &updateQuery{
 		Table:   "users",
 		Columns: []string{"name", "age", "optional"},
 		Values:  []interface{}{"alice", int64(40), "temp"},
-		Where: &SimpleWhere{
+		Where: &simpleWhere{
 			Columns: []string{"id"},
 			Values:  []interface{}{int64(20)},
 		},
@@ -491,7 +491,7 @@ func TestMakeDelete(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	query, err := s.MakeDeleteRow(&user{
+	query, err := s.makeDeleteRow(&user{
 		Id:   10,
 		Name: "bob",
 		Age:  20,
@@ -499,9 +499,9 @@ func TestMakeDelete(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if !reflect.DeepEqual(query, &DeleteQuery{
+	if !reflect.DeepEqual(query, &deleteQuery{
 		Table: "users",
-		Where: &SimpleWhere{
+		Where: &simpleWhere{
 			Columns: []string{"id"},
 			Values:  []interface{}{int64(10)},
 		},

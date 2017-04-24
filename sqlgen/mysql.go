@@ -5,14 +5,14 @@ import (
 	"fmt"
 )
 
-// SimpleWhere represents a simple WHERE clause
-type SimpleWhere struct {
+// simpleWhere represents a simple WHERE clause
+type simpleWhere struct {
 	Columns []string
 	Values  []interface{}
 }
 
 // ToSQL builds a `a = ? AND b = ?` clause
-func (w *SimpleWhere) ToSQL() (string, []interface{}) {
+func (w *simpleWhere) ToSQL() (string, []interface{}) {
 	var buffer bytes.Buffer
 
 	if len(w.Columns) > 0 {
@@ -68,15 +68,15 @@ func (q *SelectQuery) ToSQL() (string, []interface{}) {
 	return buffer.String(), q.Options.Values
 }
 
-// InsertQuery represents a INSERT query
-type InsertQuery struct {
+// insertQuery represents a INSERT query
+type insertQuery struct {
 	Table   string
 	Columns []string
 	Values  []interface{}
 }
 
 // ToSQL builds a parameterized INSERT INTO x (a, b) VALUES (?, ?) statement
-func (q *InsertQuery) ToSQL() (string, []interface{}) {
+func (q *insertQuery) ToSQL() (string, []interface{}) {
 	var buffer bytes.Buffer
 	buffer.WriteString("INSERT INTO ")
 	buffer.WriteString(q.Table)
@@ -102,15 +102,15 @@ func (q *InsertQuery) ToSQL() (string, []interface{}) {
 	return buffer.String(), q.Values
 }
 
-// UpsertQuery represents a INSERT ... ON DUPLICATE KEY UPDATE query
-type UpsertQuery struct {
+// upsertQuery represents a INSERT ... ON DUPLICATE KEY UPDATE query
+type upsertQuery struct {
 	Table   string
 	Columns []string
 	Values  []interface{}
 }
 
 // ToSQL builds a parameterized INSERT INTO x (a, b) VALUES (?, ?) statement
-func (q *UpsertQuery) ToSQL() (string, []interface{}) {
+func (q *upsertQuery) ToSQL() (string, []interface{}) {
 	var buffer bytes.Buffer
 	buffer.WriteString("INSERT INTO ")
 	buffer.WriteString(q.Table)
@@ -143,16 +143,16 @@ func (q *UpsertQuery) ToSQL() (string, []interface{}) {
 	return buffer.String(), q.Values
 }
 
-// UpdateQuery represents a UPDATE query
-type UpdateQuery struct {
+// updateQuery represents a UPDATE query
+type updateQuery struct {
 	Table   string
 	Columns []string
 	Values  []interface{}
-	Where   *SimpleWhere
+	Where   *simpleWhere
 }
 
 // ToSQL builds a parameterized UPDATE x SET a = ?, b = ? WHERE c = ? statement
-func (q *UpdateQuery) ToSQL() (string, []interface{}) {
+func (q *updateQuery) ToSQL() (string, []interface{}) {
 	var buffer bytes.Buffer
 	buffer.WriteString("UPDATE ")
 	buffer.WriteString(q.Table)
@@ -181,14 +181,14 @@ func (q *UpdateQuery) ToSQL() (string, []interface{}) {
 	return buffer.String(), values
 }
 
-// DeleteQuery represents a DELETE query
-type DeleteQuery struct {
+// deleteQuery represents a DELETE query
+type deleteQuery struct {
 	Table string
-	Where *SimpleWhere
+	Where *simpleWhere
 }
 
 // ToSQL builds a parameterized DELETE FROM x WHERE a = ? AND b = ? statement
-func (q *DeleteQuery) ToSQL() (string, []interface{}) {
+func (q *deleteQuery) ToSQL() (string, []interface{}) {
 	var buffer bytes.Buffer
 	buffer.WriteString("DELETE FROM ")
 	buffer.WriteString(q.Table)
