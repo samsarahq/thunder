@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	opentracing "github.com/opentracing/opentracing-go"
 
 	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/diff"
@@ -41,10 +40,11 @@ type conn struct {
 	writeMu sync.Mutex
 	socket  JSONSocket
 
-	schema  *Schema
-	ctx     context.Context
-	makeCtx MakeCtxFunc
-	logger  GraphqlLogger
+	schema      *Schema
+	ctx         context.Context
+	makeCtx     MakeCtxFunc
+	logger      GraphqlLogger
+	middlewares []MiddlewareFunc
 
 	url string
 
@@ -61,9 +61,10 @@ type inEnvelope struct {
 }
 
 type outEnvelope struct {
-	ID      string      `json:"id,omitempty"`
-	Type    string      `json:"type"`
-	Message interface{} `json:"message,omitempty"`
+	ID       string                 `json:"id,omitempty"`
+	Type     string                 `json:"type"`
+	Message  interface{}            `json:"message,omitempty"`
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
 
 type subscribeMessage struct {
@@ -109,14 +110,15 @@ func isCloseError(err error) bool {
 	return ok || err == websocket.ErrCloseSent
 }
 
-func (c *conn) writeOrClose(id string, typ string, message interface{}) {
+func (c *conn) writeOrClose(id string, typ string, message interface{}, metadata map[string]interface{}) {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 
 	if err := c.socket.WriteJSON(outEnvelope{
-		ID:      id,
-		Type:    typ,
-		Message: message,
+		ID:       id,
+		Type:     typ,
+		Message:  message,
+		Metadata: metadata,
 	}); err != nil {
 		if !isCloseError(err) {
 			c.socket.Close()
@@ -132,6 +134,25 @@ func mustMarshalJson(v interface{}) string {
 	}
 	return string(bytes)
 }
+
+type ComputationInput struct {
+	Id          string
+	Query       string
+	ParsedQuery *Query
+	Variables   map[string]interface{}
+	Ctx         context.Context
+	Previous    interface{}
+}
+
+type ComputationOutput struct {
+	Metadata map[string]interface{}
+	Current  interface{}
+	Error    error
+}
+
+type MiddlewareFunc func(input *ComputationInput, output *ComputationOutput, next NextFunc)
+
+type NextFunc func(input *ComputationInput, output *ComputationOutput)
 
 func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 	c.mu.Lock()
@@ -165,14 +186,45 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 		ctx = batch.WithBatching(ctx)
 
 		start := time.Now()
-		span, ctx := opentracing.StartSpanFromContext(ctx, "thunder.subscription")
+
 		c.logger.StartExecution(ctx, tags, initial)
-		current, err := e.Execute(ctx, c.schema.Query, nil, query)
+
+		var current interface{}
+		var err error
+		var _runMiddlewares func(index int, input *ComputationInput, output *ComputationOutput)
+		_runMiddlewares = func(index int, input *ComputationInput, output *ComputationOutput) {
+			if index >= len(c.middlewares) {
+				output.Current, output.Error = e.Execute(input.Ctx, c.schema.Query, nil, query)
+				return
+			}
+			middleware := c.middlewares[index]
+			middleware(input, output, func(input *ComputationInput, output *ComputationOutput) {
+				_runMiddlewares(index+1, input, output)
+			})
+		}
+
+		runMiddlewares := func(input *ComputationInput, output *ComputationOutput) {
+			_runMiddlewares(0, input, output)
+		}
+
+		output := &ComputationOutput{
+			Metadata: make(map[string]interface{}),
+		}
+
+		runMiddlewares(&ComputationInput{
+			Ctx:         ctx,
+			Id:          id,
+			ParsedQuery: query,
+			Previous:    previous,
+			Query:       subscribe.Query,
+			Variables:   subscribe.Variables,
+		}, output)
+		current, err = output.Current, output.Error
+
 		c.logger.FinishExecution(ctx, tags, time.Since(start))
-		span.Finish()
 
 		if err != nil {
-			c.writeOrClose(id, "error", sanitizeError(err))
+			c.writeOrClose(id, "error", sanitizeError(err), output.Metadata)
 			go c.closeSubscription(id)
 
 			if extractPathError(err) == context.Canceled {
@@ -190,7 +242,7 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 		initial = false
 
 		if initial || d != nil {
-			c.writeOrClose(id, "update", d)
+			c.writeOrClose(id, "update", d, output.Metadata)
 		}
 
 		return nil, nil
@@ -230,7 +282,7 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 		c.logger.FinishExecution(ctx, tags, time.Since(start))
 
 		if err != nil {
-			c.writeOrClose(id, "error", sanitizeError(err))
+			c.writeOrClose(id, "error", sanitizeError(err), nil)
 			go c.closeSubscription(id)
 
 			if extractPathError(err) == context.Canceled {
@@ -243,7 +295,7 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 			return nil, err
 		}
 
-		c.writeOrClose(id, "result", diff.Diff(nil, current))
+		c.writeOrClose(id, "result", diff.Diff(nil, current), nil)
 
 		return nil, errors.New("stop")
 	}, MinRerunInterval)
@@ -292,7 +344,7 @@ func (c *conn) handle(e *inEnvelope) error {
 		return c.handleMutate(e.ID, &mutate)
 
 	case "echo":
-		c.writeOrClose(e.ID, "echo", nil)
+		c.writeOrClose(e.ID, "echo", nil, nil)
 		return nil
 
 	case "url":
@@ -344,8 +396,17 @@ func Handler(schema *Schema) http.Handler {
 	})
 }
 
+func (c *conn) Use(fn MiddlewareFunc) {
+	c.middlewares = append(c.middlewares, fn)
+}
+
 func ServeJSONSocket(ctx context.Context, socket JSONSocket, schema *Schema, makeCtx MakeCtxFunc, logger GraphqlLogger) {
-	c := &conn{
+	conn := CreateJSONSocket(ctx, socket, schema, makeCtx, logger)
+	conn.ServeJSONSocket()
+}
+
+func CreateJSONSocket(ctx context.Context, socket JSONSocket, schema *Schema, makeCtx MakeCtxFunc, logger GraphqlLogger) *conn {
+	return &conn{
 		socket: socket,
 		ctx:    ctx,
 
@@ -355,7 +416,9 @@ func ServeJSONSocket(ctx context.Context, socket JSONSocket, schema *Schema, mak
 
 		subscriptions: make(map[string]*reactive.Rerunner),
 	}
+}
 
+func (c *conn) ServeJSONSocket() {
 	defer c.closeSubscriptions()
 
 	for {
@@ -369,7 +432,7 @@ func ServeJSONSocket(ctx context.Context, socket JSONSocket, schema *Schema, mak
 
 		if err := c.handle(&envelope); err != nil {
 			log.Println("c.handle:", err)
-			c.writeOrClose(envelope.ID, "error", sanitizeError(err))
+			c.writeOrClose(envelope.ID, "error", sanitizeError(err), nil)
 		}
 	}
 }
