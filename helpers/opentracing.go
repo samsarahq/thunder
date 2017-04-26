@@ -13,6 +13,10 @@ type MockSpan struct {
 func (m *MockSpan) Finish()                                          {}
 func (m *MockSpan) FinishWithOptions(opts opentracing.FinishOptions) {}
 
+func StartMockSpan() *MockSpan {
+	return &MockSpan{Span: opentracing.StartSpan("mock.operation")}
+}
+
 func MaybeStartSpanFromContext(
 	ctx context.Context,
 	operationName string,
