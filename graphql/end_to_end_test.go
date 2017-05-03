@@ -63,9 +63,9 @@ func TestPathError(t *testing.T) {
 	q := graphql.MustParse(`
 		{
 			inner { inners { expensive { expensives { err } } } }
-        }`, nil).SelectionSet
+        }`, nil)
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q); err != nil {
+	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
 		t.Error(err)
 	}
 
@@ -78,9 +78,9 @@ func TestPathError(t *testing.T) {
 	q = graphql.MustParse(`
 		{
 			safe
-		}`, nil).SelectionSet
+		}`, nil)
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q); err != nil {
+	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
 		t.Error(err)
 	}
 
@@ -144,9 +144,9 @@ func TestEndToEndAwaitAndCache(t *testing.T) {
 				name
 				slow { count }
             }
-        }`, nil).SelectionSet
+        }`, nil)
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q); err != nil {
+	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
 		t.Error(err)
 	}
 

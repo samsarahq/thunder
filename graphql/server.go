@@ -166,7 +166,7 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 		start := time.Now()
 		span, ctx := opentracing.StartSpanFromContext(ctx, "thunder.subscription")
 		c.logger.StartExecution(ctx, tags, initial)
-		current, err := e.Execute(ctx, c.schema.Query, nil, query.SelectionSet)
+		current, err := e.Execute(ctx, c.schema.Query, nil, query)
 		c.logger.FinishExecution(ctx, tags, time.Since(start))
 		span.Finish()
 
@@ -225,7 +225,7 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 
 		start := time.Now()
 		c.logger.StartExecution(ctx, tags, true)
-		current, err := e.Execute(ctx, c.schema.Mutation, c.schema.Mutation, query.SelectionSet)
+		current, err := e.Execute(ctx, c.schema.Mutation, c.schema.Mutation, query)
 		c.logger.FinishExecution(ctx, tags, time.Since(start))
 
 		if err != nil {

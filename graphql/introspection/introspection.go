@@ -331,7 +331,7 @@ func ComputeSchemaJSON(schemaBuilderSchema schemabuilder.Schema) ([]byte, error)
 	}
 
 	executor := graphql.Executor{}
-	value, err := executor.Execute(context.Background(), schema.Query, nil, query.SelectionSet)
+	value, err := executor.Execute(context.Background(), schema.Query, nil, query)
 	if err != nil {
 		return nil, err
 	}
