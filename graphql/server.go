@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	MaxSubscriptions = 200
-	MinRerunInterval = 5 * time.Second
+	MaxSubscriptions       = 200
+	MaxConcurrentRerunners = 64
+	MinRerunInterval       = 5 * time.Second
 )
 
 type JSONSocket interface {
@@ -37,6 +38,24 @@ type GraphqlLogger interface {
 	Error(ctx context.Context, err error, tags map[string]string)
 }
 
+type empty struct{}
+type semaphore chan empty
+
+// acquire n resources
+func (s semaphore) acquire(n int) {
+	e := empty{}
+	for i := 0; i < n; i++ {
+		s <- e
+	}
+}
+
+// release n resources
+func (s semaphore) release(n int) {
+	for i := 0; i < n; i++ {
+		<-s
+	}
+}
+
 type conn struct {
 	writeMu sync.Mutex
 	socket  JSONSocket
@@ -47,7 +66,8 @@ type conn struct {
 
 	url string
 
-	mutateMu sync.Mutex
+	mutateMu   sync.Mutex
+	computeSem semaphore
 
 	mu            sync.Mutex
 	subscriptions map[string]*reactive.Rerunner
@@ -160,6 +180,9 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 	tags := map[string]string{"url": c.url, "queryType": query.Kind, "queryName": query.Name, "query": subscribe.Query, "queryVariables": mustMarshalJson(subscribe.Variables), "id": id}
 
 	c.subscriptions[id] = reactive.NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
+		c.computeSem.acquire(1)
+		defer c.computeSem.release(1)
+
 		ctx = c.makeCtx(ctx)
 		ctx = batch.WithBatching(ctx)
 
@@ -347,9 +370,10 @@ func ServeJSONSocket(socket JSONSocket, schema *Schema, makeCtx MakeCtxFunc, log
 	c := &conn{
 		socket: socket,
 
-		schema:  schema,
-		makeCtx: makeCtx,
-		logger:  logger,
+		schema:     schema,
+		makeCtx:    makeCtx,
+		logger:     logger,
+		computeSem: make(semaphore, MaxConcurrentRerunners),
 
 		subscriptions: make(map[string]*reactive.Rerunner),
 	}
