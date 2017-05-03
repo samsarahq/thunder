@@ -37,9 +37,9 @@ func BenchmarkSimpleExecute(b *testing.B) {
 				age
 			}
 		}
-	`, nil).SelectionSet
+	`, nil)
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q); err != nil {
+	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
 		b.Error(err)
 	}
 

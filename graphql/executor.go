@@ -273,11 +273,14 @@ type Executor struct {
 }
 
 // Execute executes a query by dispatches according to typ
-func (e *Executor) Execute(ctx context.Context, typ Type, source interface{}, selectionSet *SelectionSet) (interface{}, error) {
+func (e *Executor) Execute(ctx context.Context, typ Type, source interface{}, query *Query) (interface{}, error) {
 	e.mu.Lock()
-	value, err := e.execute(ctx, typ, source, selectionSet)
+	value, err := e.execute(ctx, typ, source, query.SelectionSet)
 	e.mu.Unlock()
 	if err != nil {
+		if query.Name != "" {
+			err = nestPathError(query.Name, err)
+		}
 		return nil, err
 	}
 	return await(value)

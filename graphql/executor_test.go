@@ -95,9 +95,9 @@ func TestBasic(t *testing.T) {
 		static
 		a { value nested { value } }
 		as { value }
-	}`, nil).SelectionSet
+	}`, nil)
 
-	if err := PrepareQuery(query, q); err != nil {
+	if err := PrepareQuery(query, q.SelectionSet); err != nil {
 		t.Error(err)
 	}
 	e := Executor{}
@@ -182,18 +182,18 @@ func TestError(t *testing.T) {
 	query := makeQuery()
 
 	q := MustParse(`
-		{
+		query foo {
 			error
 		}
-	`, map[string]interface{}{}).SelectionSet
+	`, map[string]interface{}{})
 
-	if err := PrepareQuery(query, q); err != nil {
+	if err := PrepareQuery(query, q.SelectionSet); err != nil {
 		t.Error(err)
 	}
 
 	e := Executor{}
 	_, err := e.Execute(context.Background(), query, nil, q)
-	if err == nil || !strings.Contains(err.Error(), "test error") {
+	if err == nil || err.Error() != "foo.error: test error" {
 		t.Error("expected test error")
 	}
 }
@@ -207,9 +207,9 @@ func TestPanic(t *testing.T) {
 		{
 			panic
 		}
-	`, nil).SelectionSet
+	`, nil)
 
-	if err := PrepareQuery(query, q); err != nil {
+	if err := PrepareQuery(query, q.SelectionSet); err != nil {
 		t.Error(err)
 	}
 
