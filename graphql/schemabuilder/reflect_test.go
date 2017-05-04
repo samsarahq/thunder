@@ -207,6 +207,7 @@ type kitchenSinkArgs struct {
 	OptionalStructs *[]*inner
 	Base64          []byte
 	Alias           alias
+	OptionalAlias   *alias
 }
 
 type anonymous struct {
@@ -271,9 +272,11 @@ func TestArgParser(t *testing.T) {
 		OptionalStructs: nil,
 		Base64:          []byte("foo"),
 		Alias:           999,
+		OptionalAlias:   nil,
 	})
 
 	var ten = int64(10)
+	var aliasTen = alias(10)
 
 	testArgParseOk(t, parser, internal.ParseJSON(`
 		{
@@ -288,7 +291,8 @@ func TestArgParser(t *testing.T) {
 			"ints": [6, 6, 6],
 			"optionalStructs": [{"foo": 1}, {"foo": 2}],
 			"base64": "MQ==",
-			"alias": 1234
+			"alias": 1234,
+			"optionalAlias": 10
 		}
 	`), kitchenSinkArgs{
 		Child:           inner{Custom: 22.5},
@@ -303,6 +307,7 @@ func TestArgParser(t *testing.T) {
 		OptionalStructs: &[]*inner{{Custom: 1}, {Custom: 2}},
 		Base64:          []byte("1"),
 		Alias:           1234,
+		OptionalAlias:   &aliasTen,
 	})
 
 	testArgParseBad(t, parser, internal.ParseJSON(`
