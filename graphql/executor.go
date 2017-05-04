@@ -277,11 +277,16 @@ func (e *Executor) Execute(ctx context.Context, typ Type, source interface{}, qu
 	e.mu.Lock()
 	value, err := e.execute(ctx, typ, source, query.SelectionSet)
 	e.mu.Unlock()
-	if err != nil {
-		if query.Name != "" {
-			err = nestPathError(query.Name, err)
-		}
-		return nil, err
+
+	// Await the promise if things look good so far.
+	if err == nil {
+		value, err = await(value)
 	}
-	return await(value)
+
+	// Maybe error wrap if we have an error and a name to attach.
+	if err != nil && query.Name != "" {
+		err = nestPathError(query.Name, err)
+	}
+
+	return value, err
 }
