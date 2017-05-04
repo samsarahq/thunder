@@ -194,20 +194,24 @@ type inner struct {
 	Custom float64 `graphql:"foo"`
 }
 
+type structAlias inner
+
 type kitchenSinkArgs struct {
-	Child           inner
-	Hello           int64
-	Hello32         int32
-	Hello16         int16
-	FooBar          string
-	Bool            bool
-	OptionalInt     *int64
-	OptionalStruct  *inner
-	Ints            []int64
-	OptionalStructs *[]*inner
-	Base64          []byte
-	Alias           alias
-	OptionalAlias   *alias
+	Child               inner
+	Hello               int64
+	Hello32             int32
+	Hello16             int16
+	FooBar              string
+	Bool                bool
+	OptionalInt         *int64
+	OptionalStruct      *inner
+	Ints                []int64
+	OptionalStructs     *[]*inner
+	Base64              []byte
+	Alias               alias
+	OptionalAlias       *alias
+	StructAlias         structAlias
+	OptionalStructAlias *structAlias
 }
 
 type anonymous struct {
@@ -257,22 +261,25 @@ func TestArgParser(t *testing.T) {
 			"bool": true,
 			"ints": [1, 2, 3],
 			"base64": "Zm9v",
-			"alias": 999
+			"alias": 999,
+			"structAlias": {"foo": 14}
 		}
 	`), kitchenSinkArgs{
-		Child:           inner{Custom: 12.5},
-		Hello:           20,
-		Hello32:         20,
-		Hello16:         20,
-		FooBar:          "foo!",
-		Bool:            true,
-		OptionalInt:     nil,
-		OptionalStruct:  nil,
-		Ints:            []int64{1, 2, 3},
-		OptionalStructs: nil,
-		Base64:          []byte("foo"),
-		Alias:           999,
-		OptionalAlias:   nil,
+		Child:               inner{Custom: 12.5},
+		Hello:               20,
+		Hello32:             20,
+		Hello16:             20,
+		FooBar:              "foo!",
+		Bool:                true,
+		OptionalInt:         nil,
+		OptionalStruct:      nil,
+		Ints:                []int64{1, 2, 3},
+		OptionalStructs:     nil,
+		Base64:              []byte("foo"),
+		Alias:               999,
+		OptionalAlias:       nil,
+		StructAlias:         structAlias{Custom: 14},
+		OptionalStructAlias: nil,
 	})
 
 	var ten = int64(10)
@@ -292,22 +299,26 @@ func TestArgParser(t *testing.T) {
 			"optionalStructs": [{"foo": 1}, {"foo": 2}],
 			"base64": "MQ==",
 			"alias": 1234,
-			"optionalAlias": 10
+			"optionalAlias": 10,
+			"structAlias": {"foo": 14},
+			"optionalStructAlias": {"foo": 17}
 		}
 	`), kitchenSinkArgs{
-		Child:           inner{Custom: 22.5},
-		Hello:           40,
-		Hello32:         40,
-		Hello16:         40,
-		FooBar:          "bar!",
-		Bool:            false,
-		OptionalInt:     &ten,
-		OptionalStruct:  &inner{Custom: 20},
-		Ints:            []int64{6, 6, 6},
-		OptionalStructs: &[]*inner{{Custom: 1}, {Custom: 2}},
-		Base64:          []byte("1"),
-		Alias:           1234,
-		OptionalAlias:   &aliasTen,
+		Child:               inner{Custom: 22.5},
+		Hello:               40,
+		Hello32:             40,
+		Hello16:             40,
+		FooBar:              "bar!",
+		Bool:                false,
+		OptionalInt:         &ten,
+		OptionalStruct:      &inner{Custom: 20},
+		Ints:                []int64{6, 6, 6},
+		OptionalStructs:     &[]*inner{{Custom: 1}, {Custom: 2}},
+		Base64:              []byte("1"),
+		Alias:               1234,
+		OptionalAlias:       &aliasTen,
+		StructAlias:         structAlias{Custom: 14},
+		OptionalStructAlias: &structAlias{Custom: 17},
 	})
 
 	testArgParseBad(t, parser, internal.ParseJSON(`
