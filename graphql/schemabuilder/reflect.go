@@ -140,6 +140,16 @@ func getScalarArgParser(typ reflect.Type) (*argParser, graphql.Type, bool) {
 			if !ok {
 				panic(typ)
 			}
+
+			if typ != argParser.Type {
+				// The scalar may be a type alias here,
+				// so we annotate the parser to output the
+				// alias instead of the underlying type.
+				newParser := *argParser
+				newParser.Type = typ
+				argParser = &newParser
+			}
+
 			return argParser, &graphql.Scalar{Type: name}, true
 		}
 	}
