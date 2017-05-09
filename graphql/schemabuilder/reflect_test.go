@@ -212,6 +212,8 @@ type kitchenSinkArgs struct {
 	OptionalAlias       *alias
 	StructAlias         structAlias
 	OptionalStructAlias *structAlias
+	Time                time.Time
+	OptionalTime        *time.Time
 }
 
 type anonymous struct {
@@ -262,28 +264,30 @@ func TestArgParser(t *testing.T) {
 			"ints": [1, 2, 3],
 			"base64": "Zm9v",
 			"alias": 999,
-			"structAlias": {"foo": 14}
+			"structAlias": {"foo": 14},
+			"time": "2016-08-31T00:00:00Z"
 		}
 	`), kitchenSinkArgs{
-		Child:               inner{Custom: 12.5},
-		Hello:               20,
-		Hello32:             20,
-		Hello16:             20,
-		FooBar:              "foo!",
-		Bool:                true,
-		OptionalInt:         nil,
-		OptionalStruct:      nil,
-		Ints:                []int64{1, 2, 3},
-		OptionalStructs:     nil,
-		Base64:              []byte("foo"),
-		Alias:               999,
-		OptionalAlias:       nil,
-		StructAlias:         structAlias{Custom: 14},
-		OptionalStructAlias: nil,
+		Child:           inner{Custom: 12.5},
+		Hello:           20,
+		Hello32:         20,
+		Hello16:         20,
+		FooBar:          "foo!",
+		Bool:            true,
+		OptionalInt:     nil,
+		OptionalStruct:  nil,
+		Ints:            []int64{1, 2, 3},
+		OptionalStructs: nil,
+		Base64:          []byte("foo"),
+		Alias:           999,
+		OptionalAlias:   nil,
+		StructAlias:     structAlias{Custom: 14},
+		Time:            time.Unix(1472601600, 0).UTC(),
 	})
 
 	var ten = int64(10)
 	var aliasTen = alias(10)
+	var day = time.Unix(1504137600, 0).UTC()
 
 	testArgParseOk(t, parser, internal.ParseJSON(`
 		{
@@ -301,7 +305,9 @@ func TestArgParser(t *testing.T) {
 			"alias": 1234,
 			"optionalAlias": 10,
 			"structAlias": {"foo": 14},
-			"optionalStructAlias": {"foo": 17}
+			"optionalStructAlias": {"foo": 17},
+			"time": "2016-08-31T00:00:00Z",
+			"optionalTime": "2017-08-31T00:00:00Z"
 		}
 	`), kitchenSinkArgs{
 		Child:               inner{Custom: 22.5},
@@ -319,6 +325,8 @@ func TestArgParser(t *testing.T) {
 		OptionalAlias:       &aliasTen,
 		StructAlias:         structAlias{Custom: 14},
 		OptionalStructAlias: &structAlias{Custom: 17},
+		Time:                time.Unix(1472601600, 0).UTC(),
+		OptionalTime:        &day,
 	})
 
 	testArgParseBad(t, parser, internal.ParseJSON(`
