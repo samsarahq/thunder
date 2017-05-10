@@ -248,7 +248,28 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 
 		start := time.Now()
 		c.logger.StartExecution(ctx, tags, true)
-		current, err := e.Execute(ctx, c.schema.Mutation, c.schema.Mutation, query)
+
+		output := &ComputationOutput{
+			Metadata: make(map[string]interface{}),
+		}
+
+		var middlewares []MiddlewareFunc
+		middlewares = append(middlewares, c.middlewares...)
+		middlewares = append(middlewares, func(input *ComputationInput, output *ComputationOutput, next NextFunc) {
+			output.Current, output.Error = e.Execute(ctx, c.schema.Mutation, c.schema.Mutation, query)
+			next(input, output)
+		})
+
+		runMiddlewares(middlewares, &ComputationInput{
+			Ctx:         ctx,
+			Id:          id,
+			ParsedQuery: query,
+			Previous:    nil,
+			Query:       mutate.Query,
+			Variables:   mutate.Variables,
+		}, output)
+		current, err := output.Current, output.Error
+
 		c.logger.FinishExecution(ctx, tags, time.Since(start))
 
 		if err != nil {
