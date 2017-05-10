@@ -8,10 +8,6 @@ import (
 
 var noopTracer = &opentracing.NoopTracer{}
 
-func StartMockSpan() *MockSpan {
-	return &MockSpan{Span: opentracing.StartSpan("mock.operation")}
-}
-
 func MaybeStartSpanFromContext(
 	ctx context.Context,
 	operationName string,
