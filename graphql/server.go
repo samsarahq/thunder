@@ -135,25 +135,6 @@ func mustMarshalJson(v interface{}) string {
 	return string(bytes)
 }
 
-type ComputationInput struct {
-	Id          string
-	Query       string
-	ParsedQuery *Query
-	Variables   map[string]interface{}
-	Ctx         context.Context
-	Previous    interface{}
-}
-
-type ComputationOutput struct {
-	Metadata map[string]interface{}
-	Current  interface{}
-	Error    error
-}
-
-type MiddlewareFunc func(input *ComputationInput, output *ComputationOutput, next NextFunc)
-
-type NextFunc func(input *ComputationInput, output *ComputationOutput)
-
 func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -189,29 +170,18 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 
 		c.logger.StartExecution(ctx, tags, initial)
 
-		var current interface{}
-		var err error
-		var _runMiddlewares func(index int, input *ComputationInput, output *ComputationOutput)
-		_runMiddlewares = func(index int, input *ComputationInput, output *ComputationOutput) {
-			if index >= len(c.middlewares) {
-				output.Current, output.Error = e.Execute(input.Ctx, c.schema.Query, nil, query)
-				return
-			}
-			middleware := c.middlewares[index]
-			middleware(input, output, func(input *ComputationInput, output *ComputationOutput) {
-				_runMiddlewares(index+1, input, output)
-			})
-		}
-
-		runMiddlewares := func(input *ComputationInput, output *ComputationOutput) {
-			_runMiddlewares(0, input, output)
-		}
-
 		output := &ComputationOutput{
 			Metadata: make(map[string]interface{}),
 		}
 
-		runMiddlewares(&ComputationInput{
+		var middlewares []MiddlewareFunc
+		middlewares = append(middlewares, c.middlewares...)
+		middlewares = append(middlewares, func(input *ComputationInput, output *ComputationOutput, next NextFunc) {
+			output.Current, output.Error = e.Execute(input.Ctx, c.schema.Query, nil, input.ParsedQuery)
+			next(input, output)
+		})
+
+		runMiddlewares(middlewares, &ComputationInput{
 			Ctx:         ctx,
 			Id:          id,
 			ParsedQuery: query,
@@ -219,7 +189,7 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 			Query:       subscribe.Query,
 			Variables:   subscribe.Variables,
 		}, output)
-		current, err = output.Current, output.Error
+		current, err := output.Current, output.Error
 
 		c.logger.FinishExecution(ctx, tags, time.Since(start))
 
