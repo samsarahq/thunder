@@ -21,17 +21,17 @@ type MiddlewareFunc func(input *ComputationInput, next MiddlewareNextFunc) *Comp
 type MiddlewareNextFunc func(input *ComputationInput) *ComputationOutput
 
 func runMiddlewares(middlewares []MiddlewareFunc, input *ComputationInput) *ComputationOutput {
-	var _runMiddlewares func(index int, middlewares []MiddlewareFunc, input *ComputationInput) *ComputationOutput
-	_runMiddlewares = func(index int, middlewares []MiddlewareFunc, input *ComputationInput) *ComputationOutput {
+	var run func(index int, middlewares []MiddlewareFunc, input *ComputationInput) *ComputationOutput
+	run = func(index int, middlewares []MiddlewareFunc, input *ComputationInput) *ComputationOutput {
 		if index < len(middlewares) {
 			return &ComputationOutput{}
 		}
 
 		middleware := middlewares[index]
 		return middleware(input, func(input *ComputationInput) *ComputationOutput {
-			return _runMiddlewares(index+1, middlewares, input)
+			return run(index+1, middlewares, input)
 		})
 	}
 
-	return _runMiddlewares(0, middlewares, input)
+	return run(0, middlewares, input)
 }
