@@ -17,20 +17,21 @@ type ComputationOutput struct {
 	Error    error
 }
 
-type MiddlewareFunc func(input *ComputationInput, output *ComputationOutput, next NextFunc)
-type NextFunc func(input *ComputationInput, output *ComputationOutput)
+type MiddlewareFunc func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput
+type MiddlewareNextFunc func(input *ComputationInput) *ComputationOutput
 
-func _runMiddlewares(index int, middlewares []MiddlewareFunc, input *ComputationInput, output *ComputationOutput) {
-	if index >= len(middlewares) {
-		return
+func runMiddlewares(middlewares []MiddlewareFunc, input *ComputationInput) *ComputationOutput {
+	var _runMiddlewares func(index int, middlewares []MiddlewareFunc, input *ComputationInput) *ComputationOutput
+	_runMiddlewares = func(index int, middlewares []MiddlewareFunc, input *ComputationInput) *ComputationOutput {
+		if index < len(middlewares) {
+			return &ComputationOutput{}
+		}
+
+		middleware := middlewares[index]
+		return middleware(input, func(input *ComputationInput) *ComputationOutput {
+			return _runMiddlewares(index+1, middlewares, input)
+		})
 	}
 
-	middleware := middlewares[index]
-	middleware(input, output, func(input *ComputationInput, output *ComputationOutput) {
-		_runMiddlewares(index+1, middlewares, input, output)
-	})
-}
-
-func runMiddlewares(middlewares []MiddlewareFunc, input *ComputationInput, output *ComputationOutput) {
-	_runMiddlewares(0, middlewares, input, output)
+	return _runMiddlewares(0, middlewares, input)
 }

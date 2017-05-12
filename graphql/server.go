@@ -176,9 +176,10 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 
 		var middlewares []MiddlewareFunc
 		middlewares = append(middlewares, c.middlewares...)
-		middlewares = append(middlewares, func(input *ComputationInput, output *ComputationOutput, next NextFunc) {
+		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
+			output := next(input)
 			output.Current, output.Error = e.Execute(input.Ctx, c.schema.Query, nil, input.ParsedQuery)
-			next(input, output)
+			return output
 		})
 
 		runMiddlewares(middlewares, &ComputationInput{
@@ -188,7 +189,7 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 			Previous:    previous,
 			Query:       subscribe.Query,
 			Variables:   subscribe.Variables,
-		}, output)
+		})
 		current, err := output.Current, output.Error
 
 		c.logger.FinishExecution(ctx, tags, time.Since(start))
@@ -255,9 +256,10 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 
 		var middlewares []MiddlewareFunc
 		middlewares = append(middlewares, c.middlewares...)
-		middlewares = append(middlewares, func(input *ComputationInput, output *ComputationOutput, next NextFunc) {
+		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
+			output := next(input)
 			output.Current, output.Error = e.Execute(ctx, c.schema.Mutation, c.schema.Mutation, query)
-			next(input, output)
+			return output
 		})
 
 		runMiddlewares(middlewares, &ComputationInput{
@@ -267,7 +269,7 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 			Previous:    nil,
 			Query:       mutate.Query,
 			Variables:   mutate.Variables,
-		}, output)
+		})
 		current, err := output.Current, output.Error
 
 		c.logger.FinishExecution(ctx, tags, time.Since(start))
