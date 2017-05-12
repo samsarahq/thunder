@@ -51,6 +51,7 @@ func NewDB(conn *sql.DB, schema *Schema) *DB {
 				return nil, err
 			}
 			clause, args = selectQuery.ToSQL()
+			span.SetTag("query", clause)
 
 			// Then, run the SQL query.
 			res, err := db.Conn.Query(clause, args...)
