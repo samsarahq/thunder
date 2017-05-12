@@ -165,10 +165,6 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 
 		c.logger.StartExecution(ctx, tags, initial)
 
-		output := &ComputationOutput{
-			Metadata: make(map[string]interface{}),
-		}
-
 		var middlewares []MiddlewareFunc
 		middlewares = append(middlewares, c.middlewares...)
 		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
@@ -177,7 +173,7 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 			return output
 		})
 
-		runMiddlewares(middlewares, &ComputationInput{
+		output := runMiddlewares(middlewares, &ComputationInput{
 			Ctx:         ctx,
 			Id:          id,
 			ParsedQuery: query,
@@ -255,10 +251,6 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 		start := time.Now()
 		c.logger.StartExecution(ctx, tags, true)
 
-		output := &ComputationOutput{
-			Metadata: make(map[string]interface{}),
-		}
-
 		var middlewares []MiddlewareFunc
 		middlewares = append(middlewares, c.middlewares...)
 		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
@@ -267,7 +259,7 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 			return output
 		})
 
-		runMiddlewares(middlewares, &ComputationInput{
+		output := runMiddlewares(middlewares, &ComputationInput{
 			Ctx:         ctx,
 			Id:          id,
 			ParsedQuery: query,
