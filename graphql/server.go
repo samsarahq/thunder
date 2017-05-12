@@ -255,7 +255,7 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 		middlewares = append(middlewares, c.middlewares...)
 		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
 			output := next(input)
-			output.Current, output.Error = e.Execute(ctx, c.schema.Mutation, c.schema.Mutation, query)
+			output.Current, output.Error = e.Execute(input.Ctx, c.schema.Mutation, c.schema.Mutation, query)
 			return output
 		})
 
@@ -276,7 +276,7 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 				ID:       id,
 				Type:     "error",
 				Message:  sanitizeError(err),
-				Metadata: nil,
+				Metadata: output.Metadata,
 			})
 
 			go c.closeSubscription(id)
