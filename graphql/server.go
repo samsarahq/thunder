@@ -110,16 +110,11 @@ func isCloseError(err error) bool {
 	return ok || err == websocket.ErrCloseSent
 }
 
-func (c *conn) writeOrClose(id string, typ string, message interface{}, metadata map[string]interface{}) {
+func (c *conn) writeOrClose(out outEnvelope) {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 
-	if err := c.socket.WriteJSON(outEnvelope{
-		ID:       id,
-		Type:     typ,
-		Message:  message,
-		Metadata: metadata,
-	}); err != nil {
+	if err := c.socket.WriteJSON(out); err != nil {
 		if !isCloseError(err) {
 			c.socket.Close()
 			log.Printf("socket.WriteJSON: %s\n", err)
@@ -195,7 +190,12 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 		c.logger.FinishExecution(ctx, tags, time.Since(start))
 
 		if err != nil {
-			c.writeOrClose(id, "error", sanitizeError(err), output.Metadata)
+			c.writeOrClose(outEnvelope{
+				ID:       id,
+				Type:     "error",
+				Message:  sanitizeError(err),
+				Metadata: output.Metadata,
+			})
 			go c.closeSubscription(id)
 
 			if extractPathError(err) == context.Canceled {
@@ -213,7 +213,12 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 		initial = false
 
 		if initial || d != nil {
-			c.writeOrClose(id, "update", d, output.Metadata)
+			c.writeOrClose(outEnvelope{
+				ID:       id,
+				Type:     "update",
+				Message:  d,
+				Metadata: output.Metadata,
+			})
 		}
 
 		return nil, nil
@@ -275,7 +280,13 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 		c.logger.FinishExecution(ctx, tags, time.Since(start))
 
 		if err != nil {
-			c.writeOrClose(id, "error", sanitizeError(err), nil)
+			c.writeOrClose(outEnvelope{
+				ID:       id,
+				Type:     "error",
+				Message:  sanitizeError(err),
+				Metadata: nil,
+			})
+
 			go c.closeSubscription(id)
 
 			if extractPathError(err) == context.Canceled {
@@ -288,7 +299,12 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 			return nil, err
 		}
 
-		c.writeOrClose(id, "result", diff.Diff(nil, current), nil)
+		c.writeOrClose(outEnvelope{
+			ID:       id,
+			Type:     "result",
+			Message:  diff.Diff(nil, current),
+			Metadata: output.Metadata,
+		})
 
 		return nil, errors.New("stop")
 	}, MinRerunInterval)
@@ -337,7 +353,12 @@ func (c *conn) handle(e *inEnvelope) error {
 		return c.handleMutate(e.ID, &mutate)
 
 	case "echo":
-		c.writeOrClose(e.ID, "echo", nil, nil)
+		c.writeOrClose(outEnvelope{
+			ID:       e.ID,
+			Type:     "echo",
+			Message:  nil,
+			Metadata: nil,
+		})
 		return nil
 
 	case "url":
@@ -425,7 +446,12 @@ func (c *conn) ServeJSONSocket() {
 
 		if err := c.handle(&envelope); err != nil {
 			log.Println("c.handle:", err)
-			c.writeOrClose(envelope.ID, "error", sanitizeError(err), nil)
+			c.writeOrClose(outEnvelope{
+				ID:       envelope.ID,
+				Type:     "error",
+				Message:  sanitizeError(err),
+				Metadata: nil,
+			})
 		}
 	}
 }
