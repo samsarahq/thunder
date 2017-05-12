@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	opentracing "github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/log"
 	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/opentracingkit"
 )
@@ -32,10 +30,8 @@ func NewDB(conn *sql.DB, schema *Schema) *DB {
 		Many: func(ctx context.Context, items []interface{}) ([]interface{}, error) {
 			table := items[0].(*BaseSelectQuery).Table
 
-			if span := opentracing.SpanFromContext(ctx); span != nil {
-				span, ctx = opentracingkit.MaybeStartSpanFromContext(ctx, fmt.Sprintf("thunder.sqlgen.BatchQuery(%s)", table.Name))
-				defer span.Finish()
-			}
+			span, ctx := opentracingkit.MaybeStartSpanFromContext(ctx, fmt.Sprintf("thunder.sqlgen.BatchQuery(%s)", table.Name))
+			defer span.Finish()
 
 			// First, build the SQL query.
 			filters := make([]Filter, 0, len(items))
