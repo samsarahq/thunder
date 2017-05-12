@@ -52,6 +52,7 @@ func NewDB(conn *sql.DB, schema *Schema) *DB {
 			}
 			clause, args = selectQuery.ToSQL()
 			span.SetTag("query", clause)
+			span.SetTag("queryVariables", args)
 
 			// Then, run the SQL query.
 			res, err := db.Conn.Query(clause, args...)
@@ -115,8 +116,9 @@ func (db *DB) BaseQuery(ctx context.Context, query *BaseSelectQuery) ([]interfac
 	clause, fields := selectQuery.ToSQL()
 
 	span, ctx := opentracingkit.MaybeStartSpanFromContext(ctx, fmt.Sprintf("thunder.sqlgen.BaseQuery(%s)", selectQuery.Table))
-	span.SetTag("query", clause)
 	defer span.Finish()
+	span.SetTag("query", clause)
+	span.SetTag("queryVariables", args)
 
 	res, err := db.QueryExecer(ctx).Query(clause, fields...)
 	if err != nil {
@@ -185,8 +187,9 @@ func (db *DB) InsertRow(ctx context.Context, row interface{}) (sql.Result, error
 	clause, args := query.ToSQL()
 
 	span, ctx := opentracingkit.MaybeStartSpanFromContext(ctx, "thunder.sqlgen.InsertRow")
-	span.SetTag("query", clause)
 	defer span.Finish()
+	span.SetTag("query", clause)
+	span.SetTag("queryVariables", args)
 
 	return db.QueryExecer(ctx).Exec(clause, args...)
 }
@@ -207,8 +210,9 @@ func (db *DB) UpsertRow(ctx context.Context, row interface{}) (sql.Result, error
 	clause, args := query.ToSQL()
 
 	span, ctx := opentracingkit.MaybeStartSpanFromContext(ctx, "thunder.sqlgen.UpsertRow")
-	span.SetTag("query", clause)
 	defer span.Finish()
+	span.SetTag("query", clause)
+	span.SetTag("queryVariables", args)
 
 	return db.QueryExecer(ctx).Exec(clause, args...)
 }
@@ -229,8 +233,9 @@ func (db *DB) UpdateRow(ctx context.Context, row interface{}) error {
 	clause, args := query.ToSQL()
 
 	span, ctx := opentracingkit.MaybeStartSpanFromContext(ctx, "thunder.sqlgen.UpdateRow")
-	span.SetTag("query", clause)
 	defer span.Finish()
+	span.SetTag("query", clause)
+	span.SetTag("queryVariables", args)
 
 	_, err = db.QueryExecer(ctx).Exec(clause, args...)
 	return err
@@ -252,8 +257,9 @@ func (db *DB) DeleteRow(ctx context.Context, row interface{}) error {
 	clause, args := query.ToSQL()
 
 	span, ctx := opentracingkit.MaybeStartSpanFromContext(ctx, "thunder.sqlgen.DeleteRow")
-	span.SetTag("query", clause)
 	defer span.Finish()
+	span.SetTag("query", clause)
+	span.SetTag("queryVariables", args)
 
 	_, err = db.QueryExecer(ctx).Exec(clause, args...)
 	return err
