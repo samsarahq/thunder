@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/opentracing/opentracing-go/ext"
 	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/opentracingkit"
 )
@@ -113,15 +114,17 @@ func (db *DB) BaseQuery(ctx context.Context, query *BaseSelectQuery) ([]interfac
 		return nil, err
 	}
 
-	clause, fields := selectQuery.ToSQL()
+	clause, args := selectQuery.ToSQL()
 
 	span, ctx := opentracingkit.MaybeStartSpanFromContext(ctx, fmt.Sprintf("thunder.sqlgen.BaseQuery(%s)", selectQuery.Table))
 	defer span.Finish()
 	span.SetTag("query", clause)
 	span.SetTag("queryVariables", args)
 
-	res, err := db.QueryExecer(ctx).Query(clause, fields...)
+	res, err := db.QueryExecer(ctx).Query(clause, args...)
 	if err != nil {
+		ext.Error.Set(span, true)
+		span.SetTag("errorMessage", err.Error())
 		return nil, err
 	}
 	defer res.Close()
@@ -191,7 +194,12 @@ func (db *DB) InsertRow(ctx context.Context, row interface{}) (sql.Result, error
 	span.SetTag("query", clause)
 	span.SetTag("queryVariables", args)
 
-	return db.QueryExecer(ctx).Exec(clause, args...)
+	result, err := db.QueryExecer(ctx).Exec(clause, args...)
+	if err != nil {
+		ext.Error.Set(span, true)
+		span.SetTag("errorMessage", err.Error())
+	}
+	return result, err
 }
 
 // UpsertRow inserts a single row into the database
@@ -214,7 +222,12 @@ func (db *DB) UpsertRow(ctx context.Context, row interface{}) (sql.Result, error
 	span.SetTag("query", clause)
 	span.SetTag("queryVariables", args)
 
-	return db.QueryExecer(ctx).Exec(clause, args...)
+	result, err := db.QueryExecer(ctx).Exec(clause, args...)
+	if err != nil {
+		ext.Error.Set(span, true)
+		span.SetTag("errorMessage", err.Error())
+	}
+	return result, err
 }
 
 // UpdateRow updates a single row in the database, identified by the row's primary key
@@ -238,6 +251,10 @@ func (db *DB) UpdateRow(ctx context.Context, row interface{}) error {
 	span.SetTag("queryVariables", args)
 
 	_, err = db.QueryExecer(ctx).Exec(clause, args...)
+	if err != nil {
+		ext.Error.Set(span, true)
+		span.SetTag("errorMessage", err.Error())
+	}
 	return err
 }
 
@@ -262,6 +279,10 @@ func (db *DB) DeleteRow(ctx context.Context, row interface{}) error {
 	span.SetTag("queryVariables", args)
 
 	_, err = db.QueryExecer(ctx).Exec(clause, args...)
+	if err != nil {
+		ext.Error.Set(span, true)
+		span.SetTag("errorMessage", err.Error())
+	}
 	return err
 }
 
