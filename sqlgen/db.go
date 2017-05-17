@@ -53,6 +53,7 @@ func NewDB(conn *sql.DB, schema *Schema) *DB {
 			}
 			clause, args = selectQuery.ToSQL()
 			span.SetTag("query", clause)
+			span.SetTag("batchItemCount", len(items))
 			span.SetTag("queryVariables", args)
 
 			// Then, run the SQL query.
@@ -65,6 +66,7 @@ func NewDB(conn *sql.DB, schema *Schema) *DB {
 			if err != nil {
 				return nil, err
 			}
+			span.SetTag("batchResultCount", len(rows))
 
 			// Finally, match the returned rows against the queries.
 			matcher := newMatcher()
