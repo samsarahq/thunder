@@ -59,6 +59,8 @@ func NewDB(conn *sql.DB, schema *Schema) *DB {
 			// Then, run the SQL query.
 			res, err := db.Conn.Query(clause, args...)
 			if err != nil {
+				ext.Error.Set(span, true)
+				span.SetTag("errorMessage", err.Error())
 				return nil, err
 			}
 			defer res.Close()
@@ -134,6 +136,29 @@ func (db *DB) BaseQuery(ctx context.Context, query *BaseSelectQuery) ([]interfac
 	return db.Schema.ParseRows(selectQuery, res)
 }
 
+func (db *DB) execWithTrace(ctx context.Context, query SQLQuery, operationName string) (sql.Result, error) {
+	clause, args := query.ToSQL()
+
+	span, ctx := opentracingkit.MaybeStartSpanFromContext(ctx, fmt.Sprintf("thunder.sqlgen.%s", operationName))
+	defer span.Finish()
+
+	span.SetTag("query", clause)
+	span.SetTag("queryVariables", args)
+
+	result, err := db.QueryExecer(ctx).Exec(clause, args...)
+	if err != nil {
+		ext.Error.Set(span, true)
+		span.SetTag("errorMessage", err.Error())
+		return nil, err
+	}
+
+	if rows, err := result.RowsAffected(); err != nil {
+		span.SetTag("rowsAffected", rows)
+	}
+
+	return result, err
+}
+
 // Query fetches a collection of rows from the database
 //
 // result should be a pointer to a slice of pointers to structs, for example:
@@ -189,19 +214,7 @@ func (db *DB) InsertRow(ctx context.Context, row interface{}) (sql.Result, error
 		return nil, err
 	}
 
-	clause, args := query.ToSQL()
-
-	span, ctx := opentracingkit.MaybeStartSpanFromContext(ctx, "thunder.sqlgen.InsertRow")
-	defer span.Finish()
-	span.SetTag("query", clause)
-	span.SetTag("queryVariables", args)
-
-	result, err := db.QueryExecer(ctx).Exec(clause, args...)
-	if err != nil {
-		ext.Error.Set(span, true)
-		span.SetTag("errorMessage", err.Error())
-	}
-	return result, err
+	return db.execWithTrace(ctx, query, "InsertRow")
 }
 
 // UpsertRow inserts a single row into the database
@@ -217,19 +230,7 @@ func (db *DB) UpsertRow(ctx context.Context, row interface{}) (sql.Result, error
 		return nil, err
 	}
 
-	clause, args := query.ToSQL()
-
-	span, ctx := opentracingkit.MaybeStartSpanFromContext(ctx, "thunder.sqlgen.UpsertRow")
-	defer span.Finish()
-	span.SetTag("query", clause)
-	span.SetTag("queryVariables", args)
-
-	result, err := db.QueryExecer(ctx).Exec(clause, args...)
-	if err != nil {
-		ext.Error.Set(span, true)
-		span.SetTag("errorMessage", err.Error())
-	}
-	return result, err
+	return db.execWithTrace(ctx, query, "UpsertRow")
 }
 
 // UpdateRow updates a single row in the database, identified by the row's primary key
@@ -245,18 +246,7 @@ func (db *DB) UpdateRow(ctx context.Context, row interface{}) error {
 		return err
 	}
 
-	clause, args := query.ToSQL()
-
-	span, ctx := opentracingkit.MaybeStartSpanFromContext(ctx, "thunder.sqlgen.UpdateRow")
-	defer span.Finish()
-	span.SetTag("query", clause)
-	span.SetTag("queryVariables", args)
-
-	_, err = db.QueryExecer(ctx).Exec(clause, args...)
-	if err != nil {
-		ext.Error.Set(span, true)
-		span.SetTag("errorMessage", err.Error())
-	}
+	_, err = db.execWithTrace(ctx, query, "UpsertRow")
 	return err
 }
 
@@ -273,18 +263,7 @@ func (db *DB) DeleteRow(ctx context.Context, row interface{}) error {
 		return err
 	}
 
-	clause, args := query.ToSQL()
-
-	span, ctx := opentracingkit.MaybeStartSpanFromContext(ctx, "thunder.sqlgen.DeleteRow")
-	defer span.Finish()
-	span.SetTag("query", clause)
-	span.SetTag("queryVariables", args)
-
-	_, err = db.QueryExecer(ctx).Exec(clause, args...)
-	if err != nil {
-		ext.Error.Set(span, true)
-		span.SetTag("errorMessage", err.Error())
-	}
+	_, err = db.execWithTrace(ctx, query, "DeleteRow")
 	return err
 }
 
