@@ -28,6 +28,10 @@ func (w *SimpleWhere) ToSQL() (string, []interface{}) {
 	return buffer.String(), w.Values
 }
 
+type SQLQuery interface {
+	ToSQL() (string, []interface{})
+}
+
 // SelectQuery represents a SELECT query
 type SelectQuery struct {
 	Table   string
