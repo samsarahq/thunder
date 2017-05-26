@@ -23,8 +23,11 @@ import (
 	"time"
 )
 
+// DefaultWaitInterval is the default WaitInterval for Func.
+const DefaultWaitInterval = 200 * time.Microsecond
+
 // DefaultMaxDuration is the default MaxDuration for Func.
-var DefaultMaxDuration = 200 * time.Microsecond
+const DefaultMaxDuration = 20 * time.Millisecond
 
 // A Func transforms a function that takes a batch of inputs (Func.Many) into a
 // function that takes single inputs (Func.Invoke). Multiple concurrenct
@@ -42,6 +45,10 @@ type Func struct {
 	// invocations, Many will be invoked even if some goroutines are stil running.
 	// Zero, the default, means no limit.
 	MaxSize int
+	// WaitInterval is the duration of a timer that is reset every time the
+	// batch function is invoked. Many will be invoked when either the
+	// WaitInterval or MaxDuration expires.
+	WaitInterval time.Duration
 	// MaxDuration limits the duration of a batch. After waiting for
 	// MaxDuration, Many will be invoked even if some goroutines are still
 	// running. Defaults to DefaultMaxDuration.
@@ -54,6 +61,8 @@ type batchGroup struct {
 	args []interface{}
 	// maxSizeCh is a 0-sized channel that is closed when len(args) hits Func.MaxSize.
 	maxSizeCh chan struct{}
+	// intervalTimer is a timer that is reset whenever the batch fn is invoked.
+	intervalTimer *time.Timer
 	// doneCh is a 0-sized channel that is closed once result and err are set.
 	doneCh chan struct{}
 	// result is an array of len(args) values with the result of the Func.
@@ -131,6 +140,11 @@ func (f *Func) Invoke(ctx context.Context, arg interface{}) (interface{}, error)
 		shard: shard,
 	}
 
+	waitInterval := DefaultWaitInterval
+	if f.WaitInterval > 0 {
+		waitInterval = f.WaitInterval
+	}
+
 	bctx.mu.Lock()
 	// Look up the batchGroup for the Func shard, if any.
 	bg, existed := bctx.pendingBatchGroups[fs]
@@ -144,6 +158,9 @@ func (f *Func) Invoke(ctx context.Context, arg interface{}) (interface{}, error)
 			bg.maxSizeCh = make(chan struct{}, 0)
 		}
 
+		bg.intervalTimer = time.NewTimer(waitInterval)
+		defer bg.intervalTimer.Stop()
+
 		// Setup a MaxDuration timer.
 		maxDuration := DefaultMaxDuration
 		if f.MaxDuration > 0 {
@@ -154,6 +171,15 @@ func (f *Func) Invoke(ctx context.Context, arg interface{}) (interface{}, error)
 
 		// Publish the batchGroup.
 		bctx.pendingBatchGroups[fs] = bg
+	} else {
+		// This is a subsequent invocation of the batch function, so
+		// reset the intervalTimer.
+		if bg.intervalTimer.Stop() {
+			// Only reset the timer if Stop successfully
+			// stopped the timer. Otherwise, the receive channel
+			// will be populated and we'll select on it below.
+			bg.intervalTimer.Reset(waitInterval)
+		}
 	}
 
 	// Add arg to the list of arguments to the batchGroup, and remember where to
@@ -173,6 +199,7 @@ func (f *Func) Invoke(ctx context.Context, arg interface{}) (interface{}, error)
 	if !existed {
 		// Wait for a trigger to run the batchGroup.
 		select {
+		case <-bg.intervalTimer.C: // Resolve if the interval timer expires.
 		case <-ctx.Done(): // Resolve if the context is canceled.
 		case <-timer.C: // Resolve after a timeout to bound latency.
 		case <-bg.maxSizeCh: // Resolve if we hit max batch size.
