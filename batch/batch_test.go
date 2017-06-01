@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/samsarahq/thunder/batch"
 )
@@ -40,6 +41,76 @@ func TestBasic(t *testing.T) {
 	// Expect 1, allow for 2 in case of races.
 	if calls > 2 {
 		t.Error(calls)
+	}
+}
+
+// TestWaitInterval tests that the function invocation is delayed while we
+// consistently invoke the batch function.
+func TestWaitInterval(t *testing.T) {
+	const loopCount = 20
+
+	testcases := []struct {
+		description   string
+		interval      time.Duration
+		maxDuration   time.Duration
+		sleepDuration time.Duration
+		allowedCounts map[int]bool
+	}{
+		{
+			description:   "Expect sleep less than WaitDuration to result in a single call being made.",
+			interval:      500 * time.Microsecond,
+			sleepDuration: 100 * time.Microsecond,
+			maxDuration:   10 * time.Millisecond,
+			allowedCounts: map[int]bool{1: true},
+		},
+		{
+			description:   "Expect sleep greater than WaitDuration to result in loopCount calls being made.",
+			interval:      500 * time.Microsecond,
+			sleepDuration: 700 * time.Microsecond,
+			maxDuration:   10 * time.Millisecond,
+			allowedCounts: map[int]bool{loopCount: true, loopCount - 1: true}, // Expect loopCount, allow loopCount-1 for race conditions.
+		},
+		{
+			description:   "Expect sleep less than than WaitDuration but aggregate over MaxDuration to result in 2 calls being made.",
+			interval:      500 * time.Microsecond,
+			sleepDuration: 60 * time.Microsecond,
+			maxDuration:   1 * time.Millisecond,
+			allowedCounts: map[int]bool{2: true, 3: true}, // Expect 2, allow 3 for race conditions.
+		},
+	}
+
+	for i, testcase := range testcases {
+		var mu sync.Mutex
+		count := 0
+		f := (&batch.Func{
+			WaitInterval: testcase.interval,
+			MaxDuration:  testcase.maxDuration,
+			Many: func(ctx context.Context, args []interface{}) ([]interface{}, error) {
+				mu.Lock()
+				defer mu.Unlock()
+				count++
+				return args, nil
+			},
+		}).Invoke
+
+		ctx := batch.WithBatching(context.Background())
+
+		var wg sync.WaitGroup
+		for i := 0; i < loopCount; i++ {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				if result, err := f(ctx, i); err != nil || result != i {
+					t.Error(err, i)
+				}
+			}(i)
+			time.Sleep(testcase.sleepDuration)
+		}
+		wg.Wait()
+
+		if !testcase.allowedCounts[count] {
+			t.Errorf("Test %d: %s: Allowable=%v, Actual=%v", i, testcase.description, testcase.allowedCounts, count)
+		}
 	}
 }
 
