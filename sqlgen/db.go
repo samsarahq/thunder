@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/opentracing/opentracing-go/ext"
 	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/opentracingkit"
 )
@@ -59,8 +58,7 @@ func NewDB(conn *sql.DB, schema *Schema) *DB {
 			// Then, run the SQL query.
 			res, err := db.Conn.Query(clause, args...)
 			if err != nil {
-				ext.Error.Set(span, true)
-				span.SetTag("errorMessage", err.Error())
+				opentracingkit.LogError(span, err)
 				return nil, err
 			}
 			defer res.Close()
@@ -127,8 +125,7 @@ func (db *DB) BaseQuery(ctx context.Context, query *BaseSelectQuery) ([]interfac
 
 	res, err := db.QueryExecer(ctx).Query(clause, args...)
 	if err != nil {
-		ext.Error.Set(span, true)
-		span.SetTag("errorMessage", err.Error())
+		opentracingkit.LogError(span, err)
 		return nil, err
 	}
 	defer res.Close()
@@ -147,8 +144,7 @@ func (db *DB) execWithTrace(ctx context.Context, query SQLQuery, operationName s
 
 	result, err := db.QueryExecer(ctx).Exec(clause, args...)
 	if err != nil {
-		ext.Error.Set(span, true)
-		span.SetTag("errorMessage", err.Error())
+		opentracingkit.LogError(span, err)
 		return nil, err
 	}
 

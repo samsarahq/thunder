@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/ext"
+	"github.com/opentracing/opentracing-go/log"
 )
 
 var noopTracer = &opentracing.NoopTracer{}
@@ -26,4 +28,9 @@ func MaybeStartSpanFromContext(
 		span := noopTracer.StartSpan(operationName)
 		return span, ctx
 	}
+}
+
+func LogError(span opentracing.Span, err error) {
+	ext.Error.Set(span, true)
+	span.LogFields(log.Error(err))
 }
