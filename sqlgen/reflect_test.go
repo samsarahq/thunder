@@ -38,6 +38,11 @@ type noprimary struct {
 	A int64
 }
 
+type multipleautoincrementprimary struct {
+	A int64 `sql:",primary`
+	B int64 `sql:",primary`
+}
+
 type anonymous struct {
 	simple
 }
@@ -60,6 +65,10 @@ func TestRegisterType(t *testing.T) {
 
 	if err := s.RegisterType("a", AutoIncrement, noprimary{}); err == nil {
 		t.Error("expected no primary to fail")
+	}
+
+	if err := s.RegisterType("b", AutoIncrement, multipleautoincrementprimary{}); err == nil {
+		t.Error("expected multiple autoincrement primary to fail")
 	}
 
 	if err := s.RegisterType("b", AutoIncrement, 1); err == nil {
