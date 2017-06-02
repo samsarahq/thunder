@@ -268,15 +268,18 @@ func (s *Schema) buildDescriptor(table string, primaryKeyType PrimaryKeyType, ty
 		columnsByName[column] = descriptor
 	}
 
-	hasPrimary := false
+	primaryCount := 0
 	for _, column := range columns {
 		if column.Primary {
-			hasPrimary = true
-			break
+			primaryCount++
 		}
 	}
-	if !hasPrimary {
+	if primaryCount == 0 {
 		return nil, fmt.Errorf("bad type %s: no primary key specified", typ)
+	}
+
+	if primaryCount > 1 && primaryKeyType == AutoIncrement {
+		return nil, fmt.Errorf("bad type %s: autoincrement primary key specified, but multiple fields are marked primary", typ)
 	}
 
 	scannables := &sync.Pool{
