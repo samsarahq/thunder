@@ -143,7 +143,9 @@ func CopySlice(result interface{}, rows []interface{}) error {
 	slice := ptr.Elem()
 	slice.Set(reflect.MakeSlice(slice.Type(), len(rows), len(rows)))
 	for i, row := range rows {
-		slice.Index(i).Set(reflect.ValueOf(row))
+		if row != nil {
+			slice.Index(i).Set(reflect.ValueOf(row))
+		}
 	}
 
 	return nil

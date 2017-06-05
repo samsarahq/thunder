@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/kylelemons/godebug/pretty"
 )
 
 func testMakeSnake(t *testing.T, s, expected string) {
@@ -21,6 +22,26 @@ func TestMakeSnake(t *testing.T) {
 	testMakeSnake(t, "FooBar", "foo_bar")
 	testMakeSnake(t, "OrganizationId", "organization_id")
 	testMakeSnake(t, "ABC", "a_b_c")
+}
+
+func TestCopySlice(t *testing.T) {
+	one := int64(1)
+	two := int64(2)
+	three := int64(3)
+
+	var result []*int64
+	src := []interface{}{
+		nil, &one, nil, &two, nil, &three, nil,
+	}
+	if err := CopySlice(&result, src); err != nil {
+		t.Error(err)
+	}
+	expected := []*int64{
+		nil, &one, nil, &two, nil, &three, nil,
+	}
+	if diff := pretty.Compare(expected, result); diff != "" {
+		t.Errorf("Unexpected result from CopySlice: %s", diff)
+	}
 }
 
 type alias int64
