@@ -48,34 +48,35 @@ func TestBasic(t *testing.T) {
 // consistently invoke the batch function.
 func TestWaitInterval(t *testing.T) {
 	const loopCount = 20
+	const sleepDuration = 10 * time.Millisecond
 
 	testcases := []struct {
 		description   string
 		interval      time.Duration
 		maxDuration   time.Duration
 		sleepDuration time.Duration
-		allowedCounts map[int]bool
+		expectedCount int
 	}{
 		{
 			description:   "Expect sleep less than WaitDuration to result in a single call being made.",
-			interval:      500 * time.Microsecond,
-			sleepDuration: 100 * time.Microsecond,
-			maxDuration:   10 * time.Millisecond,
-			allowedCounts: map[int]bool{1: true},
+			interval:      2 * sleepDuration,
+			sleepDuration: sleepDuration,
+			maxDuration:   500 * sleepDuration,
+			expectedCount: 1,
 		},
 		{
 			description:   "Expect sleep greater than WaitDuration to result in loopCount calls being made.",
-			interval:      500 * time.Microsecond,
-			sleepDuration: 700 * time.Microsecond,
-			maxDuration:   10 * time.Millisecond,
-			allowedCounts: map[int]bool{loopCount: true, loopCount - 1: true}, // Expect loopCount, allow loopCount-1 for race conditions.
+			interval:      sleepDuration / 2,
+			sleepDuration: sleepDuration,
+			maxDuration:   500 * sleepDuration,
+			expectedCount: loopCount,
 		},
 		{
 			description:   "Expect sleep less than than WaitDuration but aggregate over MaxDuration to result in 2 calls being made.",
-			interval:      500 * time.Microsecond,
-			sleepDuration: 60 * time.Microsecond,
-			maxDuration:   1 * time.Millisecond,
-			allowedCounts: map[int]bool{2: true, 3: true}, // Expect 2, allow 3 for race conditions.
+			interval:      2 * sleepDuration,
+			sleepDuration: sleepDuration,
+			maxDuration:   (loopCount - 1) * sleepDuration,
+			expectedCount: 2,
 		},
 	}
 
@@ -108,8 +109,8 @@ func TestWaitInterval(t *testing.T) {
 		}
 		wg.Wait()
 
-		if !testcase.allowedCounts[count] {
-			t.Errorf("Test %d: %s: Allowable=%v, Actual=%v", i, testcase.description, testcase.allowedCounts, count)
+		if count != testcase.expectedCount {
+			t.Errorf("Test %d: %s: Expected=%v, Actual=%v", i, testcase.description, testcase.expectedCount, count)
 		}
 	}
 }
