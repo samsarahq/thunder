@@ -24,7 +24,7 @@ import (
 )
 
 // DefaultWaitInterval is the default WaitInterval for Func.
-const DefaultWaitInterval = 200 * time.Microsecond
+const DefaultWaitInterval = 1 * time.Millisecond
 
 // DefaultMaxDuration is the default MaxDuration for Func.
 const DefaultMaxDuration = 20 * time.Millisecond
