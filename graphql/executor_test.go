@@ -3,6 +3,7 @@ package graphql
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -193,7 +194,7 @@ func TestError(t *testing.T) {
 
 	e := Executor{}
 	_, err := e.Execute(context.Background(), query, nil, q)
-	if err == nil || err.Error() != "foo.error: test error" {
+	if err == nil || err.Error() != "foo: error: test error" {
 		t.Error("expected test error")
 	}
 }
@@ -219,7 +220,7 @@ func TestPanic(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "test panic") {
 		t.Error("expected test panic")
 	}
-	if !strings.Contains(err.Error(), "executor_test.go") {
+	if !strings.Contains(fmt.Sprintf("%+v", err), "executor_test.go") {
 		t.Error("expected stacktrace")
 	}
 }

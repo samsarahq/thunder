@@ -3,7 +3,6 @@ package graphql
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/pkg/errors"
 
 	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/diff"
@@ -194,7 +194,7 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 			})
 			go c.closeSubscription(id)
 
-			if extractPathError(err) == context.Canceled {
+			if errors.Cause(err) == context.Canceled {
 				return nil, err
 			}
 
@@ -281,7 +281,7 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 
 			go c.closeSubscription(id)
 
-			if extractPathError(err) == context.Canceled {
+			if errors.Cause(err) == context.Canceled {
 				return nil, err
 			}
 
