@@ -227,8 +227,15 @@ func NewRerunner(ctx context.Context, f ComputeFunc, minRerunInterval time.Durat
 
 // run performs an actual computation
 func (r *Rerunner) run() {
+	// Wait for the minimum rerun interval. Exit early if the computation is stopped.
 	delta := r.minRerunInterval - time.Now().Sub(r.lastRun)
-	time.Sleep(delta)
+	t := time.NewTimer(delta)
+	select {
+	case <-r.ctx.Done():
+		t.Stop()
+		return
+	case <-t.C:
+	}
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
