@@ -19,6 +19,8 @@ func Merge(prev interface{}, diff interface{}) interface{} {
 	}
 
 	switch prev := prev.(type) {
+	case nil:
+		return diff
 	case map[string]interface{}:
 		return mergeMap(prev, d)
 	case []interface{}:
