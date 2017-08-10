@@ -45,6 +45,12 @@ func TestMerge(t *testing.T) {
 			Diff:        `{"name": "alice", "address": {"city": "oakland"}, "age": [], "friends": [["bob", "charlie"]]}`,
 			ExpectedNew: `{"name": "alice", "address": {"state": "ca", "city": "oakland"}, "friends": ["bob", "charlie"]}`,
 		},
+		{
+			Case:        "Nil previous",
+			Prev:        `null`,
+			Diff:        `{"name": "bob", "address": {"state": "ca", "city": "sf"}, "age": 30}`,
+			ExpectedNew: `{"name": "bob", "address": {"state": "ca", "city": "sf"}, "age": 30}`,
+		},
 	}
 
 	for _, c := range cases {
