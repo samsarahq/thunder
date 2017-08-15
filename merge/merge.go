@@ -73,7 +73,9 @@ func mergeArray(prev []interface{}, diff map[string]interface{}) ([]interface{},
 		}
 		new = make([]interface{}, len(reorderedIndices))
 		for i, index := range reorderedIndices {
-			new[i] = prev[index]
+			if index != -1 {
+				new[i] = prev[index]
+			}
 		}
 	} else {
 		new = make([]interface{}, len(prev))
@@ -88,18 +90,13 @@ func mergeArray(prev []interface{}, diff map[string]interface{}) ([]interface{},
 			continue
 		}
 
-		d, ok := diff[k].(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("mergeArray: diff is not a map. key: %s, diff: %v", k, diff[k])
-		}
-
 		index, err := strconv.Atoi(k)
 		if err != nil {
 			return nil, fmt.Errorf("mergeArray: key cannot be converted to an integer. key: %s", k)
 		}
 
 		v := new[index]
-		newV, err := Merge(v, d)
+		newV, err := Merge(v, diff[k])
 		if err != nil {
 			return nil, err
 		}

@@ -40,6 +40,12 @@ func TestMerge(t *testing.T) {
 			ExpectedNew: `[{"name": "alice"}, {"name": "bob", "age": 23}]`,
 		},
 		{
+			Case:        "Array with a run of reordering",
+			Prev:        `[{"name": "alice"}, {"name": "bob"}, {"name": "carol"}, {"name": "dean"}]`,
+			Diff:        `{"$": [[1, 3], -1], "3": [{"name": "eli"}]}`,
+			ExpectedNew: `[{"name": "bob"}, {"name": "carol"}, {"name": "dean"}, {"name": "eli"}]`,
+		},
+		{
 			Case:        "Map",
 			Prev:        `{"name": "bob", "address": {"state": "ca", "city": "sf"}, "age": 30}`,
 			Diff:        `{"name": "alice", "address": {"city": "oakland"}, "age": [], "friends": [["bob", "charlie"]]}`,
