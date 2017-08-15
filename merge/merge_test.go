@@ -48,7 +48,10 @@ func TestMerge(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		new := merge.Merge(internal.ParseJSON(c.Prev), internal.ParseJSON(c.Diff))
+		new, err := merge.Merge(internal.ParseJSON(c.Prev), internal.ParseJSON(c.Diff))
+		if err != nil {
+			t.Fatalf("%s failed. Merge error: %s", c.Case, err)
+		}
 		if !reflect.DeepEqual(new, internal.ParseJSON(c.ExpectedNew)) {
 			t.Errorf("%s failed. expected: %v, got: %v", c.Case, c.ExpectedNew, new)
 		}
