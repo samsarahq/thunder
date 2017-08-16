@@ -1,20 +1,15 @@
 package graphql
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"reflect"
-	"runtime"
 	"sync"
+
+	"github.com/pkg/errors"
 
 	"github.com/samsarahq/thunder/reactive"
 )
-
-type pathError struct {
-	inner error
-	path  []string
-}
 
 func nestPathError(key string, err error) error {
 	// Don't nest SanitzedError's, as they are intended for human consumption.
@@ -22,37 +17,7 @@ func nestPathError(key string, err error) error {
 		return se
 	}
 
-	if pe, ok := err.(*pathError); ok {
-		return &pathError{
-			inner: pe.inner,
-			path:  append(pe.path, key),
-		}
-	}
-
-	return &pathError{
-		inner: err,
-		path:  []string{key},
-	}
-}
-
-func extractPathError(err error) error {
-	if pe, ok := err.(*pathError); ok {
-		return pe.inner
-	}
-	return err
-}
-
-func (pe *pathError) Error() string {
-	var buffer bytes.Buffer
-	for i := len(pe.path) - 1; i >= 0; i-- {
-		if i < len(pe.path)-1 {
-			buffer.WriteString(".")
-		}
-		buffer.WriteString(pe.path[i])
-	}
-	buffer.WriteString(": ")
-	buffer.WriteString(pe.inner.Error())
-	return buffer.String()
+	return errors.Wrap(err, key)
 }
 
 func isNilArgs(args interface{}) bool {
@@ -129,10 +94,7 @@ func (p panicError) Error() string {
 func safeResolve(ctx context.Context, field *Field, source, args interface{}, selectionSet *SelectionSet) (result interface{}, err error) {
 	defer func() {
 		if panicErr := recover(); panicErr != nil {
-			const size = 64 << 10
-			buf := make([]byte, size)
-			buf = buf[:runtime.Stack(buf, false)]
-			result, err = nil, fmt.Errorf("graphql: panic: %v\n%s", panicErr, buf)
+			result, err = nil, errors.Errorf("graphql: panic: %v", panicErr)
 		}
 	}()
 	return field.Resolve(ctx, source, args, selectionSet)

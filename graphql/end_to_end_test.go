@@ -71,7 +71,7 @@ func TestPathError(t *testing.T) {
 
 	e := graphql.Executor{}
 	_, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
-	if err == nil || err.Error() != "inner.inners.0.expensive.expensives.0.err: no good, bad" {
+	if err == nil || err.Error() != "inner: inners: 0: expensive: expensives: 0: err: no good, bad" {
 		t.Errorf("bad error: %v", err)
 	}
 
