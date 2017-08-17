@@ -673,10 +673,6 @@ func getScalar(typ reflect.Type) (string, bool) {
 }
 
 func (sb *schemaBuilder) getType(t reflect.Type) (graphql.Type, error) {
-	if sb.types[t] != nil {
-		return sb.types[t], nil
-	}
-
 	// Support scalars and optional scalars. Scalars have precedence over structs
 	// to have eg. time.Time function as a scalar.
 	if typ, ok := getScalar(t); ok {
