@@ -27,6 +27,13 @@ func makeSchema() *schemabuilder.Schema {
 		return nil
 	})
 
+	// Add a non-null field after "noone" to test that caching
+	// mechanism in schemabuilder chooses the correct type
+	// for the return value.
+	query.FieldFunc("viewer", func() (User, error) {
+		return User{Name: "me"}, nil
+	})
+
 	user := schema.Object("User", User{})
 	user.FieldFunc("friends", func(u *User) []*User {
 		return nil
