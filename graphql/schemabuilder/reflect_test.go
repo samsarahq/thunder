@@ -51,6 +51,9 @@ func TestExecuteGood(t *testing.T) {
 	query.FieldFunc("nilObject", func() *User {
 		return nil
 	})
+	query.FieldFunc("requiredObject", func() *User {
+		return &User{}
+	}, NonNullable)
 	query.FieldFunc("nilSlice", func() []*User {
 		return nil
 	})
