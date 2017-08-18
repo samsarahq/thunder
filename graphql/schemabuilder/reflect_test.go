@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -177,6 +178,36 @@ func TestExecuteGood(t *testing.T) {
 		"weirdKey": {"key": -1, "__key": -1}
 		}`)) {
 		t.Error("bad value")
+	}
+}
+
+func TestExecuteErrorNullReturn(t *testing.T) {
+	schema := NewSchema()
+	query := schema.Query()
+	query.FieldFunc("required", func() *int64 {
+		return nil
+	}, NonNullable)
+
+	builtSchema := schema.MustBuild()
+
+	q := graphql.MustParse(`
+		{
+			required
+		}
+	`, map[string]interface{}{"var": float64(3)})
+
+	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
+		t.Error(err)
+	}
+
+	e := graphql.Executor{}
+	_, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
+	if err == nil {
+		t.Error("expected error, but received nil")
+	}
+
+	if !strings.Contains(err.Error(), "is marked non-nullable but returned a null value") {
+		t.Errorf("expected error for null return, but received %s", err.Error())
 	}
 }
 
