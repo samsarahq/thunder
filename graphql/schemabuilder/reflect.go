@@ -369,7 +369,8 @@ func init() {
 	selectionSetType = reflect.TypeOf(selectionSet)
 }
 
-func (sb *schemaBuilder) buildFunction(typ reflect.Type, fun reflect.Value) (*graphql.Field, error) {
+func (sb *schemaBuilder) buildFunction(typ reflect.Type, m *method) (*graphql.Field, error) {
+	fun := reflect.ValueOf(m.Fn)
 	ptr := reflect.PtrTo(typ)
 
 	if fun.Kind() != reflect.Func {
@@ -441,12 +442,22 @@ func (sb *schemaBuilder) buildFunction(typ reflect.Type, fun reflect.Value) (*gr
 		return nil, fmt.Errorf("%s return values should [result][, error]", funcType)
 	}
 
+	if !hasRet && m.MarkedNonNullable {
+		return nil, fmt.Errorf("%s is marked non-nullable, but has no return value", funcType)
+	}
+
 	var retType graphql.Type
 	if hasRet {
 		var err error
 		retType, err = sb.getType(funcType.Out(0))
 		if err != nil {
 			return nil, err
+		}
+
+		if m.MarkedNonNullable {
+			if _, ok := retType.(*graphql.NonNull); !ok {
+				retType = &graphql.NonNull{Type: retType}
+			}
 		}
 	} else {
 		var err error
@@ -630,7 +641,7 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 	for _, name := range names {
 		method := methods[name]
 
-		built, err := sb.buildFunction(typ, reflect.ValueOf(method))
+		built, err := sb.buildFunction(typ, method)
 		if err != nil {
 			return fmt.Errorf("bad method %s on type %s: %s", name, typ, err)
 		}
