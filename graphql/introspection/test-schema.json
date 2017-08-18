@@ -62,6 +62,22 @@
             "isDeprecated": false,
             "name": "noone",
             "type": {
+              "kind": "NON_NULL",
+              "name": "",
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "User",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "args": [],
+            "deprecationReason": "",
+            "description": "",
+            "isDeprecated": false,
+            "name": "nullableUser",
+            "type": {
               "kind": "OBJECT",
               "name": "User",
               "ofType": null

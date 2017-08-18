@@ -24,7 +24,10 @@ func makeSchema() *schemabuilder.Schema {
 		return User{Name: "me"}
 	})
 	query.FieldFunc("noone", func() *User {
-		return nil
+		return &User{Name: "me"}
+	}, schemabuilder.NonNullable)
+	query.FieldFunc("nullableUser", func() (*User, error) {
+		return nil, nil
 	})
 
 	// Add a non-null field after "noone" to test that caching
