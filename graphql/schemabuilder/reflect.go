@@ -518,11 +518,6 @@ func (sb *schemaBuilder) buildFunction(typ reflect.Type, m *method) (*graphql.Fi
 			var result interface{}
 			if hasRet {
 				result = out[0].Interface()
-				if _, ok := retType.(*graphql.NonNull); ok {
-					if out[0].Kind() == reflect.Ptr && out[0].IsNil() {
-						return nil, fmt.Errorf("%s is marked non-nullable but returned a null value", funcType)
-					}
-				}
 				out = out[1:]
 			} else {
 				result = true
@@ -530,6 +525,13 @@ func (sb *schemaBuilder) buildFunction(typ reflect.Type, m *method) (*graphql.Fi
 			if hasError {
 				if err := out[0]; !err.IsNil() {
 					return nil, err.Interface().(error)
+				}
+			}
+
+			if _, ok := retType.(*graphql.NonNull); ok {
+				resultValue := reflect.ValueOf(result)
+				if resultValue.Kind() == reflect.Ptr && resultValue.IsNil() {
+					return nil, fmt.Errorf("%s is marked non-nullable but returned a null value", funcType)
 				}
 			}
 
