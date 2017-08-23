@@ -211,6 +211,36 @@ func TestExecuteErrorNullReturn(t *testing.T) {
 	}
 }
 
+func TestExecuteErrorBasic(t *testing.T) {
+	schema := NewSchema()
+	query := schema.Query()
+	query.FieldFunc("field", func() (*int64, error) {
+		return nil, errors.New("an error occurred during computation")
+	}, NonNullable)
+
+	builtSchema := schema.MustBuild()
+
+	q := graphql.MustParse(`
+		{
+			field
+		}
+	`, map[string]interface{}{"var": float64(3)})
+
+	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
+		t.Error(err)
+	}
+
+	e := graphql.Executor{}
+	_, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
+	if err == nil {
+		t.Error("expected error, but received nil")
+	}
+
+	if !strings.Contains(err.Error(), "an error occurred during computation") {
+		t.Errorf("expected resolver error, but received %s", err.Error())
+	}
+}
+
 func testMakeGraphql(t *testing.T, s, expected string) {
 	actual := makeGraphql(s)
 	if actual != expected {
