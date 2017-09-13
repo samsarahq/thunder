@@ -142,7 +142,7 @@
                 "name": "include",
                 "type": {
                   "kind": "INPUT_OBJECT",
-                  "name": "UserInput",
+                  "name": "User_InputObject",
                   "ofType": null
                 }
               },
@@ -242,7 +242,7 @@
         ],
         "interfaces": [],
         "kind": "INPUT_OBJECT",
-        "name": "UserInput",
+        "name": "User_InputObject",
         "possibleTypes": []
       },
       {
