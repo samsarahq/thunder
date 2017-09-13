@@ -246,8 +246,8 @@ func makeStructParser(typ reflect.Type) (*argParser, graphql.Type, error) {
 		Name:        typ.Name(),
 		InputFields: make(map[string]graphql.Type),
 	}
-	if argType.Name != "" && !strings.HasSuffix(argType.Name, "Input") {
-		argType.Name += "Input"
+	if argType.Name != "" {
+		argType.Name += "_InputObject"
 	}
 
 	for i := 0; i < typ.NumField(); i++ {
