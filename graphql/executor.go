@@ -90,11 +90,15 @@ func PrepareQuery(typ Type, selectionSet *SelectionSet) error {
 				return NewSafeError(`unknown field "%s"`, selection.Name)
 			}
 
-			parsed, err := field.ParseArguments(selection.Args)
-			if err != nil {
-				return NewSafeError(`error parsing args for "%s": %s`, selection.Name, err)
+			// Only parse args once for a given selection.
+			if !selection.parsed {
+				parsed, err := field.ParseArguments(selection.Args)
+				if err != nil {
+					return NewSafeError(`error parsing args for "%s": %s`, selection.Name, err)
+				}
+				selection.Args = parsed
+				selection.parsed = true
 			}
-			selection.Args = parsed
 
 			if err := PrepareQuery(field.Type, selection.SelectionSet); err != nil {
 				return err

@@ -140,6 +140,10 @@ type Selection struct {
 	Alias        string
 	Args         interface{}
 	SelectionSet *SelectionSet
+
+	// The parsed flag is used to make sure the args for this Selection are only
+	// parsed once.
+	parsed bool
 }
 
 // A Fragment represents a reusable part of a GraphQL query
