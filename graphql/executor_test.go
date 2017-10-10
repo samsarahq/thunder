@@ -11,7 +11,7 @@ import (
 	"github.com/samsarahq/thunder/internal"
 )
 
-func makeQuery() *Object {
+func makeQuery(onArgParse *func()) *Object {
 	noArguments := func(json interface{}) (interface{}, error) {
 		return nil, nil
 	}
@@ -85,11 +85,24 @@ func makeQuery() *Object {
 		ParseArguments: noArguments,
 	}
 
+	a.Fields["fieldWithArgs"] = &Field{
+		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *SelectionSet) (interface{}, error) {
+			return 1, nil
+		},
+		Type: &Scalar{Type: "int"},
+		ParseArguments: func(json interface{}) (interface{}, error) {
+			if onArgParse != nil {
+				(*onArgParse)()
+			}
+			return nil, nil
+		},
+	}
+
 	return query
 }
 
 func TestBasic(t *testing.T) {
-	query := makeQuery()
+	query := makeQuery(nil)
 
 	q := MustParse(`{
 		static
@@ -125,6 +138,37 @@ func TestBasic(t *testing.T) {
 			]
 		}`)) {
 		t.Error("bad value", spew.Sdump(internal.AsJSON(result)))
+	}
+}
+
+func TestRepeatedFragment(t *testing.T) {
+	ctr := 0
+	countArgParse := func() {
+		ctr++
+	}
+	query := makeQuery(&countArgParse)
+
+	q := MustParse(`{
+		static
+		a { value nested { value ...frag } ...frag }
+		as { value }
+	}
+	fragment frag on A {
+		fieldWithArgs(arg1: 1)
+	}
+	`, nil)
+
+	if err := PrepareQuery(query, q.SelectionSet); err != nil {
+		t.Error(err)
+	}
+	e := Executor{}
+	_, err := e.Execute(context.Background(), query, nil, q)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if ctr != 1 {
+		t.Errorf("Expected args for fragment to be parsed once, but they were parsed %d times.", ctr)
 	}
 }
 
@@ -179,7 +223,7 @@ func TestBadArgs(t *testing.T) {
 */
 
 func TestError(t *testing.T) {
-	query := makeQuery()
+	query := makeQuery(nil)
 
 	q := MustParse(`
 		query foo {
@@ -201,7 +245,7 @@ func TestError(t *testing.T) {
 // TestPanic tests that a panicing resolver will report an error to a
 // context implementing PanicReporter instead of crashing the server.
 func TestPanic(t *testing.T) {
-	query := makeQuery()
+	query := makeQuery(nil)
 
 	q := MustParse(`
 		{
