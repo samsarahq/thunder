@@ -50,6 +50,28 @@ func TestStripKey(t *testing.T) {
 	}
 }
 
+func TestDiffIntNullable(t *testing.T) {
+	var testcases = []struct {
+		desc         string
+		left         interface{}
+		right        interface{}
+		expectedDiff interface{}
+	}{
+		{"both nil", nil, nil, nil},
+		{"nil, one", nil, 1, 1},
+		{"one, nil", 1, nil, []interface{}{nil}},
+		{"both one", 1, 1, nil},
+	}
+
+	for _, tc := range testcases {
+		d := diff.Diff(tc.left, tc.right)
+		if !reflect.DeepEqual(internal.AsJSON(d), internal.AsJSON(tc.expectedDiff)) {
+			t.Errorf("%s: bad diff: %s", tc.desc, d)
+		}
+	}
+
+}
+
 func TestDiffListOrder(t *testing.T) {
 	d := diff.Diff([]interface{}{
 		map[string]interface{}{"__key": "0"},
