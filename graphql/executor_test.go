@@ -77,6 +77,18 @@ func makeQuery(onArgParse *func()) *Object {
 		ParseArguments: noArguments,
 	}
 
+	a.Fields["valuePtr"] = &Field{
+		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *SelectionSet) (interface{}, error) {
+			temp := source.(int)
+			if temp%2 == 0 {
+				return nil, nil
+			}
+			return &temp, nil
+		},
+		Type:           &Scalar{Type: "int"},
+		ParseArguments: noArguments,
+	}
+
 	a.Fields["nested"] = &Field{
 		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *SelectionSet) (interface{}, error) {
 			return source.(int) + 1, nil
@@ -107,7 +119,7 @@ func TestBasic(t *testing.T) {
 	q := MustParse(`{
 		static
 		a { value nested { value } }
-		as { value }
+		as { value valuePtr }
 	}`, nil)
 
 	if err := PrepareQuery(query, q.SelectionSet); err != nil {
@@ -117,6 +129,14 @@ func TestBasic(t *testing.T) {
 	result, err := e.Execute(context.Background(), query, nil, q)
 	if err != nil {
 		t.Error(err)
+	}
+
+	// assert that result["as"][1]["valuePtr"] == 1 (and not a pointer to 1)
+	root, _ := result.(map[string]interface{})
+	as, _ := root["as"].([]interface{})
+	asObject, _ := as[1].(map[string]interface{})
+	if asObject["valuePtr"] != 1 {
+		t.Error("Expected valuePtr to be 1, was", asObject["valuePtr"])
 	}
 
 	if !reflect.DeepEqual(internal.AsJSON(result), internal.ParseJSON(`
@@ -131,10 +151,10 @@ func TestBasic(t *testing.T) {
 				}
 			},
 			"as": [
-				{"value": 0, "__key": 0},
-				{"value": 1, "__key": 1},
-				{"value": 2, "__key": 2},
-				{"value": 3, "__key": 3}
+			        {"value": 0, "valuePtr": null, "__key": 0},
+				{"value": 1, "valuePtr": 1, "__key": 1},
+				{"value": 2, "valuePtr": null, "__key": 2},
+				{"value": 3, "valuePtr": 3, "__key": 3}
 			]
 		}`)) {
 		t.Error("bad value", spew.Sdump(internal.AsJSON(result)))

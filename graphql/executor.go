@@ -60,6 +60,19 @@ func isNilArgs(args interface{}) bool {
 	return args == nil || (ok && len(m) == 0)
 }
 
+// unwrap will return the value associated with a pointer type, or nil if the
+// pointer is nil
+func unwrap(v interface{}) interface{} {
+	i := reflect.ValueOf(v)
+	for i.Kind() == reflect.Ptr && !i.IsNil() {
+		i = i.Elem()
+	}
+	if i.Kind() == reflect.Invalid {
+		return nil
+	}
+	return i.Interface()
+}
+
 // PrepareQuery checks that the given selectionSet matches the schema typ, and
 // parses the args in selectionSet
 func PrepareQuery(typ Type, selectionSet *SelectionSet) error {
@@ -260,7 +273,7 @@ func (e *Executor) execute(ctx context.Context, typ Type, source interface{}, se
 	}
 	switch typ := typ.(type) {
 	case *Scalar:
-		return source, nil
+		return unwrap(source), nil
 	case *Object:
 		return e.executeObject(ctx, typ, source, selectionSet)
 	case *List:
