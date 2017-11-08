@@ -79,35 +79,35 @@ func PrepareQuery(typ Type, selectionSet *SelectionSet) error {
 	switch typ := typ.(type) {
 	case *Scalar:
 		if selectionSet != nil {
-			return NewSafeError("scalar field must have no selections")
+			return NewClientError("scalar field must have no selections")
 		}
 		return nil
 
 	case *Object:
 		if selectionSet == nil {
-			return NewSafeError("object field must have selections")
+			return NewClientError("object field must have selections")
 		}
 		for _, selection := range selectionSet.Selections {
 			if selection.Name == "__typename" {
 				if !isNilArgs(selection.Args) {
-					return NewSafeError(`error parsing args for "__typename": no args expected`)
+					return NewClientError(`error parsing args for "__typename": no args expected`)
 				}
 				if selection.SelectionSet != nil {
-					return NewSafeError(`scalar field "__typename" must have no selection`)
+					return NewClientError(`scalar field "__typename" must have no selection`)
 				}
 				continue
 			}
 
 			field, ok := typ.Fields[selection.Name]
 			if !ok {
-				return NewSafeError(`unknown field "%s"`, selection.Name)
+				return NewClientError(`unknown field "%s"`, selection.Name)
 			}
 
 			// Only parse args once for a given selection.
 			if !selection.parsed {
 				parsed, err := field.ParseArguments(selection.Args)
 				if err != nil {
-					return NewSafeError(`error parsing args for "%s": %s`, selection.Name, err)
+					return NewClientError(`error parsing args for "%s": %s`, selection.Name, err)
 				}
 				selection.Args = parsed
 				selection.parsed = true

@@ -19,14 +19,14 @@ func valueToJson(value ast.Value, vars map[string]interface{}) (interface{}, err
 	case *ast.IntValue:
 		v, err := strconv.ParseInt(value.Value, 10, 64)
 		if err != nil {
-			return nil, NewSafeError("bad int arg: %s", err)
+			return nil, NewClientError("bad int arg: %s", err)
 		}
 		return float64(v), nil
 
 	case *ast.FloatValue:
 		v, err := strconv.ParseFloat(value.Value, 64)
 		if err != nil {
-			return nil, NewSafeError("bad float arg: %s", err)
+			return nil, NewClientError("bad float arg: %s", err)
 		}
 		return v, nil
 	case *ast.StringValue:
@@ -36,7 +36,7 @@ func valueToJson(value ast.Value, vars map[string]interface{}) (interface{}, err
 	case *ast.Variable:
 		actual, ok := vars[value.Name.Value]
 		if !ok {
-			return nil, NewSafeError("unknown var: %s", value.Name.Value)
+			return nil, NewClientError("unknown var: %s", value.Name.Value)
 		}
 		return actual, nil
 	case *ast.ObjectValue:
@@ -44,7 +44,7 @@ func valueToJson(value ast.Value, vars map[string]interface{}) (interface{}, err
 		for _, field := range value.Fields {
 			name := field.Name.Value
 			if _, found := obj[name]; found {
-				return nil, NewSafeError("duplicate field")
+				return nil, NewClientError("duplicate field")
 			}
 			value, err := valueToJson(field.Value, vars)
 			if err != nil {
@@ -64,7 +64,7 @@ func valueToJson(value ast.Value, vars map[string]interface{}) (interface{}, err
 		}
 		return list, nil
 	default:
-		return nil, NewSafeError("unsupported value type: %s", value.GetKind())
+		return nil, NewClientError("unsupported value type: %s", value.GetKind())
 	}
 }
 
@@ -75,7 +75,7 @@ func argsToJson(input []*ast.Argument, vars map[string]interface{}) (interface{}
 	for _, arg := range input {
 		name := arg.Name.Value
 		if _, found := args[name]; found {
-			return nil, NewSafeError("duplicate arg")
+			return nil, NewClientError("duplicate arg")
 		}
 		value, err := valueToJson(arg.Value, vars)
 		if err != nil {
@@ -104,7 +104,7 @@ func parseSelectionSet(input *ast.SelectionSet, globalFragments map[string]*Frag
 			}
 
 			if len(selection.Directives) != 0 {
-				return nil, NewSafeError("directives not supported")
+				return nil, NewClientError("directives not supported")
 			}
 
 			args, err := argsToJson(selection.Arguments, vars)
@@ -128,12 +128,12 @@ func parseSelectionSet(input *ast.SelectionSet, globalFragments map[string]*Frag
 			name := selection.Name.Value
 
 			if len(selection.Directives) != 0 {
-				return nil, NewSafeError("directives not supported")
+				return nil, NewClientError("directives not supported")
 			}
 
 			fragment, found := globalFragments[name]
 			if !found {
-				return nil, NewSafeError("unknown fragment")
+				return nil, NewClientError("unknown fragment")
 			}
 
 			fragments = append(fragments, fragment)
@@ -142,7 +142,7 @@ func parseSelectionSet(input *ast.SelectionSet, globalFragments map[string]*Frag
 			on := selection.TypeCondition.Name.Value
 
 			if len(selection.Directives) != 0 {
-				return nil, NewSafeError("directives not supported")
+				return nil, NewClientError("directives not supported")
 			}
 
 			selectionSet, err := parseSelectionSet(selection.SelectionSet, globalFragments, vars)
@@ -203,7 +203,7 @@ func detectCyclesAndUnusedFragments(selectionSet *SelectionSet, globalFragments 
 	visitFragment = func(fragment *Fragment) error {
 		switch state[fragment] {
 		case visiting:
-			return NewSafeError("fragment contains itself")
+			return NewClientError("fragment contains itself")
 		case visited:
 			return nil
 		}
@@ -223,7 +223,7 @@ func detectCyclesAndUnusedFragments(selectionSet *SelectionSet, globalFragments 
 
 	for _, fragment := range globalFragments {
 		if state[fragment] != visited {
-			return NewSafeError("unused fragment")
+			return NewClientError("unused fragment")
 		}
 	}
 	return nil
@@ -255,10 +255,10 @@ func detectConflicts(selectionSet *SelectionSet) error {
 			for _, selection := range selectionSet.Selections {
 				if other, found := selections[selection.Alias]; found {
 					if other.Name != selection.Name {
-						return NewSafeError("same alias with different name")
+						return NewClientError("same alias with different name")
 					}
 					if !reflect.DeepEqual(other.Args, selection.Args) {
-						return NewSafeError("same alias with different args")
+						return NewClientError("same alias with different args")
 					}
 				} else {
 					selections[selection.Alias] = selection
@@ -335,7 +335,7 @@ type Query struct {
 func Parse(source string, vars map[string]interface{}) (*Query, error) {
 	document, err := parser.Parse(parser.ParseParams{Source: source})
 	if err != nil {
-		return nil, NewSafeError(err.Error())
+		return nil, NewClientError(err.Error())
 	}
 
 	var queryDefinition *ast.OperationDefinition
@@ -346,26 +346,26 @@ func Parse(source string, vars map[string]interface{}) (*Query, error) {
 		case *ast.FragmentDefinition:
 			name := definition.Name.Value
 			if _, found := fragmentDefinitions[name]; found {
-				return nil, NewSafeError("duplicate fragment")
+				return nil, NewClientError("duplicate fragment")
 			}
 			fragmentDefinitions[name] = definition
 
 		case *ast.OperationDefinition:
 			if definition.Operation != "query" && definition.Operation != "mutation" {
-				return nil, NewSafeError("only support queries or mutations")
+				return nil, NewClientError("only support queries or mutations")
 			}
 			if queryDefinition != nil {
-				return nil, NewSafeError("only support a single query")
+				return nil, NewClientError("only support a single query")
 			}
 			queryDefinition = definition
 
 		default:
-			return nil, NewSafeError("unsupported definition")
+			return nil, NewClientError("unsupported definition")
 		}
 	}
 
 	if queryDefinition == nil {
-		return nil, NewSafeError("must have a single query")
+		return nil, NewClientError("must have a single query")
 	}
 
 	kind := queryDefinition.Operation

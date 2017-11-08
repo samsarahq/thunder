@@ -86,12 +86,26 @@ type SafeError struct {
 	message string
 }
 
+type ClientError SafeError
+
+func (e ClientError) Error() string {
+	return e.message
+}
+
+func (e ClientError) SanitizedError() string {
+	return e.message
+}
+
 func (e SafeError) Error() string {
 	return e.message
 }
 
 func (e SafeError) SanitizedError() string {
 	return e.message
+}
+
+func NewClientError(format string, a ...interface{}) error {
+	return ClientError{message: fmt.Sprintf(format, a...)}
 }
 
 func NewSafeError(format string, a ...interface{}) error {
