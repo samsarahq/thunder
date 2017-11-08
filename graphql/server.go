@@ -156,11 +156,15 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 		return NewSafeError("too many subscriptions")
 	}
 
+	tags := map[string]string{"url": c.url, "query": subscribe.Query, "queryVariables": mustMarshalJson(subscribe.Variables), "id": id}
+
 	query, err := Parse(subscribe.Query, subscribe.Variables)
 	if err != nil {
+		c.logger.Error(c.ctx, err, tags)
 		return err
 	}
 	if err := PrepareQuery(c.schema.Query, query.SelectionSet); err != nil {
+		c.logger.Error(c.ctx, err, tags)
 		return err
 	}
 
@@ -169,8 +173,8 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 	e := Executor{}
 
 	initial := true
-	tags := map[string]string{"url": c.url, "queryType": query.Kind, "queryName": query.Name, "query": subscribe.Query, "queryVariables": mustMarshalJson(subscribe.Variables), "id": id}
-
+	tags["queryType"] = query.Kind
+	tags["queryName"] = query.Name
 	c.subscriptions[id] = reactive.NewRerunner(c.ctx, func(ctx context.Context) (interface{}, error) {
 		ctx = c.makeCtx(ctx)
 		ctx = batch.WithBatching(ctx)
@@ -242,18 +246,22 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	tags := map[string]string{"url": c.url, "query": mutate.Query, "queryVariables": mustMarshalJson(mutate.Variables), "id": id}
+
 	query, err := Parse(mutate.Query, mutate.Variables)
 	if err != nil {
+		c.logger.Error(c.ctx, err, tags)
 		return err
 	}
 	if err := PrepareQuery(c.schema.Mutation, query.SelectionSet); err != nil {
+		c.logger.Error(c.ctx, err, tags)
 		return err
 	}
 
 	e := Executor{}
 
-	tags := map[string]string{"url": c.url, "queryType": query.Kind, "queryName": query.Name, "query": mutate.Query, "queryVariables": mustMarshalJson(mutate.Variables), "id": id}
-
+	tags["queryType"] = query.Kind
+	tags["queryName"] = query.Name
 	c.subscriptions[id] = reactive.NewRerunner(c.ctx, func(ctx context.Context) (interface{}, error) {
 		// Serialize all mutates for a given connection.
 		c.mutateMu.Lock()
