@@ -205,6 +205,7 @@ type Rerunner struct {
 	f                ComputeFunc
 	cache            *cache
 	minRerunInterval time.Duration
+	retryDelay       time.Duration
 
 	mu          sync.Mutex
 	computation *computation
@@ -227,6 +228,7 @@ func NewRerunner(ctx context.Context, f ComputeFunc, minRerunInterval time.Durat
 			locker:       newLocker(),
 		},
 		minRerunInterval: minRerunInterval,
+		retryDelay:       minRerunInterval,
 	}
 	go r.run()
 	return r
@@ -235,7 +237,7 @@ func NewRerunner(ctx context.Context, f ComputeFunc, minRerunInterval time.Durat
 // run performs an actual computation
 func (r *Rerunner) run() {
 	// Wait for the minimum rerun interval. Exit early if the computation is stopped.
-	delta := r.minRerunInterval - time.Now().Sub(r.lastRun)
+	delta := r.retryDelay - time.Now().Sub(r.lastRun)
 	t := time.NewTimer(delta)
 	select {
 	case <-r.ctx.Done():
@@ -259,17 +261,28 @@ func (r *Rerunner) run() {
 	computation, err := run(ctx, r.f)
 	if err != nil {
 		if err == RetrySentinelError {
+			r.retryDelay = r.retryDelay * 2
+
+			// Max out the retry delay to at 1 minute
+			if r.retryDelay > time.Minute {
+				r.retryDelay = time.Minute
+			}
 			go r.run()
 		} else {
+			// If we encountered an error that is not the retry sentinel,
+			// we should stop the rerunner.
 			return
 		}
 	} else {
+		// If we succeeded in the computation, we can replace the old computation
+		// and reset the retry delay.
 		if r.computation != nil {
 			go r.computation.node.release()
 			r.computation = nil
 		}
 
 		r.computation = computation
+		r.retryDelay = r.minRerunInterval
 
 		// schedule a rerun whenever our node becomes invalidated (which might already
 		// have happened!)
