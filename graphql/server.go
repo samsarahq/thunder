@@ -213,6 +213,16 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 			if !initial {
 				// If this a re-computation, tell the Rerunner to retry the computation
 				// without dumping the contents of the current computation cache.
+				// Note that we are swallowing the propagation of the error in this case,
+				// but we still log it.
+				if _, ok := err.(SanitizedError); !ok {
+					extraTags := map[string]string{"retry": "true"}
+					for k, v := range tags {
+						extraTags[k] = v
+					}
+					c.logger.Error(ctx, err, extraTags)
+				}
+
 				return nil, reactive.RetrySentinelError
 			}
 
