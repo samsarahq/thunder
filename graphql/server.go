@@ -40,11 +40,12 @@ type conn struct {
 	writeMu sync.Mutex
 	socket  JSONSocket
 
-	schema      *Schema
-	ctx         context.Context
-	makeCtx     MakeCtxFunc
-	logger      GraphqlLogger
-	middlewares []MiddlewareFunc
+	schema         *Schema
+	mutationSchema *Schema
+	ctx            context.Context
+	makeCtx        MakeCtxFunc
+	logger         GraphqlLogger
+	middlewares    []MiddlewareFunc
 
 	url string
 
@@ -253,7 +254,7 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 		c.logger.Error(c.ctx, err, tags)
 		return err
 	}
-	if err := PrepareQuery(c.schema.Mutation, query.SelectionSet); err != nil {
+	if err := PrepareQuery(c.mutationSchema.Mutation, query.SelectionSet); err != nil {
 		c.logger.Error(c.ctx, err, tags)
 		return err
 	}
@@ -277,7 +278,7 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 		middlewares = append(middlewares, c.middlewares...)
 		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
 			output := next(input)
-			output.Current, output.Error = e.Execute(input.Ctx, c.schema.Mutation, c.schema.Mutation, query)
+			output.Current, output.Error = e.Execute(input.Ctx, c.mutationSchema.Mutation, c.mutationSchema.Mutation, query)
 			return output
 		})
 
@@ -438,9 +439,24 @@ func CreateJSONSocket(ctx context.Context, socket JSONSocket, schema *Schema, ma
 		socket: socket,
 		ctx:    ctx,
 
-		schema:  schema,
-		makeCtx: makeCtx,
-		logger:  logger,
+		schema:         schema,
+		mutationSchema: schema,
+		makeCtx:        makeCtx,
+		logger:         logger,
+
+		subscriptions: make(map[string]*reactive.Rerunner),
+	}
+}
+
+func CreateJSONSocketWithMutationSchema(ctx context.Context, socket JSONSocket, schema, mutationSchema *Schema, makeCtx MakeCtxFunc, logger GraphqlLogger) *conn {
+	return &conn{
+		socket: socket,
+		ctx:    ctx,
+
+		schema:         schema,
+		mutationSchema: mutationSchema,
+		makeCtx:        makeCtx,
+		logger:         logger,
 
 		subscriptions: make(map[string]*reactive.Rerunner),
 	}
