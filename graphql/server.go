@@ -205,6 +205,17 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 		c.logger.FinishExecution(ctx, tags, time.Since(start))
 
 		if err != nil {
+			if extractPathError(err) == context.Canceled {
+				go c.closeSubscription(id)
+				return nil, err
+			}
+
+			if !initial {
+				// If this a re-computation, tell the Rerunner to retry the computation
+				// without dumping the contents of the current computation cache.
+				return nil, reactive.RetrySentinelError
+			}
+
 			c.writeOrClose(outEnvelope{
 				ID:       id,
 				Type:     "error",
@@ -212,10 +223,6 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 				Metadata: output.Metadata,
 			})
 			go c.closeSubscription(id)
-
-			if extractPathError(err) == context.Canceled {
-				return nil, err
-			}
 
 			if _, ok := err.(SanitizedError); !ok {
 				c.logger.Error(ctx, err, tags)
