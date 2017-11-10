@@ -2,8 +2,15 @@ package reactive
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
+)
+
+var (
+	// Sentrinel error to tell the rerunner to not dump the current
+	// computation cache and let the error'd function retry.
+	RetrySentinelError = errors.New("retry")
 )
 
 // locker is a collection of mutexes indexed by arbitrary keys
@@ -250,23 +257,26 @@ func (r *Rerunner) run() {
 
 	// Run f, and release the old computation right after.
 	computation, err := run(ctx, r.f)
-	if r.computation != nil {
-		go r.computation.node.release()
-		r.computation = nil
-	}
 	if err != nil {
-		// If computation failed, stop the runner.
-		return
-	}
+		if err == RetrySentinelError {
+			go r.run()
+		} else {
+			return
+		}
+	} else {
+		if r.computation != nil {
+			go r.computation.node.release()
+			r.computation = nil
+		}
 
-	// Store the computation.
-	r.computation = computation
+		r.computation = computation
+
+		// schedule a rerun whenever our node becomes invalidated (which might already
+		// have happened!)
+		computation.node.handleInvalidate(r.run)
+	}
 
 	r.lastRun = time.Now()
-
-	// schedule a rerun whenever our node becomes invalidated (which might already
-	// have happened!)
-	computation.node.handleInvalidate(r.run)
 }
 
 func (r *Rerunner) Stop() {
