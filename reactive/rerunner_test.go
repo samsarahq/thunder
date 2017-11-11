@@ -154,6 +154,64 @@ func TestError(t *testing.T) {
 	// run is supposed to stop; if it runs, it will panic in calling Trigger
 }
 
+// TestErrorRetry verifies that the rerunner keeps the cache around
+// and does not stop the rerunner if the retry sentinel is passed down.
+func TestErrorRetry(t *testing.T) {
+	dep := NewResource()
+	run := NewExpect()
+
+	innerRuns := 0
+	shouldSentinel := false
+
+	NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
+		AddDependency(ctx, dep)
+		Cache(ctx, "", func(ctx context.Context) (interface{}, error) {
+			innerRuns = innerRuns + 1
+			return nil, nil
+		})
+
+		if shouldSentinel {
+			oldRun := run
+			run = NewExpect()
+			oldRun.Trigger()
+			return nil, RetrySentinelError
+		} else {
+			run.Trigger()
+		}
+		return nil, nil
+	}, 0)
+
+	run.Expect(t, "expected run")
+	if innerRuns != 1 {
+		t.Errorf("expected 1 run, but got %d", innerRuns)
+	}
+
+	run = NewExpect()
+	dep.Strobe()
+
+	run.Expect(t, "expected rerun")
+	if innerRuns != 1 {
+		t.Errorf("expected 1 run, but got %d", innerRuns)
+	}
+
+	run = NewExpect()
+	shouldSentinel = true
+	dep.Strobe()
+
+	run.Expect(t, "expected rerun with sentinel")
+	if innerRuns != 1 {
+		t.Errorf("expected 1 run, but got %d", innerRuns)
+	}
+
+	// The runner has not stopped because of our retry.
+
+	shouldSentinel = false
+	run.Expect(t, "expected rerun after sentinel")
+	if innerRuns != 1 {
+		t.Errorf("expected 1 run, but got %d", innerRuns)
+	}
+}
+
 // TestCacheLock tests that concurrent calls to Cache with the same key result
 // in only one execution.
 func TestCacheLock(t *testing.T) {
