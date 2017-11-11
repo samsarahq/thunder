@@ -212,6 +212,38 @@ func TestErrorRetry(t *testing.T) {
 	}
 }
 
+// TestErrorRetryDelay verifies that retries are delayed exponentially.
+func TestErrorRetryDelay(t *testing.T) {
+	run := NewExpect()
+
+	var lastRunTime time.Time
+	var lastDelta time.Duration
+
+	runner := NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
+		if !lastRunTime.IsZero() {
+			lastDelta = time.Now().Sub(lastRunTime)
+		}
+		lastRunTime = time.Now()
+
+		oldRun := run
+		run = NewExpect()
+		oldRun.Trigger()
+
+		return nil, RetrySentinelError
+	}, 100*time.Millisecond)
+
+	run.Expect(t, "expected first run")
+
+	for _, delay := range []time.Duration{time.Millisecond * 200, time.Millisecond * 400, time.Millisecond * 800} {
+		run.Expect(t, "expected delayed run")
+		if lastDelta < delay {
+			t.Errorf("expected delay of at least %d but got %d", delay, lastDelta)
+		}
+	}
+
+	runner.Stop()
+}
+
 // TestCacheLock tests that concurrent calls to Cache with the same key result
 // in only one execution.
 func TestCacheLock(t *testing.T) {
