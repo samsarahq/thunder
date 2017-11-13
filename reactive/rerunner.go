@@ -259,6 +259,7 @@ func (r *Rerunner) run() {
 
 	// Run f, and release the old computation right after.
 	computation, err := run(ctx, r.f)
+	r.lastRun = time.Now()
 	if err != nil {
 		if err == RetrySentinelError {
 			r.retryDelay = r.retryDelay * 2
@@ -288,8 +289,6 @@ func (r *Rerunner) run() {
 		// have happened!)
 		computation.node.handleInvalidate(r.run)
 	}
-
-	r.lastRun = time.Now()
 }
 
 func (r *Rerunner) Stop() {
