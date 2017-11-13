@@ -257,14 +257,13 @@ func (r *Rerunner) run() {
 	r.cache.cleanInvalidated()
 	ctx := context.WithValue(r.ctx, cacheKey{}, r.cache)
 
-	// Run f, and release the old computation right after.
 	computation, err := run(ctx, r.f)
 	r.lastRun = time.Now()
 	if err != nil {
 		if err == RetrySentinelError {
 			r.retryDelay = r.retryDelay * 2
 
-			// Max out the retry delay to at 1 minute
+			// Max out the retry delay to at 1 minute.
 			if r.retryDelay > time.Minute {
 				r.retryDelay = time.Minute
 			}
@@ -275,7 +274,7 @@ func (r *Rerunner) run() {
 			return
 		}
 	} else {
-		// If we succeeded in the computation, we can replace the old computation
+		// If we succeeded in the computation, we can release the old computation
 		// and reset the retry delay.
 		if r.computation != nil {
 			go r.computation.node.release()
@@ -285,7 +284,7 @@ func (r *Rerunner) run() {
 		r.computation = computation
 		r.retryDelay = r.minRerunInterval
 
-		// schedule a rerun whenever our node becomes invalidated (which might already
+		// Schedule a rerun whenever our node becomes invalidated (which might already
 		// have happened!)
 		computation.node.handleInvalidate(r.run)
 	}
