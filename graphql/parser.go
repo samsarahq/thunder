@@ -374,6 +374,12 @@ func Parse(source string, vars map[string]interface{}) (*Query, error) {
 		name = queryDefinition.Name.Value
 	}
 
+	rv := &Query{
+		Name:         name,
+		Kind:         kind,
+		SelectionSet: nil,
+	}
+
 	globalFragments := make(map[string]*Fragment)
 	for name, fragment := range fragmentDefinitions {
 		globalFragments[name] = &Fragment{
@@ -384,31 +390,29 @@ func Parse(source string, vars map[string]interface{}) (*Query, error) {
 	for name, fragment := range fragmentDefinitions {
 		selectionSet, err := parseSelectionSet(fragment.SelectionSet, globalFragments, vars)
 		if err != nil {
-			return nil, err
+			return rv, err
 		}
 		globalFragments[name].SelectionSet = selectionSet
 	}
 
 	selectionSet, err := parseSelectionSet(queryDefinition.SelectionSet, globalFragments, vars)
 	if err != nil {
-		return nil, err
+		return rv, err
 	}
 
 	if err := detectCyclesAndUnusedFragments(selectionSet, globalFragments); err != nil {
-		return nil, err
+		return rv, err
 	}
 
 	if err := detectConflicts(selectionSet); err != nil {
-		return nil, err
+		return rv, err
 	}
 
 	determineComplex(selectionSet)
 
-	return &Query{
-		Name:         name,
-		Kind:         kind,
-		SelectionSet: selectionSet,
-	}, nil
+	rv.SelectionSet = selectionSet
+
+	return rv, nil
 }
 
 func MustParse(source string, vars map[string]interface{}) *Query {
