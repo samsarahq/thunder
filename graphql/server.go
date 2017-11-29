@@ -160,6 +160,10 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 	tags := map[string]string{"url": c.url, "query": subscribe.Query, "queryVariables": mustMarshalJson(subscribe.Variables), "id": id}
 
 	query, err := Parse(subscribe.Query, subscribe.Variables)
+	if query != nil {
+		tags["queryType"] = query.Kind
+		tags["queryName"] = query.Name
+	}
 	if err != nil {
 		c.logger.Error(c.ctx, err, tags)
 		return err
@@ -174,8 +178,6 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 	e := Executor{}
 
 	initial := true
-	tags["queryType"] = query.Kind
-	tags["queryName"] = query.Name
 	c.subscriptions[id] = reactive.NewRerunner(c.ctx, func(ctx context.Context) (interface{}, error) {
 		ctx = c.makeCtx(ctx)
 		ctx = batch.WithBatching(ctx)
@@ -267,6 +269,10 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 	tags := map[string]string{"url": c.url, "query": mutate.Query, "queryVariables": mustMarshalJson(mutate.Variables), "id": id}
 
 	query, err := Parse(mutate.Query, mutate.Variables)
+	if query != nil {
+		tags["queryType"] = query.Kind
+		tags["queryName"] = query.Name
+	}
 	if err != nil {
 		c.logger.Error(c.ctx, err, tags)
 		return err
@@ -277,9 +283,6 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 	}
 
 	e := Executor{}
-
-	tags["queryType"] = query.Kind
-	tags["queryName"] = query.Name
 	c.subscriptions[id] = reactive.NewRerunner(c.ctx, func(ctx context.Context) (interface{}, error) {
 		// Serialize all mutates for a given connection.
 		c.mutateMu.Lock()
