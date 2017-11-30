@@ -351,3 +351,35 @@ func TestMinRerunInterval(t *testing.T) {
 	r.Invalidate()
 	run.Expect(t, "expected rerun")
 }
+
+// TestRerunImmediately tests that RerunImmediately bypasses the
+// rerun delay.
+func TestRerunImmediately(t *testing.T) {
+	run := NewExpect()
+
+	r := NewResource()
+	var ran time.Time
+
+	runner := NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
+		AddDependency(ctx, r)
+		run.Trigger()
+
+		if ran.IsZero() {
+			ran = time.Now()
+		} else {
+			delta := time.Now().Sub(ran)
+			if delta > 1*time.Second {
+				t.Error("expected imediate rerun")
+			}
+		}
+
+		return nil, nil
+	}, 30*time.Second)
+
+	run.Expect(t, "expected run")
+
+	run = NewExpect()
+	runner.RerunImmediately()
+	r.Invalidate()
+	run.Expect(t, "expected rerun")
+}

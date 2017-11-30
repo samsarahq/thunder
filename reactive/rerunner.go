@@ -207,6 +207,13 @@ type Rerunner struct {
 	minRerunInterval time.Duration
 	retryDelay       time.Duration
 
+	// flushed tracks if the next computation should run without delay. It is set
+	// to false as soon as the next computation starts. flushCh is closed when
+	// flushed is set to true.
+	flushMu sync.Mutex
+	flushCh chan struct{}
+	flushed bool
+
 	mu          sync.Mutex
 	computation *computation
 	stop        bool
@@ -229,22 +236,46 @@ func NewRerunner(ctx context.Context, f ComputeFunc, minRerunInterval time.Durat
 		},
 		minRerunInterval: minRerunInterval,
 		retryDelay:       minRerunInterval,
+
+		flushCh: make(chan struct{}, 0),
 	}
 	go r.run()
 	return r
+}
+
+// RerunImmediately removes the delay from the next recomputation.
+func (r *Rerunner) RerunImmediately() {
+	r.flushMu.Lock()
+	defer r.flushMu.Unlock()
+
+	if !r.flushed {
+		close(r.flushCh)
+		r.flushed = true
+	}
 }
 
 // run performs an actual computation
 func (r *Rerunner) run() {
 	// Wait for the minimum rerun interval. Exit early if the computation is stopped.
 	delta := r.retryDelay - time.Now().Sub(r.lastRun)
+
 	t := time.NewTimer(delta)
 	select {
 	case <-r.ctx.Done():
-		t.Stop()
-		return
 	case <-t.C:
+	case <-r.flushCh:
 	}
+	t.Stop()
+	if r.ctx.Err() != nil {
+		return
+	}
+
+	r.flushMu.Lock()
+	if r.flushed {
+		r.flushCh = make(chan struct{}, 0)
+		r.flushed = false
+	}
+	r.flushMu.Unlock()
 
 	r.mu.Lock()
 	defer r.mu.Unlock()

@@ -341,10 +341,21 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 			Metadata: output.Metadata,
 		})
 
+		go c.rerunSubscriptionsImmediately()
+
 		return nil, errors.New("stop")
 	}, MinRerunInterval)
 
 	return nil
+}
+
+func (c *conn) rerunSubscriptionsImmediately() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for _, runner := range c.subscriptions {
+		runner.RerunImmediately()
+	}
 }
 
 func (c *conn) closeSubscription(id string) {
