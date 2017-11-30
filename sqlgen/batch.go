@@ -70,37 +70,43 @@ func makeBatchQuery(filters []Filter) (string, []interface{}) {
 			clause.WriteString(" OR ")
 		}
 
-		// Print the group's columns, and build a (?, ?, ?) string for the tuples.
-		var options bytes.Buffer
-		if len(group.columns) > 1 {
-			clause.WriteString("(")
-			options.WriteString("(")
-		}
-		for i, column := range group.columns {
-			if i > 0 {
-				clause.WriteString(", ")
-				options.WriteString(", ")
-			}
+		if len(group.columns) == 1 {
+			column := group.columns[0]
 			clause.WriteString(column)
-			options.WriteString("?")
-		}
-		if len(group.columns) > 1 {
-			clause.WriteString(")")
-			options.WriteString(")")
-		}
+			clause.WriteString(" IN (")
+			for j, tuple := range group.tuples {
+				// Separate tuples with commas.
+				if j > 0 {
+					clause.WriteString(", ")
+				}
 
-		// Print the group's tuples.
-		clause.WriteString(" IN (")
-		for j, tuple := range group.tuples {
-			// Separate tuples with commas.
-			if j > 0 {
-				clause.WriteString(", ")
+				// Write (?, ?, ?) string for the tuple, and append the arguments.
+				clause.WriteString("?")
+				args = append(args, tuple...)
 			}
-			// Write (?, ?, ?) string for the tuple, and append the arguments.
-			clause.Write(options.Bytes())
-			args = append(args, tuple...)
+			clause.WriteString(")")
+		} else {
+
+			for i, tuple := range group.tuples {
+				if i > 0 {
+					clause.WriteString(" OR ")
+				}
+				if len(group.columns) > 1 {
+					clause.WriteString("(")
+				}
+				for j, column := range group.columns {
+					if j > 0 {
+						clause.WriteString(" AND ")
+					}
+					clause.WriteString(column)
+					clause.WriteString("=?")
+				}
+				args = append(args, tuple...)
+				if len(group.columns) > 1 {
+					clause.WriteString(")")
+				}
+			}
 		}
-		clause.WriteString(")")
 	}
 
 	return clause.String(), args
