@@ -30,7 +30,7 @@ func TestMakeBatchQuery(t *testing.T) {
 				{"id_a": 20, "id_b": "bar"},
 				{"id_a": 30, "id_b": "baz"},
 			},
-			Clause: "(id_a, id_b) IN ((?, ?), (?, ?), (?, ?))",
+			Clause: "(id_a=? AND id_b=?) OR (id_a=? AND id_b=?) OR (id_a=? AND id_b=?)",
 			Args:   []interface{}{10, "foo", 20, "bar", 30, "baz"},
 		},
 		{
@@ -52,7 +52,7 @@ func TestMakeBatchQuery(t *testing.T) {
 				{"id_a": 20, "id_b": "bar"},
 				{"id_a": 30, "id_b": "baz"},
 			},
-			Clause: "id IN (?, ?, ?) OR (id_a, id_b) IN ((?, ?), (?, ?), (?, ?))",
+			Clause: "id IN (?, ?, ?) OR (id_a=? AND id_b=?) OR (id_a=? AND id_b=?) OR (id_a=? AND id_b=?)",
 			Args:   []interface{}{10, 20, 30, 10, "foo", 20, "bar", 30, "baz"},
 		},
 	}
