@@ -1,0 +1,43 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "k7K1XgcDxQczOrIhHJAhDW4LkwI=",
+			"path": "github.com/siddontang/go-mysql/client",
+			"revision": "d8e777f00cdbb2bc200ebeb80364b0bcc098362e",
+			"revisionTime": "2016-09-25T01:41:26Z"
+		},
+		{
+			"checksumSHA1": "7SWfaLfEGm6yV536uN705VMqsBI=",
+			"path": "github.com/siddontang/go-mysql/mysql",
+			"revision": "d8e777f00cdbb2bc200ebeb80364b0bcc098362e",
+			"revisionTime": "2016-09-25T01:41:26Z"
+		},
+		{
+			"checksumSHA1": "n/oG8QPPwsvSAimc/gCSuh5GaOQ=",
+			"path": "github.com/siddontang/go-mysql/packet",
+			"revision": "d8e777f00cdbb2bc200ebeb80364b0bcc098362e",
+			"revisionTime": "2016-09-25T01:41:26Z"
+		},
+		{
+			"checksumSHA1": "0v/k1pPZtUicl2oYEm8Gjx6SPk8=",
+			"path": "github.com/siddontang/go-mysql/replication",
+			"revision": "d8e777f00cdbb2bc200ebeb80364b0bcc098362e",
+			"revisionTime": "2016-09-25T01:41:26Z"
+		},
+		{
+			"checksumSHA1": "uxY44Ori0/rMHK1hOo/nvHHrIQg=",
+			"path": "github.com/siddontang/go/cache",
+			"revision": "354e14e6c093c661abb29fd28403b3c19cff5514",
+			"revisionTime": "2015-12-27T04:49:29Z"
+		},
+		{
+			"checksumSHA1": "hou29E6PZ7dEDFgXgM9P15cgHr4=",
+			"path": "github.com/siddontang/go/hack",
+			"revision": "1e9ce2a5ac4092fdf61e293634e40bfb49595105",
+			"revisionTime": "2016-10-05T11:08:31Z"
+		}
+	],
+	"rootPath": "github.com/samsarahq/thunder"
+}
