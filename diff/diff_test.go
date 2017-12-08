@@ -29,6 +29,22 @@ func TestDiffListString(t *testing.T) {
 	}
 }
 
+func TestDiffListRepeatedStrings(t *testing.T) {
+	d := diff.Diff([]interface{}{
+		"1",
+		"2",
+		"1",
+	}, []interface{}{
+		"1",
+		"2",
+		"1",
+	})
+
+	if internal.AsJSON(d) != nil {
+		t.Errorf("expected no diff, but received %s", d)
+	}
+}
+
 func TestStripKey(t *testing.T) {
 	d := diff.StripKey(map[string]interface{}{
 		"__key": "foo",
