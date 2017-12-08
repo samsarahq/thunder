@@ -201,15 +201,22 @@ func reorderKey(i interface{}) interface{} {
 // identified using the __key field, if present. Otherwise, the values are used
 // as map keys if they are comparable.
 func computeReorderIndices(old, new []interface{}) []int {
-	oldIndices := make(map[interface{}]int)
+	oldIndices := make(map[interface{}][]int)
 	for i, item := range old {
-		oldIndices[reorderKey(item)] = i
+		key := reorderKey(item)
+		if oldIndices[key] == nil {
+			oldIndices[key] = []int{i}
+		} else {
+			oldIndices[key] = append(oldIndices[key], i)
+		}
 	}
 
 	indices := make([]int, len(new))
 	for i, item := range new {
-		if index, ok := oldIndices[reorderKey(item)]; ok {
-			indices[i] = index
+		key := reorderKey(item)
+		if index, ok := oldIndices[key]; ok {
+			indices[i] = index[0]
+			oldIndices[key] = index[1:]
 		} else {
 			indices[i] = -1
 		}
