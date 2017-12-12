@@ -30,18 +30,33 @@ func TestDiffListString(t *testing.T) {
 }
 
 func TestDiffListRepeatedStrings(t *testing.T) {
-	d := diff.Diff([]interface{}{
-		"1",
-		"2",
-		"1",
-	}, []interface{}{
-		"1",
-		"2",
-		"1",
-	})
+	var testcases = []struct {
+		old  interface{}
+		new  interface{}
+		diff string
+	}{
+		{
+			old:  []interface{}{1, 1, 2},
+			new:  []interface{}{1, 1, 2},
+			diff: "null",
+		},
+		{
+			old:  []interface{}{1, 3},
+			new:  []interface{}{1, 1, 3},
+			diff: `{"$": [0, -1, 1], "1": 1}`,
+		},
+		{
+			old:  []interface{}{1, 1, 3},
+			new:  []interface{}{1, 1},
+			diff: `{"$": [[0, 2]] }`,
+		},
+	}
 
-	if internal.AsJSON(d) != nil {
-		t.Errorf("expected no diff, but received %s", d)
+	for _, testcase := range testcases {
+		d := diff.Diff(testcase.old, testcase.new)
+		if !reflect.DeepEqual(internal.AsJSON(d), internal.ParseJSON(testcase.diff)) {
+			t.Errorf("expected %s, but received %s", testcase.diff, d)
+		}
 	}
 }
 
