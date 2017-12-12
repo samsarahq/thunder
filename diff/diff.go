@@ -204,17 +204,13 @@ func computeReorderIndices(old, new []interface{}) []int {
 	oldIndices := make(map[interface{}][]int)
 	for i, item := range old {
 		key := reorderKey(item)
-		if oldIndices[key] == nil {
-			oldIndices[key] = []int{i}
-		} else {
-			oldIndices[key] = append(oldIndices[key], i)
-		}
+		oldIndices[key] = append(oldIndices[key], i)
 	}
 
 	indices := make([]int, len(new))
 	for i, item := range new {
 		key := reorderKey(item)
-		if index, ok := oldIndices[key]; ok {
+		if index := oldIndices[key]; len(index) > 0 {
 			indices[i] = index[0]
 			oldIndices[key] = index[1:]
 		} else {
