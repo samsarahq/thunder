@@ -159,20 +159,6 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 
 	tags := map[string]string{"url": c.url, "query": subscribe.Query, "queryVariables": mustMarshalJson(subscribe.Variables), "id": id}
 
-	query, err := Parse(subscribe.Query, subscribe.Variables)
-	if query != nil {
-		tags["queryType"] = query.Kind
-		tags["queryName"] = query.Name
-	}
-	if err != nil {
-		c.logger.Error(c.ctx, err, tags)
-		return err
-	}
-	if err := PrepareQuery(c.schema.Query, query.SelectionSet); err != nil {
-		c.logger.Error(c.ctx, err, tags)
-		return err
-	}
-
 	var previous interface{}
 
 	e := Executor{}
@@ -189,18 +175,36 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 		var middlewares []MiddlewareFunc
 		middlewares = append(middlewares, c.middlewares...)
 		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
+			if input.ParsedQuery == nil {
+				query, err := Parse(subscribe.Query, subscribe.Variables)
+				if query != nil {
+					tags["queryType"] = query.Kind
+					tags["queryName"] = query.Name
+				}
+				if err != nil {
+					c.logger.Error(c.ctx, err, tags)
+					return &ComputationOutput{Error: err}
+				}
+
+				if err := PrepareQuery(c.schema.Query, query.SelectionSet); err != nil {
+					c.logger.Error(c.ctx, err, tags)
+					return &ComputationOutput{Error: err}
+				}
+
+				input.ParsedQuery = query
+			}
+
 			output := next(input)
 			output.Current, output.Error = e.Execute(input.Ctx, c.schema.Query, nil, input.ParsedQuery)
 			return output
 		})
 
 		output := runMiddlewares(middlewares, &ComputationInput{
-			Ctx:         ctx,
-			Id:          id,
-			ParsedQuery: query,
-			Previous:    previous,
-			Query:       subscribe.Query,
-			Variables:   subscribe.Variables,
+			Ctx:       ctx,
+			Id:        id,
+			Previous:  previous,
+			Query:     subscribe.Query,
+			Variables: subscribe.Variables,
 		})
 		current, err := output.Current, output.Error
 
@@ -268,20 +272,6 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 
 	tags := map[string]string{"url": c.url, "query": mutate.Query, "queryVariables": mustMarshalJson(mutate.Variables), "id": id}
 
-	query, err := Parse(mutate.Query, mutate.Variables)
-	if query != nil {
-		tags["queryType"] = query.Kind
-		tags["queryName"] = query.Name
-	}
-	if err != nil {
-		c.logger.Error(c.ctx, err, tags)
-		return err
-	}
-	if err := PrepareQuery(c.mutationSchema.Mutation, query.SelectionSet); err != nil {
-		c.logger.Error(c.ctx, err, tags)
-		return err
-	}
-
 	e := Executor{}
 	c.subscriptions[id] = reactive.NewRerunner(c.ctx, func(ctx context.Context) (interface{}, error) {
 		// Serialize all mutates for a given connection.
@@ -297,18 +287,33 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 		var middlewares []MiddlewareFunc
 		middlewares = append(middlewares, c.middlewares...)
 		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
+			if input.ParsedQuery == nil {
+				query, err := Parse(mutate.Query, mutate.Variables)
+				if query != nil {
+					tags["queryType"] = query.Kind
+					tags["queryName"] = query.Name
+				}
+				if err != nil {
+					c.logger.Error(c.ctx, err, tags)
+					return &ComputationOutput{Error: err}
+				}
+				if err := PrepareQuery(c.mutationSchema.Mutation, query.SelectionSet); err != nil {
+					c.logger.Error(c.ctx, err, tags)
+					return &ComputationOutput{Error: err}
+				}
+				input.ParsedQuery = query
+			}
 			output := next(input)
-			output.Current, output.Error = e.Execute(input.Ctx, c.mutationSchema.Mutation, c.mutationSchema.Mutation, query)
+			output.Current, output.Error = e.Execute(input.Ctx, c.mutationSchema.Mutation, c.mutationSchema.Mutation, input.ParsedQuery)
 			return output
 		})
 
 		output := runMiddlewares(middlewares, &ComputationInput{
-			Ctx:         ctx,
-			Id:          id,
-			ParsedQuery: query,
-			Previous:    nil,
-			Query:       mutate.Query,
-			Variables:   mutate.Variables,
+			Ctx:       ctx,
+			Id:        id,
+			Previous:  nil,
+			Query:     mutate.Query,
+			Variables: mutate.Variables,
 		})
 		current, err := output.Current, output.Error
 
