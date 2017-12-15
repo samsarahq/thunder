@@ -145,6 +145,39 @@ func mustMarshalJson(v interface{}) string {
 	return string(bytes)
 }
 
+func executionMiddleware(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
+	if input.ParsedQuery == nil {
+		query, err := Parse(input.Query, input.Variables)
+		if query != nil {
+			input.tags["queryType"] = query.Kind
+			input.tags["queryName"] = query.Name
+		}
+		if err != nil {
+			input.conn.logger.Error(input.Ctx, err, input.tags)
+			return &ComputationOutput{Error: err}
+		}
+
+		if err := PrepareQuery(input.conn.schema.Query, query.SelectionSet); err != nil {
+			input.conn.logger.Error(input.Ctx, err, input.tags)
+			return &ComputationOutput{Error: err}
+		}
+
+		input.ParsedQuery = query
+	}
+
+	output := next(input)
+	output.Current, output.Error = input.executor.Execute(input.Ctx, input.conn.schema.Query, nil, input.ParsedQuery)
+	return output
+}
+
+func loggingMiddleware(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
+	start := time.Now()
+	input.conn.logger.StartExecution(input.Ctx, input.tags, true)
+	output := next(input)
+	input.conn.logger.FinishExecution(input.Ctx, input.tags, time.Since(start))
+	return output
+}
+
 func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -211,37 +244,8 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 			return output
 		})
 		middlewares = append(middlewares, c.middlewares...)
-		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
-			start := time.Now()
-			c.logger.StartExecution(input.Ctx, tags, initial)
-			output := next(input)
-			c.logger.FinishExecution(input.Ctx, tags, time.Since(start))
-			return output
-		})
-		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
-			if input.ParsedQuery == nil {
-				query, err := Parse(subscribe.Query, subscribe.Variables)
-				if query != nil {
-					tags["queryType"] = query.Kind
-					tags["queryName"] = query.Name
-				}
-				if err != nil {
-					c.logger.Error(input.Ctx, err, tags)
-					return &ComputationOutput{Error: err}
-				}
-
-				if err := PrepareQuery(c.schema.Query, query.SelectionSet); err != nil {
-					c.logger.Error(input.Ctx, err, tags)
-					return &ComputationOutput{Error: err}
-				}
-
-				input.ParsedQuery = query
-			}
-
-			output := next(input)
-			output.Current, output.Error = e.Execute(input.Ctx, c.schema.Query, nil, input.ParsedQuery)
-			return output
-		})
+		middlewares = append(middlewares, loggingMiddleware)
+		middlewares = append(middlewares, executionMiddleware)
 
 		output := runMiddlewares(middlewares, &ComputationInput{
 			Ctx:       ctx,
@@ -249,6 +253,9 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 			Previous:  previous,
 			Query:     subscribe.Query,
 			Variables: subscribe.Variables,
+			tags:      tags,
+			conn:      c,
+			executor:  &e,
 		})
 		current, err := output.Current, output.Error
 
@@ -319,41 +326,16 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 			return output
 		})
 		middlewares = append(middlewares, c.middlewares...)
-		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
-			start := time.Now()
-			c.logger.StartExecution(input.Ctx, tags, true)
-			output := next(input)
-			c.logger.FinishExecution(input.Ctx, tags, time.Since(start))
-			return output
-		})
-		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
-			if input.ParsedQuery == nil {
-				query, err := Parse(mutate.Query, mutate.Variables)
-				if query != nil {
-					tags["queryType"] = query.Kind
-					tags["queryName"] = query.Name
-				}
-				if err != nil {
-					c.logger.Error(input.Ctx, err, tags)
-					return &ComputationOutput{Error: err}
-				}
-				if err := PrepareQuery(c.mutationSchema.Mutation, query.SelectionSet); err != nil {
-					c.logger.Error(input.Ctx, err, tags)
-					return &ComputationOutput{Error: err}
-				}
-				input.ParsedQuery = query
-			}
-			output := next(input)
-			output.Current, output.Error = e.Execute(input.Ctx, c.mutationSchema.Mutation, c.mutationSchema.Mutation, input.ParsedQuery)
-			return output
-		})
-
+		middlewares = append(middlewares, executionMiddleware)
 		output := runMiddlewares(middlewares, &ComputationInput{
 			Ctx:       ctx,
 			Id:        id,
 			Previous:  nil,
 			Query:     mutate.Query,
 			Variables: mutate.Variables,
+			tags:      tags,
+			conn:      c,
+			executor:  &e,
 		})
 		current, err := output.Current, output.Error
 

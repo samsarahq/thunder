@@ -11,6 +11,11 @@ type ComputationInput struct {
 	Variables   map[string]interface{}
 	Ctx         context.Context
 	Previous    interface{}
+
+	// Used for internal middlewares
+	tags     map[string]string
+	conn     *conn
+	executor *Executor
 }
 
 type ComputationOutput struct {
