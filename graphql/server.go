@@ -168,12 +168,56 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 		ctx = c.makeCtx(ctx)
 		ctx = batch.WithBatching(ctx)
 
-		start := time.Now()
-
-		c.logger.StartExecution(ctx, tags, initial)
-
 		var middlewares []MiddlewareFunc
+		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
+			output := next(input)
+			err := output.Error
+			if err == nil {
+				return output
+			}
+
+			if extractPathError(err) == context.Canceled {
+				go c.closeSubscription(id)
+				return output
+			}
+
+			if !initial {
+				// If this a re-computation, tell the Rerunner to retry the computation
+				// without dumping the contents of the current computation cache.
+				// Note that we are swallowing the propagation of the error in this case,
+				// but we still log it.
+				if _, ok := err.(SanitizedError); !ok {
+					extraTags := map[string]string{"retry": "true"}
+					for k, v := range tags {
+						extraTags[k] = v
+					}
+					c.logger.Error(input.Ctx, err, extraTags)
+				}
+				output.Error = reactive.RetrySentinelError
+				return output
+			}
+
+			c.writeOrClose(outEnvelope{
+				ID:       id,
+				Type:     "error",
+				Message:  sanitizeError(err),
+				Metadata: output.Metadata,
+			})
+			go c.closeSubscription(id)
+
+			if _, ok := err.(SanitizedError); !ok {
+				c.logger.Error(input.Ctx, err, tags)
+			}
+			return output
+		})
 		middlewares = append(middlewares, c.middlewares...)
+		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
+			start := time.Now()
+			c.logger.StartExecution(input.Ctx, tags, initial)
+			output := next(input)
+			c.logger.FinishExecution(input.Ctx, tags, time.Since(start))
+			return output
+		})
 		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
 			if input.ParsedQuery == nil {
 				query, err := Parse(subscribe.Query, subscribe.Variables)
@@ -182,12 +226,12 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 					tags["queryName"] = query.Name
 				}
 				if err != nil {
-					c.logger.Error(c.ctx, err, tags)
+					c.logger.Error(input.Ctx, err, tags)
 					return &ComputationOutput{Error: err}
 				}
 
 				if err := PrepareQuery(c.schema.Query, query.SelectionSet); err != nil {
-					c.logger.Error(c.ctx, err, tags)
+					c.logger.Error(input.Ctx, err, tags)
 					return &ComputationOutput{Error: err}
 				}
 
@@ -208,41 +252,7 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 		})
 		current, err := output.Current, output.Error
 
-		c.logger.FinishExecution(ctx, tags, time.Since(start))
-
 		if err != nil {
-			if extractPathError(err) == context.Canceled {
-				go c.closeSubscription(id)
-				return nil, err
-			}
-
-			if !initial {
-				// If this a re-computation, tell the Rerunner to retry the computation
-				// without dumping the contents of the current computation cache.
-				// Note that we are swallowing the propagation of the error in this case,
-				// but we still log it.
-				if _, ok := err.(SanitizedError); !ok {
-					extraTags := map[string]string{"retry": "true"}
-					for k, v := range tags {
-						extraTags[k] = v
-					}
-					c.logger.Error(ctx, err, extraTags)
-				}
-
-				return nil, reactive.RetrySentinelError
-			}
-
-			c.writeOrClose(outEnvelope{
-				ID:       id,
-				Type:     "error",
-				Message:  sanitizeError(err),
-				Metadata: output.Metadata,
-			})
-			go c.closeSubscription(id)
-
-			if _, ok := err.(SanitizedError); !ok {
-				c.logger.Error(ctx, err, tags)
-			}
 			return nil, err
 		}
 
@@ -281,11 +291,41 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 		ctx = c.makeCtx(ctx)
 		ctx = batch.WithBatching(ctx)
 
-		start := time.Now()
-		c.logger.StartExecution(ctx, tags, true)
-
 		var middlewares []MiddlewareFunc
+
+		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
+			output := next(input)
+			err := output.Error
+			if err == nil {
+				return output
+			}
+
+			c.writeOrClose(outEnvelope{
+				ID:       id,
+				Type:     "error",
+				Message:  sanitizeError(err),
+				Metadata: output.Metadata,
+			})
+
+			go c.closeSubscription(id)
+
+			if extractPathError(err) == context.Canceled {
+				return output
+			}
+
+			if _, ok := err.(SanitizedError); !ok {
+				c.logger.Error(input.Ctx, err, tags)
+			}
+			return output
+		})
 		middlewares = append(middlewares, c.middlewares...)
+		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
+			start := time.Now()
+			c.logger.StartExecution(input.Ctx, tags, true)
+			output := next(input)
+			c.logger.FinishExecution(input.Ctx, tags, time.Since(start))
+			return output
+		})
 		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
 			if input.ParsedQuery == nil {
 				query, err := Parse(mutate.Query, mutate.Variables)
@@ -294,11 +334,11 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 					tags["queryName"] = query.Name
 				}
 				if err != nil {
-					c.logger.Error(c.ctx, err, tags)
+					c.logger.Error(input.Ctx, err, tags)
 					return &ComputationOutput{Error: err}
 				}
 				if err := PrepareQuery(c.mutationSchema.Mutation, query.SelectionSet); err != nil {
-					c.logger.Error(c.ctx, err, tags)
+					c.logger.Error(input.Ctx, err, tags)
 					return &ComputationOutput{Error: err}
 				}
 				input.ParsedQuery = query
@@ -317,25 +357,7 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 		})
 		current, err := output.Current, output.Error
 
-		c.logger.FinishExecution(ctx, tags, time.Since(start))
-
 		if err != nil {
-			c.writeOrClose(outEnvelope{
-				ID:       id,
-				Type:     "error",
-				Message:  sanitizeError(err),
-				Metadata: output.Metadata,
-			})
-
-			go c.closeSubscription(id)
-
-			if extractPathError(err) == context.Canceled {
-				return nil, err
-			}
-
-			if _, ok := err.(SanitizedError); !ok {
-				c.logger.Error(ctx, err, tags)
-			}
 			return nil, err
 		}
 
