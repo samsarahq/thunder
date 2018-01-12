@@ -374,6 +374,24 @@ func Parse(source string, vars map[string]interface{}) (*Query, error) {
 		name = queryDefinition.Name.Value
 	}
 
+	// assert that default value matches variable type
+	// write default values to vars, or nil if variable doesn't exist and default value doesn't exist
+	for _, vd := range queryDefinition.VariableDefinitions {
+		_, ok := vars[vd.Variable.Name.Value]
+		if !ok {
+			// variable was not passed in. check and apply default value.
+			defaultValue := vd.DefaultValue.GetValue()
+			if defaultValue != "" {
+				// default value passed in.
+				// FIXME: cast the default value to the right type. it currently seems to always be string.
+				vars[vd.Variable.Name.Value] = defaultValue
+			} else {
+				// default value not passed in. apply nil.
+				vars[vd.Variable.Name.Value] = nil
+			}
+		}
+	}
+
 	rv := &Query{
 		Name:         name,
 		Kind:         kind,
