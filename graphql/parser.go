@@ -36,7 +36,7 @@ func valueToJson(value ast.Value, vars map[string]interface{}) (interface{}, err
 	case *ast.Variable:
 		actual, ok := vars[value.Name.Value]
 		if !ok {
-			return nil, NewClientError("unknown var: %s", value.Name.Value)
+			return nil, nil
 		}
 		return actual, nil
 	case *ast.ObjectValue:
