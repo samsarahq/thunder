@@ -137,7 +137,7 @@
           {
             "args": [
               {
-                "defaultValue": "",
+                "defaultValue": null,
                 "description": "",
                 "name": "include",
                 "type": {
@@ -147,7 +147,7 @@
                 }
               },
               {
-                "defaultValue": "",
+                "defaultValue": null,
                 "description": "",
                 "name": "other",
                 "type": {
@@ -216,7 +216,7 @@
         "fields": [],
         "inputFields": [
           {
-            "defaultValue": "",
+            "defaultValue": null,
             "description": "",
             "name": "maybeAge",
             "type": {
@@ -226,7 +226,7 @@
             }
           },
           {
-            "defaultValue": "",
+            "defaultValue": null,
             "description": "",
             "name": "name",
             "type": {

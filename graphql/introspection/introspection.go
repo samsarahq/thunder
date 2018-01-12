@@ -43,7 +43,7 @@ type InputValue struct {
 	Name         string
 	Description  string
 	Type         Type
-	DefaultValue string
+	DefaultValue *string
 }
 
 func (s *introspection) registerInputValue(schema *schemabuilder.Schema) {
