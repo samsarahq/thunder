@@ -201,3 +201,74 @@ func TestEndToEndAwaitAndCache(t *testing.T) {
 		t.Errorf("expected 4 total calls to slow, got %d", calls)
 	}
 }
+
+func verifyArgumentOption(t *testing.T, query graphql.Type, queryString string, variables map[string]interface{}, expectedResult string) {
+	q := graphql.MustParse(queryString, variables)
+
+	if err := graphql.PrepareQuery(query, q.SelectionSet); err != nil {
+		t.Error(err)
+	}
+
+	e := graphql.Executor{}
+	result, err := e.Execute(context.Background(), query, nil, q)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !reflect.DeepEqual(internal.AsJSON(result), internal.ParseJSON(expectedResult)) {
+		t.Error(internal.AsJSON(result))
+	}
+}
+
+// TestArgumentOptionality tests that optional arguments can be omitted from
+// query variables and that mandatory arguments must be included.
+func TestArgumentOptionality(t *testing.T) {
+	schema := schemabuilder.NewSchema()
+	query := schema.Query()
+
+	query.FieldFunc("optional", func(args struct{ X *int64 }) int64 {
+		if args.X != nil {
+			return *args.X
+		}
+		return -1
+	})
+
+	query.FieldFunc("mandatory", func(args struct{ X int64 }) int64 {
+		return args.X
+	})
+
+	_ = schema.Mutation()
+	builtSchema := schema.MustBuild()
+	emptyVariables := map[string]interface{}{}
+	filledVariables := map[string]interface{}{
+		"testArg": float64(5),
+	}
+
+	// An optional argument that is passed in returns successfully.
+	verifyArgumentOption(t, builtSchema.Query, `
+		query getOptional($testArg: int64) {
+			optional(x: $testArg)
+		}`, filledVariables, `{"optional": 5}`)
+
+	// An optional argument that is omitted returns successfully.
+	verifyArgumentOption(t, builtSchema.Query, `
+			query getOptional($testArg: int64) {
+				optional(x: $testArg)
+			}`, emptyVariables, `{"optional": -1}`)
+
+	// A mandatory argument that is passed in returns successfully.
+	verifyArgumentOption(t, builtSchema.Query, `
+		query getMandatory($testArg: int64!) {
+			mandatory(x: $testArg)
+		}`, filledVariables, `{"mandatory": 5}`)
+
+	// A mandatory argument that is omitted causes an error.
+	q := graphql.MustParse(`
+		query getMandatory($testArg: int64!) {
+			mandatory(x: $testArg)
+		}`, emptyVariables)
+
+	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err.Error() != "error parsing args for \"mandatory\": x: not a number" {
+		t.Error(err)
+	}
+}
