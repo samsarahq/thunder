@@ -736,19 +736,27 @@ func (sb *schemaBuilder) getType(t reflect.Type) (graphql.Type, error) {
 }
 
 type Schema struct {
-	objects []*Object
+	objects map[string]*Object
 }
 
 func NewSchema() *Schema {
-	return &Schema{}
+	return &Schema{
+		objects: make(map[string]*Object),
+	}
 }
 
 func (s *Schema) Object(name string, typ interface{}) *Object {
+	if object, ok := s.objects[name]; ok {
+		if object.Type != typ {
+			panic("re-registered object with different type")
+		}
+		return object
+	}
 	object := &Object{
 		Name: name,
 		Type: typ,
 	}
-	s.objects = append(s.objects, object)
+	s.objects[name] = object
 	return object
 }
 

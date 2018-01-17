@@ -114,6 +114,11 @@ func TestExecuteGood(t *testing.T) {
 		return []*User{}
 	})
 
+	extendUser := schema.Object("User", User{})
+	extendUser.FieldFunc("extended", func(u User) string {
+		return "extended"
+	})
+
 	weirdKey := schema.Object("weirdKey", WeirdKey{})
 	weirdKey.Key("key")
 	weirdKey.FieldFunc("key", func(w WeirdKey) int64 {
@@ -130,6 +135,7 @@ func TestExecuteGood(t *testing.T) {
 				name
 				foo: age
 				friends { name }
+				extended
 			}
 			ints
 			getCtx
@@ -160,8 +166,8 @@ func TestExecuteGood(t *testing.T) {
 
 	if !reflect.DeepEqual(internal.AsJSON(result), internal.ParseJSON(`
 		{"users": [
-			{"name": "Alice", "foo": 10, "friends": [], "__key": "Alice"},
-			{"name": "Bob", "foo": 20, "friends": [], "__key": "Bob"}
+			{"name": "Alice", "foo": 10, "friends": [], "extended": "extended", "__key": "Alice"},
+			{"name": "Bob", "foo": 20, "friends": [], "extended": "extended", "__key": "Bob"}
 		],
 		"nilObject": null,
 		"nilSlice": [],
