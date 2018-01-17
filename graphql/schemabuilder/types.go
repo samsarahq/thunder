@@ -49,6 +49,9 @@ func (s *Object) FieldFunc(name string, f interface{}, options ...FieldFuncOptio
 		option(m)
 	}
 
+	if _, ok := s.Methods[name]; ok {
+		panic("duplicate method")
+	}
 	s.Methods[name] = m
 }
 
