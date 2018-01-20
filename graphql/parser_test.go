@@ -249,7 +249,8 @@ fragment foo on Foo {
 	}
 }
 
-func TestParseNullVariableDefinitions(t *testing.T) {
+func TestParseVariableDefinitions(t *testing.T) {
+	// Expect required variables to be provided.
 	_, err := Parse(`
 query Operation($x: int64!) {
 	field(x: $x)
@@ -257,5 +258,39 @@ query Operation($x: int64!) {
 
 	if err == nil || err.Error() != "required variable not provided: $x" {
 		t.Error("expected unfulfilled required argument to fail, but got", err)
+	}
+}
+
+func TestParseRequiredVariableDefinitionWithDefaultValue(t *testing.T) {
+	// Expect required variables to be provided.
+	_, err := Parse(`
+query Operation($x: int64! = 2) {
+	field(x: $x)
+}	`, map[string]interface{}{})
+
+	if err == nil || err.Error() != "required varaible cannot provide a default value: $x" {
+		t.Error("expected required argument with default value to fail, but got", err)
+	}
+}
+
+func TestParseFillInDefaultValues(t *testing.T) {
+	// Fill in default values when provided.
+	query, err := Parse(`
+query Operation($x: int64 = 2) {
+	field(x: $x)
+}	`, map[string]interface{}{})
+
+	if err != nil {
+		t.Error("expected default value to be used, but received", err)
+	}
+
+	args := query.SelectionSet.Selections[0].Args.(map[string]interface{})
+
+	if len := len(args); len != 1 {
+		t.Errorf("expected 1 argument, received %d", len)
+	}
+
+	if val := args["x"]; val != float64(2) {
+		t.Errorf("expected 2, received %v", val)
 	}
 }
