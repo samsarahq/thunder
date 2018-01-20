@@ -261,14 +261,4 @@ func TestArgumentOptionality(t *testing.T) {
 		query getMandatory($testArg: int64!) {
 			mandatory(x: $testArg)
 		}`, filledVariables, `{"mandatory": 5}`)
-
-	// A mandatory argument that is omitted causes an error.
-	q := graphql.MustParse(`
-		query getMandatory($testArg: int64!) {
-			mandatory(x: $testArg)
-		}`, emptyVariables)
-
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err.Error() != "error parsing args for \"mandatory\": x: not a number" {
-		t.Error(err)
-	}
 }
