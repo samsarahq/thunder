@@ -248,3 +248,14 @@ fragment foo on Foo {
 		t.Error("expected unused fragment to fail", err)
 	}
 }
+
+func TestParseNullVariableDefinitions(t *testing.T) {
+	_, err := Parse(`
+query Operation($x: int64!) {
+	field(x: $x)
+}	`, map[string]interface{}{})
+
+	if err == nil || err.Error() != "required variable not provided: $x" {
+		t.Error("expected unfulfilled required argument to fail, but got", err)
+	}
+}
