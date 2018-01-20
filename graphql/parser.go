@@ -368,6 +368,14 @@ func Parse(source string, vars map[string]interface{}) (*Query, error) {
 		return nil, NewClientError("must have a single query")
 	}
 
+	for _, variableDefinition := range queryDefinition.VariableDefinitions {
+		if _, ok := variableDefinition.Type.(*ast.NonNull); ok {
+			if vars[variableDefinition.Variable.Name.Value] == nil {
+				return nil, NewClientError("required variable not provided: $%s", variableDefinition.Variable.Name.Value)
+			}
+		}
+	}
+
 	kind := queryDefinition.Operation
 	var name string
 	if queryDefinition.Name != nil {
