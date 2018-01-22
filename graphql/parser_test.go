@@ -278,3 +278,17 @@ query Operation($x: int64 = 2) {
 		t.Errorf("expected 2, received %v", val)
 	}
 }
+
+func TestSkippedFragment(t *testing.T) {
+	_, err := Parse(`query Test($something: bool) {
+		something @skip(if: $something) {
+			...Frag
+		}
+	}
+
+	fragment Frag on Something { somethingElse }`, map[string]interface{}{"something": true})
+
+	if err != nil {
+		t.Errorf("expected no error, received %s", err.Error())
+	}
+}
