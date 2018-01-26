@@ -79,6 +79,7 @@
 package diff
 
 import (
+	"bytes"
 	"fmt"
 	"reflect"
 )
@@ -310,6 +311,11 @@ func Diff(old interface{}, new interface{}) interface{} {
 		return diffMap(old, new)
 	case []interface{}:
 		return diffArray(old, new)
+	case []uint8:
+		if new, ok := new.([]uint8); ok && bytes.Equal(old, new) {
+			return nil
+		}
+		return markReplaced(new)
 	default:
 		if old != new {
 			return markReplaced(new)

@@ -29,6 +29,22 @@ func TestDiffListString(t *testing.T) {
 	}
 }
 
+func TestDiffBytes(t *testing.T) {
+	d := diff.Diff([]interface{}{
+		[]byte("123"),
+		[]byte("456"),
+	}, []interface{}{
+		[]byte("123"),
+		[]byte("789"),
+	})
+
+	if !reflect.DeepEqual(internal.AsJSON(d), internal.ParseJSON(`
+		{"1": ["Nzg5"]}
+	`)) {
+		t.Error("bad reorder")
+	}
+}
+
 func TestDiffListRepeatedStrings(t *testing.T) {
 	var testcases = []struct {
 		old  interface{}
