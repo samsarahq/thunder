@@ -4,10 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 
 	"github.com/samsarahq/thunder/batch"
-	"github.com/samsarahq/thunder/opentracingkit"
 )
 
 // DB uses a *sql.DB connection that is established by its owner. DB assumes the
@@ -30,9 +28,6 @@ func NewDB(conn *sql.DB, schema *Schema) *DB {
 		Many: func(ctx context.Context, items []interface{}) ([]interface{}, error) {
 			table := items[0].(*BaseSelectQuery).Table
 
-			span, ctx := opentracingkit.MaybeStartSpanFromContext(ctx, fmt.Sprintf("thunder.sqlgen.BatchQuery(%s)", table.Name))
-			defer span.Finish()
-
 			// First, build the SQL query.
 			filters := make([]Filter, 0, len(items))
 			for _, item := range items {
@@ -51,14 +46,10 @@ func NewDB(conn *sql.DB, schema *Schema) *DB {
 				return nil, err
 			}
 			clause, args = selectQuery.ToSQL()
-			span.SetTag("query", clause)
-			span.SetTag("batchItemCount", len(items))
-			span.SetTag("queryVariables", args)
 
 			// Then, run the SQL query.
 			res, err := db.Conn.Query(clause, args...)
 			if err != nil {
-				opentracingkit.LogError(span, err)
 				return nil, err
 			}
 			defer res.Close()
@@ -66,7 +57,6 @@ func NewDB(conn *sql.DB, schema *Schema) *DB {
 			if err != nil {
 				return nil, err
 			}
-			span.SetTag("batchResultCount", len(rows))
 
 			// Finally, match the returned rows against the queries.
 			matcher := newMatcher()
@@ -118,14 +108,8 @@ func (db *DB) BaseQuery(ctx context.Context, query *BaseSelectQuery) ([]interfac
 
 	clause, args := selectQuery.ToSQL()
 
-	span, ctx := opentracingkit.MaybeStartSpanFromContext(ctx, fmt.Sprintf("thunder.sqlgen.BaseQuery(%s)", selectQuery.Table))
-	defer span.Finish()
-	span.SetTag("query", clause)
-	span.SetTag("queryVariables", args)
-
 	res, err := db.QueryExecer(ctx).Query(clause, args...)
 	if err != nil {
-		opentracingkit.LogError(span, err)
 		return nil, err
 	}
 	defer res.Close()
@@ -136,23 +120,7 @@ func (db *DB) BaseQuery(ctx context.Context, query *BaseSelectQuery) ([]interfac
 func (db *DB) execWithTrace(ctx context.Context, query SQLQuery, operationName string) (sql.Result, error) {
 	clause, args := query.ToSQL()
 
-	span, ctx := opentracingkit.MaybeStartSpanFromContext(ctx, fmt.Sprintf("thunder.sqlgen.%s", operationName))
-	defer span.Finish()
-
-	span.SetTag("query", clause)
-	span.SetTag("queryVariables", args)
-
-	result, err := db.QueryExecer(ctx).Exec(clause, args...)
-	if err != nil {
-		opentracingkit.LogError(span, err)
-		return nil, err
-	}
-
-	if rows, err := result.RowsAffected(); err != nil {
-		span.SetTag("rowsAffected", rows)
-	}
-
-	return result, err
+	return db.QueryExecer(ctx).Exec(clause, args...)
 }
 
 // Query fetches a collection of rows from the database
