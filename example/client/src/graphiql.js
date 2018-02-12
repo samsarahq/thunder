@@ -1,5 +1,4 @@
 import React from 'react';
-import { buildSchema } from 'graphql';
 import GraphiQL from 'graphiql';
 
 import { connection } from 'thunder-react';
@@ -10,7 +9,6 @@ function graphQLFetcher({query, variables}) {
   return {
     subscribe(subscriber) {
       const next = subscriber.next || subscriber;
-      const {error, complete} = subscriber;
 
       const subscription = connection.subscribe({
         query: query,
