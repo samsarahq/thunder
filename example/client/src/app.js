@@ -1,5 +1,5 @@
 import React from 'react';
-import { connectGraphQL, mutate } from './store';
+import { connectGraphQL, mutate } from 'thunder-react';
 import { GraphiQLWithFetcher } from './graphiql';
 
 const Editor = React.createClass({

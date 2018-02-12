@@ -2,7 +2,7 @@ import React from 'react';
 import { buildSchema } from 'graphql';
 import GraphiQL from 'graphiql';
 
-import { connection } from './store';
+import { connection } from 'thunder-react';
 
 import '../node_modules/graphiql/graphiql.css';
 

@@ -4910,6 +4910,14 @@ through@^2.3.6:
   version "2.3.8"
   resolved "https://registry.yarnpkg.com/through/-/through-2.3.8.tgz#0dd4c9ffaabc357960b1b724115d7e0e86a2e1f5"
 
+thunder-react@^0.0.2:
+  version "0.0.2"
+  resolved "https://registry.yarnpkg.com/thunder-react/-/thunder-react-0.0.2.tgz#86942a9130c8c55210be86d0919b849d5bf162a1"
+  dependencies:
+    graphql "0.8.2"
+    lodash.assign "4.2.0"
+    lodash.isequal "4.4.0"
+
 timers-browserify@^1.0.1:
   version "1.4.2"
   resolved "https://registry.yarnpkg.com/timers-browserify/-/timers-browserify-1.4.2.tgz#c9c58b575be8407375cb5e2462dacee74359f41d"
