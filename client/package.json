@@ -2,6 +2,10 @@
   "name": "thunder-react",
   "description": "A thunder GraphQL client for React.",
   "version": "0.0.1",
+  "sripts": {
+    "build": "babel src -d lib",
+    "prepublish": "npm run build"
+  },
   "dependencies": {
     "graphql": "0.8.2",
     "lodash.assign": "4.2.0",
