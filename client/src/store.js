@@ -36,7 +36,7 @@ export function connectGraphQL(Component, queryVariablesFunc) {
 
     subscribe({query, variables}) {
       let data = this.state.data;
-      if (data.state === "pending" && this.state.previous) {
+      if (data.state === "loading" && this.state.previous) {
         data = this.state.previous;
       }
       const previous = this.state.query === query ?
@@ -69,7 +69,7 @@ export function connectGraphQL(Component, queryVariablesFunc) {
 
     render() {
       let data = this.state.data;
-      if (data.state === "pending" && this.state.previous) {
+      if (data.state === "loading" && this.state.previous) {
         data = this.state.previous;
       }
       const {onlyValidData} = queryVariablesFunc(this.props);
