@@ -120,7 +120,7 @@ export class Connection extends BaseConnection {
     const cached = this.past.find({query, variables});
 
     const subscription = {
-      state: cached ? "cached" : "pending",
+      state: cached ? "cached" : "loading",
       retryDelay: this.initialRetryDelay,
       retryHandle: undefined,
       query,
