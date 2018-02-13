@@ -747,7 +747,7 @@ func NewSchema() *Schema {
 
 func (s *Schema) Object(name string, typ interface{}) *Object {
 	if object, ok := s.objects[name]; ok {
-		if object.Type != typ {
+		if reflect.TypeOf(object.Type) != reflect.TypeOf(typ) {
 			panic("re-registered object with different type")
 		}
 		return object
