@@ -3,6 +3,8 @@ Thunder has support for schemas automatically generated from Go types, live
 queries, query batching, and more. Thunder is an open-source project from
 Samsara.
 
+[![Documentation](https://godoc.org/github.com/samsarahq/thunder?status.svg)](http://godoc.org/github.com/samsarahq/thunder)
+
 # Feature Lightning Tour
 
 Thunder has a number of features to make it easy to build sophisticated
