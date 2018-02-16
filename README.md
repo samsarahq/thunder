@@ -39,7 +39,7 @@ func registerFriend(schema *schemabuilder.Schema) {
   object := schema.Object("Friend", Friend{})
 
   // fullName is a computed field on the Friend{} object.
-  object.FieldFunc("fullName", f.fullName)
+  object.FieldFunc("fullName", Freind.FullName)
 }
 ```
 
