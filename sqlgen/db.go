@@ -108,7 +108,7 @@ func (db *DB) BaseQuery(ctx context.Context, query *BaseSelectQuery) ([]interfac
 
 	clause, args := selectQuery.ToSQL()
 
-	res, err := db.QueryExecer(ctx).Query(clause, args...)
+	res, err := db.QueryExecer(ctx).QueryContext(ctx, clause, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func (db *DB) BaseQuery(ctx context.Context, query *BaseSelectQuery) ([]interfac
 func (db *DB) execWithTrace(ctx context.Context, query SQLQuery, operationName string) (sql.Result, error) {
 	clause, args := query.ToSQL()
 
-	return db.QueryExecer(ctx).Exec(clause, args...)
+	return db.QueryExecer(ctx).ExecContext(ctx, clause, args...)
 }
 
 // Query fetches a collection of rows from the database
@@ -269,6 +269,10 @@ type QueryExecer interface {
 	Query(query string, args ...interface{}) (*sql.Rows, error)
 	QueryRow(query string, args ...interface{}) *sql.Row
 	Exec(query string, args ...interface{}) (sql.Result, error)
+
+	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
+	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
 }
 
 func (db *DB) QueryExecer(ctx context.Context) QueryExecer {
@@ -278,3 +282,6 @@ func (db *DB) QueryExecer(ctx context.Context) QueryExecer {
 	}
 	return db.Conn
 }
+
+var _ QueryExecer = &sql.Tx{}
+var _ QueryExecer = &sql.DB{}
