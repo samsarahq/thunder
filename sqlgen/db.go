@@ -48,7 +48,7 @@ func NewDB(conn *sql.DB, schema *Schema) *DB {
 			clause, args = selectQuery.ToSQL()
 
 			// Then, run the SQL query.
-			res, err := db.Conn.Query(clause, args...)
+			res, err := db.Conn.QueryContext(ctx, clause, args...)
 			if err != nil {
 				return nil, err
 			}
