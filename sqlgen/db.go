@@ -244,7 +244,7 @@ func (db *DB) WithTx(ctx context.Context) (context.Context, *sql.Tx, error) {
 		return nil, nil, errors.New("already in a tx")
 	}
 
-	tx, err := db.Conn.Begin()
+	tx, err := db.Conn.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, nil, err
 	}
