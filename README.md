@@ -322,6 +322,36 @@ func main() {
 }
 ```
 
+## Emitting a schema.json
+
+Thunder can emit a GraphQL introspection query schema useful for compatibility with
+other GraphQL tooling. Alongside code from the above example, here is a small program
+for registering our schema and writing the JSON output to stdout.
+
+```go
+// schema_generator.go
+
+func main() {
+  // Instantiate a server and run the introspection query on it.
+  server := &server{...}
+
+  schema := server.schema()
+  introspection.AddIntrospectionToSchema(schema)
+
+  valueJSON, err := introspection.ComputeSchemaJSON(*schema)
+  if err != nil {
+    panic(err)
+  }
+
+  fmt.Print(string(valueJSON))
+}
+```
+
+This program can then be run to generate `schema.json`:
+```bash
+$ go run schema_generator.go > schema.json
+```
+
 ## Code organization
 
 The source code in this repository is organized as follows:
