@@ -295,6 +295,33 @@ func main() {
 }
 ```
 
+## Using Thunder without Websockets (POST requests)
+
+For use with non-live clients (e.g. [Relay](https://facebook.github.io/relay/), [Apollo](https://www.apollographql.com/client/)) thunder provides an HTTP handler that can serve
+POST requests, instead of having the client connect over a websocket. In this mode, thunder
+does not provide live query updates.
+
+In the above example, the `main` function would be changed to look like:
+
+```go
+func main() {
+  // Instantiate a server, build a server, and serve the schema on port 3030.
+  server := &server{
+    posts: []post{
+      {Title: "first post!", Body: "I was here first!", CreatedAt: time.Now()},
+      {Title: "graphql", Body: "did you hear about Thunder?", CreatedAt: time.Now()},
+    },
+  }
+
+  schema := server.schema()
+  introspection.AddIntrospectionToSchema(schema)
+
+  // Expose GraphQL POST endpoint.
+  http.Handle("/graphql", graphql.HTTPHandler(schema))
+  http.ListenAndServe(":3030", nil)
+}
+```
+
 ## Code organization
 
 The source code in this repository is organized as follows:
