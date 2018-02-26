@@ -272,6 +272,40 @@ func collectTypes(typ graphql.Type, types map[string]graphql.Type) {
 	}
 }
 
+var ifDirective = Directive{
+	Description: "Directs the executor to include this field or fragment only when the `if` argument is true.",
+	Locations: []DirectiveLocation{
+		FIELD,
+		FRAGMENT_SPREAD,
+		INLINE_FRAGMENT,
+	},
+	Name: "include",
+	Args: []InputValue{
+		InputValue{
+			Name:        "if",
+			Type:        Type{Inner: &graphql.Scalar{Type: "bool"}},
+			Description: "Included when true.",
+		},
+	},
+}
+
+var skipDirective = Directive{
+	Description: "Directs the executor to skip this field or fragment only when the `if` argument is true.",
+	Locations: []DirectiveLocation{
+		FIELD,
+		FRAGMENT_SPREAD,
+		INLINE_FRAGMENT,
+	},
+	Name: "skip",
+	Args: []InputValue{
+		InputValue{
+			Name:        "if",
+			Type:        Type{Inner: &graphql.Scalar{Type: "bool"}},
+			Description: "Skipped when true.",
+		},
+	},
+}
+
 func (s *introspection) registerQuery(schema *schemabuilder.Schema) {
 	object := schema.Query()
 
@@ -287,6 +321,7 @@ func (s *introspection) registerQuery(schema *schemabuilder.Schema) {
 			Types:        types,
 			QueryType:    &Type{Inner: s.query},
 			MutationType: &Type{Inner: s.mutation},
+			Directives:   []Directive{ifDirective, skipDirective},
 		}
 	})
 
