@@ -368,6 +368,18 @@ func Parse(source string, vars map[string]interface{}) (*Query, error) {
 		return nil, NewClientError("must have a single query")
 	}
 
+	kind := queryDefinition.Operation
+	var name string
+	if queryDefinition.Name != nil {
+		name = queryDefinition.Name.Value
+	}
+
+	rv := &Query{
+		Name:         name,
+		Kind:         kind,
+		SelectionSet: nil,
+	}
+
 	// Parse variable definitions, default values, etc.
 	var defaultedVars map[string]interface{}
 	for _, variableDefinition := range queryDefinition.VariableDefinitions {
@@ -375,11 +387,11 @@ func Parse(source string, vars map[string]interface{}) (*Query, error) {
 
 		if _, ok := variableDefinition.Type.(*ast.NonNull); ok {
 			if variableDefinition.DefaultValue != nil {
-				return nil, NewClientError("required varaible cannot provide a default value: $%s", name)
+				return rv, NewClientError("required variable cannot provide a default value: $%s", name)
 			}
 
 			if vars[name] == nil {
-				return nil, NewClientError("required variable not provided: $%s", name)
+				return rv, NewClientError("required variable not provided: $%s", name)
 			}
 
 			continue
@@ -403,7 +415,7 @@ func Parse(source string, vars map[string]interface{}) (*Query, error) {
 			// See: https://github.com/graphql/graphql-js/blob/17a0bfd5292f39cafe4eec5b3bd0e22514243b68/src/execution/values.js#L84
 			val, err := valueToJson(variableDefinition.DefaultValue, nil)
 			if err != nil {
-				return nil, NewClientError("failed to parse default value: %s", err.Error())
+				return rv, NewClientError("failed to parse default value: %s", err.Error())
 			}
 
 			defaultedVars[name] = val
@@ -412,18 +424,6 @@ func Parse(source string, vars map[string]interface{}) (*Query, error) {
 
 	if defaultedVars != nil {
 		vars = defaultedVars
-	}
-
-	kind := queryDefinition.Operation
-	var name string
-	if queryDefinition.Name != nil {
-		name = queryDefinition.Name.Value
-	}
-
-	rv := &Query{
-		Name:         name,
-		Kind:         kind,
-		SelectionSet: nil,
 	}
 
 	globalFragments := make(map[string]*Fragment)

@@ -268,7 +268,7 @@ query Operation($x: int64! = 2) {
 	field(x: $x)
 }	`, map[string]interface{}{})
 
-	if err == nil || err.Error() != "required varaible cannot provide a default value: $x" {
+	if err == nil || err.Error() != "required variable cannot provide a default value: $x" {
 		t.Error("expected required argument with default value to fail, but got", err)
 	}
 }
