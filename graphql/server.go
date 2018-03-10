@@ -55,13 +55,13 @@ type conn struct {
 	subscriptions map[string]*reactive.Rerunner
 }
 
-type InEnvelope struct {
+type inEnvelope struct {
 	ID      string          `json:"id"`
 	Type    string          `json:"type"`
 	Message json.RawMessage `json:"message"`
 }
 
-type OutEnvelope struct {
+type outEnvelope struct {
 	ID       string                 `json:"id,omitempty"`
 	Type     string                 `json:"type"`
 	Message  interface{}            `json:"message,omitempty"`
@@ -125,7 +125,7 @@ func isCloseError(err error) bool {
 	return ok || err == websocket.ErrCloseSent
 }
 
-func (c *conn) writeOrClose(out OutEnvelope) {
+func (c *conn) writeOrClose(out outEnvelope) {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 
@@ -228,7 +228,7 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 				return nil, reactive.RetrySentinelError
 			}
 
-			c.writeOrClose(OutEnvelope{
+			c.writeOrClose(outEnvelope{
 				ID:       id,
 				Type:     "error",
 				Message:  sanitizeError(err),
@@ -247,7 +247,7 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 		initial = false
 
 		if initial || d != nil {
-			c.writeOrClose(OutEnvelope{
+			c.writeOrClose(outEnvelope{
 				ID:       id,
 				Type:     "update",
 				Message:  d,
@@ -315,7 +315,7 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 		c.logger.FinishExecution(ctx, tags, time.Since(start))
 
 		if err != nil {
-			c.writeOrClose(OutEnvelope{
+			c.writeOrClose(outEnvelope{
 				ID:       id,
 				Type:     "error",
 				Message:  sanitizeError(err),
@@ -334,7 +334,7 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 			return nil, err
 		}
 
-		c.writeOrClose(OutEnvelope{
+		c.writeOrClose(outEnvelope{
 			ID:       id,
 			Type:     "result",
 			Message:  diff.Diff(nil, current),
@@ -378,10 +378,7 @@ func (c *conn) closeSubscriptions() {
 	}
 }
 
-type WebsocketWriter func(e OutEnvelope)
-type WebsocketHandler func(e *InEnvelope, write WebsocketWriter) error
-
-func (c *conn) handle(e *InEnvelope, write WebsocketWriter) error {
+func (c *conn) handle(e *inEnvelope) error {
 	switch e.Type {
 	case "subscribe":
 		var subscribe subscribeMessage
@@ -402,7 +399,7 @@ func (c *conn) handle(e *InEnvelope, write WebsocketWriter) error {
 		return c.handleMutate(e.ID, &mutate)
 
 	case "echo":
-		write(OutEnvelope{
+		c.writeOrClose(outEnvelope{
 			ID:       e.ID,
 			Type:     "echo",
 			Message:  nil,
@@ -496,13 +493,11 @@ func CreateJSONSocketWithMutationSchema(ctx context.Context, socket JSONSocket, 
 	}
 }
 
-func (c *conn) ServeJSONSocket(handlers ...WebsocketHandler) {
+func (c *conn) ServeJSONSocket() {
 	defer c.closeSubscriptions()
 
-	handlers = append(handlers, c.handle)
-
 	for {
-		var envelope InEnvelope
+		var envelope inEnvelope
 		if err := c.socket.ReadJSON(&envelope); err != nil {
 			if !isCloseError(err) {
 				log.Println("socket.ReadJSON:", err)
@@ -510,16 +505,14 @@ func (c *conn) ServeJSONSocket(handlers ...WebsocketHandler) {
 			return
 		}
 
-		for _, handler := range handlers {
-			if err := handler(&envelope, c.writeOrClose); err != nil {
-				log.Println("c.handle:", err)
-				c.writeOrClose(OutEnvelope{
-					ID:       envelope.ID,
-					Type:     "error",
-					Message:  sanitizeError(err),
-					Metadata: nil,
-				})
-			}
+		if err := c.handle(&envelope); err != nil {
+			log.Println("c.handle:", err)
+			c.writeOrClose(outEnvelope{
+				ID:       envelope.ID,
+				Type:     "error",
+				Message:  sanitizeError(err),
+				Metadata: nil,
+			})
 		}
 	}
 }
