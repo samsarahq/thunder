@@ -335,10 +335,12 @@ func main() {
   // Instantiate a server and run the introspection query on it.
   server := &server{...}
 
-  schema := server.schema()
-  introspection.AddIntrospectionToSchema(schema)
+  builderSchema := schemabuilder.NewSchema()
+  server.registerQuery(builderSchema)
+  server.registerMutation(builderSchema)
+  // ...
 
-  valueJSON, err := introspection.ComputeSchemaJSON(*schema)
+  valueJSON, err := introspection.ComputeSchemaJSON(*builderSchema)
   if err != nil {
     panic(err)
   }
