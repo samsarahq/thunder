@@ -227,7 +227,7 @@ func (f *Func) Invoke(ctx context.Context, arg interface{}) (interface{}, error)
 		close(bg.doneCh)
 
 	} else {
-		concurrencylimiter.Block(ctx, func() {
+		concurrencylimiter.TemporarilyRelease(ctx, func() {
 			// Wait for the result.
 			<-bg.doneCh
 		})
