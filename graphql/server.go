@@ -56,9 +56,10 @@ type conn struct {
 }
 
 type inEnvelope struct {
-	ID      string          `json:"id"`
-	Type    string          `json:"type"`
-	Message json.RawMessage `json:"message"`
+	ID         string                 `json:"id"`
+	Type       string                 `json:"type"`
+	Message    json.RawMessage        `json:"message"`
+	Extensions map[string]interface{} `json:"extensions,omitempty"`
 }
 
 type outEnvelope struct {
@@ -145,7 +146,7 @@ func mustMarshalJson(v interface{}) string {
 	return string(bytes)
 }
 
-func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
+func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage, extensions map[string]interface{}) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -201,6 +202,7 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 			Previous:    previous,
 			Query:       subscribe.Query,
 			Variables:   subscribe.Variables,
+			Extensions:  extensions,
 		})
 		current, err := output.Current, output.Error
 
@@ -261,7 +263,7 @@ func (c *conn) handleSubscribe(id string, subscribe *subscribeMessage) error {
 	return nil
 }
 
-func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
+func (c *conn) handleMutate(id string, mutate *mutateMessage, extensions map[string]interface{}) error {
 	// TODO: deduplicate code
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -309,6 +311,7 @@ func (c *conn) handleMutate(id string, mutate *mutateMessage) error {
 			Previous:    nil,
 			Query:       mutate.Query,
 			Variables:   mutate.Variables,
+			Extensions:  extensions,
 		})
 		current, err := output.Current, output.Error
 
@@ -385,7 +388,7 @@ func (c *conn) handle(e *inEnvelope) error {
 		if err := json.Unmarshal(e.Message, &subscribe); err != nil {
 			return err
 		}
-		return c.handleSubscribe(e.ID, &subscribe)
+		return c.handleSubscribe(e.ID, &subscribe, e.Extensions)
 
 	case "unsubscribe":
 		c.closeSubscription(e.ID)
@@ -396,7 +399,7 @@ func (c *conn) handle(e *inEnvelope) error {
 		if err := json.Unmarshal(e.Message, &mutate); err != nil {
 			return err
 		}
-		return c.handleMutate(e.ID, &mutate)
+		return c.handleMutate(e.ID, &mutate, e.Extensions)
 
 	case "echo":
 		c.writeOrClose(outEnvelope{
