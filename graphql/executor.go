@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/samsarahq/thunder/concurrencylimiter"
 	"github.com/samsarahq/thunder/reactive"
 )
 
@@ -164,7 +165,10 @@ type resolveAndExecuteCacheKey struct {
 func (e *Executor) resolveAndExecute(ctx context.Context, field *Field, source interface{}, selection *Selection) (interface{}, error) {
 	if field.Expensive {
 		// TODO: Skip goroutine for cached value
+		ctx, release := concurrencylimiter.Acquire(ctx)
 		return fork(func() (interface{}, error) {
+			defer release()
+
 			value := reflect.ValueOf(source)
 			// cache the body of resolve and excecute so that if the source doesn't change, we
 			// don't need to recompute
