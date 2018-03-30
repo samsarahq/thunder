@@ -11,6 +11,7 @@ type ComputationInput struct {
 	Variables   map[string]interface{}
 	Ctx         context.Context
 	Previous    interface{}
+	Extensions  map[string]interface{}
 }
 
 type ComputationOutput struct {
