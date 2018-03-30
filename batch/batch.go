@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/samsarahq/thunder/concurrencylimiter"
 )
 
 // DefaultWaitInterval is the default WaitInterval for Func.
@@ -225,8 +227,10 @@ func (f *Func) Invoke(ctx context.Context, arg interface{}) (interface{}, error)
 		close(bg.doneCh)
 
 	} else {
-		// Wait for the result.
-		<-bg.doneCh
+		concurrencylimiter.Block(ctx, func() {
+			// Wait for the result.
+			<-bg.doneCh
+		})
 	}
 
 	// Return the local result.
