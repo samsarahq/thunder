@@ -390,10 +390,6 @@ func Parse(source string, vars map[string]interface{}) (*Query, error) {
 				return rv, NewClientError("required variable cannot provide a default value: $%s", name)
 			}
 
-			if vars[name] == nil {
-				return rv, NewClientError("required variable not provided: $%s", name)
-			}
-
 			continue
 		}
 

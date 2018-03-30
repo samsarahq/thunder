@@ -249,18 +249,6 @@ fragment foo on Foo {
 	}
 }
 
-func TestParseVariableDefinitions(t *testing.T) {
-	// Expect required variables to be provided.
-	_, err := Parse(`
-query Operation($x: int64!) {
-	field(x: $x)
-}	`, map[string]interface{}{})
-
-	if err == nil || err.Error() != "required variable not provided: $x" {
-		t.Error("expected unfulfilled required argument to fail, but got", err)
-	}
-}
-
 func TestParseRequiredVariableDefinitionWithDefaultValue(t *testing.T) {
 	// Expect required variables to be provided.
 	_, err := Parse(`
