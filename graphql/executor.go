@@ -187,6 +187,11 @@ func (e *Executor) resolveAndExecute(ctx context.Context, field *Field, source i
 				if err != nil {
 					return nil, err
 				}
+
+				// Release concurrency token before recursing into execute. It will attempt to
+				// grab another concurrency token.
+				release()
+
 				e.mu.Lock()
 				value, err = e.execute(ctx, field.Type, value, selection.SelectionSet)
 				e.mu.Unlock()

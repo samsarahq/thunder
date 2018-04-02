@@ -88,6 +88,8 @@ type ReleaseFunc func()
 // Acquire acquires a concurrency limiter token. If the context is canceled or
 // if there is no concurrency limit associated with the context it succeeds
 // immediately and returns a no-op release function.
+//
+// The returned release function is idempotent.
 func Acquire(ctx context.Context) (context.Context, ReleaseFunc) {
 	l, ok := ctx.Value(limiterKey{}).(*limiter)
 	if !ok {

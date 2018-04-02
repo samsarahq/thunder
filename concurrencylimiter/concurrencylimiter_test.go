@@ -2,6 +2,7 @@ package concurrencylimiter_test
 
 import (
 	"context"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -9,6 +10,27 @@ import (
 	"github.com/samsarahq/thunder/concurrencylimiter"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestStress(t *testing.T) {
+	ctx := concurrencylimiter.With(context.Background(), 50)
+	var wg sync.WaitGroup
+	for i := 0; i < 200; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 10000; j++ {
+				func() {
+					ctx, release := concurrencylimiter.Acquire(ctx)
+					defer release()
+					concurrencylimiter.TemporarilyRelease(ctx, func() {
+						runtime.Gosched()
+					})
+				}()
+			}
+		}()
+	}
+	wg.Wait()
+}
 
 // TestConcurrencyLimiter tests that the concurrency is limited.
 func TestConcurrencyLimiter(t *testing.T) {
