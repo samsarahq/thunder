@@ -8,6 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
+	"github.com/samsarahq/thunder/concurrencylimiter"
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 	"github.com/samsarahq/thunder/internal"
@@ -261,4 +264,72 @@ func TestArgumentOptionality(t *testing.T) {
 		query getMandatory($testArg: int64!) {
 			mandatory(x: $testArg)
 		}`, filledVariables, `{"mandatory": 5}`)
+}
+
+// TestConcurrencyLimiterDeadlock tests that the executor does not cause a
+// concurrency limit deadlock by holding on to tokens after a resolver finishes
+// running.
+func TestConcurrencyLimiterDeadlock(t *testing.T) {
+	var mu sync.Mutex
+	calls := 0
+
+	schema := schemabuilder.NewSchema()
+
+	query := schema.Query()
+	query.FieldFunc("users", func(ctx context.Context) []*User {
+		var users []*User
+		for i := 0; i < 200; i++ {
+			users = append(users, &User{})
+		}
+		return users
+	})
+
+	_ = schema.Mutation()
+
+	user := schema.Object("User", User{})
+	user.FieldFunc("slow", func(ctx context.Context, u *User) *Slow {
+		time.Sleep(10 * time.Millisecond)
+		return &Slow{}
+	})
+
+	slow := schema.Object("Slow", Slow{})
+	slow.FieldFunc("count", func() bool {
+		mu.Lock()
+		calls++
+		mu.Unlock()
+		return true
+	})
+
+	builtSchema := schema.MustBuild()
+
+	q := graphql.MustParse(`
+		{
+			users {
+				one: slow { count }
+				two: slow { count }
+            }
+        }`, nil)
+
+	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
+		t.Error(err)
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	rerunner := reactive.NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
+		defer wg.Done()
+		e := graphql.Executor{}
+		ctx = concurrencylimiter.With(ctx, 100)
+
+		_, err := e.Execute(ctx, builtSchema.Query, nil, q)
+		if err != nil {
+			t.Error(err)
+		}
+
+		assert.Equal(t, 2*200, calls)
+		return nil, nil
+	}, 0)
+
+	wg.Wait()
+	defer rerunner.Stop()
 }
