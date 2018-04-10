@@ -479,7 +479,7 @@ func TestBadArguments(t *testing.T) {
 		return 1, nil
 	})
 
-	if _, err := schema.Build(); err.Error() != "bad method aField on type schemabuilder.query: expected arguments struct but received type int64" {
-		t.Error("expected non-struct args argument to fail")
+	if _, err := schema.Build(); err.Error() != "bad method aField on type schemabuilder.query: attempted to parse int64 as arguments struct, but failed: expected struct but received type int64" {
+		t.Errorf("expected non-struct args argument to fail, but received %s", err.Error())
 	}
 }

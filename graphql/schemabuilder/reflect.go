@@ -251,7 +251,7 @@ func makeStructParser(typ reflect.Type) (*argParser, graphql.Type, error) {
 	}
 
 	if typ.Kind() != reflect.Struct {
-		return nil, nil, fmt.Errorf("expected arguments struct but received type %s", typ.Name())
+		return nil, nil, fmt.Errorf("expected struct but received type %s", typ.Name())
 	}
 
 	for i := 0; i < typ.NumField(); i++ {
@@ -407,7 +407,7 @@ func (sb *schemaBuilder) buildFunction(typ reflect.Type, m *method) (*graphql.Fi
 		hasArgs = true
 		var err error
 		if argParser, argType, err = makeStructParser(in[0]); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("attempted to parse %s as arguments struct, but failed: %s", in[0].Name(), err.Error())
 		}
 		in = in[1:]
 	}
