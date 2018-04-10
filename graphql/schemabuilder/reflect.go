@@ -250,6 +250,10 @@ func makeStructParser(typ reflect.Type) (*argParser, graphql.Type, error) {
 		argType.Name += "_InputObject"
 	}
 
+	if typ.Kind() != reflect.Struct {
+		return nil, nil, fmt.Errorf("expected arguments struct but received type %s", typ.Name())
+	}
+
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
 		if field.PkgPath != "" && !field.Anonymous {
