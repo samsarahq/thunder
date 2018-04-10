@@ -471,3 +471,15 @@ func TestArgParser(t *testing.T) {
 		t.Error("expected unsupported fields to fail")
 	}
 }
+
+func TestBadArguments(t *testing.T) {
+	schema := NewSchema()
+	query := schema.Query()
+	query.FieldFunc("aField", func(context context.Context, shouldBeAStruct int64) (int64, error) {
+		return 1, nil
+	})
+
+	if _, err := schema.Build(); err.Error() != "bad method aField on type schemabuilder.query: expected arguments struct but received type int64" {
+		t.Error("expected non-struct args argument to fail")
+	}
+}
