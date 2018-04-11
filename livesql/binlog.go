@@ -67,22 +67,27 @@ func getPosition(conn *sql.DB) (mysql.Position, error) {
 	return position, nil
 }
 
-// NewBinlog constructs a new Binlog for a given DB
-//
-// NewBinlog verifies that the given DB has been correctly configured for
-// streaming changes.
+// NewBinlog constructs a new Binlog for a given DB.
 func NewBinlog(ldb *LiveDB, host string, port uint16, username, password, database string) (*Binlog, error) {
+	return NewBinlogWithSource(ldb, ldb.Conn, host, port, username, password, database)
+}
+
+// NewBinlogWithSource constructs a new Binlog for a given DB and a source DB
+//
+// NewBinlogWithSource verifies that the given DB has been correctly configured for
+// streaming changes.
+func NewBinlogWithSource(ldb *LiveDB, sourceDB *sql.DB, host string, port uint16, username, password, database string) (*Binlog, error) {
 	db := ldb.DB
 	tracker := ldb.tracker
 
-	if err := checkVariable(db.Conn, "binlog_format", "ROW"); err != nil {
+	if err := checkVariable(sourceDB, "binlog_format", "ROW"); err != nil {
 		return nil, err
 	}
-	if err := checkVariable(db.Conn, "binlog_row_image", "FULL"); err != nil {
+	if err := checkVariable(sourceDB, "binlog_row_image", "FULL"); err != nil {
 		return nil, err
 	}
 
-	position, err := getPosition(db.Conn)
+	position, err := getPosition(sourceDB)
 	if err != nil {
 		return nil, err
 	}
