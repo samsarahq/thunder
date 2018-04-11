@@ -10,6 +10,7 @@ import (
 	"log"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/samsarahq/thunder/sqlgen"
 
@@ -29,6 +30,9 @@ type Binlog struct {
 	streamer *replication.BinlogStreamer
 
 	tableVersions map[string]uint64
+
+	delayMu sync.Mutex
+	delay   time.Duration
 
 	mu         sync.Mutex
 	columnMaps map[string]*columnMap
@@ -234,6 +238,12 @@ type update struct {
 	err    error
 }
 
+// delayedUpdate holds an update and the earlist timestamp the update can be applied.
+type delayedUpdate struct {
+	*update
+	applyAfter time.Time
+}
+
 // parseBinlogRowsEvent transforms a raw binlog rows event into an *update
 //
 // Because the binlog does not include a detailed table schema,
@@ -302,9 +312,26 @@ func (b *Binlog) parseBinlogRowsEvent(event *replication.BinlogEvent) (*update, 
 	return update, nil
 }
 
+// SetUpdateDelay sets the duration by which future updates will be delayed.
+func (b *Binlog) SetUpdateDelay(d time.Duration) {
+	b.delayMu.Lock()
+	defer b.delayMu.Unlock()
+	b.delay = d
+}
+
 // RunPollLoop is the core binlog function that fetches and distributes updates
 // from MySQL
 func (b *Binlog) RunPollLoop() error {
+	updateCh := make(chan delayedUpdate, 1024)
+	defer close(updateCh)
+
+	go func() {
+		for du := range updateCh {
+			time.Sleep(du.applyAfter.Sub(time.Now()))
+			b.tracker.processBinlog(du.update)
+		}
+	}()
+
 	for {
 		event, err := b.streamer.GetEvent(context.Background())
 		if err != nil {
@@ -334,7 +361,11 @@ func (b *Binlog) RunPollLoop() error {
 				continue
 			}
 
-			b.tracker.processBinlog(u)
+			b.delayMu.Lock()
+			delay := b.delay
+			b.delayMu.Unlock()
+
+			updateCh <- delayedUpdate{update: u, applyAfter: time.Now().Add(delay)}
 
 		case *replication.TableMapEvent:
 			if string(inner.Schema) != b.database {
