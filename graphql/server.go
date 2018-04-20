@@ -36,6 +36,17 @@ type GraphqlLogger interface {
 	Error(ctx context.Context, err error, tags map[string]string)
 }
 
+type SubscriptionLogger interface {
+	// Subscribe is called when a new subscription is started. Subscribe is not
+	// called for queries that fail to parse or validate.
+	Subscribe(ctx context.Context, id string, tags map[string]string)
+
+	// Unsubscribe is called  when a subscription ends. It is guaranteed
+	// to be called even if the subscription ends due to the connection closing.
+	// The id argument corresponds to the id tag.
+	Unsubscribe(ctx context.Context, id string)
+}
+
 type conn struct {
 	writeMu sync.Mutex
 	socket  JSONSocket
@@ -44,8 +55,10 @@ type conn struct {
 	mutationSchema *Schema
 	ctx            context.Context
 	makeCtx        MakeCtxFunc
-	logger         GraphqlLogger
 	middlewares    []MiddlewareFunc
+
+	logger             GraphqlLogger
+	subscriptionLogger SubscriptionLogger
 
 	url string
 
@@ -185,6 +198,7 @@ func (c *conn) handleSubscribe(in *inEnvelope) error {
 	e := Executor{}
 
 	initial := true
+	c.subscriptionLogger.Subscribe(c.ctx, id, tags)
 	c.subscriptions[id] = reactive.NewRerunner(c.ctx, func(ctx context.Context) (interface{}, error) {
 		ctx = c.makeCtx(ctx)
 		ctx = batch.WithBatching(ctx)
@@ -380,6 +394,7 @@ func (c *conn) closeSubscription(id string) {
 	if runner, ok := c.subscriptions[id]; ok {
 		runner.Stop()
 		delete(c.subscriptions, id)
+		c.subscriptionLogger.Unsubscribe(c.ctx, id)
 	}
 }
 
@@ -473,48 +488,35 @@ func ServeJSONSocket(ctx context.Context, socket JSONSocket, schema *Schema, mak
 	conn.ServeJSONSocket()
 }
 
-// CreateJSONSOcket is deprecated. Consider using CreateConnection instead.
+// CreateJSONSocket is deprecated. Consider using CreateConnection instead.
 func CreateJSONSocket(ctx context.Context, socket JSONSocket, schema *Schema, makeCtx MakeCtxFunc, logger GraphqlLogger) *conn {
-	return &conn{
-		socket: socket,
-		ctx:    ctx,
-
-		schema:         schema,
-		mutationSchema: schema,
-		makeCtx:        makeCtx,
-		logger:         logger,
-
-		subscriptions: make(map[string]*reactive.Rerunner),
-	}
+	return CreateConnection(ctx, socket, schema, WithMakeCtx(makeCtx), WithExecutionLogger(logger))
 }
 
 // CreateJSONSocketWithMutationSchema is deprecated. Consider using CreateConnection instead.
 func CreateJSONSocketWithMutationSchema(ctx context.Context, socket JSONSocket, schema, mutationSchema *Schema, makeCtx MakeCtxFunc, logger GraphqlLogger) *conn {
-	return &conn{
-		socket: socket,
-		ctx:    ctx,
-
-		schema:         schema,
-		mutationSchema: mutationSchema,
-		makeCtx:        makeCtx,
-		logger:         logger,
-
-		subscriptions: make(map[string]*reactive.Rerunner),
-	}
+	return CreateConnection(ctx, socket, schema, WithMakeCtx(makeCtx), WithExecutionLogger(logger), WithMutationSchema(mutationSchema))
 }
+
+type nopSubscriptionLogger struct{}
+
+func (l *nopSubscriptionLogger) Subscribe(ctx context.Context, id string, tags map[string]string) {}
+func (l *nopSubscriptionLogger) Unsubscribe(ctx context.Context, id string)                       {}
 
 type ConnectionOption func(*conn)
 
 func CreateConnection(ctx context.Context, socket JSONSocket, schema *Schema, opts ...ConnectionOption) *conn {
 	c := &conn{
-		socket:        socket,
-		ctx:           ctx,
-		schema:        schema,
-		subscriptions: make(map[string]*reactive.Rerunner),
+		socket:             socket,
+		ctx:                ctx,
+		schema:             schema,
+		subscriptions:      make(map[string]*reactive.Rerunner),
+		subscriptionLogger: &nopSubscriptionLogger{},
 	}
 	for _, opt := range opts {
 		opt(c)
 	}
+
 	return c
 }
 
@@ -533,6 +535,12 @@ func WithMutationSchema(schema *Schema) ConnectionOption {
 func WithMakeCtx(makeCtx MakeCtxFunc) ConnectionOption {
 	return func(c *conn) {
 		c.makeCtx = makeCtx
+	}
+}
+
+func WithSubscriptionLogger(logger SubscriptionLogger) ConnectionOption {
+	return func(c *conn) {
+		c.subscriptionLogger = logger
 	}
 }
 
