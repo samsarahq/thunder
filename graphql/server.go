@@ -521,6 +521,9 @@ func CreateConnection(ctx context.Context, socket JSONSocket, schema *Schema, op
 		subscriptions:      make(map[string]*reactive.Rerunner),
 		subscriptionLogger: &nopSubscriptionLogger{},
 		logger:             &nopGraphqlLogger{},
+		makeCtx: func(ctx context.Context) context.Context {
+			return ctx
+		},
 	}
 	for _, opt := range opts {
 		opt(c)
