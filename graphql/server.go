@@ -467,11 +467,13 @@ func (c *conn) Use(fn MiddlewareFunc) {
 	c.middlewares = append(c.middlewares, fn)
 }
 
+// ServeJSONSocket is deprecated. Consider using CreateConnection instead.
 func ServeJSONSocket(ctx context.Context, socket JSONSocket, schema *Schema, makeCtx MakeCtxFunc, logger GraphqlLogger) {
 	conn := CreateJSONSocket(ctx, socket, schema, makeCtx, logger)
 	conn.ServeJSONSocket()
 }
 
+// CreateJSONSOcket is deprecated. Consider using CreateConnection instead.
 func CreateJSONSocket(ctx context.Context, socket JSONSocket, schema *Schema, makeCtx MakeCtxFunc, logger GraphqlLogger) *conn {
 	return &conn{
 		socket: socket,
@@ -486,6 +488,7 @@ func CreateJSONSocket(ctx context.Context, socket JSONSocket, schema *Schema, ma
 	}
 }
 
+// CreateJSONSocketWithMutationSchema is deprecated. Consider using CreateConnection instead.
 func CreateJSONSocketWithMutationSchema(ctx context.Context, socket JSONSocket, schema, mutationSchema *Schema, makeCtx MakeCtxFunc, logger GraphqlLogger) *conn {
 	return &conn{
 		socket: socket,
@@ -497,6 +500,39 @@ func CreateJSONSocketWithMutationSchema(ctx context.Context, socket JSONSocket, 
 		logger:         logger,
 
 		subscriptions: make(map[string]*reactive.Rerunner),
+	}
+}
+
+type ConnectionOption func(*conn)
+
+func CreateConnection(ctx context.Context, socket JSONSocket, schema *Schema, opts ...ConnectionOption) *conn {
+	c := &conn{
+		socket:        socket,
+		ctx:           ctx,
+		schema:        schema,
+		subscriptions: make(map[string]*reactive.Rerunner),
+	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
+}
+
+func WithExecutionLogger(logger GraphqlLogger) ConnectionOption {
+	return func(c *conn) {
+		c.logger = logger
+	}
+}
+
+func WithMutationSchema(schema *Schema) ConnectionOption {
+	return func(c *conn) {
+		c.mutationSchema = schema
+	}
+}
+
+func WithMakeCtx(makeCtx MakeCtxFunc) ConnectionOption {
+	return func(c *conn) {
+		c.makeCtx = makeCtx
 	}
 }
 
