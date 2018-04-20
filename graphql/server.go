@@ -503,6 +503,14 @@ type nopSubscriptionLogger struct{}
 func (l *nopSubscriptionLogger) Subscribe(ctx context.Context, id string, tags map[string]string) {}
 func (l *nopSubscriptionLogger) Unsubscribe(ctx context.Context, id string)                       {}
 
+type nopGraphqlLogger struct{}
+
+func (l *nopGraphqlLogger) StartExecution(ctx context.Context, tags map[string]string, initial bool) {
+}
+func (l *nopGraphqlLogger) FinishExecution(ctx context.Context, tags map[string]string, delay time.Duration) {
+}
+func (l *nopGraphqlLogger) Error(ctx context.Context, err error, tags map[string]string) {}
+
 type ConnectionOption func(*conn)
 
 func CreateConnection(ctx context.Context, socket JSONSocket, schema *Schema, opts ...ConnectionOption) *conn {
@@ -512,6 +520,7 @@ func CreateConnection(ctx context.Context, socket JSONSocket, schema *Schema, op
 		schema:             schema,
 		subscriptions:      make(map[string]*reactive.Rerunner),
 		subscriptionLogger: &nopSubscriptionLogger{},
+		logger:             &nopGraphqlLogger{},
 	}
 	for _, opt := range opts {
 		opt(c)
