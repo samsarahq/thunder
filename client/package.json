@@ -8,8 +8,8 @@
     "prepublish": "npm run build"
   },
   "dependencies": {
-    "graphql": "0.8.2",
-    "lodash.assign": "4.2.0",
+    "@types/lodash.isequal": "^4.5.2",
+    "@types/react": "^16.3.17",
     "lodash.isequal": "4.4.0"
   },
   "peerDependencies": {
@@ -18,6 +18,8 @@
   },
   "devDependencies": {
     "babel-cli": "^6.26.0",
-    "babel-env": "^2.4.1"
+    "babel-env": "^2.4.1",
+    "prettier": "^1.13.0",
+    "typescript": "2.9"
   }
 }
