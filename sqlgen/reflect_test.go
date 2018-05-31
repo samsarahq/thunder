@@ -8,7 +8,9 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/gogo/protobuf/proto"
 	"github.com/kylelemons/godebug/pretty"
+	"github.com/samsarahq/thunder/thunderpb"
 )
 
 func testMakeSnake(t *testing.T, s, expected string) {
@@ -118,17 +120,13 @@ func TestBuildStruct(t *testing.T) {
 	}
 	table := s.ByName["users"]
 
-	scannables := table.Scannables.Get().([]interface{})
-	id := scannables[0].(Scannable)
-	name := scannables[1].(Scannable)
-	age := scannables[2].(Scannable)
-	optional := scannables[3].(Scannable)
-
-	id.Scan(10)
-	name.Scan("bob")
-	age.Scan(nil)
-	optional.Scan(nil)
-	if !reflect.DeepEqual(BuildStruct(table, scannables), &user{
+	values := []interface{}{
+		10,    // id
+		"bob", // name
+		nil,   // age
+		nil,   // optional
+	}
+	if !reflect.DeepEqual(BuildStruct(table, values), &user{
 		Id:       10,
 		Name:     "bob",
 		Age:      0,
@@ -137,12 +135,14 @@ func TestBuildStruct(t *testing.T) {
 		t.Error("bad build")
 	}
 
-	id.Scan(nil)
-	name.Scan(nil)
-	age.Scan(5)
-	optional.Scan("foo")
+	values = []interface{}{
+		nil,   // id
+		nil,   // name
+		5,     // age
+		"foo", // optional
+	}
 	var foo = "foo"
-	if !reflect.DeepEqual(BuildStruct(table, scannables), &user{
+	if !reflect.DeepEqual(BuildStruct(table, values), &user{
 		Id:       0,
 		Name:     "",
 		Age:      5,
@@ -185,6 +185,36 @@ func (c *customSuffixer) Value() (driver.Value, error) {
 type IntAlias int64
 type SuffixString string
 
+func TestBuildStructWithProtoMessage(t *testing.T) {
+	s := NewSchema()
+
+	type foo struct {
+		Id    int64 `sql:",primary"`
+		Proto *thunderpb.BinlogEvent
+	}
+
+	if err := s.RegisterType("foo", AutoIncrement, foo{}); err != nil {
+		t.Fatal(err)
+	}
+	table := s.ByName["foo"]
+
+	testEvent := &thunderpb.BinlogEvent{
+		Table: "testtable",
+	}
+	testEventBytes, _ := proto.Marshal(testEvent)
+
+	values := []interface{}{
+		10,             // id
+		testEventBytes, // proto
+	}
+	if !reflect.DeepEqual(BuildStruct(table, values), &foo{
+		Id:    10,
+		Proto: testEvent,
+	}) {
+		t.Error("bad build")
+	}
+}
+
 type custom struct {
 	Id           int64 `sql:",primary"`
 	IntAlias     IntAlias
@@ -193,7 +223,9 @@ type custom struct {
 
 func TestBuildStructWithAlias(t *testing.T) {
 	s := NewSchema()
-	s.MustRegisterCustomScalar(SuffixString(""), func() Scannable { return new(customSuffixer) })
+	s.MustRegisterCustomScalar(SuffixString(""), &ScannableValuerTypeConverter{
+		MakeScannableValuer: func() ScannableValuer { return new(customSuffixer) },
+	})
 	s.MustRegisterSimpleScalar(IntAlias(0))
 
 	if err := s.RegisterType("customs", AutoIncrement, custom{}); err != nil {
@@ -201,15 +233,12 @@ func TestBuildStructWithAlias(t *testing.T) {
 	}
 	table := s.ByName["customs"]
 
-	scannables := table.Scannables.Get().([]interface{})
-	id := scannables[0].(Scannable)
-	intAlias := scannables[1].(Scannable)
-	suffixString := scannables[2].(Scannable)
-
-	id.Scan(10)
-	intAlias.Scan(int64(20))
-	suffixString.Scan("foo")
-	if !reflect.DeepEqual(BuildStruct(table, scannables), &custom{
+	values := []interface{}{
+		10,    // id
+		20,    // intAlias
+		"foo", // suffixString
+	}
+	if !reflect.DeepEqual(BuildStruct(table, values), &custom{
 		Id:           10,
 		IntAlias:     20,
 		SuffixString: "foo-FOO",
