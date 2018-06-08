@@ -1,6 +1,5 @@
-import React, { createContext } from "react";
+import React from "react";
 import { Connection, GraphQLError } from "./connection";
-import { newMockWebSocket } from "./mocks/websocket";
 
 import { isEqual } from "lodash";
 
