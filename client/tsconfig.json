@@ -12,6 +12,7 @@
     "allowSyntheticDefaultImports": true,
     "moduleResolution": "node",
     "declaration": true,
+    "declarationDir": "lib",
     "noEmitOnError": true,
     "jsx": "react",
     "typeRoots": [
