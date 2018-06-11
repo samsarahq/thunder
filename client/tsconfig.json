@@ -11,6 +11,8 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "moduleResolution": "node",
+    "declaration": true,
+    "noEmitOnError": true,
     "jsx": "react",
     "typeRoots": [
       "node_modules/@types"

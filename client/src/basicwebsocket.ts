@@ -1,3 +1,4 @@
+WebSocket;
 export interface BasicWebSocket {
   readonly readyState: number;
 
