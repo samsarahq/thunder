@@ -518,6 +518,7 @@ func CreateConnection(ctx context.Context, socket JSONSocket, schema *Schema, op
 		socket:             socket,
 		ctx:                ctx,
 		schema:             schema,
+		mutationSchema:     schema,
 		subscriptions:      make(map[string]*reactive.Rerunner),
 		subscriptionLogger: &nopSubscriptionLogger{},
 		logger:             &nopGraphqlLogger{},
