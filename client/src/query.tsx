@@ -25,16 +25,53 @@ interface QueryProps<
   QueryInputVariables extends object
 > {
   children: (data: GraphQLResult<QueryResult>) => React.ReactNode;
-  query: string;
+  query: string | QuerySpec<QueryResult, QueryInputVariables>;
   variables: QueryInputVariables;
+}
+
+type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
+type Overwrite<T, U> = Omit<T, Extract<keyof T, keyof U>> & U;
+
+type QueryPropsWithStringQuery<
+  Result extends object,
+  Input extends object
+> = Overwrite<QueryProps<Result, Input>, { query: string }>;
+
+export interface QuerySpec<Result extends object, Input extends object> {
+  query: string;
+  result?: Result;
+  variables?: Input;
 }
 
 export function Query<Result extends object, Input extends object>(
   props: QueryProps<Result, Input>,
 ) {
+  let passedProps: Pick<
+    QueryProps<Result, Input>,
+    Exclude<keyof QueryProps<Result, Input>, "query">
+  >;
+  let query: string;
+
+  if (typeof props.query === "string") {
+    ({ query, ...passedProps } = props as QueryPropsWithStringQuery<
+      Result,
+      Input
+    >);
+  } else {
+    const { query: querySpec, ...shouldPass } = props;
+    passedProps = shouldPass;
+    query = querySpec.query;
+  }
+
   return (
     <Consumer>
-      {connection => <GraphQLRenderer connection={connection} {...props} />}
+      {connection => (
+        <GraphQLRenderer
+          connection={connection}
+          query={query}
+          {...passedProps}
+        />
+      )}
     </Consumer>
   );
 }
@@ -43,7 +80,9 @@ class GraphQLRenderer<
   QueryResult extends object,
   QueryInputVariables extends object
 > extends React.PureComponent<
-  QueryProps<QueryResult, QueryInputVariables> & { connection: Connection },
+  QueryPropsWithStringQuery<QueryResult, QueryInputVariables> & {
+    connection: Connection;
+  },
   State<QueryResult>
 > {
   private subscription:
@@ -56,7 +95,7 @@ class GraphQLRenderer<
   }
 
   componentWillReceiveProps(
-    nextProps: QueryProps<QueryResult, QueryInputVariables>,
+    nextProps: QueryPropsWithStringQuery<QueryResult, QueryInputVariables>,
   ) {
     const { query, variables } = nextProps;
     if (
