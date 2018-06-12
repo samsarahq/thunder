@@ -11,6 +11,7 @@ import {
 } from "./connection";
 
 import { Consumer } from "./context";
+import { Omit, Overwrite } from "./diff";
 
 interface State<QueryResult> {
   state: SubscriptionState;
@@ -28,9 +29,6 @@ interface QueryProps<
   query: string | QuerySpec<QueryResult, QueryInputVariables>;
   variables: QueryInputVariables;
 }
-
-type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
-type Overwrite<T, U> = Omit<T, Extract<keyof T, keyof U>> & U;
 
 type QueryPropsWithStringQuery<
   Result extends object,
