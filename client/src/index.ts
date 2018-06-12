@@ -3,8 +3,8 @@ export { Query } from "./query";
 export { graphql } from "./hoc";
 export {
   Connection,
-  GraphQLData,
   GraphQLError,
   GraphQLResult,
+  GraphQLData,
 } from "./connection";
 export { ThunderProvider } from "./context";
