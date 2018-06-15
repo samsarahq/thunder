@@ -27,7 +27,7 @@ type Friend struct {
 }
 
 // FullName builds a friend's full name.
-func (f *Friend) FullName() {
+func (f *Friend) FullName() string {
   return fmt.Sprintf("%s %s", f.FirstName, f.Last)
 }
 
@@ -39,7 +39,7 @@ func registerFriend(schema *schemabuilder.Schema) {
   object := schema.Object("Friend", Friend{})
 
   // fullName is a computed field on the Friend{} object.
-  object.FieldFunc("fullName", Freind.FullName)
+  object.FieldFunc("fullName", Friend.FullName)
 }
 ```
 
