@@ -27,14 +27,18 @@ const ConnectedComponentWithQueryAndVariables = graphql<
   Props,
   Result,
   Variables
->("query test {}", props => ({ y: props.input }))(PresentationalComponent);
+>(PresentationalComponent, "query test {}", props => ({ y: props.input }));
 
 const instanceWithQueryAndVariables = (
   <ConnectedComponentWithQueryAndVariables input="test" />
 );
 
-const ConnectedComponentWithSpec = graphql(exampleQuery, props => ({
-  y: "string",
-}))(PresentationalComponent);
+const ConnectedComponentWithSpec = graphql(
+  PresentationalComponent,
+  exampleQuery,
+  props => ({
+    y: props.input,
+  }),
+);
 
 const instanceWithSpec = <ConnectedComponentWithSpec input="test" />;
