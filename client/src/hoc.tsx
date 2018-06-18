@@ -8,35 +8,34 @@ export function graphql<
   Result extends object,
   Input extends object
 >(
+  Component: React.ComponentType<InnerProps>,
   query: string,
   variables: (props: Omit<InnerProps, "data">) => Input,
-): <ChildProps extends InnerProps>(
-  Component: React.ComponentType<ChildProps>,
-) => React.SFC<Omit<ChildProps, "data">>;
+): React.SFC<Omit<InnerProps, "data">>;
 
 export function graphql<
   InnerProps extends GraphQLData<Result>,
   Result extends object,
   Input extends object
 >(
+  Component: React.ComponentType<InnerProps>,
   query: QuerySpec<Result, Input>,
   variables: (props: Omit<InnerProps, "data">) => Input,
-): <ChildProps extends InnerProps>(
-  Component: React.ComponentType<ChildProps>,
-) => React.SFC<Omit<ChildProps, "data">>;
+): React.SFC<Omit<InnerProps, "data">>;
 
 export function graphql<
   InnerProps extends GraphQLData<Result>,
   Result extends object,
   Input extends object
 >(
+  Component: React.ComponentType<InnerProps>,
   query: string | QuerySpec<Result, Input>,
   variables: (
     props: Omit<InnerProps, "data">,
   ) => typeof query extends string
     ? Input
     : Exclude<Exclude<typeof query, string>["variables"], undefined>,
-) {
+): React.SFC<Omit<InnerProps, "data">> {
   type ResultType = typeof query extends string
     ? Result
     : Exclude<Exclude<typeof query, string>["result"], undefined>;
@@ -44,16 +43,12 @@ export function graphql<
     ? Result
     : Exclude<Exclude<typeof query, string>["variables"], undefined>;
 
-  return <ChildProps extends InnerProps>(
-    Component: React.ComponentType<ChildProps>,
-  ): React.SFC<Omit<ChildProps, "data">> => {
-    return props => (
-      <Query<ResultType, InputType>
-        query={query as string | QuerySpec<ResultType, InputType>}
-        variables={variables(props)}
-      >
-        {data => <Component data={data} {...props} />}
-      </Query>
-    );
-  };
+  return props => (
+    <Query<ResultType, InputType>
+      query={query as string | QuerySpec<ResultType, InputType>}
+      variables={variables(props)}
+    >
+      {data => <Component data={data} {...props} />}
+    </Query>
+  );
 }
