@@ -1,8 +1,73 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
+exports[`fixtures connection.ts 1`] = `Array []`;
+
 exports[`fixtures hoc.tsx 1`] = `Array []`;
 
+exports[`fixtures hoc_errors.tsx 1`] = `
+Array [
+  Object {
+    "category": 1,
+    "code": 2554,
+    "file": undefined,
+    "length": 83,
+    "messageText": "Expected 2-3 arguments, but got 2.",
+    "reportsUnnecessary": undefined,
+    "start": 485,
+  },
+  Object {
+    "category": 1,
+    "code": 2345,
+    "file": undefined,
+    "length": 12,
+    "messageText": Object {
+      "category": 1,
+      "code": 2345,
+      "messageText": "Argument of type 'QuerySpec<Result, Variables>' is not assignable to parameter of type 'QuerySpec<Result, undefined>'.",
+      "next": Object {
+        "category": 1,
+        "code": 2322,
+        "messageText": "Type 'Variables' is not assignable to type 'undefined'.",
+        "next": undefined,
+      },
+    },
+    "start": 644,
+  },
+  Object {
+    "category": 1,
+    "code": 2554,
+    "file": undefined,
+    "length": 85,
+    "messageText": "Expected 2-3 arguments, but got 3.",
+    "reportsUnnecessary": undefined,
+    "start": 776,
+  },
+  Object {
+    "category": 1,
+    "code": 2345,
+    "file": undefined,
+    "length": 28,
+    "messageText": Object {
+      "category": 1,
+      "code": 2345,
+      "messageText": "Argument of type 'QuerySpec<Result, undefined>' is not assignable to parameter of type 'QuerySpec<Result, object>'.",
+      "next": Object {
+        "category": 1,
+        "code": 2322,
+        "messageText": "Type 'undefined' is not assignable to type 'object'.",
+        "next": undefined,
+      },
+    },
+    "start": 928,
+  },
+]
+`;
+
+exports[`fixtures hoc_without_variables.tsx 1`] = `Array []`;
+
 exports[`fixtures mutation.tsx 1`] = `Array []`;
+
+exports[`fixtures mutation_without_variables.tsx 1`] = `Array []`;
 
 exports[`fixtures query.tsx 1`] = `Array []`;
 
@@ -29,7 +94,7 @@ Array [
         },
       },
     },
-    "start": 264,
+    "start": 293,
   },
   Object {
     "category": 1,
@@ -52,7 +117,7 @@ Array [
         },
       },
     },
-    "start": 352,
+    "start": 381,
   },
   Object {
     "category": 1,
@@ -75,7 +140,7 @@ Array [
         },
       },
     },
-    "start": 462,
+    "start": 491,
   },
   Object {
     "category": 1,
@@ -98,7 +163,7 @@ Array [
         },
       },
     },
-    "start": 581,
+    "start": 610,
   },
 ]
 `;
@@ -123,7 +188,7 @@ Array [
         "next": undefined,
       },
     },
-    "start": 254,
+    "start": 283,
   },
   Object {
     "category": 1,
@@ -141,7 +206,7 @@ Array [
         "next": undefined,
       },
     },
-    "start": 365,
+    "start": 394,
   },
 ]
 `;

@@ -1,5 +1,6 @@
 import React from "react";
-import { Mutation, MutationSpec } from "../../mutation";
+import { Mutation } from "../../mutation";
+import { MutationSpec } from "../../spec";
 
 interface Result {
   output: string;

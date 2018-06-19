@@ -3,6 +3,7 @@ import { Connection } from "./connection";
 
 import { Consumer } from "./context";
 import { Omit, Overwrite } from "./diff";
+import { MutationSpec } from "./spec";
 
 type RunMutation<
   Result extends object,
@@ -10,15 +11,6 @@ type RunMutation<
 > = Input extends undefined
   ? (variables?: undefined) => Promise<Result>
   : (variables: Input) => Promise<Result>;
-
-export interface MutationSpec<
-  Result extends object,
-  Input extends object | undefined = undefined
-> {
-  query: string;
-  result?: Result;
-  variables?: Input;
-}
 
 interface MutationProps<
   Result extends object,

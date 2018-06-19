@@ -1,7 +1,7 @@
 import React from "react";
 import { GraphQLData } from "../../connection";
 import { graphql } from "../../hoc";
-import { QuerySpec } from "../../query";
+import { QuerySpec } from "../../spec";
 
 interface Result {
   output: string;

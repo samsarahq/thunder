@@ -1,5 +1,6 @@
 import React from "react";
-import { Query, QuerySpec } from "../../query";
+import { Query } from "../../query";
+import { QuerySpec } from "../../spec";
 
 const exampleQuery: QuerySpec<
   {
