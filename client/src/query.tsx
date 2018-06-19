@@ -12,6 +12,7 @@ import {
 
 import { Consumer } from "./context";
 import { Omit, Overwrite } from "./diff";
+import { QuerySpec } from "./spec";
 
 interface State<QueryResult> {
   state: SubscriptionState;
@@ -19,15 +20,6 @@ interface State<QueryResult> {
   variables?: object;
   value?: QueryResult;
   error?: GraphQLError;
-}
-
-export interface QuerySpec<
-  Result extends object,
-  Input extends object | undefined = undefined
-> {
-  query: string;
-  result?: Result;
-  variables?: Input;
 }
 
 interface QueryPropsBase<

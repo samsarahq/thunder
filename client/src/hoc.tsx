@@ -1,6 +1,7 @@
 import React from "react";
 import { GraphQLData } from "./connection";
-import { Query, QuerySpec } from "./query";
+import { Query } from "./query";
+import { QuerySpec } from "./spec";
 import { Omit } from "./diff";
 
 export function graphql<
