@@ -4,25 +4,34 @@ import { Connection } from "./connection";
 import { Consumer } from "./context";
 import { Omit, Overwrite } from "./diff";
 
-export interface MutationSpec<Result, Input> {
+type RunMutation<
+  Result extends object,
+  Input extends object | undefined = undefined
+> = Input extends undefined
+  ? (variables?: undefined) => Promise<Result>
+  : (variables: Input) => Promise<Result>;
+
+export interface MutationSpec<
+  Result extends object,
+  Input extends object | undefined = undefined
+> {
   query: string;
   result?: Result;
   variables?: Input;
 }
 
-interface MutationProps<Result extends object, Input extends object> {
-  children: (run: (variables: Input) => Promise<Result>) => React.ReactNode;
+interface MutationProps<
+  Result extends object,
+  Input extends object | undefined = undefined
+> {
+  children: (run: RunMutation<Result, Input>) => React.ReactNode;
   query: string | MutationSpec<Result, Input>;
 }
 
-type MutationPropsWithStringQuery<
+export function Mutation<
   Result extends object,
-  Input extends object
-> = Overwrite<MutationProps<Result, Input>, { query: string }>;
-
-export function Mutation<Result extends object, Input extends object>(
-  props: MutationProps<Result, Input>,
-) {
+  Input extends object | undefined = undefined
+>(props: MutationProps<Result, Input>) {
   let passedProps: Pick<
     MutationProps<Result, Input>,
     Exclude<keyof MutationProps<Result, Input>, "query">
@@ -30,25 +39,24 @@ export function Mutation<Result extends object, Input extends object>(
   let query: string;
 
   if (typeof props.query === "string") {
-    ({ query, ...passedProps } = props as MutationPropsWithStringQuery<
-      Result,
-      Input
-    >);
+    query = props.query;
   } else {
-    const { query: querySpec, ...shouldPass } = props;
-    passedProps = shouldPass;
-    query = querySpec.query;
+    query = props.query.query;
   }
 
   const child = (connection: Connection) => {
-    const runMutation = (variables: Input) => {
-      return connection.mutate<Input, Result>({
+    const runMutation = (variables?: Input) => {
+      return connection.mutate<Exclude<Input, undefined>, Result>({
         query,
-        variables,
+        // This isn't quite right. Maybe we should change the type of
+        // mutate to make variables optional based on the query.
+        variables: (variables ? variables : {}) as Exclude<Input, undefined>,
       });
     };
 
-    return props.children(runMutation);
+    // Not sure how to unify these types. runMutation is combined
+    // at the argument level, while the external type is conditional.
+    return props.children(runMutation as any);
   };
 
   return <Consumer>{child}</Consumer>;
