@@ -1,7 +1,7 @@
 import React from "react";
-import { GraphQLData } from "../connection";
-import { graphql } from "../hoc";
-import { QuerySpec } from "../query";
+import { GraphQLData } from "../../connection";
+import { graphql } from "../../hoc";
+import { QuerySpec } from "../../query";
 
 interface Result {
   output: string;
@@ -20,7 +20,11 @@ interface Props extends GraphQLData<Result> {
 }
 
 const PresentationalComponent = (props: Props) => {
-  return <div>{props.data.value.output}</div>;
+  return (
+    <div>
+      {props.data.state === "subscribed" ? props.data.value.output : null}
+    </div>
+  );
 };
 
 const ConnectedComponentWithQueryAndVariables = graphql<

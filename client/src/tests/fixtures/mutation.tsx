@@ -1,5 +1,5 @@
 import React from "react";
-import { Mutation, MutationSpec } from "../mutation";
+import { Mutation, MutationSpec } from "../../mutation";
 
 interface Result {
   output: string;
@@ -21,7 +21,9 @@ const ComponentWithQueryAndVariables: React.SFC<{}> = () => {
           onClick={async () => {
             await runMutation({ y: "test" });
           }}
-        >Do it</a>
+        >
+          Do it
+        </a>
       )}
     </Mutation>
   );
@@ -33,9 +35,13 @@ const ComponentWithSpec: React.SFC<{}> = () => {
   return (
     <Mutation query={exampleQuery}>
       {runMutation => (
-        <a onClick={async () => {
-          await runMutation({y: "test"})
-        }>Do it</a>
+        <a
+          onClick={async () => {
+            await runMutation({ y: "test" });
+          }}
+        >
+          Do it
+        </a>
       )}
     </Mutation>
   );

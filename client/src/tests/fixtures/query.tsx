@@ -1,5 +1,5 @@
 import React from "react";
-import { Query, QuerySpec } from "../query";
+import { Query, QuerySpec } from "../../query";
 
 interface Result {
   output: string;

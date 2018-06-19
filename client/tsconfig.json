@@ -13,6 +13,7 @@
     "moduleResolution": "node",
     "module": "es6",
     "declaration": true,
+    "strictNullChecks": true,
     "declarationDir": "lib",
     "noEmitOnError": true,
     "jsx": "react",
@@ -29,7 +30,6 @@
     "./src/**/*.ts",
   ],
   "exclude": [
-    "./src/tests/**",
-    "./src/mocks/**"
+    "./src/tests/**/*"
   ]
 }

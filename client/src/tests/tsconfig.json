@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig",
+  "compilerOptions": {
+    "types": [
+      "node",
+      "jest",
+      "react",
+      "lodash.isequal"
+    ]
+  },
+  "exclude": [],
+  "include": ["./**/*.tsx", "./**/*.ts"]
+}
