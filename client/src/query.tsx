@@ -21,44 +21,57 @@ interface State<QueryResult> {
   error?: GraphQLError;
 }
 
-interface QueryProps<
-  QueryResult extends object,
-  QueryInputVariables extends object
-> {
-  children: (data: GraphQLResult<QueryResult>) => React.ReactNode;
-  query: string | QuerySpec<QueryResult, QueryInputVariables>;
-  variables: QueryInputVariables;
-}
-
-type QueryPropsWithStringQuery<
+export interface QuerySpec<
   Result extends object,
-  Input extends object
-> = Overwrite<QueryProps<Result, Input>, { query: string }>;
-
-export interface QuerySpec<Result extends object, Input extends object> {
+  Input extends object | undefined = undefined
+> {
   query: string;
   result?: Result;
   variables?: Input;
 }
 
-export function Query<Result extends object, Input extends object>(
-  props: QueryProps<Result, Input>,
-) {
-  let passedProps: Pick<
-    QueryProps<Result, Input>,
-    Exclude<keyof QueryProps<Result, Input>, "query">
-  >;
+interface QueryPropsBase<
+  Result extends object,
+  Input extends object | undefined = undefined
+> {
+  children: (data: GraphQLResult<Result>) => React.ReactNode;
+  query: string | QuerySpec<Result, Input>;
+}
+
+type MaybeVariables<
+  Input extends object | undefined = undefined
+> = Input extends object
+  ? {
+      variables: Input;
+    }
+  : {
+      variables?: undefined;
+    };
+
+type QueryProps<
+  Result extends object,
+  Input extends object | undefined = undefined
+> = QueryPropsBase<Result, Input> & MaybeVariables<Input>;
+
+interface InternalQueryProps<
+  Result extends object,
+  Input extends object | undefined = undefined
+> {
+  children: (data: GraphQLResult<Result>) => React.ReactNode;
+  query: string;
+  variables?: Input;
+}
+
+export function Query<
+  Result extends object,
+  Input extends object | undefined = undefined
+>(props: QueryProps<Result, Input>) {
   let query: string;
 
   if (typeof props.query === "string") {
-    ({ query, ...passedProps } = props as QueryPropsWithStringQuery<
-      Result,
-      Input
-    >);
+    query = props.query;
   } else {
-    const { query: querySpec, ...shouldPass } = props;
-    passedProps = shouldPass;
-    query = querySpec.query;
+    query = props.query.query;
   }
 
   return (
@@ -67,21 +80,28 @@ export function Query<Result extends object, Input extends object>(
         <GraphQLRenderer
           connection={connection}
           query={query}
-          {...passedProps}
+          variables={props.variables}
+          children={props.children}
         />
       )}
     </Consumer>
   );
 }
 
+interface ConnectionProps {
+  connection: Connection;
+}
+
+interface StringQueryProps {
+  query: string;
+}
+
 class GraphQLRenderer<
-  QueryResult extends object,
-  QueryInputVariables extends object
+  Result extends object,
+  Input extends object | undefined = undefined
 > extends React.PureComponent<
-  QueryPropsWithStringQuery<QueryResult, QueryInputVariables> & {
-    connection: Connection;
-  },
-  State<QueryResult>
+  InternalQueryProps<Result, Input> & StringQueryProps & ConnectionProps,
+  State<Result>
 > {
   private subscription:
     | ReturnType<typeof Connection["prototype"]["subscribe"]>
@@ -93,7 +113,9 @@ class GraphQLRenderer<
   }
 
   componentWillReceiveProps(
-    nextProps: QueryPropsWithStringQuery<QueryResult, QueryInputVariables>,
+    nextProps: InternalQueryProps<Result, Input> &
+      StringQueryProps &
+      ConnectionProps,
   ) {
     const { query, variables } = nextProps;
     if (
@@ -135,13 +157,13 @@ class GraphQLRenderer<
       value: shouldRenderValue ? this.state.value : undefined,
       state: this.state.state,
       error: this.state.error,
-    } as GraphQLResult<QueryResult>;
+    } as GraphQLResult<Result>;
 
     return this.props.children(data);
   }
 
   private onData(
-    data: GraphQLResult<QueryResult>,
+    data: GraphQLResult<Result>,
     query: string,
     variables: object,
   ) {
@@ -163,22 +185,23 @@ class GraphQLRenderer<
 
   private subscribe({
     query,
-    variables,
+    variables: inputVariables,
   }: {
     query: string;
-    variables: object;
+    variables: object | undefined;
   }) {
+    const variables = inputVariables ? inputVariables : {};
     this.unsubscribe();
 
     this.subscription = this.props.connection.subscribe({
       query,
       variables,
       observer: data =>
-        this.onData(data as GraphQLResult<QueryResult>, query, variables),
+        this.onData(data as GraphQLResult<Result>, query, variables),
     });
 
     this.onData(
-      this.subscription.data() as GraphQLResult<QueryResult>,
+      this.subscription.data() as GraphQLResult<Result>,
       query,
       variables,
     );
