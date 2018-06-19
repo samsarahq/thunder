@@ -1,13 +1,147 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`fixtures hoc 1`] = `Array []`;
-
 exports[`fixtures hoc.tsx 1`] = `Array []`;
-
-exports[`fixtures mutation 1`] = `Array []`;
 
 exports[`fixtures mutation.tsx 1`] = `Array []`;
 
-exports[`fixtures query 1`] = `Array []`;
-
 exports[`fixtures query.tsx 1`] = `Array []`;
+
+exports[`fixtures query_with_variables_error.tsx 1`] = `
+Array [
+  Object {
+    "category": 1,
+    "code": 2322,
+    "file": undefined,
+    "length": 5,
+    "messageText": Object {
+      "category": 1,
+      "code": 2322,
+      "messageText": "Type '{ children: (data: GraphQLResult<Result>) => null; query: string; }' is not assignable to type 'IntrinsicAttributes & QueryPropsBase<Result, Variables> & { variables: Variables; }'.",
+      "next": Object {
+        "category": 1,
+        "code": 2322,
+        "messageText": "Type '{ children: (data: GraphQLResult<Result>) => null; query: string; }' is not assignable to type '{ variables: Variables; }'.",
+        "next": Object {
+          "category": 1,
+          "code": 2324,
+          "messageText": "Property 'variables' is missing in type '{ children: (data: GraphQLResult<Result>) => null; query: string; }'.",
+          "next": undefined,
+        },
+      },
+    },
+    "start": 264,
+  },
+  Object {
+    "category": 1,
+    "code": 2322,
+    "file": undefined,
+    "length": 5,
+    "messageText": Object {
+      "category": 1,
+      "code": 2322,
+      "messageText": "Type '{ children: (data: GraphQLResult<Result>) => null; query: QuerySpec<Result, Variables>; }' is not assignable to type 'IntrinsicAttributes & QueryPropsBase<Result, Variables> & { variables: Variables; }'.",
+      "next": Object {
+        "category": 1,
+        "code": 2322,
+        "messageText": "Type '{ children: (data: GraphQLResult<Result>) => null; query: QuerySpec<Result, Variables>; }' is not assignable to type '{ variables: Variables; }'.",
+        "next": Object {
+          "category": 1,
+          "code": 2324,
+          "messageText": "Property 'variables' is missing in type '{ children: (data: GraphQLResult<Result>) => null; query: QuerySpec<Result, Variables>; }'.",
+          "next": undefined,
+        },
+      },
+    },
+    "start": 352,
+  },
+  Object {
+    "category": 1,
+    "code": 2326,
+    "file": undefined,
+    "length": 14,
+    "messageText": Object {
+      "category": 1,
+      "code": 2326,
+      "messageText": "Types of property 'variables' are incompatible.",
+      "next": Object {
+        "category": 1,
+        "code": 2322,
+        "messageText": "Type '{}' is not assignable to type 'Variables'.",
+        "next": Object {
+          "category": 1,
+          "code": 2324,
+          "messageText": "Property 'y' is missing in type '{}'.",
+          "next": undefined,
+        },
+      },
+    },
+    "start": 462,
+  },
+  Object {
+    "category": 1,
+    "code": 2326,
+    "file": undefined,
+    "length": 14,
+    "messageText": Object {
+      "category": 1,
+      "code": 2326,
+      "messageText": "Types of property 'variables' are incompatible.",
+      "next": Object {
+        "category": 1,
+        "code": 2322,
+        "messageText": "Type '{}' is not assignable to type 'Variables'.",
+        "next": Object {
+          "category": 1,
+          "code": 2324,
+          "messageText": "Property 'y' is missing in type '{}'.",
+          "next": undefined,
+        },
+      },
+    },
+    "start": 581,
+  },
+]
+`;
+
+exports[`fixtures query_without_variables.tsx 1`] = `Array []`;
+
+exports[`fixtures query_without_variables_errors.tsx 1`] = `
+Array [
+  Object {
+    "category": 1,
+    "code": 2326,
+    "file": undefined,
+    "length": 14,
+    "messageText": Object {
+      "category": 1,
+      "code": 2326,
+      "messageText": "Types of property 'variables' are incompatible.",
+      "next": Object {
+        "category": 1,
+        "code": 2322,
+        "messageText": "Type '{}' is not assignable to type 'undefined'.",
+        "next": undefined,
+      },
+    },
+    "start": 254,
+  },
+  Object {
+    "category": 1,
+    "code": 2326,
+    "file": undefined,
+    "length": 14,
+    "messageText": Object {
+      "category": 1,
+      "code": 2326,
+      "messageText": "Types of property 'variables' are incompatible.",
+      "next": Object {
+        "category": 1,
+        "code": 2322,
+        "messageText": "Type '{}' is not assignable to type 'undefined'.",
+        "next": undefined,
+      },
+    },
+    "start": 365,
+  },
+]
+`;
