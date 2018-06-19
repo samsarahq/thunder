@@ -1,0 +1,13 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`fixtures hoc 1`] = `Array []`;
+
+exports[`fixtures hoc.tsx 1`] = `Array []`;
+
+exports[`fixtures mutation 1`] = `Array []`;
+
+exports[`fixtures mutation.tsx 1`] = `Array []`;
+
+exports[`fixtures query 1`] = `Array []`;
+
+exports[`fixtures query.tsx 1`] = `Array []`;
