@@ -46,11 +46,11 @@ export function Mutation<
 
   const child = (connection: Connection) => {
     const runMutation = (variables?: Input) => {
-      return connection.mutate<Exclude<Input, undefined>, Result>({
+      return connection.mutate({
         query,
-        // This isn't quite right. Maybe we should change the type of
-        // mutate to make variables optional based on the query.
-        variables: (variables ? variables : {}) as Exclude<Input, undefined>,
+        // This isn't quite right. Not sure how to unify the union
+        // type into a form that the conditional type will be okay with.
+        variables: variables as Exclude<Input, undefined>,
       });
     };
 

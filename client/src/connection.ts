@@ -2,6 +2,7 @@ import { LRUCache } from "./lru";
 import { merge } from "./merge";
 import { ConnectFunction, InEnvelope, OutEnvelope } from "./pingingwebsocket";
 import { ReconnectingWebSocket } from "./reconnectingwebsocket";
+import { MutationSpec } from "./spec";
 
 export const ErrorNotConnected = "not connected";
 export const ErrorMutationTimeout = "mutation timed out";
@@ -90,7 +91,7 @@ export type Observer<Result> = (data: Result) => void;
 class Connection {
   nextId = 0;
   subscriptions = new Map<string, Subscription<object, object>>();
-  mutations = new Map<string, Mutation<object>>();
+  mutations = new Map<string, Mutation<object | undefined>>();
   past = new LRUCache(100);
   initialRetryDelay = 1000;
   maxRetryDelay = 60000;
@@ -169,14 +170,54 @@ class Connection {
     };
   }
 
-  mutate<MutationInputVariables extends object, MutationOutput>({
+  mutate<
+    MutationInputVariables extends object | undefined,
+    MutationOutput extends object
+  >({
     query,
     variables,
-  }: {
-    query: string;
-    variables: MutationInputVariables;
-  }): Promise<MutationOutput> {
+  }: MutationInputVariables extends undefined
+    ? {
+        query: MutationSpec<MutationOutput, MutationInputVariables>;
+        variables?: undefined;
+      }
+    : {
+        query: MutationSpec<MutationOutput, MutationInputVariables>;
+        variables: MutationInputVariables;
+      }): Promise<MutationOutput>;
+
+  mutate<MutationInputVariables extends object | undefined, MutationOutput>({
+    query,
+    variables,
+  }: MutationInputVariables extends undefined
+    ? {
+        query: string;
+        variables?: undefined;
+      }
+    : {
+        query: string;
+        variables: MutationInputVariables;
+      }): Promise<MutationOutput>;
+
+  mutate<
+    MutationInputVariables extends object | undefined,
+    MutationOutput extends object
+  >({
+    query: queryInput,
+    variables,
+  }: MutationInputVariables extends undefined
+    ? {
+        query: string | MutationSpec<MutationOutput, MutationInputVariables>;
+        variables?: undefined;
+      }
+    : {
+        query: string | MutationSpec<MutationOutput, MutationInputVariables>;
+        variables: MutationInputVariables;
+      }): Promise<MutationOutput> {
     const id = this.makeId();
+
+    const query =
+      typeof queryInput === "string" ? queryInput : queryInput.query;
 
     if (this.socket.state === "connected") {
       this.send({ id, type: "mutate", message: { query, variables } });
@@ -185,7 +226,7 @@ class Connection {
     }
 
     return new Promise((resolve, reject) => {
-      const mutation: Mutation<MutationInputVariables> = {
+      const mutation: Mutation<object | undefined> = {
         query,
         variables,
         timeout: setTimeout(
@@ -262,7 +303,7 @@ class Connection {
 
   handleMessage(envelope: InEnvelope) {
     let subscription: Subscription<object, object> | undefined;
-    let mutation: Mutation<object> | undefined;
+    let mutation: Mutation<object | undefined> | undefined;
 
     switch (envelope.type) {
       case "update":
