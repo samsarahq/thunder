@@ -3,6 +3,7 @@ package graphql
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"runtime"
@@ -83,7 +84,11 @@ func PrepareQuery(typ Type, selectionSet *SelectionSet) error {
 			return NewClientError("scalar field must have no selections")
 		}
 		return nil
-
+	case *Enum:
+		if selectionSet != nil {
+			return NewClientError("enum field must have no selections")
+		}
+		return nil
 	case *Object:
 		if selectionSet == nil {
 			return NewClientError("object field must have selections")
@@ -283,6 +288,12 @@ func (e *Executor) execute(ctx context.Context, typ Type, source interface{}, se
 	switch typ := typ.(type) {
 	case *Scalar:
 		return unwrap(source), nil
+	case *Enum:
+		val := unwrap(source)
+		if mapVal, ok := typ.ReverseMap[val]; ok {
+			return mapVal, nil
+		}
+		return nil, errors.New("enum is not valid")
 	case *Object:
 		return e.executeObject(ctx, typ, source, selectionSet)
 	case *List:

@@ -33,6 +33,8 @@ func valueToJson(value ast.Value, vars map[string]interface{}) (interface{}, err
 		return value.Value, nil
 	case *ast.BooleanValue:
 		return value.Value, nil
+	case *ast.EnumValue:
+		return value.Value, nil
 	case *ast.Variable:
 		actual, ok := vars[value.Name.Value]
 		if !ok {
