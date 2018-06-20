@@ -20,10 +20,12 @@ type Root struct {
 	Bytes []byte
 	Alias alias
 }
+type userEnum int64
 
 type User struct {
-	Name string `graphql:",key"`
-	Age  int
+	Name   string `graphql:",key"`
+	Age    int
+	userID userEnum
 }
 
 type WeirdKey struct {
@@ -35,7 +37,13 @@ func panicFunction() int64 {
 
 func TestExecuteGood(t *testing.T) {
 	schema := NewSchema()
-
+	type enumType int32
+	var enumVar enumType
+	schema.Enum(enumVar, map[string]interface{}{
+		"first":  enumType(1),
+		"second": enumType(2),
+		"third":  enumType(3),
+	})
 	query := schema.Query()
 	query.FieldFunc("users", func() []*User {
 		return []*User{

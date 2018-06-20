@@ -170,6 +170,26 @@ func getScalarArgParser(typ reflect.Type) (*argParser, graphql.Type, bool) {
 	return nil, nil, false
 }
 
+func (sb *schemaBuilder) getEnumArgParser(typ reflect.Type) (*argParser, graphql.Type, error) {
+	var values []string
+	for mapping := range sb.enumMappings[typ].Map {
+		values = append(values, mapping)
+	}
+	return &argParser{FromJSON: func(value interface{}, dest reflect.Value) error {
+		asString, ok := value.(string)
+		if !ok {
+			return errors.New("not a string")
+		}
+		val, ok := sb.enumMappings[typ].Map[asString]
+		if !ok {
+			return fmt.Errorf("unknown enum value %v", asString)
+		}
+		dest.Set(reflect.ValueOf(val).Convert(dest.Type()))
+		return nil
+	}, Type: typ}, &graphql.Enum{Type: typ.Name(), Values: values, ReverseMap: sb.enumMappings[typ].ReverseMap}, nil
+
+}
+
 func init() {
 	for typ, arg := range scalarArgParsers {
 		arg.Type = typ
@@ -199,6 +219,11 @@ func (sb *schemaBuilder) makeArgParser(typ reflect.Type) (*argParser, graphql.Ty
 }
 
 func (sb *schemaBuilder) makeArgParserInner(typ reflect.Type) (*argParser, graphql.Type, error) {
+	if sb.enumMappings[typ] != nil {
+		parser, argType, _ := sb.getEnumArgParser(typ)
+		return parser, argType, nil
+	}
+
 	if parser, argType, ok := getScalarArgParser(typ); ok {
 		return parser, argType, nil
 	}
@@ -354,8 +379,14 @@ func (sb *schemaBuilder) makeSliceParser(typ reflect.Type) (*argParser, graphql.
 }
 
 type schemaBuilder struct {
-	types   map[reflect.Type]graphql.Type
-	objects map[reflect.Type]*Object
+	types        map[reflect.Type]graphql.Type
+	objects      map[reflect.Type]*Object
+	enumMappings map[reflect.Type]*EnumMapping
+}
+
+type EnumMapping struct {
+	Map        map[string]interface{}
+	ReverseMap map[interface{}]string
 }
 
 var errType reflect.Type
@@ -692,9 +723,24 @@ func getScalar(typ reflect.Type) (string, bool) {
 	return "", false
 }
 
+func (sb *schemaBuilder) getEnum(typ reflect.Type) (string, []string, bool) {
+	if sb.enumMappings[typ] != nil {
+		var values []string
+		for mapping := range sb.enumMappings[typ].Map {
+			values = append(values, mapping)
+		}
+		return typ.Name(), values, true
+	}
+	return "", nil, false
+}
+
 func (sb *schemaBuilder) getType(t reflect.Type) (graphql.Type, error) {
 	// Support scalars and optional scalars. Scalars have precedence over structs
 	// to have eg. time.Time function as a scalar.
+	if typ, values, ok := sb.getEnum(t); ok {
+		return &graphql.NonNull{Type: &graphql.Enum{Type: typ, Values: values, ReverseMap: sb.enumMappings[t].ReverseMap}}, nil
+	}
+
 	if typ, ok := getScalar(t); ok {
 		return &graphql.NonNull{Type: &graphql.Scalar{Type: typ}}, nil
 	}
@@ -738,13 +784,26 @@ func (sb *schemaBuilder) getType(t reflect.Type) (graphql.Type, error) {
 }
 
 type Schema struct {
-	objects map[string]*Object
+	objects   map[string]*Object
+	enumTypes map[reflect.Type]*EnumMapping
 }
 
 func NewSchema() *Schema {
 	return &Schema{
 		objects: make(map[string]*Object),
 	}
+}
+
+func (s *Schema) Enum(val interface{}, enumMap map[string]interface{}) {
+	typ := reflect.TypeOf(val)
+	if s.enumTypes == nil {
+		s.enumTypes = make(map[reflect.Type]*EnumMapping)
+	}
+	rMap := make(map[interface{}]string)
+	for key, val := range enumMap {
+		rMap[val] = key
+	}
+	s.enumTypes[typ] = &EnumMapping{Map: enumMap, ReverseMap: rMap}
 }
 
 func (s *Schema) Object(name string, typ interface{}) *Object {
@@ -776,8 +835,9 @@ func (s *Schema) Mutation() *Object {
 
 func (s *Schema) Build() (*graphql.Schema, error) {
 	sb := &schemaBuilder{
-		types:   make(map[reflect.Type]graphql.Type),
-		objects: make(map[reflect.Type]*Object),
+		types:        make(map[reflect.Type]graphql.Type),
+		objects:      make(map[reflect.Type]*Object),
+		enumMappings: s.enumTypes,
 	}
 
 	for _, object := range s.objects {
