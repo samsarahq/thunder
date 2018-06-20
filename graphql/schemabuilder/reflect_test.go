@@ -318,7 +318,8 @@ func testArgParseBad(t *testing.T, p *argParser, input interface{}) {
 }
 
 func TestArgParser(t *testing.T) {
-	parser, _, err := makeArgParser(reflect.TypeOf(kitchenSinkArgs{}))
+	sb := &schemaBuilder{}
+	parser, _, err := sb.makeArgParser(reflect.TypeOf(kitchenSinkArgs{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -459,15 +460,15 @@ func TestArgParser(t *testing.T) {
 		}
 	`))
 
-	if _, _, err := makeArgParser(reflect.TypeOf(&duplicate{})); err == nil {
+	if _, _, err := sb.makeArgParser(reflect.TypeOf(&duplicate{})); err == nil {
 		t.Error("expected duplicate fields to fail")
 	}
 
-	if _, _, err := makeArgParser(reflect.TypeOf(&anonymous{})); err == nil {
+	if _, _, err := sb.makeArgParser(reflect.TypeOf(&anonymous{})); err == nil {
 		t.Error("expected anonymous fields to fail")
 	}
 
-	if _, _, err := makeArgParser(reflect.TypeOf(&unsupported{})); err == nil {
+	if _, _, err := sb.makeArgParser(reflect.TypeOf(&unsupported{})); err == nil {
 		t.Error("expected unsupported fields to fail")
 	}
 }
