@@ -8,11 +8,13 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/samsarahq/thunder/sqlgen"
+	"github.com/samsarahq/thunder/thunderpb"
 
 	"github.com/siddontang/go-mysql/mysql"
 	"github.com/siddontang/go-mysql/replication"
@@ -184,6 +186,74 @@ func buildColumnMap(conn *sql.DB, database string, table *sqlgen.Table) (*column
 	}
 
 	return columnMap, nil
+}
+
+func makeCanonical(v interface{}) interface{} {
+	switch v := v.(type) {
+	case bool:
+		return bool(v)
+	case int8:
+		return int64(v)
+	case int16:
+		return int64(v)
+	case int32:
+		return int64(v)
+	case int64:
+		return int64(v)
+	case uint8:
+		return uint64(v)
+	case uint16:
+		return uint64(v)
+	case uint32:
+		return uint64(v)
+	case uint64:
+		return uint64(v)
+	case string:
+		return string(v)
+	case []byte:
+		return []byte(v)
+	case float32:
+		return float64(v)
+	case float64:
+		return float64(v)
+	case time.Time:
+		return time.Time(v)
+	default:
+		return v
+	}
+}
+
+func binlogColumnToField(column interface{}) (*thunderpb.Field, error) {
+	switch column := makeCanonical(column).(type) {
+	case bool:
+		return &thunderpb.Field{Kind: thunderpb.FieldKind_Bool, Bool: column}, nil
+	case int64:
+		return &thunderpb.Field{Kind: thunderpb.FieldKind_Int, Int: column}, nil
+	case uint64:
+		return &thunderpb.Field{Kind: thunderpb.FieldKind_Uint, Uint: column}, nil
+	case string:
+		return &thunderpb.Field{Kind: thunderpb.FieldKind_String, String_: column}, nil
+	case []byte:
+		return &thunderpb.Field{Kind: thunderpb.FieldKind_Bytes, Bytes: column}, nil
+	case float64:
+		return &thunderpb.Field{Kind: thunderpb.FieldKind_Float64, Float64: column}, nil
+	case time.Time:
+		return &thunderpb.Field{Kind: thunderpb.FieldKind_Time, Time: column}, nil
+	default:
+		return nil, fmt.Errorf("unknown type %s", reflect.TypeOf(column))
+	}
+}
+
+func binlogRowToFields(binlogRow []interface{}) ([]*thunderpb.Field, error) {
+	fields := make([]*thunderpb.Field, 0, len(binlogRow))
+	for _, column := range binlogRow {
+		field, err := binlogColumnToField(column)
+		if err != nil {
+			return nil, fmt.Errorf("bad column: %s", err)
+		}
+		fields = append(fields, field)
+	}
+	return fields, nil
 }
 
 // parseBinlogRow parses a binlog row into a struct

@@ -3,6 +3,38 @@ syntax = "proto3";
 package thunderpb;
 option go_package = "github.com/samsarahq/thunder/thunderpb";
 
+import "google/protobuf/timestamp.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+enum FieldKind {
+    Unknown = 0;
+    Bool = 1;
+    Int = 2;
+    Uint = 3;
+    String = 4;
+    Bytes = 5;
+    Float64 = 6;
+    Time = 7;
+}
+
+message Field {
+    FieldKind kind = 1;
+
+    bool bool = 2;
+    sint64 int = 3;
+    uint64 uint = 4;
+    string string = 5;
+    bytes bytes = 6;
+    double float64 = 7;
+    google.protobuf.Timestamp time = 8 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+}
+
+message Change {
+    map<string, Field> before = 1;
+    map<string, Field> after = 2;
+}
+
 message BinlogEvent {
     string table = 1;
+    repeated Change changes = 2;
 }
