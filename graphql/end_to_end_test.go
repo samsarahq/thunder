@@ -98,6 +98,129 @@ func TestPathError(t *testing.T) {
 
 }
 
+func TestEnum(t *testing.T) {
+	schema := schemabuilder.NewSchema()
+
+	type enumType int32
+	type enumType2 float64
+
+	schema.Enum(enumType(1), map[string]interface{}{
+		"firstField":  enumType(1),
+		"secondField": enumType(2),
+		"thirdField":  enumType(3),
+	})
+	schema.Enum(enumType2(1.2), map[string]interface{}{
+		"this": enumType2(1.2),
+		"is":   enumType2(3.2),
+		"a":    enumType2(4.3),
+		"map":  enumType2(5.3),
+	})
+
+	query := schema.Query()
+	query.FieldFunc("inner", func(args struct {
+		EnumField enumType
+	}) enumType {
+		return args.EnumField
+	})
+	query.FieldFunc("inner2", func(args struct {
+		EnumField2 enumType2
+	}) enumType2 {
+		return args.EnumField2
+	})
+
+	query.FieldFunc("optional", func(args struct {
+		EnumField *enumType
+	}) enumType {
+		if args.EnumField != nil {
+			return *args.EnumField
+		} else {
+			return enumType(4)
+		}
+	})
+
+	query.FieldFunc("pointerret", func(args struct {
+		EnumField *enumType
+	}) *enumType {
+		return args.EnumField
+	})
+
+	builtSchema := schema.MustBuild()
+
+	q := graphql.MustParse(`
+		{
+			inner(enumField: firstField)
+		}
+		`, nil)
+	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
+		t.Error(err)
+	}
+
+	e := graphql.Executor{}
+	val, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
+	assert.Nil(t, err)
+	assert.Equal(t, map[string]interface{}{
+		"inner": "firstField",
+	}, val)
+
+	q = graphql.MustParse(`
+		{
+			inner2(enumField2: this)
+		}
+		`, nil)
+	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
+		t.Error(err)
+	}
+
+	e = graphql.Executor{}
+	val, err = e.Execute(context.Background(), builtSchema.Query, nil, q)
+	assert.Nil(t, err)
+	assert.Equal(t, map[string]interface{}{
+		"inner2": "this",
+	}, val)
+
+	q = graphql.MustParse(`
+		{
+			inner(enumField: wrongField)
+		}
+		`, nil)
+	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err == nil {
+		t.Error(err)
+	}
+
+	q = graphql.MustParse(`
+		{
+			optional(enumField: firstField)
+		}
+		`, nil)
+	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
+		t.Error(err)
+	}
+
+	e = graphql.Executor{}
+	val, err = e.Execute(context.Background(), builtSchema.Query, nil, q)
+	assert.Nil(t, err)
+	assert.Equal(t, map[string]interface{}{
+		"optional": "firstField",
+	}, val)
+
+	q = graphql.MustParse(`
+		{
+			pointerret(enumField: firstField)
+		}
+		`, nil)
+	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
+		t.Error(err)
+	}
+
+	e = graphql.Executor{}
+	val, err = e.Execute(context.Background(), builtSchema.Query, nil, q)
+	assert.Nil(t, err)
+	assert.Equal(t, map[string]interface{}{
+		"pointerret": enumType(1),
+	}, val)
+
+}
+
 // TestEndToEndAwaitAndCache tests that slow fields get run in parallel and cached.
 //
 // The test verifies that the `slow` field on user, which sleeps for 100ms, gets
