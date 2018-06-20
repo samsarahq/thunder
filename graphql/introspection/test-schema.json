@@ -139,6 +139,20 @@
               {
                 "defaultValue": null,
                 "description": "",
+                "name": "enumfield",
+                "type": {
+                  "kind": "NON_NULL",
+                  "name": "",
+                  "ofType": {
+                    "kind": "ENUM",
+                    "name": "enumType",
+                    "ofType": null
+                  }
+                }
+              },
+              {
+                "defaultValue": null,
+                "description": "",
                 "name": "include",
                 "type": {
                   "kind": "INPUT_OBJECT",
@@ -253,6 +267,23 @@
         "interfaces": [],
         "kind": "SCALAR",
         "name": "bool",
+        "possibleTypes": []
+      },
+      {
+        "description": "",
+        "enumValues": [
+          {
+            "deprecationReason": "",
+            "description": "1",
+            "isDeprecated": false,
+            "name": "random"
+          }
+        ],
+        "fields": [],
+        "inputFields": [],
+        "interfaces": [],
+        "kind": "ENUM",
+        "name": "enumType",
         "possibleTypes": []
       },
       {

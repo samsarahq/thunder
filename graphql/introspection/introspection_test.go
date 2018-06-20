@@ -16,9 +16,14 @@ type User struct {
 	MaybeAge *int64
 }
 
+type enumType int32
+
 func makeSchema() *schemabuilder.Schema {
 	schema := schemabuilder.NewSchema()
-
+	var enumField enumType
+	schema.Enum(enumField, map[string]interface{}{
+		"random": enumType(1),
+	})
 	query := schema.Query()
 	query.FieldFunc("me", func() User {
 		return User{Name: "me"}
@@ -42,8 +47,9 @@ func makeSchema() *schemabuilder.Schema {
 		return nil
 	})
 	user.FieldFunc("greet", func(args struct {
-		Other   string
-		Include *User
+		Other     string
+		Include   *User
+		Enumfield enumType
 	}) string {
 		return ""
 	})
