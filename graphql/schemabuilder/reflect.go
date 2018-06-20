@@ -182,30 +182,30 @@ type argField struct {
 	optional bool
 }
 
-func makeArgParser(typ reflect.Type) (*argParser, graphql.Type, error) {
+func (sb *schemaBuilder) makeArgParser(typ reflect.Type) (*argParser, graphql.Type, error) {
 	if typ.Kind() == reflect.Ptr {
-		parser, argType, err := makeArgParserInner(typ.Elem())
+		parser, argType, err := sb.makeArgParserInner(typ.Elem())
 		if err != nil {
 			return nil, nil, err
 		}
 		return wrapPtrParser(parser), argType, nil
 	}
 
-	parser, argType, err := makeArgParserInner(typ)
+	parser, argType, err := sb.makeArgParserInner(typ)
 	if err != nil {
 		return nil, nil, err
 	}
 	return parser, &graphql.NonNull{Type: argType}, nil
 }
 
-func makeArgParserInner(typ reflect.Type) (*argParser, graphql.Type, error) {
+func (sb *schemaBuilder) makeArgParserInner(typ reflect.Type) (*argParser, graphql.Type, error) {
 	if parser, argType, ok := getScalarArgParser(typ); ok {
 		return parser, argType, nil
 	}
 
 	switch typ.Kind() {
 	case reflect.Struct:
-		parser, argType, err := makeStructParser(typ)
+		parser, argType, err := sb.makeStructParser(typ)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -214,7 +214,7 @@ func makeArgParserInner(typ reflect.Type) (*argParser, graphql.Type, error) {
 		}
 		return parser, argType, nil
 	case reflect.Slice:
-		return makeSliceParser(typ)
+		return sb.makeSliceParser(typ)
 	default:
 		return nil, nil, fmt.Errorf("bad arg type %s: should be struct, scalar, pointer, or a slice", typ)
 	}
@@ -239,9 +239,8 @@ func wrapPtrParser(inner *argParser) *argParser {
 	}
 }
 
-func makeStructParser(typ reflect.Type) (*argParser, graphql.Type, error) {
+func (sb *schemaBuilder) makeStructParser(typ reflect.Type) (*argParser, graphql.Type, error) {
 	fields := make(map[string]argField)
-
 	argType := &graphql.InputObject{
 		Name:        typ.Name(),
 		InputFields: make(map[string]graphql.Type),
@@ -288,8 +287,7 @@ func makeStructParser(typ reflect.Type) (*argParser, graphql.Type, error) {
 		if _, ok := fields[name]; ok {
 			return nil, nil, fmt.Errorf("bad arg type %s: duplicate field %s", typ, name)
 		}
-
-		parser, fieldArgTyp, err := makeArgParser(field.Type)
+		parser, fieldArgTyp, err := sb.makeArgParser(field.Type)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -328,8 +326,8 @@ func makeStructParser(typ reflect.Type) (*argParser, graphql.Type, error) {
 	}, argType, nil
 }
 
-func makeSliceParser(typ reflect.Type) (*argParser, graphql.Type, error) {
-	inner, argType, err := makeArgParser(typ.Elem())
+func (sb *schemaBuilder) makeSliceParser(typ reflect.Type) (*argParser, graphql.Type, error) {
+	inner, argType, err := sb.makeArgParser(typ.Elem())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -406,7 +404,7 @@ func (sb *schemaBuilder) buildFunction(typ reflect.Type, m *method) (*graphql.Fi
 	if len(in) > 0 && in[0] != selectionSetType {
 		hasArgs = true
 		var err error
-		if argParser, argType, err = makeStructParser(in[0]); err != nil {
+		if argParser, argType, err = sb.makeStructParser(in[0]); err != nil {
 			return nil, fmt.Errorf("attempted to parse %s as arguments struct, but failed: %s", in[0].Name(), err.Error())
 		}
 		in = in[1:]
