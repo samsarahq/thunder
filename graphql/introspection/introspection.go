@@ -3,6 +3,7 @@ package introspection
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sort"
 
 	"github.com/samsarahq/thunder/graphql"
@@ -90,13 +91,14 @@ type Type struct {
 
 func (s *introspection) registerType(schema *schemabuilder.Schema) {
 	object := schema.Object("__Type", Type{})
-
 	object.FieldFunc("kind", func(t Type) TypeKind {
 		switch t.Inner.(type) {
 		case *graphql.Object:
 			return OBJECT
 		case *graphql.Scalar:
 			return SCALAR
+		case *graphql.Enum:
+			return ENUM
 		case *graphql.List:
 			return LIST
 		case *graphql.InputObject:
@@ -113,6 +115,8 @@ func (s *introspection) registerType(schema *schemabuilder.Schema) {
 		case *graphql.Object:
 			return t.Name
 		case *graphql.Scalar:
+			return t.Type
+		case *graphql.Enum:
 			return t.Type
 		case *graphql.InputObject:
 			return t.Name
@@ -190,7 +194,20 @@ func (s *introspection) registerType(schema *schemabuilder.Schema) {
 		}
 	})
 
-	object.FieldFunc("enumValues", func(args struct{ IncludeDeprecated *bool }) []EnumValue {
+	object.FieldFunc("enumValues", func(t Type, args struct {
+		IncludeDeprecated *bool
+	}) []EnumValue {
+
+		switch t := t.Inner.(type) {
+		case *graphql.Enum:
+			var enumVals []EnumValue
+			for k, v := range t.ReverseMap {
+				val := fmt.Sprintf("%v", k)
+				enumVals = append(enumVals,
+					EnumValue{Name: v, Description: val, IsDeprecated: false, DeprecationReason: ""})
+			}
+			return enumVals
+		}
 		return nil
 	})
 }
@@ -228,6 +245,12 @@ func collectTypes(typ graphql.Type, types map[string]graphql.Type) {
 		collectTypes(typ.Type, types)
 
 	case *graphql.Scalar:
+		if _, ok := types[typ.Type]; ok {
+			return
+		}
+		types[typ.Type] = typ
+
+	case *graphql.Enum:
 		if _, ok := types[typ.Type]; ok {
 			return
 		}
@@ -280,7 +303,6 @@ func (s *introspection) registerMutation(schema *schemabuilder.Schema) {
 
 func (s *introspection) schema() *graphql.Schema {
 	schema := schemabuilder.NewSchema()
-
 	s.registerDirective(schema)
 	s.registerEnumValue(schema)
 	s.registerField(schema)
@@ -297,7 +319,6 @@ func AddIntrospectionToSchema(schema *graphql.Schema) {
 	types := make(map[string]graphql.Type)
 	collectTypes(schema.Query, types)
 	collectTypes(schema.Mutation, types)
-
 	is := &introspection{
 		types:    types,
 		query:    schema.Query,
