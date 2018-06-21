@@ -14,11 +14,18 @@ and [Node](https://nodejs.org/).
 To start the database, run `docker-compose -f db/docker-compose.yml up` to
 start a MySQL server on port 3307, properly configured for use with Thunder. 
 
-Then, install [github.com/mattes/migrate](https://github.com/mattes/migrate)
-using `go get github.com/mattes/migrate` and run `migrate -url
-mysql://root:@tcp(127.0.0.1:3307)/chat -path ./db/migrations up` to set-up the
-database's schema.
+Then, install [migrate](https://github.com/golang-migrate/migrate/tree/master/cli) using:
+```
+$ go get -u -d github.com/golang-migrate/migrate/cli github.com/lib/pq
+$ go build -tags 'mysql' -o /usr/local/bin/migrate github.com/golang-migrate/migrate/cli
+```
+If you encounter any errors such as `cannot find package "github.com/go-sql-driver/mysql"`,
+you will need to `go get` each of the packages e.g. `go get github.com/go-sql-driver/mysql`.
 
+Then run the following to set-up the database's schema:
+```
+migrate -database 'mysql://root:@tcp(127.0.0.1:3307)/chat' -path ./db/migrations up
+```
 Now you can access the database with `mysql -h 127.0.0.1 --port=3307 -uroot
 chat`. Try inserting a new message by running
 `INSERT INTO messages (text) VALUES ("Hello, world!");`
