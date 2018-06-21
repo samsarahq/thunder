@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/samsarahq/thunder/graphql"
+	"github.com/samsarahq/thunder/graphql/graphiql"
 	"github.com/samsarahq/thunder/graphql/introspection"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 	"github.com/samsarahq/thunder/livesql"
@@ -134,6 +135,7 @@ func main() {
 	introspection.AddIntrospectionToSchema(graphqlSchema)
 
 	http.Handle("/graphql", graphql.Handler(graphqlSchema))
+	http.Handle("/graphiql/", http.StripPrefix("/graphiql/", graphiql.Handler()))
 	if err := http.ListenAndServe(":3030", nil); err != nil {
 		panic(err)
 	}
