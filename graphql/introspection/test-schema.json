@@ -274,9 +274,21 @@
         "enumValues": [
           {
             "deprecationReason": "",
-            "description": "1",
+            "description": "3",
             "isDeprecated": false,
             "name": "random"
+          },
+          {
+            "deprecationReason": "",
+            "description": "2",
+            "isDeprecated": false,
+            "name": "random1"
+          },
+          {
+            "deprecationReason": "",
+            "description": "1",
+            "isDeprecated": false,
+            "name": "random2"
           }
         ],
         "fields": [],
