@@ -206,6 +206,7 @@ func (s *introspection) registerType(schema *schemabuilder.Schema) {
 				enumVals = append(enumVals,
 					EnumValue{Name: v, Description: val, IsDeprecated: false, DeprecationReason: ""})
 			}
+			sort.Slice(enumVals, func(i, j int) bool { return enumVals[i].Name < enumVals[j].Name })
 			return enumVals
 		}
 		return nil

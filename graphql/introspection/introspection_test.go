@@ -22,7 +22,9 @@ func makeSchema() *schemabuilder.Schema {
 	schema := schemabuilder.NewSchema()
 	var enumField enumType
 	schema.Enum(enumField, map[string]interface{}{
-		"random": enumType(1),
+		"random":  enumType(3),
+		"random1": enumType(2),
+		"random2": enumType(1),
 	})
 	query := schema.Query()
 	query.FieldFunc("me", func() User {
