@@ -11,15 +11,14 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-
 	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/diff"
 	"github.com/samsarahq/thunder/reactive"
 )
 
 const (
-	MaxSubscriptions = 200
-	MinRerunInterval = 5 * time.Second
+	DefaultMaxSubscriptions = 200
+	DefaultMinRerunInterval = 5 * time.Second
 )
 
 type JSONSocket interface {
@@ -66,6 +65,9 @@ type conn struct {
 
 	mu            sync.Mutex
 	subscriptions map[string]*reactive.Rerunner
+
+	minRerunInterval time.Duration
+	maxSubscriptions int
 }
 
 type inEnvelope struct {
@@ -173,7 +175,7 @@ func (c *conn) handleSubscribe(in *inEnvelope) error {
 		return NewSafeError("duplicate subscription")
 	}
 
-	if len(c.subscriptions)+1 > MaxSubscriptions {
+	if len(c.subscriptions)+1 > c.maxSubscriptions {
 		return NewSafeError("too many subscriptions")
 	}
 
@@ -278,7 +280,7 @@ func (c *conn) handleSubscribe(in *inEnvelope) error {
 		}
 
 		return nil, nil
-	}, MinRerunInterval)
+	}, c.minRerunInterval)
 
 	return nil
 }
@@ -373,7 +375,7 @@ func (c *conn) handleMutate(in *inEnvelope) error {
 		go c.rerunSubscriptionsImmediately()
 
 		return nil, errors.New("stop")
-	}, MinRerunInterval)
+	}, c.minRerunInterval)
 
 	return nil
 }
@@ -525,6 +527,8 @@ func CreateConnection(ctx context.Context, socket JSONSocket, schema *Schema, op
 		makeCtx: func(ctx context.Context) context.Context {
 			return ctx
 		},
+		maxSubscriptions: DefaultMaxSubscriptions,
+		minRerunInterval: DefaultMinRerunInterval,
 	}
 	for _, opt := range opts {
 		opt(c)
@@ -536,6 +540,18 @@ func CreateConnection(ctx context.Context, socket JSONSocket, schema *Schema, op
 func WithExecutionLogger(logger GraphqlLogger) ConnectionOption {
 	return func(c *conn) {
 		c.logger = logger
+	}
+}
+
+func WithMinRerunInterval(d time.Duration) ConnectionOption {
+	return func(c *conn) {
+		c.minRerunInterval = d
+	}
+}
+
+func WithMaxSubscriptions(max int) ConnectionOption {
+	return func(c *conn) {
+		c.maxSubscriptions = max
 	}
 }
 
