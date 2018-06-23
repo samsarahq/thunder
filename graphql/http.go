@@ -114,7 +114,7 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		writeResponse(current, nil)
 		return nil, nil
-	}, MinRerunInterval)
+	}, DefaultMinRerunInterval)
 
 	wg.Wait()
 	runner.Stop()
