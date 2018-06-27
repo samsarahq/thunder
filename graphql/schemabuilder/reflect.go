@@ -812,16 +812,38 @@ func NewSchema() *Schema {
 //	"two":   enumType(2),
 //	"three": enumType(3),
 // })
-func (s *Schema) Enum(val interface{}, enumMap map[string]interface{}) {
+func (s *Schema) Enum(val interface{}, enumMap interface{}) {
 	typ := reflect.TypeOf(val)
 	if s.enumTypes == nil {
 		s.enumTypes = make(map[reflect.Type]*EnumMapping)
 	}
+
+	eMap, rMap := getEnumMap(enumMap)
+	s.enumTypes[typ] = &EnumMapping{Map: eMap, ReverseMap: rMap}
+}
+
+func getEnumMap(enumMap interface{}) (map[string]interface{}, map[interface{}]string) {
 	rMap := make(map[interface{}]string)
-	for key, val := range enumMap {
+	eMap := make(map[string]interface{})
+	v := reflect.ValueOf(enumMap)
+	if v.Kind() == reflect.Map {
+		for _, key := range v.MapKeys() {
+			val := v.MapIndex(key)
+			if key.Kind() == reflect.String {
+				eMap[key.String()] = val.Interface()
+			} else {
+				panic("keys are not strings")
+			}
+		}
+	} else {
+		panic("Enum function not passed a map")
+	}
+
+	for key, val := range eMap {
 		rMap[val] = key
 	}
-	s.enumTypes[typ] = &EnumMapping{Map: enumMap, ReverseMap: rMap}
+	return eMap, rMap
+
 }
 
 func (s *Schema) Object(name string, typ interface{}) *Object {
