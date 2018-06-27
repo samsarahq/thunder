@@ -273,7 +273,7 @@ func (s *server) schema() *graphql.Schema {
   s.registerQuery(builder)
   s.registerMutation(builder)
   s.registerPost(builder)
-  return := builder.MustBuild()
+  return builder.MustBuild()
 }
 
 func main() {
