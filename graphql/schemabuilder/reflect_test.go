@@ -250,6 +250,7 @@ func TestEnumMapWrongArg3(t *testing.T) {
 	})
 }
 
+
 func TestEnumMapKeys(t *testing.T) {
 	schema := NewSchema()
 	defer func() {
