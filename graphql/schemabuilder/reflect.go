@@ -818,11 +818,11 @@ func (s *Schema) Enum(val interface{}, enumMap interface{}) {
 		s.enumTypes = make(map[reflect.Type]*EnumMapping)
 	}
 
-	eMap, rMap := getEnumMap(enumMap)
+	eMap, rMap := getEnumMap(enumMap, typ)
 	s.enumTypes[typ] = &EnumMapping{Map: eMap, ReverseMap: rMap}
 }
 
-func getEnumMap(enumMap interface{}) (map[string]interface{}, map[interface{}]string) {
+func getEnumMap(enumMap interface{}, typVar reflect.Type) (map[string]interface{}, map[interface{}]string) {
 	rMap := make(map[interface{}]string)
 	eMap := make(map[string]interface{})
 	v := reflect.ValueOf(enumMap)
@@ -830,7 +830,8 @@ func getEnumMap(enumMap interface{}) (map[string]interface{}, map[interface{}]st
 		for _, key := range v.MapKeys() {
 			val := v.MapIndex(key)
 			if key.Kind() == reflect.String {
-				eMap[key.String()] = val.Interface()
+				mapVal := val.Convert(typVar)
+				eMap[key.String()] = mapVal.Interface()
 			} else {
 				panic("keys are not strings")
 			}

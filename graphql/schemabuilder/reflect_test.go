@@ -10,6 +10,7 @@ import (
 
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/internal"
+	"github.com/stretchr/testify/assert"
 )
 
 type alias int64
@@ -193,6 +194,76 @@ func TestExecuteGood(t *testing.T) {
 		}`)) {
 		t.Error("bad value")
 	}
+}
+
+func TestEnumMapWrongArg(t *testing.T) {
+	schema := NewSchema()
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Error("expected a panic")
+		}
+		assert.Equal(t, "Enum function not passed a map", r)
+	}()
+	type enumType int32
+	schema.Enum(enumType(1), int32(1))
+
+}
+
+func TestEnumMapWrongArg2(t *testing.T) {
+
+	schema := NewSchema()
+
+	type enumType3 float64
+
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Error("expected a panic")
+		}
+	}()
+
+	schema.Enum(enumType3(1), map[string]interface{}{
+		"firstField":  interface{}(1),
+		"secondField": interface{}(2),
+		"thirdField":  interface{}(3),
+	})
+}
+
+func TestEnumMapWrongArg3(t *testing.T) {
+
+	schema := NewSchema()
+
+	type enumType3 float64
+
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Error("expected a panic")
+		}
+	}()
+
+	schema.Enum(enumType3(1), map[string]string{
+		"firstField":  string(1),
+		"secondField": string(2),
+		"thirdField":  string(3),
+	})
+}
+
+func TestEnumMapKeys(t *testing.T) {
+	schema := NewSchema()
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Error("expected a panic")
+		}
+		assert.Equal(t, "keys are not strings", r)
+	}()
+	type enumType int32
+	schema.Enum(enumType(1), map[int32]int32{
+		1: 1,
+	})
+
 }
 
 func TestExecuteErrorNullReturn(t *testing.T) {
