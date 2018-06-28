@@ -21,7 +21,7 @@ type enumType int32
 func makeSchema() *schemabuilder.Schema {
 	schema := schemabuilder.NewSchema()
 	var enumField enumType
-	schema.Enum(enumField, map[string]interface{}{
+	schema.Enum(enumField, map[string]enumType{
 		"random":  enumType(3),
 		"random1": enumType(2),
 		"random2": enumType(1),

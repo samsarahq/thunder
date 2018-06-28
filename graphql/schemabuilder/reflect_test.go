@@ -40,7 +40,7 @@ func TestExecuteGood(t *testing.T) {
 	schema := NewSchema()
 	type enumType int32
 	var enumVar enumType
-	schema.Enum(enumVar, map[string]interface{}{
+	schema.Enum(enumVar, map[string]enumType{
 		"first":  enumType(1),
 		"second": enumType(2),
 		"third":  enumType(3),
