@@ -40,7 +40,7 @@ func TestExecuteGood(t *testing.T) {
 	schema := NewSchema()
 	type enumType int32
 	var enumVar enumType
-	schema.Enum(enumVar, map[string]interface{}{
+	schema.Enum(enumVar, map[string]enumType{
 		"first":  enumType(1),
 		"second": enumType(2),
 		"third":  enumType(3),
@@ -209,6 +209,47 @@ func TestEnumMapWrongArg(t *testing.T) {
 	schema.Enum(enumType(1), int32(1))
 
 }
+
+func TestEnumMapWrongArg2(t *testing.T) {
+
+	schema := NewSchema()
+
+	type enumType3 float64
+
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Error("expected a panic")
+		}
+	}()
+
+	schema.Enum(enumType3(1), map[string]interface{}{
+		"firstField":  interface{}(1),
+		"secondField": interface{}(2),
+		"thirdField":  interface{}(3),
+	})
+}
+
+func TestEnumMapWrongArg3(t *testing.T) {
+
+	schema := NewSchema()
+
+	type enumType3 float64
+
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Error("expected a panic")
+		}
+	}()
+
+	schema.Enum(enumType3(1), map[string]string{
+		"firstField":  string(1),
+		"secondField": string(2),
+		"thirdField":  string(3),
+	})
+}
+
 
 func TestEnumMapKeys(t *testing.T) {
 	schema := NewSchema()

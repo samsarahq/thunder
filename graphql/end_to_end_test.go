@@ -8,13 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/samsarahq/thunder/concurrencylimiter"
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 	"github.com/samsarahq/thunder/internal"
 	"github.com/samsarahq/thunder/reactive"
+	"github.com/stretchr/testify/assert"
 )
 
 type User struct {
@@ -104,12 +103,12 @@ func TestEnum(t *testing.T) {
 	type enumType int32
 	type enumType2 float64
 
-	schema.Enum(enumType(1), map[string]interface{}{
+	schema.Enum(enumType(1), map[string]enumType{
 		"firstField":  enumType(1),
 		"secondField": enumType(2),
 		"thirdField":  enumType(3),
 	})
-	schema.Enum(enumType2(1.2), map[string]interface{}{
+	schema.Enum(enumType2(1.2), map[string]enumType2{
 		"this": enumType2(1.2),
 		"is":   enumType2(3.2),
 		"a":    enumType2(4.3),
