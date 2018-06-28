@@ -32,7 +32,7 @@ func (s *Server) registerQuery(schema *schemabuilder.Schema) {
 	object := schema.Query()
 
 	var tmp RoleType
-	schema.Enum(tmp, map[string]interface{}{
+	schema.Enum(tmp, map[string]RoleType{
 		"user":          RoleType(1),
 		"manager":       RoleType(2),
 		"administrator": RoleType(3),
