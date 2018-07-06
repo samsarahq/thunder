@@ -111,8 +111,8 @@ class GraphQLRenderer<
   ) {
     const { query, variables } = nextProps;
     if (
-      isEqual(query, this.state.query) &&
-      isEqual(variables, this.state.variables)
+      isEqual(query, this.props.query) &&
+      isEqual(variables, this.props.variables)
     ) {
       return;
     }
