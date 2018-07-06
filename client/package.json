@@ -21,6 +21,7 @@
   "devDependencies": {
     "@types/jest": "^23.1.1",
     "@types/node": "^10.3.4",
+    "@types/react-dom": "^16.0.6",
     "babel-cli": "^6.26.0",
     "babel-env": "^2.4.1",
     "babel-plugin-external-helpers": "^6.22.0",
@@ -28,6 +29,7 @@
     "jest": "^23.1.0",
     "prettier": "^1.13.0",
     "react": "^16.4.1",
+    "react-dom": "^16.4.1",
     "rollup": "^0.60.1",
     "rollup-plugin-babel": "^3.0.4",
     "rollup-plugin-commonjs": "^9.1.3",
