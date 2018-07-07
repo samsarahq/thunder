@@ -19,7 +19,7 @@ function graphQLFetcher({query, variables}) {
 
       const subscription = connection.subscribe({
         query: query,
-        variables: {},
+        variables: variables,
         observer: ({state, valid, error, value}) => {
           if (valid) {
             next({data: value});
