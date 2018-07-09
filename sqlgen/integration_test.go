@@ -7,6 +7,8 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/samsarahq/thunder/thunderpb"
+
 	"github.com/kylelemons/godebug/pretty"
 )
 
@@ -69,8 +71,9 @@ func TestIntegrationBasic(t *testing.T) {
 
 	_, err = testDb.Exec(`
 		CREATE TABLE users (
-			id   BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-			name VARCHAR(255)
+			id    BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+			name  VARCHAR(255),
+			proto BLOB
 		)
 	`)
 	if err != nil {
@@ -78,14 +81,21 @@ func TestIntegrationBasic(t *testing.T) {
 	}
 
 	type User struct {
-		Id   int64 `sql:",primary"`
-		Name string
+		Id    int64 `sql:",primary"`
+		Name  string
+		Proto *thunderpb.BinlogEvent
 	}
+
 	schema := NewSchema()
 	schema.MustRegisterType("users", AutoIncrement, User{})
 
 	db := NewDB(testDb.DB, schema)
-	if _, err := db.InsertRow(context.Background(), &User{Name: "Bob"}); err != nil {
+	if _, err := db.InsertRow(context.Background(), &User{
+		Name: "Bob",
+		Proto: &thunderpb.BinlogEvent{
+			Table: "foo",
+		},
+	}); err != nil {
 		t.Error(err)
 	}
 
@@ -98,6 +108,9 @@ func TestIntegrationBasic(t *testing.T) {
 		{
 			Id:   1,
 			Name: "Bob",
+			Proto: &thunderpb.BinlogEvent{
+				Table: "foo",
+			},
 		},
 	}); diff != "" {
 		t.Errorf("diff: %s", diff)

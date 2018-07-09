@@ -3,17 +3,14 @@ package sqlgen
 import (
 	"bytes"
 	"database/sql"
-	"database/sql/driver"
 	"errors"
 	"fmt"
 	"reflect"
 	"sort"
 	"strings"
-	"sync"
-	"time"
 	"unicode"
 
-	"github.com/go-sql-driver/mysql"
+	"github.com/gogo/protobuf/proto"
 	"github.com/samsarahq/thunder/internal"
 )
 
@@ -53,89 +50,48 @@ const (
 	UniqueId
 )
 
-type NullBytes struct {
-	Bytes []byte
-	Valid bool
-}
-
-func (b *NullBytes) Scan(value interface{}) error {
-	if value == nil {
-		b.Bytes = nil
-		b.Valid = false
-	}
-	switch value := value.(type) {
-	case nil:
-		b.Bytes = nil
-		b.Valid = false
-	case []byte:
-		// copy value since the MySQL driver reuses buffers
-		b.Bytes = make([]byte, len(value))
-		copy(b.Bytes, value)
-		b.Valid = true
-	case string:
-		b.Bytes = []byte(value)
-		b.Valid = true
-	default:
-		return fmt.Errorf("cannot convert %v to bytes", value)
-	}
-	return nil
-}
-
-func (b *NullBytes) Value() (driver.Value, error) {
-	if !b.Valid {
-		return nil, nil
-	}
-	return b.Bytes, nil
-}
-
-// Types should implement both the sql.Scanner and driver.Valuer interface.
-var defaultScannableTypes = map[reflect.Type]func() Scannable{
-	// These types should not be pointer types; pointer types are handled
-	// automatically and are treated as optional fields.
-	reflect.TypeOf(string("")):  func() Scannable { return new(sql.NullString) },
-	reflect.TypeOf(int64(0)):    func() Scannable { return new(sql.NullInt64) },
-	reflect.TypeOf(int32(0)):    func() Scannable { return new(sql.NullInt64) },
-	reflect.TypeOf(int16(0)):    func() Scannable { return new(sql.NullInt64) },
-	reflect.TypeOf(bool(false)): func() Scannable { return new(sql.NullBool) },
-	reflect.TypeOf(float64(0)):  func() Scannable { return new(sql.NullFloat64) },
-	reflect.TypeOf([]byte{}):    func() Scannable { return new(NullBytes) },
-	reflect.TypeOf(time.Time{}): func() Scannable { return new(mysql.NullTime) },
-}
-
 // BuildStruct constructs a struct value defined by table and based on scannables
-func BuildStruct(table *Table, scannables []interface{}) interface{} {
+func BuildStruct(table *Table, values []interface{}) (interface{}, error) {
 	ptr := reflect.New(table.Type)
 	elem := ptr.Elem()
 
 	for i, column := range table.Columns {
-		value, _ := scannables[i].(driver.Valuer).Value()
-		if value == nil {
-			continue
-		}
-
-		if column.Type.Kind() == reflect.Ptr {
-			ptr := reflect.New(column.Type.Elem())
-			ptr.Elem().Set(reflect.ValueOf(value).Convert(column.Type.Elem()))
-			elem.FieldByIndex(column.Index).Set(ptr)
-
-		} else {
-			elem.FieldByIndex(column.Index).Set(reflect.ValueOf(value).Convert(column.Type))
+		if err := column.TypeConverter.Unmarshal(values[i], elem.FieldByIndex(column.Index).Addr().Interface()); err != nil {
+			return nil, err
 		}
 	}
 
-	return ptr.Interface()
+	return ptr.Interface(), nil
+}
+
+// UnbuildStruct extracts SQL values from a struct
+func UnbuildStruct(table *Table, obj interface{}) ([]interface{}, error) {
+	elem := reflect.ValueOf(obj)
+
+	values := make([]interface{}, len(table.Columns))
+	for i, column := range table.Columns {
+		value, err := column.TypeConverter.Marshal(elem.FieldByIndex(column.Index).Interface())
+		if err != nil {
+			return nil, err
+		}
+		values[i] = value
+	}
+
+	return values, nil
 }
 
 // parseQueryRow parses a row from a sql.DB query into a struct
 func parseQueryRow(table *Table, scanner *sql.Rows) (interface{}, error) {
-	scannables := table.Scannables.Get().([]interface{})
-	defer table.Scannables.Put(scannables)
+	values := make([]interface{}, len(table.Columns))
+	for i := range values {
+		values[i] = &values[i]
+	}
 
-	if err := scanner.Scan(scannables...); err != nil {
+	if err := scanner.Scan(values...); err != nil {
 		return nil, err
 	}
 
-	return BuildStruct(table, scannables), nil
+	return BuildStruct(table, values)
 }
 
 func CopySlice(result interface{}, rows []interface{}) error {
@@ -184,8 +140,8 @@ type Column struct {
 	Index []int
 	Order int
 
-	Scannable func() Scannable
-	Type      reflect.Type
+	TypeConverter TypeConverter
+	Type          reflect.Type
 }
 
 type Table struct {
@@ -195,8 +151,13 @@ type Table struct {
 
 	Columns       []*Column
 	ColumnsByName map[string]*Column
+}
 
-	Scannables *sync.Pool
+var protoMessageType reflect.Type
+
+func init() {
+	var protoMessage proto.Message
+	protoMessageType = reflect.TypeOf(&protoMessage).Elem()
 }
 
 func (s *Schema) buildDescriptor(table string, primaryKeyType PrimaryKeyType, typ reflect.Type) (*Table, error) {
@@ -243,15 +204,17 @@ func (s *Schema) buildDescriptor(table string, primaryKeyType PrimaryKeyType, ty
 			return nil, fmt.Errorf("bad type %s: duplicate column %s", typ, column)
 		}
 
-		var scannable func() Scannable
-
-		if field.Type.Kind() == reflect.Ptr {
-			scannable, _ = s.scalarTypes[field.Type.Elem()]
-		} else {
-			scannable, _ = s.scalarTypes[field.Type]
+		var typeConverter TypeConverter
+		switch {
+		case field.Type.Implements(protoMessageType):
+			typeConverter = ProtoConverter{}
+		case field.Type.Kind() == reflect.Ptr:
+			typeConverter, _ = s.scalarTypes[field.Type.Elem()]
+		default:
+			typeConverter, _ = s.scalarTypes[field.Type]
 		}
 
-		if scannable == nil {
+		if typeConverter == nil {
 			return nil, fmt.Errorf("bad type %s: field %s has unsupported type %s", typ, field.Name, field.Type)
 		}
 
@@ -262,8 +225,8 @@ func (s *Schema) buildDescriptor(table string, primaryKeyType PrimaryKeyType, ty
 			Index: field.Index,
 			Order: len(columns),
 
-			Scannable: scannable,
-			Type:      field.Type,
+			TypeConverter: typeConverter,
+			Type:          field.Type,
 		}
 
 		columns = append(columns, descriptor)
@@ -281,16 +244,6 @@ func (s *Schema) buildDescriptor(table string, primaryKeyType PrimaryKeyType, ty
 		return nil, fmt.Errorf("bad type %s: no primary key specified", typ)
 	}
 
-	scannables := &sync.Pool{
-		New: func() interface{} {
-			scannables := make([]interface{}, len(columns))
-			for i, column := range columns {
-				scannables[i] = column.Scannable()
-			}
-			return scannables
-		},
-	}
-
 	return &Table{
 		Name:           table,
 		Type:           typ,
@@ -298,27 +251,20 @@ func (s *Schema) buildDescriptor(table string, primaryKeyType PrimaryKeyType, ty
 
 		Columns:       columns,
 		ColumnsByName: columnsByName,
-
-		Scannables: scannables,
 	}, nil
-}
-
-type Scannable interface {
-	sql.Scanner
-	driver.Valuer
 }
 
 type Schema struct {
 	ByName map[string]*Table
 	ByType map[reflect.Type]*Table
 
-	scalarTypes map[reflect.Type]func() Scannable
+	scalarTypes map[reflect.Type]TypeConverter
 }
 
 func NewSchema() *Schema {
-	scalarTypes := make(map[reflect.Type]func() Scannable)
-	for typ, scannable := range defaultScannableTypes {
-		scalarTypes[typ] = scannable
+	scalarTypes := make(map[reflect.Type]TypeConverter)
+	for typ, typeConverter := range defaultTypeConverters {
+		scalarTypes[typ] = typeConverter
 	}
 
 	return &Schema{
@@ -329,7 +275,7 @@ func NewSchema() *Schema {
 	}
 }
 
-func (s *Schema) RegisterCustomScalar(scalar interface{}, makeScannable func() Scannable) error {
+func (s *Schema) RegisterCustomScalar(scalar interface{}, typeConverter TypeConverter) error {
 	scalarTyp := reflect.TypeOf(scalar)
 	if scalarTyp.Kind() == reflect.Ptr {
 		return fmt.Errorf("scalar type %v must not be a pointer", scalarTyp)
@@ -337,19 +283,19 @@ func (s *Schema) RegisterCustomScalar(scalar interface{}, makeScannable func() S
 	if _, ok := s.scalarTypes[scalarTyp]; ok {
 		return fmt.Errorf("duplicate scalar type %v", scalarTyp)
 	}
-	s.scalarTypes[scalarTyp] = makeScannable
+	s.scalarTypes[scalarTyp] = typeConverter
 	return nil
 }
 
-func (s *Schema) MustRegisterCustomScalar(scalar interface{}, makeScannable func() Scannable) {
-	if err := s.RegisterCustomScalar(scalar, makeScannable); err != nil {
+func (s *Schema) MustRegisterCustomScalar(scalar interface{}, typeConverter TypeConverter) {
+	if err := s.RegisterCustomScalar(scalar, typeConverter); err != nil {
 		panic(err)
 	}
 }
 
 func (s *Schema) RegisterSimpleScalar(scalar interface{}) error {
 	typ := reflect.TypeOf(scalar)
-	for match, scannable := range defaultScannableTypes {
+	for match, scannable := range defaultTypeConverters {
 		if internal.TypesIdenticalOrScalarAliases(typ, match) {
 			return s.RegisterCustomScalar(scalar, scannable)
 		}
@@ -578,23 +524,25 @@ func (s *Schema) MakeInsertRow(row interface{}) (*InsertQuery, error) {
 	if err != nil {
 		return nil, err
 	}
-	elem := ptr.Elem()
 
 	table, err := s.get(typ)
 	if err != nil {
 		return nil, err
 	}
 
+	allValues, err := UnbuildStruct(table, row)
+	if err != nil {
+		return nil, err
+	}
+
 	var columns []string
 	var values []interface{}
-
-	for _, column := range table.Columns {
+	for i, column := range table.Columns {
 		if column.Primary && table.PrimaryKeyType == AutoIncrement {
 			continue
 		}
-		value := coerce(elem.FieldByIndex(column.Index))
 		columns = append(columns, column.Name)
-		values = append(values, value)
+		values = append(values, allValues[i])
 	}
 
 	return &InsertQuery{
@@ -611,7 +559,6 @@ func (s *Schema) MakeUpsertRow(row interface{}) (*UpsertQuery, error) {
 	if err != nil {
 		return nil, err
 	}
-	elem := ptr.Elem()
 
 	table, err := s.get(typ)
 	if err != nil {
@@ -622,13 +569,14 @@ func (s *Schema) MakeUpsertRow(row interface{}) (*UpsertQuery, error) {
 		return nil, errors.New("upsert only supports unique value primary keys")
 	}
 
-	var columns []string
-	var values []interface{}
+	values, err := UnbuildStruct(table, row)
+	if err != nil {
+		return nil, err
+	}
 
+	var columns []string
 	for _, column := range table.Columns {
-		value := coerce(elem.FieldByIndex(column.Index))
 		columns = append(columns, column.Name)
-		values = append(values, value)
 	}
 
 	return &UpsertQuery{
@@ -645,9 +593,13 @@ func (s *Schema) MakeUpdateRow(row interface{}) (*UpdateQuery, error) {
 	if err != nil {
 		return nil, err
 	}
-	elem := ptr.Elem()
 
 	table, err := s.get(typ)
+	if err != nil {
+		return nil, err
+	}
+
+	allValues, err := UnbuildStruct(table, row)
 	if err != nil {
 		return nil, err
 	}
@@ -655,14 +607,13 @@ func (s *Schema) MakeUpdateRow(row interface{}) (*UpdateQuery, error) {
 	var columns, whereColumns []string
 	var values, whereValues []interface{}
 
-	for _, column := range table.Columns {
-		value := coerce(elem.FieldByIndex(column.Index))
+	for i, column := range table.Columns {
 		if column.Primary {
 			whereColumns = append(whereColumns, column.Name)
-			whereValues = append(whereValues, value)
+			whereValues = append(whereValues, allValues[i])
 		} else {
 			columns = append(columns, column.Name)
-			values = append(values, value)
+			values = append(values, allValues[i])
 		}
 	}
 
@@ -684,9 +635,13 @@ func (s *Schema) MakeDeleteRow(row interface{}) (*DeleteQuery, error) {
 	if err != nil {
 		return nil, err
 	}
-	elem := ptr.Elem()
 
 	table, err := s.get(typ)
+	if err != nil {
+		return nil, err
+	}
+
+	allValues, err := UnbuildStruct(table, row)
 	if err != nil {
 		return nil, err
 	}
@@ -694,14 +649,13 @@ func (s *Schema) MakeDeleteRow(row interface{}) (*DeleteQuery, error) {
 	var columns []string
 	var values []interface{}
 
-	for _, column := range table.Columns {
+	for i, column := range table.Columns {
 		if !column.Primary {
 			continue
 		}
 
-		value := coerce(elem.FieldByIndex(column.Index))
 		columns = append(columns, column.Name)
-		values = append(values, value)
+		values = append(values, allValues[i])
 	}
 
 	return &DeleteQuery{
