@@ -395,7 +395,7 @@ type duplicate struct {
 }
 
 type unsupported struct {
-	A byte
+	A reflect.Value
 }
 
 func testArgParseOk(t *testing.T, p *argParser, input interface{}, expected interface{}) {
