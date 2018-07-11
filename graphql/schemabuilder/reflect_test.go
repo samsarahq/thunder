@@ -361,6 +361,7 @@ func TestMakeGraphql(t *testing.T) {
 
 type inner struct {
 	Custom float64 `graphql:"foo"`
+	Child  *inner  `graphql:"bar"`
 }
 
 type structAlias inner
@@ -421,7 +422,9 @@ func testArgParseBad(t *testing.T, p *argParser, input interface{}) {
 }
 
 func TestArgParser(t *testing.T) {
-	sb := &schemaBuilder{}
+	sb := &schemaBuilder{
+		typeCache: make(map[reflect.Type]cachedType, 0),
+	}
 	parser, _, err := sb.makeArgParser(reflect.TypeOf(kitchenSinkArgs{}))
 	if err != nil {
 		t.Fatal(err)
@@ -429,7 +432,7 @@ func TestArgParser(t *testing.T) {
 
 	testArgParseOk(t, parser, internal.ParseJSON(`
 		{
-			"child": {"foo": 12.5},
+			"child": {"foo": 12.5, "bar":{"foo": 10.5}},
 			"hello": 20,
 			"hello32": 20,
 			"hello16": 20,
@@ -444,7 +447,7 @@ func TestArgParser(t *testing.T) {
 			"time": "2016-08-31T00:00:00Z"
 		}
 	`), kitchenSinkArgs{
-		Child:           inner{Custom: 12.5},
+		Child:           inner{Custom: 12.5, Child: &inner{Custom: 10.5}},
 		Hello:           20,
 		Hello32:         20,
 		Hello16:         20,

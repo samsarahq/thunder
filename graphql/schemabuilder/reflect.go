@@ -336,7 +336,12 @@ func wrapPtrParser(inner *argParser) *argParser {
 	}
 }
 
-func (sb *schemaBuilder) makeStructParser(typ reflect.Type) (*argParser, graphql.Type, error) {
+func (sb *schemaBuilder) getStructObjectFields(typ reflect.Type) (*graphql.InputObject, map[string]argField, error) {
+	// Check if the struct type is already cached
+	if cached, ok := sb.typeCache[typ]; ok {
+		return cached.argType, cached.fields, nil
+	}
+
 	fields := make(map[string]argField)
 	argType := &graphql.InputObject{
 		Name:        typ.Name(),
@@ -349,6 +354,9 @@ func (sb *schemaBuilder) makeStructParser(typ reflect.Type) (*argParser, graphql
 	if typ.Kind() != reflect.Struct {
 		return nil, nil, fmt.Errorf("expected struct but received type %s", typ.Name())
 	}
+
+	// Cache type information ahead of time to catch self-reference
+	sb.typeCache[typ] = cachedType{argType, fields}
 
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
@@ -394,6 +402,15 @@ func (sb *schemaBuilder) makeStructParser(typ reflect.Type) (*argParser, graphql
 			parser: parser,
 		}
 		argType.InputFields[name] = fieldArgTyp
+	}
+
+	return argType, fields, nil
+}
+
+func (sb *schemaBuilder) makeStructParser(typ reflect.Type) (*argParser, graphql.Type, error) {
+	argType, fields, err := sb.getStructObjectFields(typ)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	return &argParser{
@@ -453,11 +470,18 @@ type schemaBuilder struct {
 	types        map[reflect.Type]graphql.Type
 	objects      map[reflect.Type]*Object
 	enumMappings map[reflect.Type]*EnumMapping
+	typeCache    map[reflect.Type]cachedType // typeCache maps Go types to GraphQL datatypes
 }
 
 type EnumMapping struct {
 	Map        map[string]interface{}
 	ReverseMap map[interface{}]string
+}
+
+// cachedType is a container for GraphQL datatype and the list of its fields
+type cachedType struct {
+	argType *graphql.InputObject
+	fields  map[string]argField
 }
 
 var errType reflect.Type
@@ -1153,6 +1177,7 @@ func (s *Schema) Build() (*graphql.Schema, error) {
 		types:        make(map[reflect.Type]graphql.Type),
 		objects:      make(map[reflect.Type]*Object),
 		enumMappings: s.enumTypes,
+		typeCache:    make(map[reflect.Type]cachedType, 0),
 	}
 
 	for _, object := range s.objects {
