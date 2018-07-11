@@ -107,6 +107,56 @@ var scalarArgParsers = map[reflect.Type]*argParser{
 			return nil
 		},
 	},
+	reflect.TypeOf(int8(0)): {
+		FromJSON: func(value interface{}, dest reflect.Value) error {
+			asFloat, ok := value.(float64)
+			if !ok {
+				return errors.New("not a number")
+			}
+			dest.Set(reflect.ValueOf(int8(asFloat)).Convert(dest.Type()))
+			return nil
+		},
+	},
+	reflect.TypeOf(uint64(0)): {
+		FromJSON: func(value interface{}, dest reflect.Value) error {
+			asFloat, ok := value.(float64)
+			if !ok {
+				return errors.New("not a number")
+			}
+			dest.Set(reflect.ValueOf(int64(asFloat)).Convert(dest.Type()))
+			return nil
+		},
+	},
+	reflect.TypeOf(uint32(0)): {
+		FromJSON: func(value interface{}, dest reflect.Value) error {
+			asFloat, ok := value.(float64)
+			if !ok {
+				return errors.New("not a number")
+			}
+			dest.Set(reflect.ValueOf(uint32(asFloat)).Convert(dest.Type()))
+			return nil
+		},
+	},
+	reflect.TypeOf(uint16(0)): {
+		FromJSON: func(value interface{}, dest reflect.Value) error {
+			asFloat, ok := value.(float64)
+			if !ok {
+				return errors.New("not a number")
+			}
+			dest.Set(reflect.ValueOf(uint16(asFloat)).Convert(dest.Type()))
+			return nil
+		},
+	},
+	reflect.TypeOf(uint8(0)): {
+		FromJSON: func(value interface{}, dest reflect.Value) error {
+			asFloat, ok := value.(float64)
+			if !ok {
+				return errors.New("not a number")
+			}
+			dest.Set(reflect.ValueOf(uint8(asFloat)).Convert(dest.Type()))
+			return nil
+		},
+	},
 	reflect.TypeOf(string("")): {
 		FromJSON: func(value interface{}, dest reflect.Value) error {
 			asString, ok := value.(string)
