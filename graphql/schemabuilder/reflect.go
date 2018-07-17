@@ -338,7 +338,6 @@ func (sb *schemaBuilder) makeStructParser(typ reflect.Type) (*argParser, graphql
 					return fmt.Errorf("%s: %s", name, err)
 				}
 			}
-
 			for name := range asMap {
 				if _, ok := fields[name]; !ok {
 					return fmt.Errorf("unknown arg %s", name)
@@ -604,12 +603,14 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 	var name string
 	var description string
 	var methods Methods
+	var paginatedFields []PaginationObject
 	var objectKey string
 	if object, ok := sb.objects[typ]; ok {
 		name = object.Name
 		description = object.Description
 		methods = object.Methods
 		objectKey = object.key
+		paginatedFields = object.PaginatedFields
 	}
 
 	if name == "" {
@@ -686,6 +687,14 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 			return fmt.Errorf("bad method %s on type %s: %s", name, typ, err)
 		}
 		object.Fields[name] = built
+	}
+
+	for _, field := range paginatedFields {
+		typedField, err := sb.buildPaginatedField(typ, field.Fn)
+		if err != nil {
+			return err
+		}
+		object.Fields[field.Name] = typedField
 	}
 
 	if objectKey != "" {
