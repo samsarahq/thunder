@@ -15,6 +15,7 @@ type Server struct {
 
 type RoleType int32
 type User struct {
+	Id        int
 	FirstName string
 	LastName  string
 	Role      RoleType
@@ -22,10 +23,15 @@ type User struct {
 
 func (s *Server) registerUser(schema *schemabuilder.Schema) {
 	object := schema.Object("User", User{})
+	object.Key("Id")
 
 	object.FieldFunc("fullName", func(u *User) string {
 		return u.FirstName + " " + u.LastName
 	})
+}
+
+type Args struct {
+	Role *RoleType
 }
 
 func (s *Server) registerQuery(schema *schemabuilder.Schema) {
@@ -38,22 +44,27 @@ func (s *Server) registerQuery(schema *schemabuilder.Schema) {
 		"administrator": RoleType(3),
 	})
 
-	object.FieldFunc("users", func(ctx context.Context, args struct {
-		EnumField RoleType
-	}) ([]*User, error) {
+	userListRet := func(ctx context.Context, args Args) ([]*User, error) {
 		return []*User{
 			{
+				Id:        1,
 				FirstName: "Bob",
 				LastName:  "Johnson",
-				Role:      args.EnumField,
+				Role:      RoleType(1),
 			},
 			{
+				Id:        2,
 				FirstName: "Chloe",
 				LastName:  "Kim",
-				Role:      args.EnumField,
+				Role:      RoleType(1),
 			},
 		}, nil
-	})
+	}
+
+	object.FieldFunc("users", userListRet)
+
+	object.PaginateFieldFunc("usersConnection", userListRet)
+
 }
 
 func (s *Server) registerMutation(schema *schemabuilder.Schema) {
