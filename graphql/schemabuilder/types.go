@@ -3,12 +3,18 @@ package schemabuilder
 // A Object represents a Go type and set of methods to be converted into an
 // Object in a GraphQL schema.
 type Object struct {
-	Name        string // Optional, defaults to Type's name.
-	Description string
-	Type        interface{}
-	Methods     Methods // Deprecated, use FieldFunc instead.
+	Name            string // Optional, defaults to Type's name.
+	Description     string
+	Type            interface{}
+	Methods         Methods // Deprecated, use FieldFunc instead.
+	PaginatedFields []PaginationObject
 
 	key string
+}
+
+type PaginationObject struct {
+	Name string
+	Fn   interface{}
 }
 
 // FieldFuncOption is an interface for the variadic options that can be passed
