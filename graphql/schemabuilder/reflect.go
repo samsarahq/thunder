@@ -698,7 +698,7 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 	}
 
 	if objectKey != "" {
-		object.Key = object.Fields[objectKey].Resolve
+		object.Key = object.Fields[makeGraphql(objectKey)].Resolve
 	}
 
 	return nil
