@@ -97,7 +97,7 @@ func (sb *schemaBuilder) constructEdgeType(typ reflect.Type) (graphql.Type, erro
 }
 
 // constructConnType wraps typ (type of the Node) in a Connection Type conforming to the Relay spec.
-func (sb *schemaBuilder) constructConnType(typ reflect.Type) (graphql.Type, error) {
+func (funcCtx *funcContext) constructConnType(sb *schemaBuilder, typ reflect.Type) (graphql.Type, error) {
 
 	fieldMap := make(map[string]*graphql.Field)
 
@@ -284,104 +284,66 @@ func (o *Object) PaginateFieldFunc(name string, f interface{}) {
 		})
 }
 
-// buildPaginatedField corresponds to buildFunction on a paginated type. It wraps the return result
-// of f in a connection type.
-func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, f interface{}) (*graphql.Field, error) {
-	fun := reflect.ValueOf(f)
-
-	ptr := reflect.PtrTo(typ)
-
-	if fun.Kind() != reflect.Func {
-		return nil, fmt.Errorf("fun must be func, not %s", fun)
-	}
-
-	funcType := fun.Type()
-
-	in := make([]reflect.Type, 0, funcType.NumIn())
-	for i := 0; i < funcType.NumIn(); i++ {
-		in = append(in, funcType.In(i))
-	}
-
+func (funcCtx *funcContext) consumePaginatedArgs(sb *schemaBuilder, in []reflect.Type) (*argParser, graphql.Type, []reflect.Type, error) {
 	var argParser *argParser
 	var argType graphql.Type
-	var ptrFunc bool
-	var hasContext, hasSource, hasSelectionSet bool
-
-	if len(in) > 0 && in[0] == contextType {
-		hasContext = true
-		in = in[1:]
-	}
-	if len(in) > 0 && (in[0] == typ || in[0] == ptr) {
-		hasSource = true
-		ptrFunc = in[0] == ptr
-		in = in[1:]
-	}
-
+	var err error
 	if len(in) > 0 && in[0] != selectionSetType {
-		var err error
 		if argParser, argType, err = sb.buildPaginatedArgParser(in[0]); err != nil {
-			return nil, fmt.Errorf("attempted to wrap %s as arguments struct, but failed: %s", in[0].Name(), err.Error())
+			return nil, nil, nil, err
 		}
 		in = in[1:]
 	} else {
-		var err error
 		if argParser, argType, err = sb.buildPaginatedArgParser(nil); err != nil {
-			return nil, fmt.Errorf("test this case...shouldn't be failing in any case")
+			return nil, nil, in, err
 		}
 	}
 
-	if len(in) > 0 && in[0] == selectionSetType {
-		hasSelectionSet = true
-		in = in[:len(in)-1]
+	return argParser, argType, in, nil
+
+}
+
+// buildPaginatedField corresponds to buildFunction on a paginated type. It wraps the return result
+// of f in a connection type.
+func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, f interface{}) (*graphql.Field, error) {
+	funcCtx := &funcContext{typ: typ}
+
+	fun, err := funcCtx.getFuncVal(&method{Fn: f})
+	if err != nil {
+		return nil, err
 	}
+
+	in := funcCtx.getFuncInputTypes()
+	in = funcCtx.consumeContextAndSource(in)
+
+	argParser, argType, in, err := funcCtx.consumePaginatedArgs(sb, in)
+	if err != nil {
+		return nil, err
+	}
+	funcCtx.hasArgs = true
+
+	in = funcCtx.consumeSelectionSet(in)
 
 	// We have succeeded if no arguments remain.
 	if len(in) != 0 {
-		return nil, fmt.Errorf("%s arguments should be [context][, [*]%s][, args][, selectionSet]", funcType, typ)
+		return nil, fmt.Errorf("%s arguments should be [context][, [*]%s][, args][, selectionSet]", funcCtx.funcType, typ)
 	}
 
 	// Parse return values. The first return value must be the actual value, and
 	// the second value can optionally be an error.
-
-	out := make([]reflect.Type, 0, funcType.NumOut())
-	for i := 0; i < funcType.NumOut(); i++ {
-		out = append(out, funcType.Out(i))
+	if err := funcCtx.parseReturnSignature(&method{MarkedNonNullable: true}); err != nil {
+		return nil, err
 	}
 
-	var hasRet, hasError bool
-
-	var nodeType reflect.Type
-	if len(out) > 0 && out[0] != errType {
-		nodeType = out[0].Elem()
-		hasRet = true
-		out = out[1:]
-	} else {
-		return nil, fmt.Errorf("paginated function must have a return argument")
+	// It's safe to assume that there's a return type since the method is marked as non-nullable
+	// when calling parseReturnSignature above.
+	if funcCtx.funcType.Out(0).Kind() != reflect.Slice {
+		return nil, fmt.Errorf("paginated field func must return a slice type")
 	}
-
-	if len(out) > 0 && out[0] == errType {
-		hasError = true
-		out = out[1:]
-	}
-
-	if len(out) != 0 {
-		return nil, fmt.Errorf("%s return values should [result][, error]", funcType)
-	}
-
-	var retType graphql.Type
-	if hasRet {
-		var err error
-		retType, err = sb.constructConnType(nodeType)
-		if err != nil {
-			return nil, err
-		}
-
-	} else {
-		var err error
-		retType, err = sb.getType(reflect.TypeOf(true))
-		if err != nil {
-			return nil, err
-		}
+	nodeType := funcCtx.funcType.Out(0).Elem()
+	retType, err := funcCtx.constructConnType(sb, nodeType)
+	if err != nil {
+		return nil, err
 	}
 
 	// If the nodeType isn't registered it might be of a pointer type
@@ -391,96 +353,56 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, f interface{}) (*
 	}
 	nodeKey := nodeObj.key
 	if nodeKey == "" {
-		return nil, fmt.Errorf("a key field should be registered on the return object")
+		return nil, fmt.Errorf("a key field must be registered for paginated objects")
 	}
 
-	args := make(map[string]graphql.Type)
-
-	inputObject, ok := argType.(*graphql.InputObject)
-	if !ok {
-		return nil, fmt.Errorf("%s's args should be an object", funcType)
-	}
-
-	for name, nodeType := range inputObject.InputFields {
-		args[name] = nodeType
-	}
+	args, err := funcCtx.argsTypeMap(argType)
 
 	ret := &graphql.Field{
 		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
-
-			if _, ok := args.(ConnectionArgs); !ok {
+			val, ok := args.(ConnectionArgs)
+			if !ok {
 				return nil, fmt.Errorf("arguments should implement ConnectionArgs")
 			}
-
-			in := make([]reflect.Value, 0, funcType.NumIn())
-
-			if hasContext {
-				in = append(in, reflect.ValueOf(ctx))
+			funcCtx.hasArgs = val.Args != nil
+			var argsVal interface{}
+			if funcCtx.hasArgs {
+				argsVal = reflect.ValueOf(val.Args).Elem().Interface()
 			}
 
-			// Set up source.
-			if hasSource {
-				sourceValue := reflect.ValueOf(source)
-				ptrSource := sourceValue.Kind() == reflect.Ptr
-				switch {
-				case ptrSource && !ptrFunc:
-					in = append(in, sourceValue.Elem())
-				case !ptrSource && ptrFunc:
-					copyPtr := reflect.New(typ)
-					copyPtr.Elem().Set(sourceValue)
-					in = append(in, copyPtr)
-				default:
-					in = append(in, sourceValue)
-				}
-			}
-
-			// Set up other arguments.
-			if val, _ := args.(ConnectionArgs); val.Args != nil {
-				in = append(in, reflect.ValueOf(val.Args).Elem())
-			}
-
-			if hasSelectionSet {
-				in = append(in, reflect.ValueOf(selectionSet))
-			}
+			in := funcCtx.prepareResolveArgs(source, argsVal, ctx)
 
 			// Call the function.
 			out := fun.Call(in)
-			var result interface{}
-			if hasRet {
-				var err error
-				connectionArgs, _ := args.(ConnectionArgs)
 
-				result, err = getConnection(nodeKey, castSlice(out[0].Interface()), connectionArgs)
-				if err != nil {
-					return nil, err
-				}
+			return funcCtx.extractPaginatedRetAndErr(nodeKey, out, args, retType)
 
-				out = out[1:]
-			} else {
-				result = true
-			}
-			if hasError {
-				if err := out[0]; !err.IsNil() {
-					return nil, err.Interface().(error)
-				}
-			}
-
-			if _, ok := retType.(*graphql.NonNull); ok {
-				resultValue := reflect.ValueOf(result)
-				if resultValue.Kind() == reflect.Ptr && resultValue.IsNil() {
-					return nil, fmt.Errorf("%s is marked non-nullable but returned a null value", funcType)
-				}
-			}
-
-			return result, nil
 		},
 		Args:           args,
 		Type:           retType,
 		ParseArguments: argParser.Parse,
-		Expensive:      false,
+		Expensive:      funcCtx.hasContext,
 	}
 
 	return ret, nil
+}
+
+func (funcCtx *funcContext) extractPaginatedRetAndErr(nodeKey string, out []reflect.Value, args interface{}, retType graphql.Type) (interface{}, error) {
+	var result interface{}
+	connectionArgs, _ := args.(ConnectionArgs)
+
+	result, err := getConnection(nodeKey, castSlice(out[0].Interface()), connectionArgs)
+	if err != nil {
+		return nil, err
+	}
+	out = out[1:]
+	if funcCtx.hasError {
+		if err := out[0]; !err.IsNil() {
+			return nil, err.Interface().(error)
+		}
+	}
+
+	return result, nil
 }
 
 func castSlice(slice interface{}) []interface{} {
