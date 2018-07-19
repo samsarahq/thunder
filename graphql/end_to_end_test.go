@@ -3,6 +3,7 @@ package graphql_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"sync"
 	"testing"
@@ -328,6 +329,48 @@ func TestConnection(t *testing.T) {
 		t.Errorf("bad error: %v", err)
 	}
 
+}
+
+func TestPaginateBuildFailure(t *testing.T) {
+	badMethodStr := "bad method inner on type schemabuilder.query:"
+
+	schema := schemabuilder.NewSchema()
+	type Inner struct {
+	}
+
+	query := schema.Query()
+	query.FieldFunc("inner", func() Inner {
+		return Inner{}
+	})
+
+	inner := schema.Object("inner", Inner{})
+	item := schema.Object("item", Item{})
+	item.Key("Id")
+
+	inner.PaginateFieldFunc("innerConnectionWithCtxAndError", func(ctx context.Context, args Args) (*Item, error) {
+		return nil, nil
+	})
+	_, err := schema.Build()
+	if err == nil || err.Error() != fmt.Sprintf("%v paginated field func must return a slice type", badMethodStr) {
+		t.Errorf("bad error: %v", err)
+	}
+
+	schema = schemabuilder.NewSchema()
+	query = schema.Query()
+	query.FieldFunc("inner", func() Inner {
+		return Inner{}
+	})
+
+	inner = schema.Object("inner", Inner{})
+	item = schema.Object("item", Item{})
+
+	inner.PaginateFieldFunc("innerConnectionWithCtxAndError", func(ctx context.Context, args Args) ([]Item, error) {
+		return nil, nil
+	})
+	_, err = schema.Build()
+	if err == nil || err.Error() != fmt.Sprintf("%v a key field must be registered for paginated objects", badMethodStr) {
+		t.Errorf("bad error: %v", err)
+	}
 }
 
 func TestUpperCaseKey(t *testing.T) {
