@@ -199,6 +199,21 @@ type Table struct {
 	Scannables *sync.Pool
 }
 
+var scanIface = reflect.TypeOf((*Scannable)(nil)).Elem()
+
+func coerceToScannable(scalarType reflect.Type) (func() Scannable, bool) {
+	if reflect.PtrTo(scalarType).Implements(scanIface) {
+		return func() Scannable {
+			return reflect.New(scalarType).Interface().(Scannable)
+		}, true
+	} else if scalarType.Implements(scanIface) {
+		return func() Scannable {
+			return reflect.New(scalarType).Elem().Interface().(Scannable)
+		}, true
+	}
+	return nil, false
+}
+
 func (s *Schema) buildDescriptor(table string, primaryKeyType PrimaryKeyType, typ reflect.Type) (*Table, error) {
 	if typ.Kind() != reflect.Struct {
 		return nil, fmt.Errorf("bad type %s: not a struct", typ)
@@ -243,15 +258,16 @@ func (s *Schema) buildDescriptor(table string, primaryKeyType PrimaryKeyType, ty
 			return nil, fmt.Errorf("bad type %s: duplicate column %s", typ, column)
 		}
 
-		var scannable func() Scannable
-
+		scalarType := field.Type
 		if field.Type.Kind() == reflect.Ptr {
-			scannable, _ = s.scalarTypes[field.Type.Elem()]
-		} else {
-			scannable, _ = s.scalarTypes[field.Type]
+			scalarType = field.Type.Elem()
 		}
 
-		if scannable == nil {
+		scannable, ok := s.scalarTypes[scalarType]
+		if !ok {
+			scannable, ok = coerceToScannable(scalarType)
+		}
+		if !ok {
 			return nil, fmt.Errorf("bad type %s: field %s has unsupported type %s", typ, field.Name, field.Type)
 		}
 

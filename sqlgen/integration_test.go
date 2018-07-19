@@ -3,6 +3,7 @@ package sqlgen
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"fmt"
 	"math/rand"
 	"testing"
@@ -78,6 +79,27 @@ func TestContextDeadlineEnforced(t *testing.T) {
 	}
 }
 
+type mockType []byte
+
+func (u *mockType) Value() (driver.Value, error) {
+	return []byte(*u), nil
+}
+
+func (u *mockType) Scan(value interface{}) error {
+	switch value := value.(type) {
+	case nil:
+		u = nil
+	case []byte:
+		*u = make(mockType, len(value))
+		copy(*u, value)
+	case string:
+		*u = mockType(value)
+	default:
+		return fmt.Errorf("cannot convert %v (of type %T) to %T", value, value, u)
+	}
+	return nil
+}
+
 func TestIntegrationBasic(t *testing.T) {
 	testDb, err := NewTestDatabase()
 	if err != nil {
@@ -88,7 +110,9 @@ func TestIntegrationBasic(t *testing.T) {
 	_, err = testDb.Exec(`
 		CREATE TABLE users (
 			id   BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-			name VARCHAR(255)
+			name VARCHAR(255),
+			uuid VARCHAR(255),
+			mood VARCHAR(255)
 		)
 	`)
 	if err != nil {
@@ -98,12 +122,15 @@ func TestIntegrationBasic(t *testing.T) {
 	type User struct {
 		Id   int64 `sql:",primary"`
 		Name string
+		Uuid mockType
+		Mood *mockType
 	}
 	schema := NewSchema()
 	schema.MustRegisterType("users", AutoIncrement, User{})
+	mood := mockType("foooooo")
 
 	db := NewDB(testDb.DB, schema)
-	if _, err := db.InsertRow(context.Background(), &User{Name: "Bob"}); err != nil {
+	if _, err := db.InsertRow(context.Background(), &User{Name: "Bob", Uuid: mockType("11238491293"), Mood: &mood}); err != nil {
 		t.Error(err)
 	}
 
@@ -116,6 +143,8 @@ func TestIntegrationBasic(t *testing.T) {
 		{
 			Id:   1,
 			Name: "Bob",
+			Uuid: mockType("11238491293"),
+			Mood: &mood,
 		},
 	}); diff != "" {
 		t.Errorf("diff: %s", diff)
