@@ -303,6 +303,27 @@ func (funcCtx *funcContext) consumePaginatedArgs(sb *schemaBuilder, in []reflect
 
 }
 
+func (sb *schemaBuilder) getKeyFieldOnStruct(nodeType reflect.Type) (string, error) {
+
+	nodeObj := sb.objects[nodeType]
+	if nodeObj == nil && nodeType.Kind() == reflect.Ptr {
+		nodeObj = sb.objects[nodeType.Elem()]
+	}
+	nodeKey := reverseGraphqlFieldName(nodeObj.key)
+	if nodeKey == "" {
+		return nodeKey, fmt.Errorf("a key field must be registered for paginated objects")
+	}
+	if nodeType.Kind() == reflect.Ptr {
+		nodeType = nodeType.Elem()
+	}
+	if _, ok := nodeType.FieldByName(nodeKey); !ok {
+		return nodeKey, fmt.Errorf("field doesn't exist on struct")
+	}
+
+	return nodeKey, nil
+
+}
+
 // buildPaginatedField corresponds to buildFunction on a paginated type. It wraps the return result
 // of f in a connection type.
 func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, f interface{}) (*graphql.Field, error) {
@@ -346,14 +367,9 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, f interface{}) (*
 		return nil, err
 	}
 
-	// If the nodeType isn't registered it might be of a pointer type
-	nodeObj := sb.objects[nodeType]
-	if nodeObj == nil && nodeType.Kind() == reflect.Ptr {
-		nodeObj = sb.objects[nodeType.Elem()]
-	}
-	nodeKey := nodeObj.key
-	if nodeKey == "" {
-		return nil, fmt.Errorf("a key field must be registered for paginated objects")
+	nodeKey, err := sb.getKeyFieldOnStruct(nodeType)
+	if err != nil {
+		return nil, err
 	}
 
 	args, err := funcCtx.argsTypeMap(argType)

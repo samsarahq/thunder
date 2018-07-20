@@ -56,6 +56,18 @@ func makeGraphql(s string) string {
 	return b.String()
 }
 
+func reverseGraphqlFieldName(s string) string {
+	var b bytes.Buffer
+	for i, c := range s {
+		if i == 0 {
+			b.WriteRune(unicode.ToUpper(c))
+		} else {
+			b.WriteRune(c)
+		}
+	}
+	return b.String()
+}
+
 var scalarArgParsers = map[reflect.Type]*argParser{
 	reflect.TypeOf(bool(false)): {
 		FromJSON: func(value interface{}, dest reflect.Value) error {
