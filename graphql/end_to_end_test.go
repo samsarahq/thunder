@@ -46,7 +46,7 @@ func TestConnection(t *testing.T) {
 
 	inner := schema.Object("inner", Inner{})
 	item := schema.Object("item", Item{})
-	item.Key("Id")
+	item.Key("id")
 	inner.PaginateFieldFunc("innerConnection", func(args Args) []Item {
 		retList := make([]Item, 5)
 		retList[0] = Item{Id: 1}
@@ -345,7 +345,7 @@ func TestPaginateBuildFailure(t *testing.T) {
 
 	inner := schema.Object("inner", Inner{})
 	item := schema.Object("item", Item{})
-	item.Key("Id")
+	item.Key("id")
 
 	inner.PaginateFieldFunc("innerConnectionWithCtxAndError", func(ctx context.Context, args Args) (*Item, error) {
 		return nil, nil
@@ -371,23 +371,32 @@ func TestPaginateBuildFailure(t *testing.T) {
 	if err == nil || err.Error() != fmt.Sprintf("%v a key field must be registered for paginated objects", badMethodStr) {
 		t.Errorf("bad error: %v", err)
 	}
-}
 
-func TestUpperCaseKey(t *testing.T) {
-
-	schema := schemabuilder.NewSchema()
-	type Inner struct {
+	schema = schemabuilder.NewSchema()
+	type StructWithKey struct {
 		Id int64
 	}
-	query := schema.Query()
+	query = schema.Query()
 	query.FieldFunc("inner", func() Inner {
 		return Inner{}
 	})
 
-	inner := schema.Object("inner", Inner{})
-	inner.Key("Id")
+	inner = schema.Object("inner", Inner{})
+	object := schema.Object("structWithKey", StructWithKey{})
+	object.Key("wrongField")
+	inner.PaginateFieldFunc("innerConnectionWithWrongKey", func(ctx context.Context, args Args) ([]StructWithKey, error) {
+		return nil, nil
+	})
+	_, err = schema.Build()
+	if err == nil || err.Error() != fmt.Sprintf("%v key field doesn't exist on object", badMethodStr) {
+		t.Errorf("bad error: %v", err)
+	}
 
-	schema.MustBuild()
+	schema = schemabuilder.NewSchema()
+	query = schema.Query()
+	query.FieldFunc("inner", func() Inner {
+		return Inner{}
+	})
 
 }
 
