@@ -841,7 +841,11 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 	}
 
 	if objectKey != "" {
-		object.Key = object.Fields[makeGraphql(objectKey)].Resolve
+		keyPtr, ok := object.Fields[objectKey]
+		if !ok {
+			return fmt.Errorf("key field doesn't exist on object")
+		}
+		object.Key = keyPtr.Resolve
 	}
 
 	return nil
