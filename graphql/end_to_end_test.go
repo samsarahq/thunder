@@ -84,7 +84,7 @@ func TestConnection(t *testing.T) {
 		{
 			inner {
 				innerConnection(first: 1, after: "", additional: "jk") {
-					count
+					totalCount
 					edges {
 						node {
 							id
@@ -111,7 +111,7 @@ func TestConnection(t *testing.T) {
 	assert.Equal(t, map[string]interface{}{
 		"inner": map[string]interface{}{
 			"innerConnection": map[string]interface{}{
-				"count": int64(5),
+				"totalCount": int64(5),
 				"edges": []interface{}{map[string]interface{}{
 					"node": map[string]interface{}{
 						"__key": int64(1),
@@ -135,7 +135,7 @@ func TestConnection(t *testing.T) {
 		{
 			inner {
 				innerConnection(last: 2, before: "", additional: "jk") {
-					count
+					totalCount
 					edges {
 						node {
 							id
@@ -162,7 +162,7 @@ func TestConnection(t *testing.T) {
 	assert.Equal(t, map[string]interface{}{
 		"inner": map[string]interface{}{
 			"innerConnection": map[string]interface{}{
-				"count": int64(5),
+				"totalCount": int64(5),
 				"edges": []interface{}{
 					map[string]interface{}{
 						"node": map[string]interface{}{
@@ -194,7 +194,7 @@ func TestConnection(t *testing.T) {
 		{
 			inner {
 				innerConnectionNilArg(first: 1, after: "") {
-					count
+					totalCount
 					edges {
 						node {
 							id
@@ -222,7 +222,7 @@ func TestConnection(t *testing.T) {
 		{
 			inner {
 				innerConnectionWithCtxAndError(first: 1, after: "", additional: "jk") {
-					count
+					totalCount
 					edges {
 						node {
 							id
@@ -248,7 +248,7 @@ func TestConnection(t *testing.T) {
 	assert.Equal(t, map[string]interface{}{
 		"inner": map[string]interface{}{
 			"innerConnectionWithCtxAndError": map[string]interface{}{
-				"count": int64(5),
+				"totalCount": int64(5),
 				"edges": []interface{}{map[string]interface{}{
 					"node": map[string]interface{}{
 						"__key": int64(1),
@@ -271,7 +271,7 @@ func TestConnection(t *testing.T) {
 		{
 			inner {
 				innerConnectionWithError(first: 1, after: "", additional: "jk") {
-					count
+					totalCount
 					edges {
 						node {
 							id
@@ -302,7 +302,7 @@ func TestConnection(t *testing.T) {
 		{
 			inner {
 				innerConnection(last: -2, before: "", additional: "jk") {
-					count
+					totalCount
 					edges {
 						node {
 							id

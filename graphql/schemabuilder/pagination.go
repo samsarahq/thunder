@@ -12,9 +12,9 @@ import (
 
 // Connection conforms to the GraphQL Connection type in the Relay Pagination spec.
 type Connection struct {
-	Count    int64
-	Edges    []Edge
-	PageInfo PageInfo
+	TotalCount int64
+	Edges      []Edge
+	PageInfo   PageInfo
 }
 
 // PageInfo contains information for pagination on a connection type. The list of Pages is used for
@@ -101,13 +101,13 @@ func (funcCtx *funcContext) constructConnType(sb *schemaBuilder, typ reflect.Typ
 
 	fieldMap := make(map[string]*graphql.Field)
 
-	countType, _ := reflect.TypeOf(Connection{}).FieldByName("Count")
+	countType, _ := reflect.TypeOf(Connection{}).FieldByName("TotalCount")
 	countField, err := sb.buildField(countType)
 	if err != nil {
 		return nil, err
 	}
 
-	fieldMap["count"] = countField
+	fieldMap["totalCount"] = countField
 
 	edgeType, err := sb.constructEdgeType(typ)
 	if err != nil {
@@ -269,7 +269,7 @@ func getConnection(key string, nodes []interface{}, args ConnectionArgs) (Connec
 
 	pageInfo := PageInfo{HasNextPage: nextPage, EndCursor: endCursor, StartCursor: startCursor, HasPrevPage: prevPage, Pages: pages}
 
-	return Connection{Count: int64(len(nodes)), Edges: edges, PageInfo: pageInfo}, nil
+	return Connection{TotalCount: int64(len(nodes)), Edges: edges, PageInfo: pageInfo}, nil
 }
 
 // PaginateFieldFunc registers a function that is also paginated according to the Relay
