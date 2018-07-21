@@ -90,6 +90,19 @@ func (n *NonNull) String() string {
 	return fmt.Sprintf("%s!", n.Type)
 }
 
+// Union is a option between multiple types
+type Union struct {
+	Name        string
+	Description string
+	Types       map[string]*Object
+}
+
+func (*Union) isType() {}
+
+func (u *Union) String() string {
+	return u.Name
+}
+
 // Verify *Scalar, *Object, *List, *InputObject, and *NonNull implement Type
 var _ Type = &Scalar{}
 var _ Type = &Object{}
@@ -97,6 +110,7 @@ var _ Type = &List{}
 var _ Type = &InputObject{}
 var _ Type = &NonNull{}
 var _ Type = &Enum{}
+var _ Type = &Union{}
 
 // A Resolver calculates the value of a field of an object
 type Resolver func(ctx context.Context, source, args interface{}, selectionSet *SelectionSet) (interface{}, error)
