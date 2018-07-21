@@ -80,3 +80,18 @@ type method struct {
 
 // A Methods map represents the set of methods exposed on a Object.
 type Methods map[string]*method
+
+// Union is a special marker struct that can be embedded into to denote
+// that a type should be treated as a union type by the schemabuilder.
+//
+// For example, to denote that a return value that may be a *Asset or
+// *Vehicle might look like:
+// type GatewayUnion struct {
+//   graphql.Union
+//   *Asset
+//   *Vehicle
+// }
+//
+// Fields returning a union type should expect to return this type as a
+// one-hot struct, i.e. only Asset or Vehicle should be specified, but not both.
+type Union struct{}
