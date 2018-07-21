@@ -38,14 +38,12 @@ fragment Bar on Foo {
 		Name: "",
 		Kind: "query",
 		SelectionSet: &SelectionSet{
-			Complex: true,
 			Selections: []*Selection{
 				{
 					Name:  "foo",
 					Alias: "foo",
 					Args:  map[string]interface{}{},
 					SelectionSet: &SelectionSet{
-						Complex: true,
 						Selections: []*Selection{
 							{
 								Name:  "bar",

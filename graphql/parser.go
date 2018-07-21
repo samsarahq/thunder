@@ -286,42 +286,6 @@ func detectConflicts(selectionSet *SelectionSet) error {
 	return visitChild(selectionSet)
 }
 
-// determineComplex determines which selection sets are complex
-//
-// Complex selection sets contain nested selection sets. In
-//
-//     { organization { group { devices { name } } } }
-//
-// organization and group are complex, but devices is not as it only contains
-// name
-func determineComplex(selectionSet *SelectionSet) {
-	state := make(map[*SelectionSet]visitState)
-
-	var visit func(*SelectionSet)
-	visit = func(selectionSet *SelectionSet) {
-		if state[selectionSet] == visited {
-			return
-		}
-		state[selectionSet] = visited
-
-		for _, selection := range selectionSet.Selections {
-			if selection.SelectionSet != nil {
-				selectionSet.Complex = true
-				visit(selection.SelectionSet)
-			}
-		}
-
-		for _, fragment := range selectionSet.Fragments {
-			visit(fragment.SelectionSet)
-			if fragment.SelectionSet.Complex {
-				selectionSet.Complex = true
-			}
-		}
-	}
-
-	visit(selectionSet)
-}
-
 type Query struct {
 	Name string
 	Kind string
@@ -451,8 +415,6 @@ func Parse(source string, vars map[string]interface{}) (*Query, error) {
 	if err := detectConflicts(selectionSet); err != nil {
 		return rv, err
 	}
-
-	determineComplex(selectionSet)
 
 	rv.SelectionSet = selectionSet
 

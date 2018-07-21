@@ -140,7 +140,6 @@ type Schema struct {
 type SelectionSet struct {
 	Selections []*Selection
 	Fragments  []*Fragment
-	Complex    bool // Complex is true if a selection set has any nested selection sets
 }
 
 // A selection represents a part of a GraphQL query
