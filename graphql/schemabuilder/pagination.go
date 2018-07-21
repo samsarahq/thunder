@@ -88,7 +88,7 @@ func (sb *schemaBuilder) constructEdgeType(typ reflect.Type) (graphql.Type, erro
 
 	return &graphql.NonNull{
 		Type: &graphql.Object{
-			Name:        "Edge",
+			Name:        fmt.Sprintf("%sEdge", typ.Name()),
 			Description: "",
 			Fields:      fieldMap,
 		},
@@ -136,7 +136,13 @@ func (funcCtx *funcContext) constructConnType(sb *schemaBuilder, typ reflect.Typ
 	}
 	fieldMap["pageInfo"] = pageInfoField
 
-	retObject := &graphql.NonNull{Type: &graphql.Object{Name: "Connection", Description: "", Fields: fieldMap}}
+	retObject := &graphql.NonNull{
+		Type: &graphql.Object{
+			Name:        fmt.Sprintf("%sConnection", typ.Name()),
+			Description: "",
+			Fields:      fieldMap,
+		},
+	}
 	return retObject, nil
 }
 
