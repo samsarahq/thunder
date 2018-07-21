@@ -20,6 +20,8 @@ type enumType int32
 
 func makeSchema() *schemabuilder.Schema {
 	schema := schemabuilder.NewSchema()
+	user := schema.Object("user", User{})
+	user.Key("name")
 	var enumField enumType
 	schema.Enum(enumField, map[string]enumType{
 		"random":  enumType(3),
@@ -36,6 +38,9 @@ func makeSchema() *schemabuilder.Schema {
 	query.FieldFunc("nullableUser", func() (*User, error) {
 		return nil, nil
 	})
+	query.PaginateFieldFunc("usersConnection", func() ([]User, error) {
+		return nil, nil
+	})
 
 	// Add a non-null field after "noone" to test that caching
 	// mechanism in schemabuilder chooses the correct type
@@ -44,7 +49,6 @@ func makeSchema() *schemabuilder.Schema {
 		return User{Name: "me"}, nil
 	})
 
-	user := schema.Object("User", User{})
 	user.FieldFunc("friends", func(u *User) []*User {
 		return nil
 	})
