@@ -1,5 +1,7 @@
 package schemabuilder
 
+import "reflect"
+
 // A Object represents a Go type and set of methods to be converted into an
 // Object in a GraphQL schema.
 type Object struct {
@@ -95,3 +97,5 @@ type Methods map[string]*method
 // Fields returning a union type should expect to return this type as a
 // one-hot struct, i.e. only Asset or Vehicle should be specified, but not both.
 type Union struct{}
+
+var unionType = reflect.TypeOf(Union{})
