@@ -572,7 +572,6 @@ func (funcCtx *funcContext) getArgParserAndTyp(sb *schemaBuilder, in []reflect.T
 }
 
 func (funcCtx *funcContext) getReturnType(sb *schemaBuilder, m *method) (graphql.Type, error) {
-
 	var retType graphql.Type
 	if funcCtx.hasRet {
 		var err error
@@ -750,9 +749,64 @@ func (sb *schemaBuilder) buildField(field reflect.StructField) (*graphql.Field, 
 	}, nil
 }
 
+func (sb *schemaBuilder) buildUnionStruct(typ reflect.Type) error {
+	var name string
+	var description string
+
+	if name == "" {
+		name = typ.Name()
+		if name == "" {
+			return fmt.Errorf("bad type %s: should have a name", typ)
+		}
+	}
+
+	union := &graphql.Union{
+		Name:        name,
+		Description: description,
+		Types:       make(map[string]*graphql.Object),
+	}
+	sb.types[typ] = union
+
+	for i := 0; i < typ.NumField(); i++ {
+		field := typ.Field(i)
+		if field.PkgPath != "" || (field.Anonymous && field.Type == unionType) {
+			continue
+		}
+
+		if !field.Anonymous {
+			return fmt.Errorf("bad type %s: union type member types must be anonymous", name)
+		}
+
+		typ, err := sb.getType(field.Type)
+		if err != nil {
+			return err
+		}
+
+		obj, ok := typ.(*graphql.Object)
+		if !ok {
+			return fmt.Errorf("bad type %s: union type member must be a pointer to a struct, received %s", name, typ.String())
+		}
+
+		if union.Types[obj.Name] != nil {
+			return fmt.Errorf("bad type %s: union type member may only appear once", name)
+		}
+
+		union.Types[obj.Name] = obj
+	}
+	return nil
+}
+
 func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 	if sb.types[typ] != nil {
 		return nil
+	}
+
+	if typ == unionType {
+		return fmt.Errorf("schemabuilder.Union can only be used as an embedded anonymous non-pointer struct")
+	}
+
+	if hasUnionMarkerEmbedded(typ) {
+		return sb.buildUnionStruct(typ)
 	}
 
 	var name string
@@ -900,6 +954,16 @@ func (sb *schemaBuilder) getEnum(typ reflect.Type) (string, []string, bool) {
 		return typ.Name(), values, true
 	}
 	return "", nil, false
+}
+
+func hasUnionMarkerEmbedded(typ reflect.Type) bool {
+	for i := 0; i < typ.NumField(); i++ {
+		field := typ.Field(i)
+		if field.Anonymous && field.Type == unionType {
+			return true
+		}
+	}
+	return false
 }
 
 func (sb *schemaBuilder) getType(t reflect.Type) (graphql.Type, error) {
