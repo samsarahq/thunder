@@ -95,6 +95,8 @@ func (s *introspection) registerType(schema *schemabuilder.Schema) {
 		switch t.Inner.(type) {
 		case *graphql.Object:
 			return OBJECT
+		case *graphql.Union:
+			return UNION
 		case *graphql.Scalar:
 			return SCALAR
 		case *graphql.Enum:
@@ -114,6 +116,8 @@ func (s *introspection) registerType(schema *schemabuilder.Schema) {
 		switch t := t.Inner.(type) {
 		case *graphql.Object:
 			return t.Name
+		case *graphql.Union:
+			return t.Name
 		case *graphql.Scalar:
 			return t.Type
 		case *graphql.Enum:
@@ -129,13 +133,28 @@ func (s *introspection) registerType(schema *schemabuilder.Schema) {
 		switch t := t.Inner.(type) {
 		case *graphql.Object:
 			return t.Description
+		case *graphql.Union:
+			return t.Description
 		default:
 			return ""
 		}
 	})
 
 	object.FieldFunc("interfaces", func() []Type { return nil })
-	object.FieldFunc("possibleTypes", func() []Type { return nil })
+	object.FieldFunc("possibleTypes", func(t Type) []Type {
+		switch t := t.Inner.(type) {
+		case *graphql.Union:
+			types := make([]Type, 0, len(t.Types))
+			for _, typ := range t.Types {
+				types = append(types, Type{Inner: typ})
+			}
+
+			sort.Slice(types, func(i, j int) bool { return types[i].Inner.String() < types[j].Inner.String() })
+			return types
+		default:
+			return nil
+		}
+	})
 
 	object.FieldFunc("inputFields", func(t Type) []InputValue {
 		var fields []InputValue
@@ -240,6 +259,15 @@ func collectTypes(typ graphql.Type, types map[string]graphql.Type) {
 			for _, arg := range field.Args {
 				collectTypes(arg, types)
 			}
+		}
+
+	case *graphql.Union:
+		if _, ok := types[typ.Name]; ok {
+			return
+		}
+		types[typ.Name] = typ
+		for _, graphqlTyp := range typ.Types {
+			collectTypes(graphqlTyp, types)
 		}
 
 	case *graphql.List:
