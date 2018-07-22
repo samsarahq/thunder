@@ -66,9 +66,9 @@ func (s *Object) FieldFunc(name string, f interface{}, options ...FieldFuncOptio
 // Key registers the key field on an object. The field should be specified by the name of the
 // graphql field.
 // For example, for an object User:
-// type struct User {
-//	 UserKey int64
-// }
+//   type struct User {
+//	   UserKey int64
+//   }
 // The key will be registered as:
 // object.Key("userKey")
 func (s *Object) Key(f string) {
@@ -88,11 +88,11 @@ type Methods map[string]*method
 //
 // For example, to denote that a return value that may be a *Asset or
 // *Vehicle might look like:
-// type GatewayUnion struct {
-//   graphql.Union
-//   *Asset
-//   *Vehicle
-// }
+//   type GatewayUnion struct {
+//     graphql.Union
+//     *Asset
+//     *Vehicle
+//   }
 //
 // Fields returning a union type should expect to return this type as a
 // one-hot struct, i.e. only Asset or Vehicle should be specified, but not both.

@@ -1031,19 +1031,19 @@ func NewSchema() *Schema {
 // the corresponding map of the enums.
 //
 // For example a enum could be declared as follows:
-// type enumType int32
-// const (
-//	one   enumType = 1
-//	two   enumType = 2
-//	three enumType = 3
-// )
+//   type enumType int32
+//   const (
+//	  one   enumType = 1
+//	  two   enumType = 2
+//	  three enumType = 3
+//   )
 //
 // Then the Enum can be registered as:
-// s.Enum(enumType(1), map[string]interface{}{
-//	"one":   enumType(1),
-//	"two":   enumType(2),
-//	"three": enumType(3),
-// })
+//   s.Enum(enumType(1), map[string]interface{}{
+//     "one":   enumType(1),
+//     "two":   enumType(2),
+//     "three": enumType(3),
+//   })
 func (s *Schema) Enum(val interface{}, enumMap interface{}) {
 	typ := reflect.TypeOf(val)
 	if s.enumTypes == nil {
