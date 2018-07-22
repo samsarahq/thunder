@@ -16,6 +16,22 @@ type User struct {
 	MaybeAge *int64
 }
 
+type Vehicle struct {
+	Name  string
+	Speed int64
+}
+type Asset struct {
+	Name         string
+	BatteryLevel int64
+}
+
+type Gateway struct {
+	schemabuilder.Union
+
+	*Vehicle
+	*Asset
+}
+
 type enumType int32
 
 func makeSchema() *schemabuilder.Schema {
@@ -42,6 +58,10 @@ func makeSchema() *schemabuilder.Schema {
 		return nil, nil
 	})
 	query.PaginateFieldFunc("usersConnectionPtr", func() ([]*User, error) {
+		return nil, nil
+	})
+
+	query.FieldFunc("gateway", func() (*Gateway, error) {
 		return nil, nil
 	})
 
