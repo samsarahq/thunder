@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 	"runtime"
+	"strings"
 	"sync"
 
 	"github.com/samsarahq/thunder/concurrencylimiter"
@@ -87,6 +88,34 @@ func PrepareQuery(typ Type, selectionSet *SelectionSet) error {
 	case *Enum:
 		if selectionSet != nil {
 			return NewClientError("enum field must have no selections")
+		}
+		return nil
+	case *Union:
+		if selectionSet == nil {
+			return NewClientError("object field must have selections")
+		}
+
+		for _, fragment := range selectionSet.Fragments {
+			for typString, graphqlTyp := range typ.Types {
+				if fragment.On != typString {
+					continue
+				}
+				if err := PrepareQuery(graphqlTyp, fragment.SelectionSet); err != nil {
+					return err
+				}
+			}
+		}
+		for _, selection := range selectionSet.Selections {
+			if selection.Name == "__typename" {
+				if !isNilArgs(selection.Args) {
+					return NewClientError(`error parsing args for "__typename": no args expected`)
+				}
+				if selection.SelectionSet != nil {
+					return NewClientError(`scalar field "__typename" must have no selection`)
+				}
+				continue
+			}
+			return NewClientError(`unknown field "%s"`, selection.Name)
 		}
 		return nil
 	case *Object:
@@ -218,6 +247,56 @@ func (e *Executor) resolveAndExecute(ctx context.Context, field *Field, source i
 	return e.execute(ctx, field.Type, value, selection.SelectionSet)
 }
 
+func (e *Executor) executeUnion(ctx context.Context, typ *Union, source interface{}, selectionSet *SelectionSet) (interface{}, error) {
+	value := reflect.ValueOf(source)
+	if value.Kind() == reflect.Ptr && value.IsNil() {
+		return nil, nil
+	}
+
+	fields := make(map[string]interface{})
+	for _, selection := range selectionSet.Selections {
+		if selection.Name == "__typename" {
+			fields[selection.Alias] = typ.Name
+			continue
+		}
+	}
+
+	// For every inline fragment spread, check if the current concrete type
+	// matches and execute that object.
+	var possibleTypes []string
+	for typString, graphqlTyp := range typ.Types {
+		inner := reflect.ValueOf(source)
+		if inner.Kind() == reflect.Ptr && inner.Elem().Kind() == reflect.Struct {
+			inner = inner.Elem()
+		}
+
+		inner = inner.FieldByName(typString)
+		if inner.IsNil() {
+			continue
+		}
+		possibleTypes = append(possibleTypes, graphqlTyp.String())
+
+		for _, fragment := range selectionSet.Fragments {
+			if fragment.On != typString {
+				continue
+			}
+			resolved, err := e.executeObject(ctx, graphqlTyp, inner.Interface(), fragment.SelectionSet)
+			if err != nil {
+				return nil, nestPathError(typString, err)
+			}
+
+			for k, v := range resolved.(map[string]interface{}) {
+				fields[k] = v
+			}
+		}
+	}
+
+	if len(possibleTypes) > 1 {
+		return nil, fmt.Errorf("union type field should only return one value, but received: %s", strings.Join(possibleTypes, " "))
+	}
+	return fields, nil
+}
+
 // executeObject executes an object query
 func (e *Executor) executeObject(ctx context.Context, typ *Object, source interface{}, selectionSet *SelectionSet) (interface{}, error) {
 	value := reflect.ValueOf(source)
@@ -294,6 +373,8 @@ func (e *Executor) execute(ctx context.Context, typ Type, source interface{}, se
 			return mapVal, nil
 		}
 		return nil, errors.New("enum is not valid")
+	case *Union:
+		return e.executeUnion(ctx, typ, source, selectionSet)
 	case *Object:
 		return e.executeObject(ctx, typ, source, selectionSet)
 	case *List:
