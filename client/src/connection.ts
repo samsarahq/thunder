@@ -45,7 +45,7 @@ function dataFromSubscription<Result, Input>(
 }
 
 export class GraphQLError extends Error {
-  constructor(message: string, public requestId?: string) {
+  constructor(message: string) {
     super(message);
 
     // Set the prototype explicitly.
@@ -330,15 +330,10 @@ class Connection {
         break;
 
       case "error":
-        const requestId = envelope.metadata && envelope.metadata.requestId;
-        const requestIdMessage = requestId ? `RequestID:\n${requestId}\n` : "";
-
         subscription = this.subscriptions.get(envelope.id);
         if (subscription !== undefined) {
           console.error(
-            "Subscription failed.",
-            requestIdMessage,
-            "Query:\n",
+            "Subscription failed. Query:\n",
             subscription.query,
             "\nVariables:\n",
             subscription.variables,
@@ -347,7 +342,7 @@ class Connection {
           );
 
           subscription.state = "error";
-          subscription.error = new GraphQLError(envelope.message, requestId);
+          subscription.error = new GraphQLError(envelope.message);
 
           subscription.retryHandle = setTimeout(
             () => this.retry(envelope.id),
@@ -363,9 +358,7 @@ class Connection {
         mutation = this.mutations.get(envelope.id);
         if (mutation !== undefined) {
           console.error(
-            "Mutation failed.",
-            requestId,
-            "Query:\n",
+            "Mutation failed. Query:\n",
             mutation.query,
             "\nVariables:\n",
             mutation.variables,
@@ -373,7 +366,7 @@ class Connection {
             envelope.message,
           );
 
-          mutation.reject(new GraphQLError(envelope.message, requestId));
+          mutation.reject(new GraphQLError(envelope.message));
           clearTimeout(mutation.timeout);
           this.mutations.delete(envelope.id);
         }
