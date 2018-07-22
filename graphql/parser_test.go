@@ -1,9 +1,9 @@
 package graphql_test
 
 import (
-	"reflect"
 	"testing"
 
+	"github.com/kylelemons/godebug/pretty"
 	. "github.com/samsarahq/thunder/graphql"
 )
 
@@ -89,26 +89,32 @@ fragment Bar on Foo {
 								},
 							},
 						},
-						Fragments: []*Fragment{
+						Fragments: []*FragmentSpread{
 							{
-								On: "Foo",
-								SelectionSet: &SelectionSet{
-									Selections: []*Selection{
-										{
-											Name:  "asd",
-											Alias: "asd",
-											Args:  map[string]interface{}{},
+								Fragment: &FragmentDefinition{
+									Name: "",
+									On:   "Foo",
+									SelectionSet: &SelectionSet{
+										Selections: []*Selection{
+											{
+												Name:  "asd",
+												Alias: "asd",
+												Args:  map[string]interface{}{},
+											},
 										},
-									},
-									Fragments: []*Fragment{
-										{
-											On: "Foo",
-											SelectionSet: &SelectionSet{
-												Selections: []*Selection{
-													{
-														Name:  "zxc",
-														Alias: "zxc",
-														Args:  map[string]interface{}{},
+										Fragments: []*FragmentSpread{
+											{
+												Fragment: &FragmentDefinition{
+													Name: "Bar",
+													On:   "Foo",
+													SelectionSet: &SelectionSet{
+														Selections: []*Selection{
+															{
+																Name:  "zxc",
+																Alias: "zxc",
+																Args:  map[string]interface{}{},
+															},
+														},
 													},
 												},
 											},
@@ -128,8 +134,8 @@ fragment Bar on Foo {
 		},
 	}
 
-	if !reflect.DeepEqual(query, expected) {
-		t.Error("unexpected parse")
+	if d := pretty.Compare(query, expected); d != "" {
+		t.Errorf("unexpected diff: %s", d)
 	}
 
 	query, err = Parse(`
@@ -156,8 +162,8 @@ mutation foo($var: bar) {
 			},
 		},
 	}
-	if !reflect.DeepEqual(query, expected) {
-		t.Error("unexpected parse")
+	if d := pretty.Compare(query, expected); d != "" {
+		t.Errorf("unexpected diff: %s", d)
 	}
 }
 

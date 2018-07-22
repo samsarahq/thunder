@@ -93,6 +93,7 @@ func PrepareQuery(typ Type, selectionSet *SelectionSet) error {
 		if selectionSet == nil {
 			return NewClientError("object field must have selections")
 		}
+
 		for _, selection := range selectionSet.Selections {
 			if selection.Name == "__typename" {
 				if !isNilArgs(selection.Args) {
@@ -124,7 +125,7 @@ func PrepareQuery(typ Type, selectionSet *SelectionSet) error {
 			}
 		}
 		for _, fragment := range selectionSet.Fragments {
-			if err := PrepareQuery(typ, fragment.SelectionSet); err != nil {
+			if err := PrepareQuery(typ, fragment.Fragment.SelectionSet); err != nil {
 				return err
 			}
 		}
@@ -139,6 +140,43 @@ func PrepareQuery(typ Type, selectionSet *SelectionSet) error {
 	default:
 		panic("unknown type kind")
 	}
+}
+
+func findDirectiveWithName(directives []*Directive, name string) *Directive {
+	for _, directive := range directives {
+		if directive.Name == name {
+			return directive
+		}
+	}
+	return nil
+}
+
+func shouldIncludeNode(directives []*Directive) (bool, error) {
+	parseIf := func(d *Directive) (bool, error) {
+		args := d.Args.(map[string]interface{})
+		if args["if"] == nil {
+			return false, NewClientError("required argument not provided: if")
+		}
+
+		if _, ok := args["if"].(bool); !ok {
+			return false, NewClientError("expected type boolean, found %v", args["if"])
+		}
+
+		return args["if"].(bool), nil
+	}
+
+	skipDirective := findDirectiveWithName(directives, "skip")
+	if skipDirective != nil {
+		b, err := parseIf(skipDirective)
+		return !b, err
+	}
+
+	includeDirective := findDirectiveWithName(directives, "include")
+	if includeDirective != nil {
+		return parseIf(includeDirective)
+	}
+
+	return true, nil
 }
 
 type panicError struct {
@@ -225,12 +263,21 @@ func (e *Executor) executeObject(ctx context.Context, typ *Object, source interf
 		return nil, nil
 	}
 
-	selections := Flatten(selectionSet)
+	selections, err := Flatten(selectionSet)
+	if err != nil {
+		return nil, err
+	}
 
 	fields := make(map[string]interface{})
 
 	// for every selection, resolve the value and store it in the output object
 	for _, selection := range selections {
+		if ok, err := shouldIncludeNode(selection.Directives); err != nil {
+			return nil, nestPathError(selection.Alias, err)
+		} else if !ok {
+			continue
+		}
+
 		if selection.Name == "__typename" {
 			fields[selection.Alias] = typ.Name
 			continue

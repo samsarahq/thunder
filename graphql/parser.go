@@ -90,13 +90,13 @@ func argsToJson(input []*ast.Argument, vars map[string]interface{}) (interface{}
 
 // parseSelectionSet takes a grapqhl-go selection set and converts it to a
 // simplified *SelectionSet, bindings vars
-func parseSelectionSet(input *ast.SelectionSet, globalFragments map[string]*Fragment, vars map[string]interface{}) (*SelectionSet, error) {
+func parseSelectionSet(input *ast.SelectionSet, globalFragments map[string]*FragmentDefinition, vars map[string]interface{}) (*SelectionSet, error) {
 	if input == nil {
 		return nil, nil
 	}
 
 	var selections []*Selection
-	var fragments []*Fragment
+	var fragments []*FragmentSpread
 	for _, selection := range input.Selections {
 		switch selection := selection.(type) {
 		case *ast.Field:
@@ -105,11 +105,12 @@ func parseSelectionSet(input *ast.SelectionSet, globalFragments map[string]*Frag
 				alias = selection.Alias.Value
 			}
 
-			if len(selection.Directives) != 0 {
-				return nil, NewClientError("directives not supported")
+			args, err := argsToJson(selection.Arguments, vars)
+			if err != nil {
+				return nil, err
 			}
 
-			args, err := argsToJson(selection.Arguments, vars)
+			directives, err := parseDirectives(selection.Directives, vars)
 			if err != nil {
 				return nil, err
 			}
@@ -124,27 +125,35 @@ func parseSelectionSet(input *ast.SelectionSet, globalFragments map[string]*Frag
 				Name:         selection.Name.Value,
 				Args:         args,
 				SelectionSet: selectionSet,
+				Directives:   directives,
 			})
 
 		case *ast.FragmentSpread:
 			name := selection.Name.Value
-
-			if len(selection.Directives) != 0 {
-				return nil, NewClientError("directives not supported")
-			}
 
 			fragment, found := globalFragments[name]
 			if !found {
 				return nil, NewClientError("unknown fragment")
 			}
 
-			fragments = append(fragments, fragment)
+			directives, err := parseDirectives(selection.Directives, vars)
+			if err != nil {
+				return nil, err
+			}
+
+			fragmentSpread := &FragmentSpread{
+				Fragment:   fragment,
+				Directives: directives,
+			}
+
+			fragments = append(fragments, fragmentSpread)
 
 		case *ast.InlineFragment:
 			on := selection.TypeCondition.Name.Value
 
-			if len(selection.Directives) != 0 {
-				return nil, NewClientError("directives not supported")
+			directives, err := parseDirectives(selection.Directives, vars)
+			if err != nil {
+				return nil, err
 			}
 
 			selectionSet, err := parseSelectionSet(selection.SelectionSet, globalFragments, vars)
@@ -152,9 +161,12 @@ func parseSelectionSet(input *ast.SelectionSet, globalFragments map[string]*Frag
 				return nil, err
 			}
 
-			fragments = append(fragments, &Fragment{
-				On:           on,
-				SelectionSet: selectionSet,
+			fragments = append(fragments, &FragmentSpread{
+				Fragment: &FragmentDefinition{
+					On:           on,
+					SelectionSet: selectionSet,
+				},
+				Directives: directives,
 			})
 		}
 	}
@@ -164,6 +176,22 @@ func parseSelectionSet(input *ast.SelectionSet, globalFragments map[string]*Frag
 		Fragments:  fragments,
 	}
 	return selectionSet, nil
+}
+
+func parseDirectives(directives []*ast.Directive, vars map[string]interface{}) ([]*Directive, error) {
+	d := make([]*Directive, 0, len(directives))
+	for _, directive := range directives {
+		args, err := argsToJson(directive.Arguments, vars)
+		if err != nil {
+			return nil, err
+		}
+
+		d = append(d, &Directive{
+			Name: directive.Name.Value,
+			Args: args,
+		})
+	}
+	return d, nil
 }
 
 type visitState int
@@ -176,10 +204,10 @@ const (
 
 // detectCyclesAndUnusedFragments finds cycles in fragments that include
 // eachother as well as fragments that don't appear anywhere
-func detectCyclesAndUnusedFragments(selectionSet *SelectionSet, globalFragments map[string]*Fragment) error {
-	state := make(map[*Fragment]visitState)
+func detectCyclesAndUnusedFragments(selectionSet *SelectionSet, globalFragments map[string]*FragmentDefinition) error {
+	state := make(map[*FragmentDefinition]visitState)
 
-	var visitFragment func(*Fragment) error
+	var visitFragment func(*FragmentSpread) error
 	var visitSelectionSet func(*SelectionSet) error
 
 	visitSelectionSet = func(selectionSet *SelectionSet) error {
@@ -202,19 +230,19 @@ func detectCyclesAndUnusedFragments(selectionSet *SelectionSet, globalFragments 
 		return nil
 	}
 
-	visitFragment = func(fragment *Fragment) error {
-		switch state[fragment] {
+	visitFragment = func(fragment *FragmentSpread) error {
+		switch state[fragment.Fragment] {
 		case visiting:
 			return NewClientError("fragment contains itself")
 		case visited:
 			return nil
 		}
 
-		state[fragment] = visiting
-		if err := visitSelectionSet(fragment.SelectionSet); err != nil {
+		state[fragment.Fragment] = visiting
+		if err := visitSelectionSet(fragment.Fragment.SelectionSet); err != nil {
 			return err
 		}
-		state[fragment] = visited
+		state[fragment.Fragment] = visited
 
 		return nil
 	}
@@ -268,7 +296,7 @@ func detectConflicts(selectionSet *SelectionSet) error {
 			}
 
 			for _, fragment := range selectionSet.Fragments {
-				if err := visitSibling(fragment.SelectionSet); err != nil {
+				if err := visitSibling(fragment.Fragment.SelectionSet); err != nil {
 					return err
 				}
 			}
@@ -388,10 +416,11 @@ func Parse(source string, vars map[string]interface{}) (*Query, error) {
 		vars = defaultedVars
 	}
 
-	globalFragments := make(map[string]*Fragment)
+	globalFragments := make(map[string]*FragmentDefinition)
 	for name, fragment := range fragmentDefinitions {
-		globalFragments[name] = &Fragment{
-			On: fragment.TypeCondition.Name.Value,
+		globalFragments[name] = &FragmentDefinition{
+			Name: fragment.Name.Value,
+			On:   fragment.TypeCondition.Name.Value,
 		}
 	}
 
@@ -448,27 +477,37 @@ func MustParse(source string, vars map[string]interface{}) *Query {
 //
 // Flatten does _not_ flatten out the inner queries, so the name above does not
 // get flattened out yet.
-func Flatten(selectionSet *SelectionSet) []*Selection {
+func Flatten(selectionSet *SelectionSet) ([]*Selection, error) {
 	grouped := make(map[string][]*Selection)
 
 	state := make(map[*SelectionSet]visitState)
-	var visit func(*SelectionSet)
-	visit = func(selectionSet *SelectionSet) {
+	var visit func(*SelectionSet) error
+	visit = func(selectionSet *SelectionSet) error {
 		if state[selectionSet] == visited {
-			return
+			return nil
 		}
 
 		for _, selection := range selectionSet.Selections {
 			grouped[selection.Alias] = append(grouped[selection.Alias], selection)
 		}
 		for _, fragment := range selectionSet.Fragments {
-			visit(fragment.SelectionSet)
+			if ok, err := shouldIncludeNode(fragment.Directives); err != nil {
+				return nestPathError(fragment.Fragment.Name, err)
+			} else if !ok {
+				continue
+			}
+			if err := visit(fragment.Fragment.SelectionSet); err != nil {
+				return err
+			}
 		}
 
 		state[selectionSet] = visited
+		return nil
 	}
 
-	visit(selectionSet)
+	if err := visit(selectionSet); err != nil {
+		return nil, err
+	}
 
 	var flattened []*Selection
 	for _, selections := range grouped {
@@ -491,7 +530,7 @@ func Flatten(selectionSet *SelectionSet) []*Selection {
 		})
 	}
 
-	return flattened
+	return flattened, nil
 }
 
 /*
