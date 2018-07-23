@@ -2,12 +2,11 @@ package schemabuilder
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
-	"reflect"
-
-	"encoding/base64"
 	"github.com/samsarahq/thunder/graphql"
+	"reflect"
 )
 
 // Connection conforms to the GraphQL Connection type in the Relay Pagination spec.
@@ -43,10 +42,16 @@ type ConnectionArgs struct {
 	Args   interface{}
 }
 
+func getTypeName(typ reflect.Type) string {
+	if typ.Kind() == reflect.Ptr {
+		return typ.Elem().Name()
+	}
+	return fmt.Sprintf("NonNull%s", typ.Name())
+}
+
 // constructEdgeType wraps the typ (which is the type of the Node) in an Edge type conforming to the
 // Relay spec.
 func (sb *schemaBuilder) constructEdgeType(typ reflect.Type) (graphql.Type, error) {
-
 	nodeType, err := sb.getType(typ)
 	if err != nil {
 		return nil, err
@@ -88,7 +93,7 @@ func (sb *schemaBuilder) constructEdgeType(typ reflect.Type) (graphql.Type, erro
 
 	return &graphql.NonNull{
 		Type: &graphql.Object{
-			Name:        fmt.Sprintf("%sEdge", typ.Name()),
+			Name:        fmt.Sprintf("%sEdge", getTypeName(typ)),
 			Description: "",
 			Fields:      fieldMap,
 		},
@@ -98,7 +103,6 @@ func (sb *schemaBuilder) constructEdgeType(typ reflect.Type) (graphql.Type, erro
 
 // constructConnType wraps typ (type of the Node) in a Connection Type conforming to the Relay spec.
 func (funcCtx *funcContext) constructConnType(sb *schemaBuilder, typ reflect.Type) (graphql.Type, error) {
-
 	fieldMap := make(map[string]*graphql.Field)
 
 	countType, _ := reflect.TypeOf(Connection{}).FieldByName("TotalCount")
@@ -135,10 +139,9 @@ func (funcCtx *funcContext) constructConnType(sb *schemaBuilder, typ reflect.Typ
 		return nil, err
 	}
 	fieldMap["pageInfo"] = pageInfoField
-
 	retObject := &graphql.NonNull{
 		Type: &graphql.Object{
-			Name:        fmt.Sprintf("%sConnection", typ.Name()),
+			Name:        fmt.Sprintf("%sConnection", getTypeName(typ)),
 			Description: "",
 			Fields:      fieldMap,
 		},
