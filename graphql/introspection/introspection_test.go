@@ -41,6 +41,9 @@ func makeSchema() *schemabuilder.Schema {
 	query.PaginateFieldFunc("usersConnection", func() ([]User, error) {
 		return nil, nil
 	})
+	query.PaginateFieldFunc("usersConnectionPtr", func() ([]*User, error) {
+		return nil, nil
+	})
 
 	// Add a non-null field after "noone" to test that caching
 	// mechanism in schemabuilder chooses the correct type
