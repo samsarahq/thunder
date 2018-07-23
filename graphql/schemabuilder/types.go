@@ -7,12 +7,12 @@ type Object struct {
 	Description     string
 	Type            interface{}
 	Methods         Methods // Deprecated, use FieldFunc instead.
-	PaginatedFields []PaginationObject
+	paginatedFields []paginationObject
 
 	key string
 }
 
-type PaginationObject struct {
+type paginationObject struct {
 	Name string
 	Fn   interface{}
 }

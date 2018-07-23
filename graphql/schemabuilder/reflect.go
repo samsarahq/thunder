@@ -758,14 +758,14 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 	var name string
 	var description string
 	var methods Methods
-	var paginatedFields []PaginationObject
+	var paginatedFields []paginationObject
 	var objectKey string
 	if object, ok := sb.objects[typ]; ok {
 		name = object.Name
 		description = object.Description
 		methods = object.Methods
 		objectKey = object.key
-		paginatedFields = object.PaginatedFields
+		paginatedFields = object.paginatedFields
 	}
 
 	if name == "" {
