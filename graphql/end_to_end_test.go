@@ -400,6 +400,50 @@ func TestPaginateBuildFailure(t *testing.T) {
 
 }
 
+func TestPaginateNodeTypeFailure(t *testing.T) {
+	schema := schemabuilder.NewSchema()
+	query := schema.Query()
+
+	type Inner struct {
+	}
+
+	query.FieldFunc("inner", func() Inner {
+		return Inner{}
+	})
+
+	inner := schema.Object("inner", Inner{})
+
+	inner.PaginateFieldFunc("innerConnectionWithScalar", func(ctx context.Context, args Args) ([]Item, error) {
+		return nil, nil
+	})
+
+	badMethodStr := "bad method inner on type schemabuilder.query:"
+	_, err := schema.Build()
+	if err == nil || err.Error() != fmt.Sprintf("%s graphql_test.Item must be a struct and registered as an object along with its key", badMethodStr) {
+		t.Errorf("bad error: %v", err)
+	}
+
+	schema = schemabuilder.NewSchema()
+	query = schema.Query()
+
+	query.FieldFunc("inner", func() Inner {
+		return Inner{}
+	})
+
+	inner = schema.Object("inner", Inner{})
+
+	inner.PaginateFieldFunc("innerConnectionWithScalar", func(ctx context.Context, args Args) ([]string, error) {
+		return nil, nil
+	})
+
+	badMethodStr = "bad method inner on type schemabuilder.query:"
+	_, err = schema.Build()
+	if err == nil || err.Error() != fmt.Sprintf("%s string must be a struct and registered as an object along with its key", badMethodStr) {
+		t.Errorf("bad error: %v", err)
+	}
+
+}
+
 func TestPathError(t *testing.T) {
 	schema := schemabuilder.NewSchema()
 

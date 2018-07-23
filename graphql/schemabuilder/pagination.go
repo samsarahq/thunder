@@ -318,6 +318,9 @@ func (sb *schemaBuilder) getKeyFieldOnStruct(nodeType reflect.Type) (string, err
 	if nodeObj == nil && nodeType.Kind() == reflect.Ptr {
 		nodeObj = sb.objects[nodeType.Elem()]
 	}
+	if nodeObj == nil {
+		return "", fmt.Errorf("%s must be a struct and registered as an object along with its key", nodeType)
+	}
 	nodeKey := reverseGraphqlFieldName(nodeObj.key)
 	if nodeKey == "" {
 		return nodeKey, fmt.Errorf("a key field must be registered for paginated objects")
