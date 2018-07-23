@@ -283,8 +283,8 @@ func getConnection(key string, nodes []interface{}, args ConnectionArgs) (Connec
 // are automatically added as arguments to the function. The return type to the function must be a
 // list. The element of the list is wrapped as a Node Type.
 func (o *Object) PaginateFieldFunc(name string, f interface{}) {
-	o.PaginatedFields = append(o.PaginatedFields,
-		PaginationObject{
+	o.paginatedFields = append(o.paginatedFields,
+		paginationObject{
 			Name: name,
 			Fn:   f,
 		})
