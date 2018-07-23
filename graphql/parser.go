@@ -458,7 +458,7 @@ func MustParse(source string, vars map[string]interface{}) *Query {
 	return query
 }
 
-// Flatten takes a SelectionSet and flattens it into an array of selections
+// flatten takes a SelectionSet and flattens it into an array of selections
 // with unique aliases
 //
 // A GraphQL query (the SelectionSet) is allowed to contain the same key
@@ -470,14 +470,14 @@ func MustParse(source string, vars map[string]interface{}) *Query {
 //       ... on Organization { groups { widgets { name } } }
 //     }
 //
-// Flatten simplifies the query into an array of selections, merging fields,
+// flatten simplifies the query into an array of selections, merging fields,
 // resulting in something like the new query
 //
 //     groups: { name name id { widgets { name } } }
 //
-// Flatten does _not_ flatten out the inner queries, so the name above does not
+// flatten does _not_ flatten out the inner queries, so the name above does not
 // get flattened out yet.
-func Flatten(selectionSet *SelectionSet) ([]*Selection, error) {
+func flatten(selectionSet *SelectionSet) ([]*Selection, error) {
 	grouped := make(map[string][]*Selection)
 
 	state := make(map[*SelectionSet]visitState)

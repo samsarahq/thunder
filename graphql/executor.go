@@ -263,7 +263,7 @@ func (e *Executor) executeObject(ctx context.Context, typ *Object, source interf
 		return nil, nil
 	}
 
-	selections, err := Flatten(selectionSet)
+	selections, err := flatten(selectionSet)
 	if err != nil {
 		return nil, err
 	}
