@@ -5,8 +5,10 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/samsarahq/thunder/graphql"
 	"reflect"
+	"sort"
+
+	"github.com/samsarahq/thunder/graphql"
 )
 
 // Connection conforms to the GraphQL Connection type in the Relay Pagination spec.
@@ -35,11 +37,15 @@ type Edge struct {
 // ConnectionArgs conform to the pagination arguments as specified by the Relay Spec for Connection
 // types. The Args field consits of the user-facing args.
 type ConnectionArgs struct {
-	First  *int64
-	Last   *int64
-	After  *string
-	Before *string
-	Args   interface{}
+	First     *int64
+	Last      *int64
+	After     *string
+	Before    *string
+	SortBy    *string
+	SortOrder *int32
+	FilterBy  *string
+	FilterStr *string
+	Args      interface{}
 }
 
 func getTypeName(typ reflect.Type) string {
@@ -293,17 +299,17 @@ func (o *Object) PaginateFieldFunc(name string, f interface{}) {
 		})
 }
 
-func (funcCtx *funcContext) consumePaginatedArgs(sb *schemaBuilder, in []reflect.Type) (*argParser, graphql.Type, []reflect.Type, error) {
+func (funcCtx *funcContext) consumePaginatedArgs(sb *schemaBuilder, in []reflect.Type, sortFieldMap *EnumMapping, filterFieldMap *EnumMapping) (*argParser, graphql.Type, []reflect.Type, error) {
 	var argParser *argParser
 	var argType graphql.Type
 	var err error
 	if len(in) > 0 && in[0] != selectionSetType {
-		if argParser, argType, err = sb.buildPaginatedArgParser(in[0]); err != nil {
+		if argParser, argType, err = sb.buildPaginatedArgParser(in[0], sortFieldMap, filterFieldMap); err != nil {
 			return nil, nil, nil, err
 		}
 		in = in[1:]
 	} else {
-		if argParser, argType, err = sb.buildPaginatedArgParser(nil); err != nil {
+		if argParser, argType, err = sb.buildPaginatedArgParser(nil, sortFieldMap, filterFieldMap); err != nil {
 			return nil, nil, in, err
 		}
 	}
@@ -313,7 +319,6 @@ func (funcCtx *funcContext) consumePaginatedArgs(sb *schemaBuilder, in []reflect
 }
 
 func (sb *schemaBuilder) getKeyFieldOnStruct(nodeType reflect.Type) (string, error) {
-
 	nodeObj := sb.objects[nodeType]
 	if nodeObj == nil && nodeType.Kind() == reflect.Ptr {
 		nodeObj = sb.objects[nodeType.Elem()]
@@ -336,11 +341,29 @@ func (sb *schemaBuilder) getKeyFieldOnStruct(nodeType reflect.Type) (string, err
 
 }
 
+func getFieldMap(typ reflect.Type) (*EnumMapping, *EnumMapping) {
+	if typ.Kind() == reflect.Ptr {
+		typ = typ.Elem()
+	}
+
+	sortFieldMap := make(map[string]string)
+	filterFieldMap := make(map[string]string)
+	for i := 0; i < typ.NumField(); i++ {
+		field := typ.Field(i)
+		if field.Type.Kind() == reflect.String {
+			filterFieldMap[field.Name] = field.Name
+		}
+		sortFieldMap[field.Name] = field.Name
+	}
+	sortEMap, sortRMap := getEnumMap(sortFieldMap, reflect.TypeOf(string("")))
+	filterEMap, filterRMap := getEnumMap(filterFieldMap, reflect.TypeOf(string("")))
+	return &EnumMapping{Map: sortEMap, ReverseMap: sortRMap}, &EnumMapping{Map: filterEMap, ReverseMap: filterRMap}
+}
+
 // buildPaginatedField corresponds to buildFunction on a paginated type. It wraps the return result
 // of f in a connection type.
 func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, f interface{}) (*graphql.Field, error) {
 	funcCtx := &funcContext{typ: typ}
-
 	fun, err := funcCtx.getFuncVal(&method{Fn: f})
 	if err != nil {
 		return nil, err
@@ -348,8 +371,17 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, f interface{}) (*
 
 	in := funcCtx.getFuncInputTypes()
 	in = funcCtx.consumeContextAndSource(in)
+	if funcCtx.funcType.Out(0).Kind() != reflect.Slice {
+		return nil, fmt.Errorf("paginated field func must return a slice type")
+	}
+	nodeType := funcCtx.funcType.Out(0).Elem()
+	nodeKey, err := sb.getKeyFieldOnStruct(nodeType)
+	if err != nil {
+		return nil, err
+	}
 
-	argParser, argType, in, err := funcCtx.consumePaginatedArgs(sb, in)
+	sortFieldMap, filterFieldMap := getFieldMap(nodeType)
+	argParser, argType, in, err := funcCtx.consumePaginatedArgs(sb, in, sortFieldMap, filterFieldMap)
 	if err != nil {
 		return nil, err
 	}
@@ -370,16 +402,7 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, f interface{}) (*
 
 	// It's safe to assume that there's a return type since the method is marked as non-nullable
 	// when calling parseReturnSignature above.
-	if funcCtx.funcType.Out(0).Kind() != reflect.Slice {
-		return nil, fmt.Errorf("paginated field func must return a slice type")
-	}
-	nodeType := funcCtx.funcType.Out(0).Elem()
 	retType, err := funcCtx.constructConnType(sb, nodeType)
-	if err != nil {
-		return nil, err
-	}
-
-	nodeKey, err := sb.getKeyFieldOnStruct(nodeType)
 	if err != nil {
 		return nil, err
 	}
@@ -415,11 +438,71 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, f interface{}) (*
 	return ret, nil
 }
 
-func (funcCtx *funcContext) extractPaginatedRetAndErr(nodeKey string, out []reflect.Value, args interface{}, retType graphql.Type) (interface{}, error) {
-	var result interface{}
-	connectionArgs, _ := args.(ConnectionArgs)
+func stringMatch(a string, filter string) bool {
+	return true
+}
 
-	result, err := getConnection(nodeKey, castSlice(out[0].Interface()), connectionArgs)
+func applyFiltering(result []interface{}, args ConnectionArgs) []interface{} {
+	if args.FilterBy == nil || args.FilterStr == nil {
+		return result
+	}
+	values := interfaceToValue(result)
+	var filteredValues []reflect.Value
+
+	for _, val := range values {
+		a := val.FieldByName(*args.FilterBy)
+		if stringMatch(a.String(), *args.FilterStr) {
+			filteredValues = append(filteredValues, val)
+		}
+	}
+	result = valueToInterface(filteredValues)
+	return result
+}
+
+func applySorting(result []interface{}, args ConnectionArgs) []interface{} {
+	if (args.SortBy == nil || args.SortOrder == nil) || len(result) == 0 {
+		return result
+	}
+	values := interfaceToValue(result)
+
+	fieldName := *args.SortBy
+	sort.Slice(values, func(i, j int) bool {
+		a := values[i].FieldByName(fieldName)
+		b := values[j].FieldByName(fieldName)
+		if a.Kind() == reflect.Ptr {
+			a = a.Elem()
+			b = b.Elem()
+		}
+		if a.Kind() == reflect.Int ||
+			a.Kind() == reflect.Int8 ||
+			a.Kind() == reflect.Int16 ||
+			a.Kind() == reflect.Int32 ||
+			a.Kind() == reflect.Int64 {
+			return a.Int() < b.Int()
+		}
+		if a.Kind() == reflect.Uint ||
+			a.Kind() == reflect.Uint8 ||
+			a.Kind() == reflect.Uint16 ||
+			a.Kind() == reflect.Uint32 ||
+			a.Kind() == reflect.Uint64 {
+			return a.Uint() < b.Uint()
+		}
+		if a.Kind() == reflect.Float32 ||
+			a.Kind() == reflect.Float64 {
+			return a.Float() < b.Float()
+		}
+		return a.String() < b.String()
+
+	})
+	result = valueToInterface(values)
+	return result
+}
+
+func (funcCtx *funcContext) extractPaginatedRetAndErr(nodeKey string, out []reflect.Value, args interface{}, retType graphql.Type) (interface{}, error) {
+	connectionArgs, _ := args.(ConnectionArgs)
+	sortedRes := applySorting(castSlice(out[0].Interface()), connectionArgs)
+	filteredRes := applyFiltering(sortedRes, connectionArgs)
+	result, err := getConnection(nodeKey, filteredRes, connectionArgs)
 	if err != nil {
 		return nil, err
 	}
@@ -447,9 +530,33 @@ func castSlice(slice interface{}) []interface{} {
 	return ret
 }
 
+func interfaceToValue(slice []interface{}) []reflect.Value {
+	var ret []reflect.Value
+	for i := 0; i < len(slice); i++ {
+		ret = append(ret, reflect.ValueOf(slice[i]))
+	}
+	return ret
+}
+func valueToInterface(slice []reflect.Value) []interface{} {
+	var ret []interface{}
+	for i := 0; i < len(slice); i++ {
+		ret = append(ret, slice[i].Interface())
+	}
+	return ret
+}
+
+func buildSortOrderMap() *EnumMapping {
+	sortOrderMap := map[string]int32{
+		"ascending":  int32(1),
+		"descending": int32(2),
+	}
+	eMap, rMap := getEnumMap(sortOrderMap, reflect.TypeOf(int32(0)))
+	return &EnumMapping{Map: eMap, ReverseMap: rMap}
+}
+
 // buildPaginatedArgParser corresponds to buildArgParser for arguments used on a paginated
 // fieldFunc. The args are nested as the Args field in the ConnectionArgs.
-func (sb *schemaBuilder) buildPaginatedArgParser(originalArgType reflect.Type) (*argParser, graphql.Type, error) {
+func (sb *schemaBuilder) buildPaginatedArgParser(originalArgType reflect.Type, sortFieldMap *EnumMapping, filterFieldMap *EnumMapping) (*argParser, graphql.Type, error) {
 	//nestedArgParser and nestedArgType are used for building the parser function for the args
 	//passed in to the paginated field.
 	typ := reflect.TypeOf(ConnectionArgs{})
@@ -464,9 +571,12 @@ func (sb *schemaBuilder) buildPaginatedArgParser(originalArgType reflect.Type) (
 
 	argType.Name += "_InputObject"
 
+	var nestedArgParser *argParser
+	var nestedArgType graphql.Type
+	var err error
+
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
-
 		// The field which is of type interface should only be one and will be used to parse the
 		// original function args.
 		if field.Type.Kind() == reflect.Interface {
@@ -474,27 +584,35 @@ func (sb *schemaBuilder) buildPaginatedArgParser(originalArgType reflect.Type) (
 		}
 
 		name := makeGraphql(field.Name)
-
 		var parser *argParser
 		var fieldArgTyp graphql.Type
-
-		parser, fieldArgTyp, err := sb.makeArgParser(field.Type)
+		var err error
+		if name == "sortBy" {
+			parser, fieldArgTyp, err = getEnumArgParser(reflect.TypeOf(string("")), sortFieldMap)
+		} else if name == "sortOrder" {
+			parser, fieldArgTyp, err = getEnumArgParser(reflect.TypeOf(int32(1)), buildSortOrderMap())
+		} else if name == "filterBy" {
+			parser, fieldArgTyp, err = getEnumArgParser(reflect.TypeOf(string("")), filterFieldMap)
+		} else {
+			parser, fieldArgTyp, err = sb.makeArgParser(field.Type)
+		}
 		if err != nil {
 			return nil, nil, err
 		}
 
 		argType.InputFields[name] = fieldArgTyp
 
+		if name == "sortBy" || name == "sortOrder" || name == "filterBy" {
+			parser = wrapPtrParser(parser)
+		}
 		fields[name] = argField{
 			field:  field,
 			parser: parser,
 		}
 	}
 
-	var nestedArgParser *argParser
-	var nestedArgType graphql.Type
-	var err error
 	if originalArgType != nil {
+
 		nestedArgParser, nestedArgType, err = sb.makeStructParser(originalArgType)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to build args for paginated field")
@@ -507,6 +625,7 @@ func (sb *schemaBuilder) buildPaginatedArgParser(originalArgType reflect.Type) (
 		for name, typ := range userInputObject.InputFields {
 			argType.InputFields[name] = typ
 		}
+
 	}
 
 	return &argParser{
