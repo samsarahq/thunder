@@ -193,6 +193,86 @@ func TestConnection(t *testing.T) {
 	q = graphql.MustParse(`
 		{
 			inner {
+				innerConnection(additional: "jk") {
+					totalCount
+					edges {
+						node {
+							id
+						}
+						cursor
+					}
+					pageInfo {
+						hasNextPage
+						hasPrevPage
+						startCursor
+						endCursor
+						pages
+					}
+				}
+			}
+	    }`, nil)
+
+	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
+		t.Error(err)
+	}
+	e = graphql.Executor{}
+	val, err = e.Execute(context.Background(), builtSchema.Query, nil, q)
+	assert.Nil(t, err)
+	assert.Equal(t, map[string]interface{}{
+		"inner": map[string]interface{}{
+			"innerConnection": map[string]interface{}{
+				"totalCount": int64(5),
+				"edges": []interface{}{
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": int64(1),
+							"id":    int64(1),
+						},
+						"cursor": "MQ==",
+					},
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": int64(2),
+							"id":    int64(2),
+						},
+						"cursor": "Mg==",
+					},
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": int64(3),
+							"id":    int64(3),
+						},
+						"cursor": "Mw==",
+					},
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": int64(4),
+							"id":    int64(4),
+						},
+						"cursor": "NA==",
+					},
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": int64(5),
+							"id":    int64(5),
+						},
+						"cursor": "NQ==",
+					},
+				},
+				"pageInfo": map[string]interface{}{
+					"hasNextPage": false,
+					"hasPrevPage": false,
+					"startCursor": "MQ==",
+					"endCursor":   "NQ==",
+					"pages":       []interface{}{},
+				},
+			},
+		},
+	}, val)
+
+	q = graphql.MustParse(`
+		{
+			inner {
 				innerConnectionNilArg(first: 1, after: "") {
 					totalCount
 					edges {
