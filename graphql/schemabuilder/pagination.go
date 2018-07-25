@@ -256,7 +256,7 @@ func getConnection(key string, nodes []interface{}, args ConnectionArgs) (Connec
 		}
 		keyString := []byte(fmt.Sprintf("%v", keyValue.FieldByName(key).Interface()))
 		cursorVal := base64.StdEncoding.EncodeToString(keyString)
-		if (int64(i) % lim) == 0 {
+		if lim != 0 && (int64(i)%lim) == 0 {
 			pages = append(pages, cursorVal)
 		}
 		edges = append(edges, Edge{Node: val, Cursor: cursorVal})
