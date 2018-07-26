@@ -102,24 +102,54 @@ var defaultScannableTypes = map[reflect.Type]func() Scannable{
 	reflect.TypeOf(time.Time{}): func() Scannable { return new(mysql.NullTime) },
 }
 
+// IsActuallyScannable checks to see if the type we're mapping actually implements
+// the scannable interface, in which case we can simply write to the value rather
+// than trying to coerce types.
+func IsActuallyScannable(columnType, scannableType reflect.Type) bool {
+	if columnType.Kind() == reflect.Ptr {
+		columnType = columnType.Elem()
+	}
+	if scannableType.Kind() == reflect.Ptr {
+		scannableType = scannableType.Elem()
+	}
+
+	return columnType == scannableType
+}
+
 // BuildStruct constructs a struct value defined by table and based on scannables
 func BuildStruct(table *Table, scannables []interface{}) interface{} {
 	ptr := reflect.New(table.Type)
 	elem := ptr.Elem()
 
 	for i, column := range table.Columns {
-		value, _ := scannables[i].(driver.Valuer).Value()
-		if value == nil {
-			continue
-		}
+		if IsActuallyScannable(column.Type, reflect.TypeOf(scannables[i])) {
+			newValue := reflect.ValueOf(scannables[i])
+			if newValue.Kind() == reflect.Ptr {
+				newValue = newValue.Elem()
+			}
+			if column.Type.Kind() == reflect.Ptr {
+				ptr := reflect.New(column.Type.Elem())
+				ptr.Elem().Set(newValue)
+				newValue = ptr
+			}
 
-		if column.Type.Kind() == reflect.Ptr {
-			ptr := reflect.New(column.Type.Elem())
-			ptr.Elem().Set(reflect.ValueOf(value).Convert(column.Type.Elem()))
-			elem.FieldByIndex(column.Index).Set(ptr)
-
+			fmt.Println(scannables[i], newValue)
+			elem.FieldByIndex(column.Index).Set(newValue)
 		} else {
-			elem.FieldByIndex(column.Index).Set(reflect.ValueOf(value).Convert(column.Type))
+			value, _ := scannables[i].(driver.Valuer).Value()
+			if value == nil {
+				continue
+			}
+
+			if column.Type.Kind() == reflect.Ptr {
+				ptr := reflect.New(column.Type.Elem())
+				ptr.Elem().Set(reflect.ValueOf(value).Convert(column.Type.Elem()))
+				elem.FieldByIndex(column.Index).Set(ptr)
+
+			} else {
+				elem.FieldByIndex(column.Index).Set(reflect.ValueOf(value).Convert(column.Type))
+			}
+			continue
 		}
 	}
 
