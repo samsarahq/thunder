@@ -317,6 +317,26 @@
               {
                 "defaultValue": null,
                 "description": "",
+                "name": "filterBy",
+                "type": {
+                  "kind": "ENUM",
+                  "name": "string",
+                  "ofType": null
+                }
+              },
+              {
+                "defaultValue": null,
+                "description": "",
+                "name": "filterStr",
+                "type": {
+                  "kind": "SCALAR",
+                  "name": "string",
+                  "ofType": null
+                }
+              },
+              {
+                "defaultValue": null,
+                "description": "",
                 "name": "first",
                 "type": {
                   "kind": "SCALAR",
@@ -331,6 +351,26 @@
                 "type": {
                   "kind": "SCALAR",
                   "name": "int64",
+                  "ofType": null
+                }
+              },
+              {
+                "defaultValue": null,
+                "description": "",
+                "name": "sortBy",
+                "type": {
+                  "kind": "ENUM",
+                  "name": "string",
+                  "ofType": null
+                }
+              },
+              {
+                "defaultValue": null,
+                "description": "",
+                "name": "sortOrder",
+                "type": {
+                  "kind": "ENUM",
+                  "name": "int32",
                   "ofType": null
                 }
               }
@@ -374,6 +414,26 @@
               {
                 "defaultValue": null,
                 "description": "",
+                "name": "filterBy",
+                "type": {
+                  "kind": "ENUM",
+                  "name": "string",
+                  "ofType": null
+                }
+              },
+              {
+                "defaultValue": null,
+                "description": "",
+                "name": "filterStr",
+                "type": {
+                  "kind": "SCALAR",
+                  "name": "string",
+                  "ofType": null
+                }
+              },
+              {
+                "defaultValue": null,
+                "description": "",
                 "name": "first",
                 "type": {
                   "kind": "SCALAR",
@@ -388,6 +448,26 @@
                 "type": {
                   "kind": "SCALAR",
                   "name": "int64",
+                  "ofType": null
+                }
+              },
+              {
+                "defaultValue": null,
+                "description": "",
+                "name": "sortBy",
+                "type": {
+                  "kind": "ENUM",
+                  "name": "string",
+                  "ofType": null
+                }
+              },
+              {
+                "defaultValue": null,
+                "description": "",
+                "name": "sortOrder",
+                "type": {
+                  "kind": "ENUM",
+                  "name": "int32",
                   "ofType": null
                 }
               }
@@ -607,6 +687,29 @@
         "interfaces": [],
         "kind": "ENUM",
         "name": "enumType",
+        "possibleTypes": []
+      },
+      {
+        "description": "",
+        "enumValues": [
+          {
+            "deprecationReason": "",
+            "description": "1",
+            "isDeprecated": false,
+            "name": "ascending"
+          },
+          {
+            "deprecationReason": "",
+            "description": "2",
+            "isDeprecated": false,
+            "name": "descending"
+          }
+        ],
+        "fields": [],
+        "inputFields": [],
+        "interfaces": [],
+        "kind": "ENUM",
+        "name": "int32",
         "possibleTypes": []
       },
       {
