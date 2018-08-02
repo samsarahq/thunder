@@ -248,6 +248,9 @@ func getConnection(key string, nodes []interface{}, args ConnectionArgs) (Connec
 	}
 
 	var pages []string
+	if len(nodes) > 0 {
+		pages = append(pages, "")
+	}
 	for i, val := range nodes {
 		// Get the value of the key field and then b64 encode it for the cursor.
 		keyValue := reflect.ValueOf(val)
@@ -256,7 +259,9 @@ func getConnection(key string, nodes []interface{}, args ConnectionArgs) (Connec
 		}
 		keyString := []byte(fmt.Sprintf("%v", keyValue.FieldByName(key).Interface()))
 		cursorVal := base64.StdEncoding.EncodeToString(keyString)
-		if lim != 0 && (int64(i)%lim) == 0 {
+		// If the next cursor is the start cursor of a page then push the current cursor to the
+		// list. If an end cursor is the last cursor, then it cannot be followed by a page.
+		if lim != 0 && i != len(nodes)-1 && (int64(i+1)%lim) == 0 {
 			pages = append(pages, cursorVal)
 		}
 		edges = append(edges, Edge{Node: val, Cursor: cursorVal})
