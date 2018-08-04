@@ -468,7 +468,7 @@ func TestPaginateBuildFailure(t *testing.T) {
 		return nil, nil
 	})
 	_, err = schema.Build()
-	if err == nil || err.Error() != fmt.Sprintf("%v key field doesn't exist on object", badMethodStr) {
+	if err == nil || err.Error() != fmt.Sprintf("%v field doesn't exist on struct", badMethodStr) {
 		t.Errorf("bad error: %v", err)
 	}
 
@@ -521,6 +521,151 @@ func TestPaginateNodeTypeFailure(t *testing.T) {
 	if err == nil || err.Error() != fmt.Sprintf("%s string must be a struct and registered as an object along with its key", badMethodStr) {
 		t.Errorf("bad error: %v", err)
 	}
+
+}
+
+func TestPaginationSort(t *testing.T) {
+
+	schema := schemabuilder.NewSchema()
+	type Inner struct {
+	}
+
+	query := schema.Query()
+	query.FieldFunc("inner", func() Inner {
+		return Inner{}
+	})
+
+	type Ret struct {
+		Name string
+	}
+
+	inner := schema.Object("inner", Inner{})
+	item := schema.Object("item", Item{})
+	item.Key("id")
+	ret := schema.Object("Ret", Ret{})
+	ret.Key("name")
+	inner.PaginateFieldFunc("innerConnection", func(args Args) []Item {
+		retList := make([]Item, 5)
+		retList[0] = Item{Id: 3}
+		retList[1] = Item{Id: 4}
+		retList[2] = Item{Id: 2}
+		retList[3] = Item{Id: 1}
+		retList[4] = Item{Id: 5}
+		return retList
+	})
+	inner.PaginateFieldFunc("innerConnectionDiff", func(args Args) []Ret {
+		retList := make([]Ret, 5)
+		retList[0] = Ret{Name: "e"}
+		retList[1] = Ret{Name: "d"}
+		retList[2] = Ret{Name: "c"}
+		retList[3] = Ret{Name: "b"}
+		retList[4] = Ret{Name: "a"}
+		return retList
+	})
+
+	builtSchema := schema.MustBuild()
+
+	q := graphql.MustParse(`
+		{
+			inner {
+				innerConnection(first: 1, after: "", additional: "jk", sortBy: Id, sortOrder: ascending) {
+					totalCount
+					edges {
+						node {
+							id
+						}
+						cursor
+					}
+					pageInfo {
+						hasNextPage
+						hasPrevPage
+						startCursor
+						endCursor
+					}
+				}
+			}
+	    }`, nil)
+
+	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
+		t.Error(err)
+	}
+
+	e := graphql.Executor{}
+	val, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
+	assert.Nil(t, err)
+
+	assert.Equal(t, map[string]interface{}{
+		"inner": map[string]interface{}{
+			"innerConnection": map[string]interface{}{
+				"totalCount": int64(5),
+				"edges": []interface{}{map[string]interface{}{
+					"node": map[string]interface{}{
+						"__key": int64(1),
+						"id":    int64(1),
+					},
+					"cursor": "MQ==",
+				},
+				},
+				"pageInfo": map[string]interface{}{
+					"hasNextPage": true,
+					"hasPrevPage": false,
+					"startCursor": "MQ==",
+					"endCursor":   "MQ==",
+				},
+			},
+		},
+	}, val)
+
+	q = graphql.MustParse(`
+		{
+			inner {
+				innerConnectionDiff(first: 1, after: "", additional: "jk", sortBy: Name, sortOrder: ascending, filterBy: Name, filterStr: "") {
+					totalCount
+					edges {
+						node {
+							name
+						}
+						cursor
+					}
+					pageInfo {
+						hasNextPage
+						hasPrevPage
+						startCursor
+						endCursor
+					}
+				}
+			}
+	    }`, nil)
+
+	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
+		t.Error(err)
+	}
+
+	e = graphql.Executor{}
+	val, err = e.Execute(context.Background(), builtSchema.Query, nil, q)
+	assert.Nil(t, err)
+
+	assert.Equal(t, map[string]interface{}{
+		"inner": map[string]interface{}{
+			"innerConnectionDiff": map[string]interface{}{
+				"totalCount": int64(5),
+				"edges": []interface{}{map[string]interface{}{
+					"node": map[string]interface{}{
+						"__key": "a",
+						"name":  "a",
+					},
+					"cursor": "YQ==",
+				},
+				},
+				"pageInfo": map[string]interface{}{
+					"hasNextPage": true,
+					"hasPrevPage": false,
+					"startCursor": "YQ==",
+					"endCursor":   "YQ==",
+				},
+			},
+		},
+	}, val)
 
 }
 

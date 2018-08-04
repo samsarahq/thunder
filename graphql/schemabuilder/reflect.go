@@ -232,9 +232,9 @@ func getScalarArgParser(typ reflect.Type) (*argParser, graphql.Type, bool) {
 	return nil, nil, false
 }
 
-func (sb *schemaBuilder) getEnumArgParser(typ reflect.Type) (*argParser, graphql.Type, error) {
+func getEnumArgParser(typ reflect.Type, enumMap *EnumMapping) (*argParser, graphql.Type, error) {
 	var values []string
-	for mapping := range sb.enumMappings[typ].Map {
+	for mapping := range enumMap.Map {
 		values = append(values, mapping)
 	}
 	return &argParser{FromJSON: func(value interface{}, dest reflect.Value) error {
@@ -242,13 +242,13 @@ func (sb *schemaBuilder) getEnumArgParser(typ reflect.Type) (*argParser, graphql
 		if !ok {
 			return errors.New("not a string")
 		}
-		val, ok := sb.enumMappings[typ].Map[asString]
+		val, ok := enumMap.Map[asString]
 		if !ok {
 			return fmt.Errorf("unknown enum value %v", asString)
 		}
 		dest.Set(reflect.ValueOf(val).Convert(dest.Type()))
 		return nil
-	}, Type: typ}, &graphql.Enum{Type: typ.Name(), Values: values, ReverseMap: sb.enumMappings[typ].ReverseMap}, nil
+	}, Type: typ}, &graphql.Enum{Type: typ.Name(), Values: values, ReverseMap: enumMap.ReverseMap}, nil
 
 }
 
@@ -282,7 +282,7 @@ func (sb *schemaBuilder) makeArgParser(typ reflect.Type) (*argParser, graphql.Ty
 
 func (sb *schemaBuilder) makeArgParserInner(typ reflect.Type) (*argParser, graphql.Type, error) {
 	if sb.enumMappings[typ] != nil {
-		parser, argType, _ := sb.getEnumArgParser(typ)
+		parser, argType, _ := getEnumArgParser(typ, sb.enumMappings[typ])
 		return parser, argType, nil
 	}
 
