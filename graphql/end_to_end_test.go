@@ -34,6 +34,83 @@ type Item struct {
 	Id int64
 }
 
+func TestInterface(t *testing.T) {
+
+	type A struct {
+		Name    string
+		Id      int64
+		UniqueA int64
+	}
+
+	type B struct {
+		Name    string
+		Id      int64
+		UniqueB int64
+	}
+
+	type InterfaceType struct {
+		schemabuilder.Interface
+		*A
+		*B
+	}
+	type Inner struct {
+	}
+
+	schema := schemabuilder.NewSchema()
+	query := schema.Query()
+	query.FieldFunc("inner", func() Inner {
+		return Inner{}
+	})
+
+	inner := schema.Object("inner", Inner{})
+	inner.FieldFunc("interfaceType", func() []*InterfaceType {
+		retList := make([]*InterfaceType, 2)
+		retList[0] = &InterfaceType{A: &A{Name: "a", Id: 1, UniqueA: int64(2)}}
+		retList[1] = &InterfaceType{B: &B{Name: "b", Id: 2, UniqueB: int64(3)}}
+		return retList
+	})
+
+	builtSchema := schema.MustBuild()
+	q := graphql.MustParse(`
+		{
+			inner {	
+				interfaceType {
+					name
+					id
+					... on A { uniqueA }
+					... on B { uniqueB }
+				}
+			}
+	    }`, nil)
+
+	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
+		t.Error(err)
+	}
+	e := graphql.Executor{}
+	val, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
+	if err != nil {
+		t.Error(err)
+	}
+
+	assert.Equal(t, map[string]interface{}{
+		"inner": map[string]interface{}{
+			"interfaceType": []interface{}{
+				map[string]interface{}{
+					"id":      int64(1),
+					"name":    "a",
+					"uniqueA": int64(2),
+				},
+				map[string]interface{}{
+					"id":      int64(2),
+					"name":    "b",
+					"uniqueB": int64(3),
+				},
+			},
+		},
+	}, val)
+
+}
+
 func TestConnection(t *testing.T) {
 	schema := schemabuilder.NewSchema()
 	type Inner struct {
