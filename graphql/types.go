@@ -103,6 +103,18 @@ func (u *Union) String() string {
 	return u.Name
 }
 
+type Interface struct {
+	Name        string
+	Description string
+	Types       map[string]*Object
+	Fields      map[string]*Field
+}
+
+func (*Interface) isType() {}
+func (i *Interface) String() string {
+	return i.Name
+}
+
 // Verify *Scalar, *Object, *List, *InputObject, and *NonNull implement Type
 var _ Type = &Scalar{}
 var _ Type = &Object{}
@@ -111,6 +123,7 @@ var _ Type = &InputObject{}
 var _ Type = &NonNull{}
 var _ Type = &Enum{}
 var _ Type = &Union{}
+var _ Type = &Interface{}
 
 // A Resolver calculates the value of a field of an object
 type Resolver func(ctx context.Context, source, args interface{}, selectionSet *SelectionSet) (interface{}, error)
