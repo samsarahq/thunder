@@ -517,3 +517,152 @@ func TestPaginateNodeTypeFailure(t *testing.T) {
 	}
 
 }
+
+type EmbeddedArgs struct {
+	schemabuilder.PaginationArgs
+	Additional string
+}
+
+func TestEmbeddedArgs(t *testing.T) {
+	schema := schemabuilder.NewSchema()
+	type Inner struct {
+	}
+
+	query := schema.Query()
+	query.FieldFunc("inner", func() Inner {
+		return Inner{}
+	})
+
+	inner := schema.Object("inner", Inner{})
+	item := schema.Object("item", Item{})
+	item.Key("id")
+	inner.PaginateFieldFunc("innerConnection", func(args EmbeddedArgs) ([]Item, schemabuilder.PaginationInfo, error) {
+		retList := make([]Item, 5)
+		retList[0] = Item{Id: 1}
+		retList[1] = Item{Id: 2}
+		retList[2] = Item{Id: 3}
+		retList[3] = Item{Id: 4}
+		retList[4] = Item{Id: 5}
+		return retList,
+			schemabuilder.PaginationInfo{
+				HasNextPage: true,
+				HasPrevPage: false,
+				TotalCount:  func() int64 { return int64(5) },
+			}, nil
+	})
+	builtSchema := schema.MustBuild()
+	q := graphql.MustParse(`
+		{
+			inner {
+				innerConnection(first: 1, after: "", additional: "jk") {
+					totalCount
+					edges {
+						node {
+							id
+						}
+						cursor
+					}
+					pageInfo {
+						hasNextPage
+						hasPrevPage
+						startCursor
+						endCursor
+					}
+				}
+			}
+	    }`, nil)
+
+	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
+		t.Error(err)
+	}
+	e := graphql.Executor{}
+	val, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
+	assert.Nil(t, err)
+
+	assert.Equal(t, map[string]interface{}{
+		"inner": map[string]interface{}{
+			"innerConnection": map[string]interface{}{
+				"totalCount": int64(5),
+				"edges": []interface{}{map[string]interface{}{
+					"node": map[string]interface{}{
+						"__key": int64(1),
+						"id":    int64(1),
+					},
+					"cursor": "MQ==",
+				},
+				},
+				"pageInfo": map[string]interface{}{
+					"hasNextPage": true,
+					"hasPrevPage": false,
+					"startCursor": "MQ==",
+					"endCursor":   "MQ==",
+				},
+			},
+		},
+	}, val)
+
+	schema = schemabuilder.NewSchema()
+
+	query = schema.Query()
+	query.FieldFunc("inner", func() Inner {
+		return Inner{}
+	})
+
+	inner = schema.Object("inner", Inner{})
+	item = schema.Object("item", Item{})
+	item.Key("id")
+	inner.PaginateFieldFunc("innerConnection", func(args struct {
+		schemabuilder.PaginationArgs
+		First string
+	}) []Item {
+		retList := make([]Item, 5)
+		retList[0] = Item{Id: 1}
+		retList[1] = Item{Id: 2}
+		retList[2] = Item{Id: 3}
+		retList[3] = Item{Id: 4}
+		retList[4] = Item{Id: 5}
+		return retList
+	})
+	_, err = schema.Build()
+
+	badMethodStr := "bad method inner on type schemabuilder.query:"
+	if err == nil || err.Error() != fmt.Sprintf("%v these arg names are restricted: First, After, Last and Before", badMethodStr) {
+		t.Errorf("bad error: %v", err)
+	}
+
+}
+
+func TestEmbeddedFail(t *testing.T) {
+	schema := schemabuilder.NewSchema()
+	type Inner struct {
+	}
+
+	query := schema.Query()
+	query.FieldFunc("inner", func() Inner {
+		return Inner{}
+	})
+
+	inner := schema.Object("inner", Inner{})
+	item := schema.Object("item", Item{})
+	item.Key("id")
+	inner.PaginateFieldFunc("innerConnection", func(args EmbeddedArgs) ([]Item, schemabuilder.PaginationInfo, error) {
+		retList := make([]Item, 5)
+		retList[0] = Item{Id: 1}
+		retList[1] = Item{Id: 2}
+		retList[2] = Item{Id: 3}
+		retList[3] = Item{Id: 4}
+		retList[4] = Item{Id: 5}
+		return retList,
+			schemabuilder.PaginationInfo{
+				HasNextPage: true,
+				HasPrevPage: false,
+				TotalCount:  func() int64 { return int64(5) },
+			}, nil
+	})
+
+	badMethodStr := "bad method inner on type schemabuilder.query:"
+	_, err := schema.Build()
+	if err != nil && err.Error() != fmt.Sprintf("%s if pagination args are embedded then pagination info must be included as a return value", badMethodStr) {
+		t.Errorf("bad error: %v", err)
+	}
+}
