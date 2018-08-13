@@ -639,7 +639,7 @@ func (sb *schemaBuilder) buildEmbeddedPaginatedArgParser(typ reflect.Type) (*arg
 	}
 	for name, objField := range pagObj.InputFields {
 		if _, ok := argType.InputFields[name]; ok {
-			return nil, nil, fmt.Errorf("These arg names are restricted: First, After, Last and Before")
+			return nil, nil, fmt.Errorf("these arg names are restricted: First, After, Last and Before")
 		}
 		argType.InputFields[name] = objField
 	}
