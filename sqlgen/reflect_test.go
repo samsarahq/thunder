@@ -95,11 +95,11 @@ func TestRegisterType(t *testing.T) {
 		t.Error("expected duplicate fields to fail")
 	}
 
-	if err := s.RegisterType("e", AutoIncrement, &anonymous{}); err == nil {
+	if err := s.RegisterType("e", AutoIncrement, anonymous{}); err == nil {
 		t.Error("expected anonymous fields to fail")
 	}
 
-	if err := s.RegisterType("f", AutoIncrement, &unsupported{}); err == nil {
+	if err := s.RegisterType("f", AutoIncrement, unsupported{}); err == nil {
 		t.Error("expected unsupported fields to fail")
 	}
 }
