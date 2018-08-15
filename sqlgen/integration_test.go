@@ -2,68 +2,17 @@ package sqlgen
 
 import (
 	"context"
-	"database/sql"
-	"database/sql/driver"
-	"fmt"
-	"math/rand"
 	"testing"
 	"time"
 
 	"github.com/kylelemons/godebug/pretty"
+	"github.com/samsarahq/thunder/testfixtures"
 )
 
-const base = "root:@tcp(localhost:3307)/"
-
-type TestDatabase struct {
-	ControlDB *sql.DB
-	DBName    string
-	*sql.DB
-}
-
-func NewTestDatabase() (*TestDatabase, error) {
-	controlDb, err := sql.Open("mysql", base)
-	if err != nil {
-		return nil, err
-	}
-
-	name := fmt.Sprintf("thunder_test_%d", rand.Intn(1<<30))
-	_, err = controlDb.Exec(fmt.Sprintf("CREATE DATABASE %s", name))
-	if err != nil {
-		controlDb.Close()
-		return nil, err
-	}
-
-	db, err := sql.Open("mysql", base+name)
-	if err != nil {
-		controlDb.Close()
-		return nil, err
-	}
-
-	return &TestDatabase{
-		DB:        db,
-		DBName:    name,
-		ControlDB: controlDb,
-	}, nil
-}
-
-func firstError(errs ...error) error {
-	for _, err := range errs {
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (t *TestDatabase) Close() error {
-	first := t.DB.Close()
-	_, second := t.ControlDB.Exec(fmt.Sprintf("DROP DATABASE %s", t.DBName))
-	third := t.ControlDB.Close()
-	return firstError(first, second, third)
-}
+var config = testfixtures.DefaultDBConfig
 
 func TestContextDeadlineEnforced(t *testing.T) {
-	testDb, err := NewTestDatabase()
+	testDb, err := testfixtures.NewTestDatabase()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,29 +28,8 @@ func TestContextDeadlineEnforced(t *testing.T) {
 	}
 }
 
-type mockType []byte
-
-func (u *mockType) Value() (driver.Value, error) {
-	return []byte(*u), nil
-}
-
-func (u *mockType) Scan(value interface{}) error {
-	switch value := value.(type) {
-	case nil:
-		u = nil
-	case []byte:
-		*u = make(mockType, len(value))
-		copy(*u, value)
-	case string:
-		*u = mockType(value)
-	default:
-		return fmt.Errorf("cannot convert %v (of type %T) to %T", value, value, u)
-	}
-	return nil
-}
-
 func TestIntegrationBasic(t *testing.T) {
-	testDb, err := NewTestDatabase()
+	testDb, err := testfixtures.NewTestDatabase()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,15 +50,15 @@ func TestIntegrationBasic(t *testing.T) {
 	type User struct {
 		Id   int64 `sql:",primary"`
 		Name string
-		Uuid mockType
-		Mood *mockType
+		Uuid testfixtures.CustomType
+		Mood *testfixtures.CustomType
 	}
 	schema := NewSchema()
 	schema.MustRegisterType("users", AutoIncrement, User{})
-	mood := mockType("foooooo")
+	mood := testfixtures.CustomType{'f', 'o', 'o', 'o', 'o', 'o', 'o'}
 
 	db := NewDB(testDb.DB, schema)
-	if _, err := db.InsertRow(context.Background(), &User{Name: "Bob", Uuid: mockType("11238491293"), Mood: &mood}); err != nil {
+	if _, err := db.InsertRow(context.Background(), &User{Name: "Bob", Uuid: testfixtures.CustomType{'1', '1', '2', '3', '8', '4', '9', '1', '2', '9', '3'}, Mood: &mood}); err != nil {
 		t.Error(err)
 	}
 
@@ -143,7 +71,7 @@ func TestIntegrationBasic(t *testing.T) {
 		{
 			Id:   1,
 			Name: "Bob",
-			Uuid: mockType("11238491293"),
+			Uuid: testfixtures.CustomType{'1', '1', '2', '3', '8', '4', '9', '1', '2', '9', '3'},
 			Mood: &mood,
 		},
 	}); diff != "" {
@@ -155,7 +83,7 @@ func TestIntegrationBasic(t *testing.T) {
 // always get context.Canceled back from sql library. This
 // affects our error handling and we need to be aware of it.
 func TestContextCancelBeforeRowsScan(t *testing.T) {
-	testDb, err := NewTestDatabase()
+	testDb, err := testfixtures.NewTestDatabase()
 	if err != nil {
 		t.Fatal(err)
 	}
