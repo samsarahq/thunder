@@ -79,21 +79,21 @@ func TestContextDeadlineEnforced(t *testing.T) {
 	}
 }
 
-type mockType []byte
+type mockType [16]byte
 
-func (u *mockType) Value() (driver.Value, error) {
-	return []byte(*u), nil
+func (u mockType) Value() (driver.Value, error) {
+	return []byte(u[:]), nil
 }
 
 func (u *mockType) Scan(value interface{}) error {
 	switch value := value.(type) {
 	case nil:
 		u = nil
-	case []byte:
-		*u = make(mockType, len(value))
-		copy(*u, value)
 	case string:
-		*u = mockType(value)
+		b := []byte(value)
+		copy(u[:], b)
+	case []byte:
+		copy(u[:], value)
 	default:
 		return fmt.Errorf("cannot convert %v (of type %T) to %T", value, value, u)
 	}
@@ -127,10 +127,11 @@ func TestIntegrationBasic(t *testing.T) {
 	}
 	schema := NewSchema()
 	schema.MustRegisterType("users", AutoIncrement, User{})
-	mood := mockType("foooooo")
+	mood := mockType{'f', 'o', 'o', 'o', 'o', 'o'}
+	uuid := mockType{'1', '1', '2', '3', '8', '4', '9', '1', '2', '9', '3'}
 
 	db := NewDB(testDb.DB, schema)
-	if _, err := db.InsertRow(context.Background(), &User{Name: "Bob", Uuid: mockType("11238491293"), Mood: &mood}); err != nil {
+	if _, err := db.InsertRow(context.Background(), &User{Name: "Bob", Uuid: uuid, Mood: &mood}); err != nil {
 		t.Error(err)
 	}
 
@@ -139,14 +140,12 @@ func TestIntegrationBasic(t *testing.T) {
 		t.Error(err)
 	}
 
-	if diff := pretty.Compare(users, []*User{
-		{
-			Id:   1,
-			Name: "Bob",
-			Uuid: mockType("11238491293"),
-			Mood: &mood,
-		},
-	}); diff != "" {
+	if diff := pretty.Compare([]*User{{
+		Id:   1,
+		Name: "Bob",
+		Uuid: uuid,
+		Mood: &mood,
+	}}, users); diff != "" {
 		t.Errorf("diff: %s", diff)
 	}
 }
