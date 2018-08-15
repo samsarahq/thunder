@@ -8,7 +8,7 @@ import (
 	"github.com/samsarahq/thunder/livesql"
 	"github.com/samsarahq/thunder/reactive"
 	"github.com/samsarahq/thunder/sqlgen"
-	"github.com/samsarahq/thunder/testfixtures"
+	"github.com/samsarahq/thunder/internal/testfixtures"
 	"github.com/stretchr/testify/assert"
 )
 

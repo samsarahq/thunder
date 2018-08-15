@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/kylelemons/godebug/pretty"
-	"github.com/samsarahq/thunder/testfixtures"
+	"github.com/samsarahq/thunder/internal/testfixtures"
 )
 
 var config = testfixtures.DefaultDBConfig
