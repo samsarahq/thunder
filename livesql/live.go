@@ -191,3 +191,7 @@ func (ldb *LiveDB) QueryRow(ctx context.Context, result interface{}, filter sqlg
 
 	return sqlgen.CopySingletonSlice(result, rows)
 }
+
+func (ldb *LiveDB) Close() error {
+	return ldb.Conn.Close()
+}
