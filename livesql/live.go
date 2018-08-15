@@ -89,7 +89,11 @@ func (t *dbTracker) registerDependency(ctx context.Context, table string, tester
 	t.add(r)
 }
 
-// LiveDB is a SQL client that supports live updating queries
+// LiveDB is a SQL client that supports live updating queries.
+// It relies on a reactive.Rerunner being in the context to register changes in the database (which
+// are propagated through said rerunner to its clients). Without this rerunner being in the context
+// it falls back to non-live (sqlgen) behavior.
+// See https://godoc.org/github.com/samsarahq/thunder/reactive for information on reactive.
 type LiveDB struct {
 	*sqlgen.DB
 
@@ -111,6 +115,8 @@ type queryCacheKey struct {
 
 // query reactively performs a SelectQuery
 func (ldb *LiveDB) query(ctx context.Context, query *sqlgen.BaseSelectQuery) ([]interface{}, error) {
+	// Fall back to sqlgen querying if there is no reactive rerunner present or if we're in
+	// a transaction.
 	if !reactive.HasRerunner(ctx) || ldb.HasTx(ctx) {
 		return ldb.DB.BaseQuery(ctx, query)
 	}
