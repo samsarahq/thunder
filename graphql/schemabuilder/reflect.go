@@ -749,6 +749,68 @@ func (sb *schemaBuilder) buildField(field reflect.StructField) (*graphql.Field, 
 	}, nil
 }
 
+func (sb *schemaBuilder) buildInterfaceStruct(typ reflect.Type) error {
+	var name string
+	var description string
+
+	if name == "" {
+		name = typ.Name()
+		if name == "" {
+			return fmt.Errorf("bad type %s: should have a name", typ)
+		}
+	}
+
+	interfaceType := &graphql.Interface{
+		Name:        name,
+		Description: description,
+		Types:       make(map[string]*graphql.Object),
+		Fields:      make(map[string]*graphql.Field),
+	}
+	sb.types[typ] = interfaceType
+	var fieldMap map[string]*graphql.Field
+	for i := 0; i < typ.NumField(); i++ {
+		field := typ.Field(i)
+		if field.PkgPath != "" || (field.Anonymous && field.Type == reflect.TypeOf(Interface{})) {
+			continue
+		}
+		if !field.Anonymous {
+			return fmt.Errorf("bad type %s: interface type member types must be anonymous", name)
+		}
+		typ, err := sb.getType(field.Type)
+		if err != nil {
+			return err
+		}
+
+		obj, ok := typ.(*graphql.Object)
+		if !ok {
+			return fmt.Errorf("bad type %s: interface type member must be a pointer to a struct, received %s", name, typ.String())
+		}
+
+		if interfaceType.Types[obj.Name] != nil {
+			return fmt.Errorf("bad type %s: interface type member may only appear once", name)
+		}
+
+		interfaceType.Types[obj.Name] = obj
+
+		if fieldMap == nil {
+			fieldMap = make(map[string]*graphql.Field)
+			for name, field := range obj.Fields {
+				fieldMap[name] = field
+			}
+		} else {
+			for name, field := range fieldMap {
+				fieldType, ok := obj.Fields[name]
+				if (ok && (field.Type.String() != fieldType.Type.String() || !reflect.DeepEqual(field.Args, fieldType.Args))) || !ok {
+					delete(fieldMap, name)
+				}
+			}
+		}
+
+	}
+	interfaceType.Fields = fieldMap
+	return nil
+}
+
 func (sb *schemaBuilder) buildUnionStruct(typ reflect.Type) error {
 	var name string
 	var description string
@@ -807,6 +869,8 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 
 	if hasUnionMarkerEmbedded(typ) {
 		return sb.buildUnionStruct(typ)
+	} else if hasInterfaceMarkerEmbedded(typ) {
+		return sb.buildInterfaceStruct(typ)
 	}
 
 	var name string
@@ -966,6 +1030,16 @@ func hasUnionMarkerEmbedded(typ reflect.Type) bool {
 	return false
 }
 
+func hasInterfaceMarkerEmbedded(typ reflect.Type) bool {
+	for i := 0; i < typ.NumField(); i++ {
+		field := typ.Field(i)
+		if field.Anonymous && field.Type == reflect.TypeOf(Interface{}) {
+			return true
+		}
+	}
+	return false
+}
+
 func (sb *schemaBuilder) getType(t reflect.Type) (graphql.Type, error) {
 	// Support scalars and optional scalars. Scalars have precedence over structs
 	// to have eg. time.Time function as a scalar.
@@ -1016,8 +1090,9 @@ func (sb *schemaBuilder) getType(t reflect.Type) (graphql.Type, error) {
 }
 
 type Schema struct {
-	objects   map[string]*Object
-	enumTypes map[reflect.Type]*EnumMapping
+	objects        map[string]*Object
+	interfaceTypes map[reflect.Type]*InterfaceObj
+	enumTypes      map[reflect.Type]*EnumMapping
 }
 
 func NewSchema() *Schema {
@@ -1052,6 +1127,14 @@ func (s *Schema) Enum(val interface{}, enumMap interface{}) {
 
 	eMap, rMap := getEnumMap(enumMap, typ)
 	s.enumTypes[typ] = &EnumMapping{Map: eMap, ReverseMap: rMap}
+}
+
+func (s *Schema) Interface(interfaceStruct interface{}, fields interface{}) {
+	structType := reflect.TypeOf(interfaceStruct)
+	if _, ok := s.interfaceTypes[structType]; ok {
+		panic("interface structs with same type registered")
+	}
+	s.interfaceTypes[structType] = &InterfaceObj{Struct: structType, Type: fields}
 }
 
 func getEnumMap(enumMap interface{}, typ reflect.Type) (map[string]interface{}, map[interface{}]string) {

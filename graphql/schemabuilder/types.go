@@ -14,6 +14,11 @@ type Object struct {
 	key string
 }
 
+type InterfaceObj struct {
+	Struct reflect.Type
+	Type   interface{}
+}
+
 type paginationObject struct {
 	Name string
 	Fn   interface{}
@@ -97,5 +102,7 @@ type Methods map[string]*method
 // Fields returning a union type should expect to return this type as a
 // one-hot struct, i.e. only Asset or Vehicle should be specified, but not both.
 type Union struct{}
+
+type Interface struct{}
 
 var unionType = reflect.TypeOf(Union{})
