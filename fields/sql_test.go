@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/samsarahq/thunder/fields"
+	"github.com/samsarahq/thunder/internal/proto"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -201,4 +202,16 @@ func TestField_ValidateSQLType(t *testing.T) {
 			assert.NoError(t, err)
 		}
 	}
+}
+
+func TestField_SupportsProtobuf(t *testing.T) {
+	event := &proto.ExampleEvent{Table: "users"}
+	descriptor := fields.New(reflect.TypeOf(event), []string{"binary"})
+	valuer := descriptor.Valuer(reflect.ValueOf(event))
+	b, err := valuer.Value()
+	assert.NoError(t, err)
+
+	scanner := descriptor.Scanner()
+	scanner.Scan(b)
+	assert.Equal(t, *event, scanner.Interface())
 }
