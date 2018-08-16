@@ -232,7 +232,7 @@ func getScalarArgParser(typ reflect.Type) (*argParser, graphql.Type, bool) {
 	return nil, nil, false
 }
 
-func (sb *schemaBuilder) getEnumArgParser(typ reflect.Type) (*argParser, graphql.Type, error) {
+func (sb *schemaBuilder) getEnumArgParser(typ reflect.Type) (*argParser, graphql.Type) {
 	var values []string
 	for mapping := range sb.enumMappings[typ].Map {
 		values = append(values, mapping)
@@ -248,7 +248,7 @@ func (sb *schemaBuilder) getEnumArgParser(typ reflect.Type) (*argParser, graphql
 		}
 		dest.Set(reflect.ValueOf(val).Convert(dest.Type()))
 		return nil
-	}, Type: typ}, &graphql.Enum{Type: typ.Name(), Values: values, ReverseMap: sb.enumMappings[typ].ReverseMap}, nil
+	}, Type: typ}, &graphql.Enum{Type: typ.Name(), Values: values, ReverseMap: sb.enumMappings[typ].ReverseMap}
 
 }
 
@@ -282,7 +282,7 @@ func (sb *schemaBuilder) makeArgParser(typ reflect.Type) (*argParser, graphql.Ty
 
 func (sb *schemaBuilder) makeArgParserInner(typ reflect.Type) (*argParser, graphql.Type, error) {
 	if sb.enumMappings[typ] != nil {
-		parser, argType, _ := sb.getEnumArgParser(typ)
+		parser, argType := sb.getEnumArgParser(typ)
 		return parser, argType, nil
 	}
 
