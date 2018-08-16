@@ -1,0 +1,107 @@
+package fields
+
+import (
+	"database/sql/driver"
+	"encoding"
+	"encoding/json"
+	"reflect"
+)
+
+// Valuer fulfills the sql/driver.Valuer interface which deserializes our
+// struct field value into a valid SQL value.
+type Valuer struct {
+	*Descriptor
+	value reflect.Value
+}
+
+// Value satisfies the sql/driver.Valuer interface.
+// The value should be one of the following:
+//    int64
+//    float64
+//    bool
+//    []byte
+//    string
+//    time.Time
+//    nil - for NULL values
+func (f Valuer) Value() (driver.Value, error) {
+	// Return early if the value is nil. Ideally we would do a `i == nil` comparison here, but
+	// unfortunately for us, `nil` is typed and that would always return false. This has to be
+	// before `.Interface()` as that method panics otherwise.
+	switch f.value.Kind() {
+	// IsNil panics if the value isn't one of these kinds.
+	case reflect.Chan, reflect.Map, reflect.Func,
+		reflect.Ptr, reflect.Interface, reflect.Slice:
+		if f.value.IsNil() {
+			return nil, nil
+		}
+	case reflect.Invalid:
+		return nil, nil
+	}
+
+	i := f.value.Interface()
+
+	// If our interface supports driver.Valuer we can immediately short-circuit as this is what the
+	// MySQL driver would do.
+	if valuer, ok := i.(driver.Valuer); ok {
+		return valuer.Value()
+	}
+
+	// Override serialization behavior with tags (these take precedence over how a type would
+	// usually be serialized).
+	// Example:
+	// struct {
+	//   Blob proto.Blob `sql:",binary"`       // ensures that Marshal or MarshalBinary is used.
+	//   IP IP `sql:",string"`                 // ensures that its MarshalText method
+	//	                                       // is used for serialization.
+	//   JSON map[string]string `sql:",json"`  // ensures that json.Marshal is used on the value.
+	// }
+	switch {
+	case f.Tags.Contains("binary"):
+		if iface, ok := i.(marshaler); ok {
+			return iface.Marshal()
+		}
+		if iface, ok := i.(encoding.BinaryMarshaler); ok {
+			return iface.MarshalBinary()
+		}
+	case f.Tags.Contains("string"):
+		if iface, ok := i.(encoding.TextMarshaler); ok {
+			return iface.MarshalText()
+		}
+	case f.Tags.Contains("json"):
+		if iface, ok := i.(json.Marshaler); ok {
+			return iface.MarshalJSON()
+		}
+		return json.Marshal(i)
+	}
+
+	// At this point we have already handled `nil` above, so we can assume that all
+	// other values can be coerced into dereferenced types of bool/int/float/string.
+	if f.value.Kind() == reflect.Ptr {
+		f.value = f.value.Elem()
+	}
+
+	// Coerce our value into a valid sql/driver.Value (see sql/driver.IsValue).
+	// This not only converts base types into their sql counterparts (like int32 -> int64) but also
+	// handles custom types (like `type customString string` -> string).
+	switch f.Kind {
+	case reflect.Bool:
+		return f.value.Bool(), nil
+	case
+		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return f.value.Int(), nil
+	case reflect.Float32, reflect.Float64:
+		return f.value.Float(), nil
+	case reflect.String:
+		return f.value.String(), nil
+	}
+
+	// If we can't figure out what the type is supposed to be, we pass it straight through to SQL,
+	// which will return an error if it can't handle it.
+	// This means we don't have to handle []byte or time.Time specially, since they'll just pass on
+	// through.
+	return f.value.Interface(), nil
+}
+
+var _ driver.Valuer = Valuer{}
+var _ driver.Valuer = &Valuer{}

@@ -25,3 +25,11 @@ func New(t reflect.Type, tags []string) *Descriptor {
 
 	return it
 }
+
+// Valuer creates a sql/driver.Valuer from the type and value.
+func (d Descriptor) Valuer(val reflect.Value) Valuer {
+	// Ideally we would de-reference pointers here in order to simplify how we work with the value.
+	// However, some interfaces (I'm looking at you, gogo/protobuf) implement their methods as
+	// pointer methods.
+	return Valuer{Descriptor: &d, value: val}
+}
