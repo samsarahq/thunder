@@ -1,6 +1,10 @@
 package fields
 
-import "reflect"
+import (
+	"database/sql/driver"
+	"fmt"
+	"reflect"
+)
 
 // Descriptor is a cache object that holds onto relevant information about our struct field and
 // allows us not to worry about dealing with pointers during the coercion process.
@@ -36,3 +40,16 @@ func (d Descriptor) Valuer(val reflect.Value) Valuer {
 
 // Scanner creates a sql.Scanner from the descriptor.
 func (d Descriptor) Scanner() *Scanner { return &Scanner{Descriptor: &d} }
+
+// ValidateSQLType checks to see if the field is a valid SQL value.
+func (d Descriptor) ValidateSQLType() error {
+	valuer := d.Valuer(reflect.Zero(d.Type))
+	val, err := valuer.Value()
+	if err != nil {
+		return err
+	}
+	if ok := driver.IsValue(val); !ok {
+		return fmt.Errorf("%T is not a valid SQL type", val)
+	}
+	return d.Scanner().Scan(val)
+}
