@@ -49,6 +49,19 @@ const (
 	UniqueId
 )
 
+// UnbuildStruct extracts SQL values from a struct
+func UnbuildStruct(table *Table, strct interface{}) []interface{} {
+	elem := reflect.ValueOf(strct).Elem()
+	values := make([]interface{}, len(table.Columns))
+
+	for i, column := range table.Columns {
+		val := elem.FieldByIndex(column.Index)
+		values[i] = column.Descriptor.Valuer(val)
+	}
+
+	return values
+}
+
 // BuildStruct constructs a struct value defined by table and field values.
 func BuildStruct(table *Table, scanners []*fields.Scanner) interface{} {
 	ptr := reflect.New(table.Type)
@@ -319,7 +332,7 @@ func makeWhere(table *Table, filter Filter) (*SimpleWhere, error) {
 			return nil, fmt.Errorf("unknown column %s", name)
 		}
 
-		l = append(l, whereElem{column: column, value: value})
+		l = append(l, whereElem{column: column, value: column.Descriptor.Valuer(reflect.ValueOf(value))})
 	}
 
 	sort.Sort(l)
@@ -457,23 +470,21 @@ func (s *Schema) MakeInsertRow(row interface{}) (*InsertQuery, error) {
 	if err != nil {
 		return nil, err
 	}
-	elem := ptr.Elem()
-
 	table, err := s.get(typ)
 	if err != nil {
 		return nil, err
 	}
 
+	allValues := UnbuildStruct(table, row)
 	var columns []string
 	var values []interface{}
 
-	for _, column := range table.Columns {
+	for i, column := range table.Columns {
 		if column.Primary && table.PrimaryKeyType == AutoIncrement {
 			continue
 		}
-		value := coerce(elem.FieldByIndex(column.Index))
 		columns = append(columns, column.Name)
-		values = append(values, value)
+		values = append(values, allValues[i])
 	}
 
 	return &InsertQuery{
@@ -490,7 +501,6 @@ func (s *Schema) MakeUpsertRow(row interface{}) (*UpsertQuery, error) {
 	if err != nil {
 		return nil, err
 	}
-	elem := ptr.Elem()
 
 	table, err := s.get(typ)
 	if err != nil {
@@ -501,13 +511,10 @@ func (s *Schema) MakeUpsertRow(row interface{}) (*UpsertQuery, error) {
 		return nil, errors.New("upsert only supports unique value primary keys")
 	}
 
+	values := UnbuildStruct(table, row)
 	var columns []string
-	var values []interface{}
-
 	for _, column := range table.Columns {
-		value := coerce(elem.FieldByIndex(column.Index))
 		columns = append(columns, column.Name)
-		values = append(values, value)
 	}
 
 	return &UpsertQuery{
@@ -524,24 +531,23 @@ func (s *Schema) MakeUpdateRow(row interface{}) (*UpdateQuery, error) {
 	if err != nil {
 		return nil, err
 	}
-	elem := ptr.Elem()
 
 	table, err := s.get(typ)
 	if err != nil {
 		return nil, err
 	}
 
+	allValues := UnbuildStruct(table, row)
 	var columns, whereColumns []string
 	var values, whereValues []interface{}
 
-	for _, column := range table.Columns {
-		value := coerce(elem.FieldByIndex(column.Index))
+	for i, column := range table.Columns {
 		if column.Primary {
 			whereColumns = append(whereColumns, column.Name)
-			whereValues = append(whereValues, value)
+			whereValues = append(whereValues, allValues[i])
 		} else {
 			columns = append(columns, column.Name)
-			values = append(values, value)
+			values = append(values, allValues[i])
 		}
 	}
 
@@ -563,24 +569,21 @@ func (s *Schema) MakeDeleteRow(row interface{}) (*DeleteQuery, error) {
 	if err != nil {
 		return nil, err
 	}
-	elem := ptr.Elem()
-
 	table, err := s.get(typ)
 	if err != nil {
 		return nil, err
 	}
 
+	allValues := UnbuildStruct(table, row)
 	var columns []string
 	var values []interface{}
-
-	for _, column := range table.Columns {
+	for i, column := range table.Columns {
 		if !column.Primary {
 			continue
 		}
 
-		value := coerce(elem.FieldByIndex(column.Index))
 		columns = append(columns, column.Name)
-		values = append(values, value)
+		values = append(values, allValues[i])
 	}
 
 	return &DeleteQuery{
