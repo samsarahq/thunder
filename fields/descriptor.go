@@ -53,3 +53,20 @@ func (d Descriptor) ValidateSQLType() error {
 	}
 	return d.Scanner().Scan(val)
 }
+
+func (d Descriptor) copy(from, to reflect.Value, isValid bool) {
+	// Set non-pointer by setting reference
+	if !d.Ptr {
+		to.Set(from)
+		return
+	}
+
+	if !isValid {
+		return
+	}
+
+	// Set pointer by creating a new reference.
+	tmp := reflect.New(d.Type)
+	tmp.Elem().Set(from)
+	to.Set(tmp)
+}
