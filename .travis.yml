@@ -8,7 +8,7 @@ before_install:
   - go get github.com/mattn/goveralls
   - docker-compose -f ci/docker-compose.yml up -d
 
-script: "go test -v ./... -coverprofile=coverage.out -covermode=atomic"
+script: "go test -v ./... -coverprofile=coverage.out -covermode=atomic -bench=./..."
 
 after_success:
   - "$GOPATH/bin/goveralls -coverprofile=coverage.out -service=travis-ci -repotoken=$COVERALLS_TOKEN"
