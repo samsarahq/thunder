@@ -122,3 +122,52 @@ func TestContextCancelBeforeRowsScan(t *testing.T) {
 		t.Fatalf("expecting context.Canceled from rows.Err(), got %v", err)
 	}
 }
+
+func Benchmark(b *testing.B) {
+	tdb, db, err := setup()
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer tdb.Close()
+
+	ctx := context.Background()
+
+	mood := testfixtures.CustomType{'f', 'o', 'o', 'o', 'o', 'o', 'o'}
+	user := &User{
+		Id:   1,
+		Name: "Bob",
+		Uuid: testfixtures.CustomType{'1', '1', '2', '3', '8', '4', '9', '1', '2', '9', '3'},
+		Mood: &mood,
+	}
+
+	if _, err := db.InsertRow(ctx, user); err != nil {
+		b.Fatal(err)
+	}
+
+	benchmarks := []struct {
+		name string
+		fn   func() error
+	}{
+		{"Read", func() error {
+			user := &User{}
+			return db.QueryRow(ctx, &user, nil, nil)
+		}},
+		{"Create", func() error {
+			_, err := db.InsertRow(ctx, user)
+			return err
+		}},
+		{"Update", func() error { return db.UpdateRow(ctx, user) }},
+		{"Delete", func() error { return db.DeleteRow(ctx, user) }},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				if err := bm.fn(); err != nil {
+					b.Error(err)
+				}
+			}
+		})
+	}
+}
