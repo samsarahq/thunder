@@ -9,17 +9,41 @@ import (
 	"github.com/samsarahq/thunder/internal/testfixtures"
 )
 
-var config = testfixtures.DefaultDBConfig
+func setup() (*testfixtures.TestDatabase, *DB, error) {
+	testDb, err := testfixtures.NewTestDatabase()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if _, err = testDb.Exec(`
+		CREATE TABLE users (
+			id   BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+			name VARCHAR(255),
+			uuid VARCHAR(255),
+			mood VARCHAR(255)
+		)
+	`); err != nil {
+		return nil, nil, err
+	}
+	schema := NewSchema()
+	schema.MustRegisterType("users", AutoIncrement, User{})
+
+	return testDb, NewDB(testDb.DB, schema), nil
+}
+
+type User struct {
+	Id   int64 `sql:",primary"`
+	Name string
+	Uuid testfixtures.CustomType
+	Mood *testfixtures.CustomType
+}
 
 func TestContextDeadlineEnforced(t *testing.T) {
-	testDb, err := testfixtures.NewTestDatabase()
+	tdb, db, err := setup()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer testDb.Close()
-
-	schema := NewSchema()
-	db := NewDB(testDb.DB, schema)
+	defer tdb.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
@@ -29,35 +53,14 @@ func TestContextDeadlineEnforced(t *testing.T) {
 }
 
 func TestIntegrationBasic(t *testing.T) {
-	testDb, err := testfixtures.NewTestDatabase()
+	tdb, db, err := setup()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer testDb.Close()
+	defer tdb.Close()
 
-	_, err = testDb.Exec(`
-		CREATE TABLE users (
-			id   BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-			name VARCHAR(255),
-			uuid VARCHAR(255),
-			mood VARCHAR(255)
-		)
-	`)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	type User struct {
-		Id   int64 `sql:",primary"`
-		Name string
-		Uuid testfixtures.CustomType
-		Mood *testfixtures.CustomType
-	}
-	schema := NewSchema()
-	schema.MustRegisterType("users", AutoIncrement, User{})
 	mood := testfixtures.CustomType{'f', 'o', 'o', 'o', 'o', 'o', 'o'}
 
-	db := NewDB(testDb.DB, schema)
 	if _, err := db.InsertRow(context.Background(), &User{Name: "Bob", Uuid: testfixtures.CustomType{'1', '1', '2', '3', '8', '4', '9', '1', '2', '9', '3'}, Mood: &mood}); err != nil {
 		t.Error(err)
 	}
