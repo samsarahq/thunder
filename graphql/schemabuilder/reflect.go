@@ -89,6 +89,16 @@ var scalarArgParsers = map[reflect.Type]*argParser{
 			return nil
 		},
 	},
+	reflect.TypeOf(float32(0)): {
+		FromJSON: func(value interface{}, dest reflect.Value) error {
+			asFloat, ok := value.(float64)
+			if !ok {
+				return errors.New("not a number")
+			}
+			dest.Set(reflect.ValueOf(float32(asFloat)).Convert(dest.Type()))
+			return nil
+		},
+	},
 	reflect.TypeOf(int64(0)): {
 		FromJSON: func(value interface{}, dest reflect.Value) error {
 			asFloat, ok := value.(float64)
