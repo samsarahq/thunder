@@ -370,9 +370,13 @@ type kitchenSinkArgs struct {
 	Hello               int64
 	Hello32             int32
 	Hello16             int16
+	HelloFloat32		float32
+	HelloFloat64		float64
 	FooBar              string
 	Bool                bool
 	OptionalInt         *int64
+	OptionalFloat32		*float32
+	OptionalFloat64		*float64
 	OptionalStruct      *inner
 	Ints                []int64
 	OptionalStructs     *[]*inner
@@ -429,6 +433,8 @@ func TestArgParser(t *testing.T) {
 			"hello": 20,
 			"hello32": 20,
 			"hello16": 20,
+			"helloFloat32": 42.0,
+			"helloFloat64": 42.0,
 			"fooBar": "foo!",
 			"bool": true,
 			"ints": [1, 2, 3],
@@ -442,9 +448,13 @@ func TestArgParser(t *testing.T) {
 		Hello:           20,
 		Hello32:         20,
 		Hello16:         20,
+		HelloFloat32:	 42.0,
+		HelloFloat64:	 42.0,
 		FooBar:          "foo!",
 		Bool:            true,
 		OptionalInt:     nil,
+		OptionalFloat32: nil,
+		OptionalFloat64: nil,
 		OptionalStruct:  nil,
 		Ints:            []int64{1, 2, 3},
 		OptionalStructs: nil,
@@ -456,6 +466,8 @@ func TestArgParser(t *testing.T) {
 	})
 
 	var ten = int64(10)
+	var float64Ten = float64(10)
+	var float32Ten = float32(10)
 	var aliasTen = alias(10)
 	var day = time.Unix(1504137600, 0).UTC()
 
@@ -465,9 +477,13 @@ func TestArgParser(t *testing.T) {
 			"hello": 40,
 			"hello32": 40,
 			"hello16": 40,
+			"helloFloat64": 40.0,
+			"helloFloat32": 40.0,
 			"fooBar": "bar!",
 			"bool": false,
 			"optionalInt": 10,
+			"optionalFloat64": 10,
+			"optionalFloat32": 10,
 			"optionalStruct": {"foo": 20},
 			"ints": [6, 6, 6],
 			"optionalStructs": [{"foo": 1}, {"foo": 2}],
@@ -484,9 +500,13 @@ func TestArgParser(t *testing.T) {
 		Hello:               40,
 		Hello32:             40,
 		Hello16:             40,
+		HelloFloat64:		 40.0,
+		HelloFloat32:		 40.0,
 		FooBar:              "bar!",
 		Bool:                false,
 		OptionalInt:         &ten,
+		OptionalFloat64:     &float64Ten,
+		OptionalFloat32:     &float32Ten,
 		OptionalStruct:      &inner{Custom: 20},
 		Ints:                []int64{6, 6, 6},
 		OptionalStructs:     &[]*inner{{Custom: 1}, {Custom: 2}},
