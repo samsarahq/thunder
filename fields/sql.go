@@ -117,14 +117,6 @@ type Scanner struct {
 	isValid bool
 }
 
-// Interface returns the value deserialized into the scanner.
-func (s Scanner) Interface() interface{} {
-	if s.value.IsValid() {
-		return s.value.Interface()
-	}
-	return nil
-}
-
 // CopyTo copies the scanner value to another reflect.Value. This is used for setting structs.
 func (s *Scanner) CopyTo(to reflect.Value) {
 	s.copy(s.value, to, s.isValid)
