@@ -89,7 +89,7 @@ type Methods map[string]*method
 // For example, to denote that a return value that may be a *Asset or
 // *Vehicle might look like:
 //   type GatewayUnion struct {
-//     graphql.Union
+//     schemabuilder.Union
 //     *Asset
 //     *Vehicle
 //   }
