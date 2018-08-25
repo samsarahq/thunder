@@ -62,6 +62,7 @@ func (d Descriptor) copy(from, to reflect.Value, isValid bool) {
 	}
 
 	if !isValid {
+		to.Set(reflect.Zero(to.Type()))
 		return
 	}
 
