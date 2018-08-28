@@ -30,11 +30,7 @@ message Field {
 }
 
 message Change {
-    map<string, Field> before = 1;
-    map<string, Field> after = 2;
-}
-
-message BinlogEvent {
     string table = 1;
-    repeated Change changes = 2;
+    map<string, Field> before = 2;
+    map<string, Field> after = 3;
 }
