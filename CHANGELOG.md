@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [0.3.1] - 2018-08-28
+
+### Changed
+
+#### `sqlgen`
+
+- Handle MySQL `time.Time` types by converting `time.Time` using
+  `github.com/go-sql-driver/mysql.NullTime`. `DATE`/`DATETIME` are returned as
+  formatted strings.
+
 ## [0.3.0] - 2018-08-27
 
 ### Changed
