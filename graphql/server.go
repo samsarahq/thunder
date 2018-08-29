@@ -29,6 +29,8 @@ type JSONSocket interface {
 
 type MakeCtxFunc func(context.Context) context.Context
 
+type RerunIntervalFunc func(context.Context, *Query) time.Duration
+
 type GraphqlLogger interface {
 	StartExecution(ctx context.Context, tags map[string]string, initial bool)
 	FinishExecution(ctx context.Context, tags map[string]string, delay time.Duration)
@@ -66,8 +68,8 @@ type conn struct {
 	mu            sync.Mutex
 	subscriptions map[string]*reactive.Rerunner
 
-	minRerunInterval time.Duration
-	maxSubscriptions int
+	minRerunIntervalFunc RerunIntervalFunc
+	maxSubscriptions     int
 }
 
 type inEnvelope struct {
@@ -280,7 +282,7 @@ func (c *conn) handleSubscribe(in *inEnvelope) error {
 		}
 
 		return nil, nil
-	}, c.minRerunInterval)
+	}, c.minRerunIntervalFunc(c.ctx, query))
 
 	return nil
 }
@@ -375,7 +377,7 @@ func (c *conn) handleMutate(in *inEnvelope) error {
 		go c.rerunSubscriptionsImmediately()
 
 		return nil, errors.New("stop")
-	}, c.minRerunInterval)
+	}, c.minRerunIntervalFunc(c.ctx, query))
 
 	return nil
 }
@@ -527,8 +529,8 @@ func CreateConnection(ctx context.Context, socket JSONSocket, schema *Schema, op
 		makeCtx: func(ctx context.Context) context.Context {
 			return ctx
 		},
-		maxSubscriptions: DefaultMaxSubscriptions,
-		minRerunInterval: DefaultMinRerunInterval,
+		maxSubscriptions:     DefaultMaxSubscriptions,
+		minRerunIntervalFunc: func(context.Context, *Query) time.Duration { return DefaultMinRerunInterval },
 	}
 	for _, opt := range opts {
 		opt(c)
@@ -545,7 +547,7 @@ func WithExecutionLogger(logger GraphqlLogger) ConnectionOption {
 
 func WithMinRerunInterval(d time.Duration) ConnectionOption {
 	return func(c *conn) {
-		c.minRerunInterval = d
+		c.minRerunIntervalFunc = func(context.Context, *Query) time.Duration { return d }
 	}
 }
 
@@ -570,6 +572,13 @@ func WithMakeCtx(makeCtx MakeCtxFunc) ConnectionOption {
 func WithSubscriptionLogger(logger SubscriptionLogger) ConnectionOption {
 	return func(c *conn) {
 		c.subscriptionLogger = logger
+	}
+}
+
+// WithMinRerunIntervalFunc is deprecated.
+func WithMinRerunIntervalFunc(fn RerunIntervalFunc) ConnectionOption {
+	return func(c *conn) {
+		c.minRerunIntervalFunc = fn
 	}
 }
 
