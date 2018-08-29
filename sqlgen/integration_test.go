@@ -39,6 +39,20 @@ type User struct {
 	Mood *testfixtures.CustomType
 }
 
+type Complex struct {
+	Id       int64 `sql:",primary"`
+	Name     string
+	Text     []byte            `sql:",string"`
+	Blob     []byte            `sql:",binary"`
+	Mappings map[string]string `sql:",json"`
+}
+
+func TestTagOverrides(t *testing.T) {
+	schema := NewSchema()
+	err := schema.RegisterType("complex", AutoIncrement, Complex{})
+	assert.NoError(t, err)
+}
+
 func TestContextDeadlineEnforced(t *testing.T) {
 	tdb, db, err := setup()
 	if err != nil {
