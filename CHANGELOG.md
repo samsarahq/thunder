@@ -2,24 +2,6 @@
 
 ## [Unreleased]
 
-## [0.3.0] - 2018-08-27
-
-### Changed
-
-#### `sqlgen`
-
-- Pointer scanners are no longer allowed to handle `nil`, are forcefully set to
-  `nil` instead.
-
-### Removed
-
-#### `fields`
-
-- Removed `Scanner.Interface()`: this should never have been exposed and
-  wouldn't work the way you would expect it to. Instead, you can only copy to an
-  existing `reflect.Value`.
-
-
 ## [0.2.0] - 2018-08-23
 
 ### Added
