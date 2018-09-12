@@ -9,7 +9,7 @@ func InvalidateAfter(ctx context.Context, d time.Duration) {
 	r := NewResource()
 	timer := time.AfterFunc(d, r.Invalidate)
 	r.Cleanup(func() { timer.Stop() })
-	AddDependency(ctx, r)
+	AddDependency(ctx, r, nil)
 }
 
 func InvalidateAt(ctx context.Context, t time.Time) {
