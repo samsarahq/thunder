@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"reflect"
 	"time"
-
-	"github.com/go-sql-driver/mysql"
 )
 
 // Valuer fulfills the sql/driver.Valuer interface which deserializes our
@@ -188,12 +186,10 @@ func (s *Scanner) Scan(src interface{}) error {
 			return nil
 		}
 	case *time.Time:
-		t := mysql.NullTime{}
-		if err := t.Scan(src); err != nil {
-			return err
+		if _, ok := src.(time.Time); ok {
+			s.value.Set(reflect.ValueOf(src))
+			return nil
 		}
-		s.value.Set(reflect.ValueOf(t.Time))
-		return nil
 	}
 
 	// Override deserialization behavior with tags (these take precedence over how a type would
