@@ -129,11 +129,7 @@ func TestField_Value(t *testing.T) {
 }
 
 func TestField_Scan(t *testing.T) {
-	timeNow := time.Now()
-	timeStr := "2008-02-02 12:12:12.000000"
-	timeFromStr, err := time.Parse("2006-01-02 15:04:05.000000", timeStr)
-	assert.NoError(t, err)
-
+	time := time.Now()
 	cases := []struct {
 		Type  interface{}
 		In    interface{}
@@ -147,11 +143,7 @@ func TestField_Scan(t *testing.T) {
 		{Type: int64(0), Out: int64(200), In: int64(200)},
 		{Type: float64(0), Out: float64(200), In: float64(200)},
 		{Type: true, Out: true, In: true},
-		{Type: timeNow, Out: timeNow, In: timeNow},
-		{Type: timeNow, Out: timeFromStr, In: timeStr},
-		{Type: timeNow, Out: time.Time{}, In: nil},
-		{Type: &timeNow, Out: &timeFromStr, In: timeStr},
-		{Type: &timeNow, Out: (*time.Time)(nil), In: nil},
+		{Type: time, Out: time, In: time},
 		// Type aliases:
 		{Type: likeString(""), Out: likeString("foo"), In: "foo"},
 		{Type: int8(5), Out: int8(5), In: int64(5)},
