@@ -6,8 +6,8 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/kylelemons/godebug/pretty"
 	"github.com/samsarahq/thunder/internal/testfixtures"
-	"github.com/stretchr/testify/assert"
 )
 
 func setup() (*testfixtures.TestDatabase, *DB, error) {
@@ -71,14 +71,16 @@ func TestIntegrationBasic(t *testing.T) {
 		t.Error(err)
 	}
 
-	assert.Equal(t, []*User{
+	if diff := pretty.Compare(users, []*User{
 		{
 			Id:   1,
 			Name: "Bob",
 			Uuid: testfixtures.CustomType{'1', '1', '2', '3', '8', '4', '9', '1', '2', '9', '3'},
 			Mood: &mood,
 		},
-	}, users)
+	}); diff != "" {
+		t.Errorf("diff: %s", diff)
+	}
 }
 
 // TestContextCancelBeforeRowsScan demonstrates we don't
