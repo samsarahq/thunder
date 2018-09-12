@@ -165,6 +165,10 @@ func Benchmark(b *testing.B) {
 			user := &User{}
 			return db.QueryRow(ctx, &user, nil, nil)
 		}},
+		{"Read_Where", func() error {
+			user := &User{}
+			return db.QueryRow(ctx, &user, Filter{"name": "Bob"}, nil)
+		}},
 		{"Create", func() error {
 			_, err := db.InsertRow(ctx, user)
 			return err
