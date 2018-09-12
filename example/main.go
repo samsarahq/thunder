@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"sort"
 
-	_ "github.com/go-sql-driver/mysql"
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/graphiql"
 	"github.com/samsarahq/thunder/graphql/introspection"
