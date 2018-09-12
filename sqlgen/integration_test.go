@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/samsarahq/thunder/internal/testfixtures"
 )
