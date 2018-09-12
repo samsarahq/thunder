@@ -131,69 +131,53 @@ func TestField_Value(t *testing.T) {
 func TestField_Scan(t *testing.T) {
 	time := time.Now()
 	cases := []struct {
-		Type  interface{}
 		In    interface{}
 		Out   interface{}
 		Tag   string
 		Error bool
 	}{
 		// Native types:
-		{Type: "", Out: "foo", In: "foo"},
-		{Type: []byte{}, Out: []byte("foo"), In: []byte("foo")},
-		{Type: int64(0), Out: int64(200), In: int64(200)},
-		{Type: float64(0), Out: float64(200), In: float64(200)},
-		{Type: true, Out: true, In: true},
-		{Type: time, Out: time, In: time},
+		{Out: "foo", In: "foo"},
+		{Out: []byte("foo"), In: []byte("foo")},
+		{Out: int64(200), In: int64(200)},
+		{Out: float64(200), In: float64(200)},
+		{Out: true, In: true},
+		{Out: time, In: time},
 		// Type aliases:
-		{Type: likeString(""), Out: likeString("foo"), In: "foo"},
-		{Type: int8(5), Out: int8(5), In: int64(5)},
-		{Type: int16(5), Out: int16(5), In: int64(5)},
-		{Type: int32(5), Out: int32(5), In: int64(5)},
-		{Type: likeInt(5), Out: likeInt(5), In: int64(5)},
-		{Type: float32(5), Out: float32(5), In: float64(5)},
-		{Type: likeFloat(5), Out: likeFloat(5), In: float64(5)},
+		{Out: likeString("foo"), In: "foo"},
+		{Out: int8(5), In: int64(5)},
+		{Out: int16(5), In: int64(5)},
+		{Out: int32(5), In: int64(5)},
+		{Out: likeInt(5), In: int64(5)},
+		{Out: float32(5), In: float64(5)},
+		{Out: likeFloat(5), In: float64(5)},
 		// Interfaces without tags:
-		{Type: ifaceScanner{[]byte("scan me")}, Out: ifaceScanner{[]byte("scan me")}, In: []byte("scan me")},
-		{Type: ifaceMarshal{}, Out: ifaceMarshal{}, In: []byte{}, Error: true},
-		{Type: ifaceBinaryMarshal{}, Out: ifaceBinaryMarshal{}, In: []byte{}, Error: true},
-		{Type: ifaceTextMarshal{}, Out: ifaceTextMarshal{}, In: []byte{}, Error: true},
-		{Type: ifaceJSONMarshal{}, Out: ifaceJSONMarshal{}, In: []byte{}, Error: true},
-		// Pointer scanner with nil:
-		{Type: &ifaceScanner{}, Out: (*ifaceScanner)(nil), In: nil},
-		// Pointer scanner with value:
-		{Type: &ifaceScanner{}, Out: &ifaceScanner{[]byte("scan me")}, In: []byte("scan me")},
+		{Out: ifaceScanner{[]byte("scan me")}, In: []byte("scan me")},
+		{Out: ifaceValuer{}, In: []byte("value"), Error: true},
+		{Out: ifaceMarshal{}, In: ifaceMarshal{}, Error: true},
+		{Out: ifaceBinaryMarshal{}, In: ifaceBinaryMarshal{}, Error: true},
+		{Out: ifaceTextMarshal{}, In: ifaceTextMarshal{}, Error: true},
+		{Out: ifaceJSONMarshal{}, In: ifaceJSONMarshal{}, Error: true},
 		// Interfaces with tags:
-		{Type: ifaceMarshal{"binary_one"}, Out: ifaceMarshal{"binary_one"}, In: []byte("binary_one"), Tag: "binary"},
-		{Type: ifaceBinaryMarshal{"binary_two"}, Out: ifaceBinaryMarshal{"binary_two"}, In: []byte("binary_two"), Tag: "binary"},
-		{Type: ifaceTextMarshal{"text"}, Out: ifaceTextMarshal{"text"}, In: []byte("text"), Tag: "string"},
-		{Type: ifaceJSONMarshal{[]string{"json"}}, Out: ifaceJSONMarshal{[]string{"json"}}, In: []byte("[\"json\"]"), Tag: "json"},
-		// Pointer interfaces with tags with nil:
-		{Type: &ifaceMarshal{}, Out: (*ifaceMarshal)(nil), In: nil, Tag: "binary"},
-		{Type: &ifaceBinaryMarshal{}, Out: (*ifaceBinaryMarshal)(nil), In: nil, Tag: "binary"},
-		{Type: &ifaceTextMarshal{}, Out: (*ifaceTextMarshal)(nil), In: nil, Tag: "string"},
-		{Type: &ifaceJSONMarshal{}, Out: (*ifaceJSONMarshal)(nil), In: nil, Tag: "json"},
-		// Pointer interfaces with tags with value:
-		{Type: &ifaceMarshal{}, Out: &ifaceMarshal{"binary_one"}, In: []byte("binary_one"), Tag: "binary"},
-		{Type: &ifaceBinaryMarshal{}, Out: &ifaceBinaryMarshal{"binary_two"}, In: []byte("binary_two"), Tag: "binary"},
-		{Type: &ifaceTextMarshal{}, Out: &ifaceTextMarshal{"text"}, In: []byte("text"), Tag: "string"},
-		{Type: &ifaceJSONMarshal{}, Out: &ifaceJSONMarshal{[]string{"json"}}, In: []byte("[\"json\"]"), Tag: "json"},
+		{Out: ifaceMarshal{"binary_one"}, In: []byte("binary_one"), Tag: "binary"},
+		{Out: ifaceBinaryMarshal{"binary_two"}, In: []byte("binary_two"), Tag: "binary"},
+		{Out: ifaceTextMarshal{"text"}, In: []byte("text"), Tag: "string"},
+		{Out: ifaceJSONMarshal{[]string{"json"}}, In: []byte("[\"json\"]"), Tag: "json"},
 	}
 
 	for i, c := range cases {
-		typ := reflect.TypeOf(c.Type)
+		typ := reflect.TypeOf(c.Out)
 		field := fields.New(typ, []string{c.Tag})
 		scanner := field.Scanner()
 
 		err := scanner.Scan(c.In)
-		out := reflect.New(typ).Elem()
-		scanner.CopyTo(out)
-		got := out.Interface()
+		out := scanner.Interface()
 
 		if c.Error {
 			assert.NotNil(t, err, "case %d failed", i)
 		} else {
 			assert.NoError(t, err, "case %d failed", i)
-			assert.Equal(t, c.Out, got, "case %d failed", i)
+			assert.Equal(t, c.Out, out, "case %d failed", i)
 		}
 	}
 }
