@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/samsarahq/thunder/fields"
 	"github.com/samsarahq/thunder/sqlgen"
 	"github.com/siddontang/go-mysql/mysql"
 	"github.com/siddontang/go-mysql/replication"
@@ -196,16 +197,18 @@ func parseBinlogRow(table *sqlgen.Table, binlogRow []interface{}, columnMap *col
 			table.Name, len(binlogRow), columnMap.expectedColumns)
 	}
 
+	scanners := table.Scanners.Get().([]interface{})
+	defer table.Scanners.Put(scanners)
+
 	for i, j := range columnMap.source {
 		if j == -1 {
 			continue
 		}
-		column := table.Columns[i]
-		field := elem.FieldByIndex(column.Index)
+		field := elem.FieldByIndex(table.Columns[i].Index)
 		if field.Kind() != reflect.Ptr {
 			field = field.Addr()
 		}
-		scanner := column.Descriptor.Scanner()
+		scanner := scanners[i].(*fields.Scanner)
 		scanner.Target(field)
 		if err := scanner.Scan(binlogRow[j]); err != nil {
 			return nil, err

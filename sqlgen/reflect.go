@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 	"unicode"
 
 	"github.com/samsarahq/thunder/fields"
@@ -67,7 +68,8 @@ func parseQueryRow(table *Table, scanner *sql.Rows) (interface{}, error) {
 	ptr := reflect.New(table.Type)
 	elem := ptr.Elem()
 
-	values := make([]interface{}, len(table.Columns))
+	scanners := table.Scanners.Get().([]interface{})
+	defer table.Scanners.Put(scanners)
 
 	// Descriptor Scanner is instantiated with a reference to our struct fields.
 	// It scans directly into our struct.
@@ -76,13 +78,11 @@ func parseQueryRow(table *Table, scanner *sql.Rows) (interface{}, error) {
 		if field.Kind() != reflect.Ptr {
 			field = field.Addr()
 		}
-		scanner := column.Descriptor.Scanner()
 		// Scan into field.
-		scanner.Target(field)
-		values[i] = scanner
+		scanners[i].(*fields.Scanner).Target(field)
 	}
 
-	if err := scanner.Scan(values...); err != nil {
+	if err := scanner.Scan(scanners...); err != nil {
 		return nil, err
 	}
 
@@ -145,6 +145,8 @@ type Table struct {
 
 	Columns       []*Column
 	ColumnsByName map[string]*Column
+
+	Scanners *sync.Pool
 }
 
 func (s *Schema) buildDescriptor(table string, primaryKeyType PrimaryKeyType, typ reflect.Type) (*Table, error) {
@@ -225,6 +227,16 @@ func (s *Schema) buildDescriptor(table string, primaryKeyType PrimaryKeyType, ty
 		return nil, fmt.Errorf("bad type %s: no primary key specified", typ)
 	}
 
+	scanners := &sync.Pool{
+		New: func() interface{} {
+			scanners := make([]interface{}, len(columns))
+			for i, column := range columns {
+				scanners[i] = column.Descriptor.Scanner()
+			}
+			return scanners
+		},
+	}
+
 	return &Table{
 		Name:           table,
 		Type:           typ,
@@ -232,6 +244,8 @@ func (s *Schema) buildDescriptor(table string, primaryKeyType PrimaryKeyType, ty
 
 		Columns:       columns,
 		ColumnsByName: columnsByName,
+
+		Scanners: scanners,
 	}, nil
 }
 
