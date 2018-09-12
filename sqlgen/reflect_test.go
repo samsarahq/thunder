@@ -1,7 +1,6 @@
 package sqlgen
 
 import (
-	"database/sql"
 	"database/sql/driver"
 	"fmt"
 	"reflect"
@@ -10,8 +9,6 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/kylelemons/godebug/pretty"
-	"github.com/samsarahq/thunder/fields"
-	"github.com/stretchr/testify/assert"
 )
 
 func testMakeSnake(t *testing.T, s, expected string) {
@@ -71,8 +68,13 @@ type duplicate struct {
 	B int64 `sql:"a"`
 }
 
+type unsupported struct {
+	A byte
+}
+
 func TestRegisterType(t *testing.T) {
 	s := NewSchema()
+	s.RegisterSimpleScalar(alias(0))
 	if err := s.RegisterType("simple", AutoIncrement, simple{}); err != nil {
 		t.Fatal(err)
 	}
@@ -96,6 +98,10 @@ func TestRegisterType(t *testing.T) {
 	if err := s.RegisterType("e", AutoIncrement, anonymous{}); err == nil {
 		t.Error("expected anonymous fields to fail")
 	}
+
+	if err := s.RegisterType("f", AutoIncrement, unsupported{}); err == nil {
+		t.Error("expected unsupported fields to fail")
+	}
 }
 
 type user struct {
@@ -110,67 +116,74 @@ func TestBuildStruct(t *testing.T) {
 	if err := s.RegisterType("users", AutoIncrement, user{}); err != nil {
 		t.Fatal(err)
 	}
-	var foo = "foo"
 	table := s.ByName["users"]
 
-	id := fieldFromValue(int64(0)).Scanner()
-	name := fieldFromValue("").Scanner()
-	age := fieldFromValue(int64(0)).Scanner()
-	optional := fieldFromValue(&foo).Scanner()
+	scannables := table.Scannables.Get().([]interface{})
+	id := scannables[0].(Scannable)
+	name := scannables[1].(Scannable)
+	age := scannables[2].(Scannable)
+	optional := scannables[3].(Scannable)
 
 	id.Scan(10)
 	name.Scan("bob")
 	age.Scan(nil)
 	optional.Scan(nil)
-
-	assert.Equal(t, &user{
+	if !reflect.DeepEqual(BuildStruct(table, scannables), &user{
 		Id:       10,
 		Name:     "bob",
 		Age:      0,
 		Optional: nil,
-	}, BuildStruct(table, []*fields.Scanner{id, name, age, optional}))
-
-	id = fieldFromValue(int64(0)).Scanner()
-	name = fieldFromValue("").Scanner()
-	age = fieldFromValue(int64(0)).Scanner()
-	optional = fieldFromValue(&foo).Scanner()
+	}) {
+		t.Error("bad build")
+	}
 
 	id.Scan(nil)
 	name.Scan(nil)
 	age.Scan(5)
 	optional.Scan("foo")
-
-	assert.Equal(t, &user{
+	var foo = "foo"
+	if !reflect.DeepEqual(BuildStruct(table, scannables), &user{
 		Id:       0,
 		Name:     "",
 		Age:      5,
 		Optional: &foo,
-	}, BuildStruct(table, []*fields.Scanner{id, name, age, optional}))
+	}) {
+		t.Error("bad build")
+	}
 }
 
-type IntAlias int64
-type SuffixString string
+type customSuffixer struct {
+	Valid  bool
+	String string
+}
 
-func (c *SuffixString) Scan(value interface{}) error {
+func (c *customSuffixer) Scan(value interface{}) error {
+	if value == nil {
+		c.String = ""
+		c.Valid = false
+	}
 	switch value := value.(type) {
 	case nil:
-		*c = SuffixString("")
+		c.String = ""
+		c.Valid = false
 	case string:
-		*c = SuffixString(value + "-FOO")
+		c.String = string(value) + "-FOO"
+		c.Valid = true
 	default:
 		return fmt.Errorf("cannot convert %v to string", value)
 	}
 	return nil
 }
 
-var tmp = SuffixString("")
-var _ sql.Scanner = &tmp
-
-func (c SuffixString) Value() (driver.Value, error) {
-	return strings.TrimSuffix(string(c), "-FOO"), nil
+func (c *customSuffixer) Value() (driver.Value, error) {
+	if !c.Valid {
+		return nil, nil
+	}
+	return c.String, nil
 }
 
-var _ driver.Valuer = SuffixString("")
+type IntAlias int64
+type SuffixString string
 
 type custom struct {
 	Id           int64 `sql:",primary"`
@@ -178,30 +191,31 @@ type custom struct {
 	SuffixString SuffixString
 }
 
-func fieldFromValue(i interface{}) *fields.Descriptor {
-	return fields.New(reflect.TypeOf(i), nil)
-}
-
 func TestBuildStructWithAlias(t *testing.T) {
 	s := NewSchema()
+	s.MustRegisterCustomScalar(SuffixString(""), func() Scannable { return new(customSuffixer) })
+	s.MustRegisterSimpleScalar(IntAlias(0))
+
 	if err := s.RegisterType("customs", AutoIncrement, custom{}); err != nil {
 		t.Fatal(err)
 	}
 	table := s.ByName["customs"]
 
-	id := fieldFromValue(int64(0)).Scanner()
-	intAlias := fieldFromValue(IntAlias(0)).Scanner()
-	suffixString := fieldFromValue(SuffixString("")).Scanner()
+	scannables := table.Scannables.Get().([]interface{})
+	id := scannables[0].(Scannable)
+	intAlias := scannables[1].(Scannable)
+	suffixString := scannables[2].(Scannable)
 
 	id.Scan(10)
 	intAlias.Scan(int64(20))
 	suffixString.Scan("foo")
-
-	assert.Equal(t, &custom{
+	if !reflect.DeepEqual(BuildStruct(table, scannables), &custom{
 		Id:           10,
 		IntAlias:     20,
 		SuffixString: "foo-FOO",
-	}, BuildStruct(table, []*fields.Scanner{id, intAlias, suffixString}))
+	}) {
+		t.Error("bad build")
+	}
 }
 
 func TestMakeWhere(t *testing.T) {
@@ -212,18 +226,37 @@ func TestMakeWhere(t *testing.T) {
 	table := s.ByName["users"]
 
 	where, err := makeWhere(table, Filter{"id": 10})
-	assert.NoError(t, err)
-	assert.Equal(t, []string{"id"}, where.Columns)
-	assertSameValues(t, []interface{}{int64(10)}, where.Values)
+	if err != nil {
+		t.Error(err)
+	}
+	if !reflect.DeepEqual(where, &SimpleWhere{
+		Columns: []string{"id"},
+		Values:  []interface{}{10},
+	}) {
+		t.Error("bad select")
+	}
 
 	where, err = makeWhere(table, Filter{"id": 10, "name": "bob", "age": 30})
-	assert.NoError(t, err)
-	assert.Equal(t, []string{"id", "name", "age"}, where.Columns)
-	assertSameValues(t, []interface{}{int64(10), "bob", int64(30)}, where.Values)
+	if err != nil {
+		t.Error(err)
+	}
+	if !reflect.DeepEqual(where, &SimpleWhere{
+		Columns: []string{"id", "name", "age"},
+		Values:  []interface{}{10, "bob", 30},
+	}) {
+		t.Error("bad select")
+	}
 
 	where, err = makeWhere(table, Filter{})
-	assert.NoError(t, err)
-	assert.Equal(t, &SimpleWhere{Columns: []string{}, Values: []interface{}{}}, where)
+	if err != nil {
+		t.Error(err)
+	}
+	if !reflect.DeepEqual(where, &SimpleWhere{
+		Columns: []string{},
+		Values:  []interface{}{},
+	}) {
+		t.Error("bad select")
+	}
 
 	_, err = makeWhere(table, Filter{"foo": "bar"})
 	if err == nil {
@@ -344,24 +377,14 @@ func TestMakeSelectRow(t *testing.T) {
 
 	var u *user
 	query, err := s.MakeSelectRow(&u, Filter{"name": "alice"}, nil)
-	assert.NoError(t, err)
-	assert.Equal(t, &BaseSelectQuery{
+	if err != nil {
+		t.Error(err)
+	}
+	if !reflect.DeepEqual(query, &BaseSelectQuery{
 		Table:  s.ByName["users"],
 		Filter: Filter{"name": "alice"},
-	}, query)
-}
-
-func assertSameValues(t *testing.T, expected []interface{}, got []interface{}) {
-	if len(expected) != len(got) {
-		t.Errorf("Mistmatched values length")
-		return
-	}
-
-	for i := range expected {
-		valuer := got[i].(fields.Valuer)
-		val, err := valuer.Value()
-		assert.NoError(t, err)
-		assert.Equal(t, expected[i], val)
+	}) {
+		t.Error("bad select")
 	}
 }
 
@@ -375,10 +398,16 @@ func TestMakeInsertAutoIncrement(t *testing.T) {
 		Name: "bob",
 		Age:  20,
 	})
-	assert.NoError(t, err)
-	assert.Equal(t, "users", query.Table)
-	assert.Equal(t, []string{"name", "age", "optional"}, query.Columns)
-	assertSameValues(t, []interface{}{"bob", int64(20), nil}, query.Values)
+	if err != nil {
+		t.Error(err)
+	}
+	if !reflect.DeepEqual(query, &InsertQuery{
+		Table:   "users",
+		Columns: []string{"name", "age", "optional"},
+		Values:  []interface{}{"bob", int64(20), nil},
+	}) {
+		t.Error("bad insert")
+	}
 }
 
 func TestMakeUpsertAutoIncrement(t *testing.T) {
@@ -409,10 +438,16 @@ func TestMakeUpsertUniqueId(t *testing.T) {
 		Age:      30,
 		Optional: &temp,
 	})
-	assert.NoError(t, err)
-	assert.Equal(t, "users", query.Table)
-	assert.Equal(t, []string{"id", "name", "age", "optional"}, query.Columns)
-	assertSameValues(t, []interface{}{int64(5), "alice", int64(30), "temp"}, query.Values)
+	if err != nil {
+		t.Error(err)
+	}
+	if !reflect.DeepEqual(query, &UpsertQuery{
+		Table:   "users",
+		Columns: []string{"id", "name", "age", "optional"},
+		Values:  []interface{}{int64(5), "alice", int64(30), "temp"},
+	}) {
+		t.Error("bad upsert")
+	}
 }
 
 func TestMakeUpdateAutoIncrement(t *testing.T) {
@@ -426,12 +461,20 @@ func TestMakeUpdateAutoIncrement(t *testing.T) {
 		Name: "bob",
 		Age:  20,
 	})
-	assert.NoError(t, err)
-	assert.Equal(t, "users", query.Table)
-	assert.Equal(t, []string{"name", "age", "optional"}, query.Columns)
-	assertSameValues(t, []interface{}{"bob", int64(20), nil}, query.Values)
-	assert.Equal(t, []string{"id"}, query.Where.Columns)
-	assertSameValues(t, []interface{}{int64(10)}, query.Where.Values)
+	if err != nil {
+		t.Error(err)
+	}
+	if !reflect.DeepEqual(query, &UpdateQuery{
+		Table:   "users",
+		Columns: []string{"name", "age", "optional"},
+		Values:  []interface{}{"bob", int64(20), nil},
+		Where: &SimpleWhere{
+			Columns: []string{"id"},
+			Values:  []interface{}{int64(10)},
+		},
+	}) {
+		t.Error("bad update")
+	}
 }
 
 func TestMakeUpdateUniqueId(t *testing.T) {
@@ -447,12 +490,20 @@ func TestMakeUpdateUniqueId(t *testing.T) {
 		Age:      40,
 		Optional: &temp,
 	})
-	assert.NoError(t, err)
-	assert.Equal(t, "users", query.Table)
-	assert.Equal(t, []string{"name", "age", "optional"}, query.Columns)
-	assertSameValues(t, []interface{}{"alice", int64(40), "temp"}, query.Values)
-	assert.Equal(t, []string{"id"}, query.Where.Columns)
-	assertSameValues(t, []interface{}{int64(20)}, query.Where.Values)
+	if err != nil {
+		t.Error(err)
+	}
+	if !reflect.DeepEqual(query, &UpdateQuery{
+		Table:   "users",
+		Columns: []string{"name", "age", "optional"},
+		Values:  []interface{}{"alice", int64(40), "temp"},
+		Where: &SimpleWhere{
+			Columns: []string{"id"},
+			Values:  []interface{}{int64(20)},
+		},
+	}) {
+		t.Error("bad update")
+	}
 }
 
 func TestMakeDelete(t *testing.T) {
@@ -466,10 +517,18 @@ func TestMakeDelete(t *testing.T) {
 		Name: "bob",
 		Age:  20,
 	})
-	assert.NoError(t, err)
-	assert.Equal(t, "users", query.Table)
-	assert.Equal(t, []string{"id"}, query.Where.Columns)
-	assertSameValues(t, []interface{}{int64(10)}, query.Where.Values)
+	if err != nil {
+		t.Error(err)
+	}
+	if !reflect.DeepEqual(query, &DeleteQuery{
+		Table: "users",
+		Where: &SimpleWhere{
+			Columns: []string{"id"},
+			Values:  []interface{}{int64(10)},
+		},
+	}) {
+		t.Error("bad delete")
+	}
 }
 
 func TestCoerce(t *testing.T) {
