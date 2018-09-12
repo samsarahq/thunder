@@ -148,28 +148,16 @@ func (s *Scanner) Scan(src interface{}) error {
 	// Our value however should continue referencing a non-pointer for easier assignment.
 	s.value = s.value.Elem()
 
-	// Keep track of whether our value was empty.
-	s.isValid = src != nil
-
 	// If our interface supports sql.Scanner we can immediately short-circuit as this is what the
 	// MySQL driver would do.
 	if scanner, ok := i.(sql.Scanner); ok {
-		// If the scanner base type is nullable (pointer or one of the below), make it nil,
-		// otherwise allow it to scan and handle nil.
-		if s.Ptr && src == nil {
-			return nil
-		}
-		switch s.Kind {
-		case reflect.Chan, reflect.Map, reflect.Func, reflect.Interface, reflect.Slice:
-			if src == nil {
-				return nil
-			}
-		}
-
 		// If we have a scanner it will handle its own validity.
 		s.isValid = true
 		return scanner.Scan(src)
 	}
+
+	// Keep track of whether our value was empty.
+	s.isValid = src != nil
 
 	// Null values are simply set to zero. Because we're not holding on to pointers, we need to
 	// represent this as a boolean. This comes _after_ the scanner step, just in case the scanner
