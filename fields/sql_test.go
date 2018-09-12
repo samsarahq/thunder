@@ -229,7 +229,5 @@ func TestField_SupportsProtobuf(t *testing.T) {
 
 	scanner := descriptor.Scanner()
 	scanner.Scan(b)
-	got := reflect.New(reflect.TypeOf(event)).Elem()
-	scanner.CopyTo(got)
-	assert.Equal(t, event, got.Interface())
+	assert.Equal(t, *event, scanner.Interface())
 }
