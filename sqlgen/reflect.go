@@ -70,6 +70,11 @@ func BuildStruct(table *Table, scanners []*fields.Scanner) interface{} {
 	for i, column := range table.Columns {
 		// These values are all copies (as opposed to references) of database values.
 		// This means there's no funky business that can happen with the database re-using pointers.
+		value := scanners[i].Interface()
+		if value == nil {
+			continue
+		}
+
 		scanners[i].CopyTo(elem.FieldByIndex(column.Index))
 	}
 
