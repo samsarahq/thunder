@@ -239,7 +239,7 @@ func TestEndToEndAwaitAndCache(t *testing.T) {
 
 	user := schema.Object("User", User{})
 	user.FieldFunc("slow", func(ctx context.Context, u *User) *Slow {
-		reactive.AddDependency(ctx, u.resource)
+		reactive.AddDependency(ctx, u.resource, nil)
 		time.Sleep(100 * time.Millisecond)
 		return new(Slow)
 	})
