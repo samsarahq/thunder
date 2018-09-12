@@ -7,6 +7,7 @@ import (
 	"github.com/samsarahq/thunder/internal"
 	"github.com/samsarahq/thunder/reactive"
 	"github.com/samsarahq/thunder/sqlgen"
+	"github.com/samsarahq/thunder/thunderpb"
 )
 
 // dbResource tracks changes to a specific table matching a filter
@@ -75,7 +76,7 @@ func (t *dbTracker) processBinlog(update *update) {
 	}
 }
 
-func (t *dbTracker) registerDependency(ctx context.Context, table string, tester sqlgen.Tester) {
+func (t *dbTracker) registerDependency(ctx context.Context, table string, tester sqlgen.Tester, filter sqlgen.Filter) error {
 	r := &dbResource{
 		table:    table,
 		tester:   tester,
@@ -84,9 +85,16 @@ func (t *dbTracker) registerDependency(ctx context.Context, table string, tester
 	r.resource.Cleanup(func() {
 		t.remove(r)
 	})
-	reactive.AddDependency(ctx, r.resource)
+
+	proto, err := filterToProto(table, filter)
+	if err != nil {
+		return err
+	}
+
+	reactive.AddDependency(ctx, r.resource, proto)
 
 	t.add(r)
+	return nil
 }
 
 // LiveDB is a SQL client that supports live updating queries.
@@ -120,7 +128,6 @@ func (ldb *LiveDB) query(ctx context.Context, query *sqlgen.BaseSelectQuery) ([]
 	if !reactive.HasRerunner(ctx) || ldb.HasTx(ctx) {
 		return ldb.DB.BaseQuery(ctx, query)
 	}
-
 	selectQuery, err := query.MakeSelectQuery()
 	if err != nil {
 		return nil, err
@@ -141,7 +148,8 @@ func (ldb *LiveDB) query(ctx context.Context, query *sqlgen.BaseSelectQuery) ([]
 
 		// Register the dependency before we do the query to not miss any updates
 		// between querying and registering.
-		ldb.tracker.registerDependency(ctx, query.Table.Name, tester)
+		// Do not fail the query if this step fails.
+		_ = ldb.tracker.registerDependency(ctx, query.Table.Name, tester, query.Filter)
 
 		// Perform the query.
 		// XXX: This will build the SQL string again... :(
@@ -200,4 +208,21 @@ func (ldb *LiveDB) QueryRow(ctx context.Context, result interface{}, filter sqlg
 
 func (ldb *LiveDB) Close() error {
 	return ldb.Conn.Close()
+}
+
+func (ldb *LiveDB) AddDependency(ctx context.Context, proto *thunderpb.SQLFilter) error {
+	table, filter, err := filterFromProto(proto)
+	if err != nil {
+		return err
+	}
+
+	tester, err := ldb.Schema.MakeTester(table, filter)
+	if err != nil {
+		return err
+	}
+
+	if err := ldb.tracker.registerDependency(ctx, table, tester, filter); err != nil {
+		return err
+	}
+	return nil
 }
