@@ -31,18 +31,18 @@ func New(t reflect.Type, tags []string) *Descriptor {
 }
 
 // Valuer creates a sql/driver.Valuer from the type and value.
-func (d Descriptor) Valuer(val reflect.Value) Valuer {
+func (d *Descriptor) Valuer(val reflect.Value) Valuer {
 	// Ideally we would de-reference pointers here in order to simplify how we work with the value.
 	// However, some interfaces (I'm looking at you, gogo/protobuf) implement their methods as
 	// pointer methods.
-	return Valuer{Descriptor: &d, value: val}
+	return Valuer{Descriptor: d, value: val}
 }
 
 // Scanner creates a sql.Scanner from the descriptor.
-func (d Descriptor) Scanner() *Scanner { return &Scanner{Descriptor: &d} }
+func (d *Descriptor) Scanner() *Scanner { return &Scanner{Descriptor: d} }
 
 // ValidateSQLType checks to see if the field is a valid SQL value.
-func (d Descriptor) ValidateSQLType() error {
+func (d *Descriptor) ValidateSQLType() error {
 	valuer := d.Valuer(reflect.Zero(d.Type))
 	val, err := valuer.Value()
 	if err != nil {
@@ -54,7 +54,7 @@ func (d Descriptor) ValidateSQLType() error {
 	return d.Scanner().Scan(val)
 }
 
-func (d Descriptor) copy(from, to reflect.Value, isValid bool) {
+func (d *Descriptor) copy(from, to reflect.Value, isValid bool) {
 	// Set non-pointer by setting reference
 	if !d.Ptr {
 		to.Set(from)
