@@ -33,6 +33,3 @@ func (d Descriptor) Valuer(val reflect.Value) Valuer {
 	// pointer methods.
 	return Valuer{Descriptor: &d, value: val}
 }
-
-// Scanner creates a sql.Scanner from the descriptor.
-func (d Descriptor) Scanner() *Scanner { return &Scanner{Descriptor: &d} }
