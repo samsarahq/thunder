@@ -125,11 +125,6 @@ func (s Scanner) Interface() interface{} {
 	return nil
 }
 
-// CopyTo copies the scanner value to another reflect.Value. This is used for setting structs.
-func (s *Scanner) CopyTo(to reflect.Value) {
-	s.copy(s.value, to, s.isValid)
-}
-
 // Scan satisfies the sql.Scanner interface.
 // The src value will be one of the following:
 //    int64
