@@ -119,9 +119,8 @@ type Scanner struct {
 	isValid bool
 }
 
-// CopyTo copies the scanner value to another reflect.Value. This is used for setting structs.
-func (s *Scanner) CopyTo(to reflect.Value) {
-	s.copy(s.value, to, s.isValid)
+func (s *Scanner) Target(value reflect.Value) {
+	s.value = value
 }
 
 // Scan satisfies the sql.Scanner interface.
@@ -134,16 +133,22 @@ func (s *Scanner) CopyTo(to reflect.Value) {
 //    time.Time
 //    nil - for NULL values
 func (s *Scanner) Scan(src interface{}) error {
-	// Get a value of the pointer of our type. The Scanner and Unmarshalers should
-	// only be implemented as dereference methods, since they would do nothing otherwise. Therefore
-	// we can safely assume that we should check for these interfaces on the pointer value.
-	s.value = reflect.New(s.Type)
-	i := s.value.Interface()
-	// Our value however should continue referencing a non-pointer for easier assignment.
-	s.value = s.value.Elem()
+	// Clear out the value after a scan so we aren't holding onto references.
+	defer func() { s.value = reflect.Value{} }()
 
 	// Keep track of whether our value was empty.
 	s.isValid = src != nil
+
+	if s.isValid && s.Ptr {
+		s.value.Set(reflect.New(s.Type))
+	}
+
+	// Get a value of the pointer of our type. The Scanner and Unmarshalers should
+	// only be implemented as dereference methods, since they would do nothing otherwise. Therefore
+	// we can safely assume that we should check for these interfaces on the pointer value.
+	i := s.value.Interface()
+	// Our value however should continue referencing a non-pointer for easier assignment.
+	s.value = s.value.Elem()
 
 	// If our interface supports sql.Scanner we can immediately short-circuit as this is what the
 	// MySQL driver would do.

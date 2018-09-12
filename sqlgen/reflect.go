@@ -62,38 +62,31 @@ func UnbuildStruct(table *Table, strct interface{}) []interface{} {
 	return values
 }
 
-// BuildStruct constructs a struct value defined by table and field values.
-func BuildStruct(table *Table, scanners []*fields.Scanner) interface{} {
+// parseQueryRow parses a row from a sql.DB query into a struct
+func parseQueryRow(table *Table, scanner *sql.Rows) (interface{}, error) {
 	ptr := reflect.New(table.Type)
 	elem := ptr.Elem()
 
-	for i, column := range table.Columns {
-		// These values are all copies (as opposed to references) of database values.
-		// This means there's no funky business that can happen with the database re-using pointers.
-		scanners[i].CopyTo(elem.FieldByIndex(column.Index))
-	}
-
-	return ptr.Interface()
-}
-
-// parseQueryRow parses a row from a sql.DB query into a struct
-func parseQueryRow(table *Table, scanner *sql.Rows) (interface{}, error) {
-	// Pass fields which fulfill the interface `sql.Scanner` and coerce values.
 	values := make([]interface{}, len(table.Columns))
-	for i := range values {
-		values[i] = table.Columns[i].Descriptor.Scanner()
+
+	// Descriptor Scanner is instantiated with a reference to our struct fields.
+	// It scans directly into our struct.
+	for i, column := range table.Columns {
+		field := elem.FieldByIndex(column.Index)
+		if field.Kind() != reflect.Ptr {
+			field = field.Addr()
+		}
+		scanner := column.Descriptor.Scanner()
+		// Scan into field.
+		scanner.Target(field)
+		values[i] = scanner
 	}
 
 	if err := scanner.Scan(values...); err != nil {
 		return nil, err
 	}
 
-	scanners := make([]*fields.Scanner, len(table.Columns))
-	for i := range scanners {
-		scanners[i] = values[i].(*fields.Scanner)
-	}
-
-	return BuildStruct(table, scanners), nil
+	return ptr.Interface(), nil
 }
 
 func CopySlice(result interface{}, rows []interface{}) error {
