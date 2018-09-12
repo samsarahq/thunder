@@ -1,6 +1,11 @@
 package schemabuilder
 
-import "reflect"
+import (
+	"encoding/json"
+	"errors"
+	"reflect"
+	"strconv"
+)
 
 // A Object represents a Go type and set of methods to be converted into an
 // Object in a GraphQL schema.
@@ -99,3 +104,84 @@ type Methods map[string]*method
 type Union struct{}
 
 var unionType = reflect.TypeOf(Union{})
+
+// UnmarshalFunc unmarshal value into its known type.
+// Look ar RegisterScalar function for an example.
+type UnmarshalFunc func(value interface{}, dest reflect.Value) error
+
+// RegisterScalar is used to register custom scalars.
+//
+// For example, to register a custom ID type,
+// type ID struct {
+// 		Value string
+// }
+//
+// Implement JSON Marshalling
+// func (id ID) MarshalJSON() ([]byte, error) {
+//  return strconv.AppendQuote(nil, string(id.Value)), nil
+// }
+//
+// Register unmarshal func
+// func init() {
+//	typ := reflect.TypeOf((*ID)(nil)).Elem()
+//	if err := schemabuilder.RegisterScalar(typ, "ID", func(value interface{}, d reflect.Value) error {
+//		v, ok := value.(string)
+//		if !ok {
+//			return errors.New("not a string type")
+//		}
+//
+//		d.Field(0).SetString(v)
+//		return nil
+//	}); err != nil {
+//		panic(err)
+//	}
+//}
+func RegisterScalar(typ reflect.Type, name string, uf UnmarshalFunc) error {
+	if typ.Kind() == reflect.Ptr {
+		return errors.New("type should not be of pointer type")
+	}
+
+	if uf == nil {
+		// Slow fail safe to avoid reflection code by package users
+		if !reflect.PtrTo(typ).Implements(reflect.TypeOf((*json.Unmarshaler)(nil)).Elem()) {
+			return errors.New("either UnmarshalFunc should be provided or the provided type should implement json.Unmarshaler interface")
+		}
+
+		f, _ := reflect.PtrTo(typ).MethodByName("UnmarshalJSON")
+
+		uf = func(value interface{}, dest reflect.Value) error {
+			var x interface{}
+			switch v := value.(type) {
+			case []byte:
+				x = v
+			case string:
+				x = []byte(v)
+			case float64:
+				x = []byte(strconv.FormatFloat(v, 'g', -1, 64))
+			case int64:
+				x = []byte(strconv.FormatInt(v, 10))
+			case bool:
+				if v {
+					x = []byte{'t', 'r', 'u', 'e'}
+				} else {
+					x = []byte{'f', 'a', 'l', 's', 'e'}
+				}
+			default:
+				return errors.New("unknown type")
+			}
+
+			if err := f.Func.Call([]reflect.Value{dest.Addr(), reflect.ValueOf(x)})[0].Interface(); err != nil {
+				return err.(error)
+			}
+
+			return nil
+		}
+	}
+
+	scalars[typ] = name
+	scalarArgParsers[typ] = &argParser{
+		FromJSON: uf,
+	}
+
+	return nil
+}
