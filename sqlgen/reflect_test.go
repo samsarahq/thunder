@@ -105,49 +105,6 @@ type user struct {
 	Optional *string
 }
 
-func TestBuildStruct(t *testing.T) {
-	s := NewSchema()
-	if err := s.RegisterType("users", AutoIncrement, user{}); err != nil {
-		t.Fatal(err)
-	}
-	var foo = "foo"
-	table := s.ByName["users"]
-
-	id := fieldFromValue(int64(0)).Scanner()
-	name := fieldFromValue("").Scanner()
-	age := fieldFromValue(int64(0)).Scanner()
-	optional := fieldFromValue(&foo).Scanner()
-
-	id.Scan(10)
-	name.Scan("bob")
-	age.Scan(nil)
-	optional.Scan(nil)
-
-	assert.Equal(t, &user{
-		Id:       10,
-		Name:     "bob",
-		Age:      0,
-		Optional: nil,
-	}, BuildStruct(table, []*fields.Scanner{id, name, age, optional}))
-
-	id = fieldFromValue(int64(0)).Scanner()
-	name = fieldFromValue("").Scanner()
-	age = fieldFromValue(int64(0)).Scanner()
-	optional = fieldFromValue(&foo).Scanner()
-
-	id.Scan(nil)
-	name.Scan(nil)
-	age.Scan(5)
-	optional.Scan("foo")
-
-	assert.Equal(t, &user{
-		Id:       0,
-		Name:     "",
-		Age:      5,
-		Optional: &foo,
-	}, BuildStruct(table, []*fields.Scanner{id, name, age, optional}))
-}
-
 type IntAlias int64
 type SuffixString string
 
@@ -180,28 +137,6 @@ type custom struct {
 
 func fieldFromValue(i interface{}) *fields.Descriptor {
 	return fields.New(reflect.TypeOf(i), nil)
-}
-
-func TestBuildStructWithAlias(t *testing.T) {
-	s := NewSchema()
-	if err := s.RegisterType("customs", AutoIncrement, custom{}); err != nil {
-		t.Fatal(err)
-	}
-	table := s.ByName["customs"]
-
-	id := fieldFromValue(int64(0)).Scanner()
-	intAlias := fieldFromValue(IntAlias(0)).Scanner()
-	suffixString := fieldFromValue(SuffixString("")).Scanner()
-
-	id.Scan(10)
-	intAlias.Scan(int64(20))
-	suffixString.Scan("foo")
-
-	assert.Equal(t, &custom{
-		Id:           10,
-		IntAlias:     20,
-		SuffixString: "foo-FOO",
-	}, BuildStruct(table, []*fields.Scanner{id, intAlias, suffixString}))
 }
 
 func TestMakeWhere(t *testing.T) {

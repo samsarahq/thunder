@@ -190,12 +190,21 @@ func TestField_Scan(t *testing.T) {
 	for i, c := range cases {
 		typ := reflect.TypeOf(c.Type)
 		field := fields.New(typ, []string{c.Tag})
+
+		// Hack to hang onto address of pointers (via pointer-pointer)
+		var out, ptrptr reflect.Value
 		scanner := field.Scanner()
+		if field.Ptr {
+			ptrptr = reflect.New(reflect.PtrTo(field.Type))
+			scanner.Target(ptrptr.Elem())
+			out = ptrptr
+		} else {
+			out = reflect.New(field.Type)
+			scanner.Target(out)
+		}
 
 		err := scanner.Scan(c.In)
-		out := reflect.New(typ).Elem()
-		scanner.CopyTo(out)
-		got := out.Interface()
+		got := out.Elem().Interface()
 
 		if c.Error {
 			assert.NotNil(t, err, "case %d failed", i)
@@ -207,12 +216,14 @@ func TestField_Scan(t *testing.T) {
 }
 
 func TestField_ValidateSQLType(t *testing.T) {
+	integer := int64(0)
 	cases := []struct {
 		In    interface{}
 		Error bool
 	}{
 		{In: "foo", Error: false},
 		{In: int16(0), Error: false},
+		{In: &integer, Error: false},
 		{In: [4]byte{}, Error: true},
 		{In: ifaceBinaryMarshal{}, Error: true},
 	}
@@ -235,9 +246,9 @@ func TestField_SupportsProtobuf(t *testing.T) {
 	b, err := valuer.Value()
 	assert.NoError(t, err)
 
-	scanner := descriptor.Scanner()
-	scanner.Scan(b)
 	got := reflect.New(reflect.TypeOf(event)).Elem()
-	scanner.CopyTo(got)
+	scanner := descriptor.Scanner()
+	scanner.Target(got)
+	scanner.Scan(b)
 	assert.Equal(t, event, got.Interface())
 }

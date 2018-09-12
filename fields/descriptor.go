@@ -39,7 +39,9 @@ func (d *Descriptor) Valuer(val reflect.Value) Valuer {
 }
 
 // Scanner creates a sql.Scanner from the descriptor.
-func (d *Descriptor) Scanner() *Scanner { return &Scanner{Descriptor: d} }
+func (d *Descriptor) Scanner() *Scanner {
+	return &Scanner{Descriptor: d}
+}
 
 // ValidateSQLType checks to see if the field is a valid SQL value.
 func (d *Descriptor) ValidateSQLType() error {
@@ -51,23 +53,17 @@ func (d *Descriptor) ValidateSQLType() error {
 	if ok := driver.IsValue(val); !ok {
 		return fmt.Errorf("%T is not a valid SQL type", val)
 	}
-	return d.Scanner().Scan(val)
-}
 
-func (d *Descriptor) copy(from, to reflect.Value, isValid bool) {
-	// Set non-pointer by setting reference
-	if !d.Ptr {
-		to.Set(from)
-		return
+	// We need to hold onto this pointer-pointer in order to make the value addressable.
+	var value, ptrptr reflect.Value
+	if d.Ptr {
+		ptrptr = reflect.New(reflect.PtrTo(d.Type))
+		value = ptrptr.Elem()
+	} else {
+		value = reflect.New(d.Type)
 	}
 
-	if !isValid {
-		to.Set(reflect.Zero(to.Type()))
-		return
-	}
-
-	// Set pointer by creating a new reference.
-	tmp := reflect.New(d.Type)
-	tmp.Elem().Set(from)
-	to.Set(tmp)
+	scanner := d.Scanner()
+	scanner.Target(value)
+	return scanner.Scan(val)
 }

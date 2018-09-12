@@ -8,11 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/samsarahq/thunder/fields"
 	"github.com/samsarahq/thunder/sqlgen"
 	"github.com/siddontang/go-mysql/mysql"
 	"github.com/siddontang/go-mysql/replication"
@@ -188,24 +188,31 @@ func buildColumnMap(conn *sql.DB, database string, table *sqlgen.Table) (*column
 
 // parseBinlogRow parses a binlog row into a struct
 func parseBinlogRow(table *sqlgen.Table, binlogRow []interface{}, columnMap *columnMap) (interface{}, error) {
+	ptr := reflect.New(table.Type)
+	elem := ptr.Elem()
+
 	if len(binlogRow) != columnMap.expectedColumns {
 		return nil, fmt.Errorf("binlog for %s has %d columns, expected %d",
 			table.Name, len(binlogRow), columnMap.expectedColumns)
 	}
 
-	scanners := make([]*fields.Scanner, len(columnMap.source))
 	for i, j := range columnMap.source {
 		if j == -1 {
 			continue
 		}
-		scanner := table.Columns[i].Descriptor.Scanner()
+		column := table.Columns[i]
+		field := elem.FieldByIndex(column.Index)
+		if field.Kind() != reflect.Ptr {
+			field = field.Addr()
+		}
+		scanner := column.Descriptor.Scanner()
+		scanner.Target(field)
 		if err := scanner.Scan(binlogRow[j]); err != nil {
 			return nil, err
 		}
-		scanners[i] = scanner
 	}
 
-	return sqlgen.BuildStruct(table, scanners), nil
+	return ptr.Interface(), nil
 }
 
 // getColumnMap returns the a column map for the table, fetching schema
