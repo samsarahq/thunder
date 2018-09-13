@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/samsarahq/thunder/fields"
 	"github.com/samsarahq/thunder/sqlgen"
-
 	"github.com/siddontang/go-mysql/mysql"
 	"github.com/siddontang/go-mysql/replication"
 )
@@ -193,19 +193,19 @@ func parseBinlogRow(table *sqlgen.Table, binlogRow []interface{}, columnMap *col
 			table.Name, len(binlogRow), columnMap.expectedColumns)
 	}
 
-	scannables := table.Scannables.Get().([]interface{})
-	defer table.Scannables.Put(scannables)
-
+	scanners := make([]*fields.Scanner, len(columnMap.source))
 	for i, j := range columnMap.source {
 		if j == -1 {
 			continue
 		}
-		if err := scannables[i].(sql.Scanner).Scan(binlogRow[j]); err != nil {
+		scanner := table.Columns[i].Descriptor.Scanner()
+		if err := scanner.Scan(binlogRow[j]); err != nil {
 			return nil, err
 		}
+		scanners[i] = scanner
 	}
 
-	return sqlgen.BuildStruct(table, scannables), nil
+	return sqlgen.BuildStruct(table, scanners), nil
 }
 
 // getColumnMap returns the a column map for the table, fetching schema

@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kylelemons/godebug/pretty"
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/samsarahq/thunder/internal/testfixtures"
+	"github.com/stretchr/testify/assert"
 )
 
 func setup() (*testfixtures.TestDatabase, *DB, error) {
@@ -36,6 +37,20 @@ type User struct {
 	Name string
 	Uuid testfixtures.CustomType
 	Mood *testfixtures.CustomType
+}
+
+type Complex struct {
+	Id       int64 `sql:",primary"`
+	Name     string
+	Text     []byte            `sql:",string"`
+	Blob     []byte            `sql:",binary"`
+	Mappings map[string]string `sql:",json"`
+}
+
+func TestTagOverrides(t *testing.T) {
+	schema := NewSchema()
+	err := schema.RegisterType("complex", AutoIncrement, Complex{})
+	assert.NoError(t, err)
 }
 
 func TestContextDeadlineEnforced(t *testing.T) {
@@ -70,16 +85,14 @@ func TestIntegrationBasic(t *testing.T) {
 		t.Error(err)
 	}
 
-	if diff := pretty.Compare(users, []*User{
+	assert.Equal(t, []*User{
 		{
 			Id:   1,
 			Name: "Bob",
 			Uuid: testfixtures.CustomType{'1', '1', '2', '3', '8', '4', '9', '1', '2', '9', '3'},
 			Mood: &mood,
 		},
-	}); diff != "" {
-		t.Errorf("diff: %s", diff)
-	}
+	}, users)
 }
 
 // TestContextCancelBeforeRowsScan demonstrates we don't
