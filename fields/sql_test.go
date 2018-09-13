@@ -180,3 +180,25 @@ func TestField_Scan(t *testing.T) {
 		}
 	}
 }
+
+func TestField_ValidateSQLType(t *testing.T) {
+	cases := []struct {
+		In    interface{}
+		Error bool
+	}{
+		{In: "foo", Error: false},
+		{In: int16(0), Error: false},
+		{In: [4]byte{}, Error: true},
+		{In: ifaceBinaryMarshal{}, Error: true},
+	}
+
+	for _, c := range cases {
+		descriptor := fields.New(reflect.TypeOf(c.In), nil)
+		err := descriptor.ValidateSQLType()
+		if c.Error {
+			assert.NotNil(t, err)
+		} else {
+			assert.NoError(t, err)
+		}
+	}
+}
