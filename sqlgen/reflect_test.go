@@ -149,12 +149,12 @@ func TestMakeWhere(t *testing.T) {
 	where, err := makeWhere(table, Filter{"id": 10})
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"id"}, where.Columns)
-	assertSameValues(t, []interface{}{int64(10)}, where.Values)
+	assert.Equal(t, []interface{}{int64(10)}, where.Values)
 
 	where, err = makeWhere(table, Filter{"id": 10, "name": "bob", "age": 30})
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"id", "name", "age"}, where.Columns)
-	assertSameValues(t, []interface{}{int64(10), "bob", int64(30)}, where.Values)
+	assert.Equal(t, []interface{}{int64(10), "bob", int64(30)}, where.Values)
 
 	where, err = makeWhere(table, Filter{})
 	assert.NoError(t, err)
@@ -286,20 +286,6 @@ func TestMakeSelectRow(t *testing.T) {
 	}, query)
 }
 
-func assertSameValues(t *testing.T, expected []interface{}, got []interface{}) {
-	if len(expected) != len(got) {
-		t.Errorf("Mistmatched values length")
-		return
-	}
-
-	for i := range expected {
-		valuer := got[i].(fields.Valuer)
-		val, err := valuer.Value()
-		assert.NoError(t, err)
-		assert.Equal(t, expected[i], val)
-	}
-}
-
 func TestMakeInsertAutoIncrement(t *testing.T) {
 	s := NewSchema()
 	if err := s.RegisterType("users", AutoIncrement, user{}); err != nil {
@@ -313,7 +299,7 @@ func TestMakeInsertAutoIncrement(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "users", query.Table)
 	assert.Equal(t, []string{"name", "age", "optional"}, query.Columns)
-	assertSameValues(t, []interface{}{"bob", int64(20), nil}, query.Values)
+	assert.Equal(t, []interface{}{"bob", int64(20), nil}, query.Values)
 }
 
 func TestMakeUpsertAutoIncrement(t *testing.T) {
@@ -347,7 +333,7 @@ func TestMakeUpsertUniqueId(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "users", query.Table)
 	assert.Equal(t, []string{"id", "name", "age", "optional"}, query.Columns)
-	assertSameValues(t, []interface{}{int64(5), "alice", int64(30), "temp"}, query.Values)
+	assert.Equal(t, []interface{}{int64(5), "alice", int64(30), "temp"}, query.Values)
 }
 
 func TestMakeUpdateAutoIncrement(t *testing.T) {
@@ -364,9 +350,9 @@ func TestMakeUpdateAutoIncrement(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "users", query.Table)
 	assert.Equal(t, []string{"name", "age", "optional"}, query.Columns)
-	assertSameValues(t, []interface{}{"bob", int64(20), nil}, query.Values)
+	assert.Equal(t, []interface{}{"bob", int64(20), nil}, query.Values)
 	assert.Equal(t, []string{"id"}, query.Where.Columns)
-	assertSameValues(t, []interface{}{int64(10)}, query.Where.Values)
+	assert.Equal(t, []interface{}{int64(10)}, query.Where.Values)
 }
 
 func TestMakeUpdateUniqueId(t *testing.T) {
@@ -385,9 +371,9 @@ func TestMakeUpdateUniqueId(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "users", query.Table)
 	assert.Equal(t, []string{"name", "age", "optional"}, query.Columns)
-	assertSameValues(t, []interface{}{"alice", int64(40), "temp"}, query.Values)
+	assert.Equal(t, []interface{}{"alice", int64(40), "temp"}, query.Values)
 	assert.Equal(t, []string{"id"}, query.Where.Columns)
-	assertSameValues(t, []interface{}{int64(20)}, query.Where.Values)
+	assert.Equal(t, []interface{}{int64(20)}, query.Where.Values)
 }
 
 func TestMakeDelete(t *testing.T) {
@@ -404,7 +390,7 @@ func TestMakeDelete(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "users", query.Table)
 	assert.Equal(t, []string{"id"}, query.Where.Columns)
-	assertSameValues(t, []interface{}{int64(10)}, query.Where.Values)
+	assert.Equal(t, []interface{}{int64(10)}, query.Where.Values)
 }
 
 func TestCoerce(t *testing.T) {

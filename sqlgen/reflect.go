@@ -51,16 +51,20 @@ const (
 )
 
 // UnbuildStruct extracts SQL values from a struct
-func UnbuildStruct(table *Table, strct interface{}) []interface{} {
+func UnbuildStruct(table *Table, strct interface{}) ([]interface{}, error) {
 	elem := reflect.ValueOf(strct).Elem()
 	values := make([]interface{}, len(table.Columns))
 
 	for i, column := range table.Columns {
 		val := elem.FieldByIndex(column.Index)
-		values[i] = column.Descriptor.Valuer(val)
+		var err error
+		values[i], err = column.Descriptor.Valuer(val).Value()
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	return values
+	return values, nil
 }
 
 // parseQueryRow parses a row from a sql.DB query into a struct
@@ -338,7 +342,11 @@ func makeWhere(table *Table, filter Filter) (*SimpleWhere, error) {
 			return nil, fmt.Errorf("unknown column %s", name)
 		}
 
-		l = append(l, whereElem{column: column, value: column.Descriptor.Valuer(reflect.ValueOf(value))})
+		v, err := column.Descriptor.Valuer(reflect.ValueOf(value)).Value()
+		if err != nil {
+			return nil, err
+		}
+		l = append(l, whereElem{column: column, value: v})
 	}
 
 	sort.Sort(l)
@@ -481,7 +489,10 @@ func (s *Schema) MakeInsertRow(row interface{}) (*InsertQuery, error) {
 		return nil, err
 	}
 
-	allValues := UnbuildStruct(table, row)
+	allValues, err := UnbuildStruct(table, row)
+	if err != nil {
+		return nil, err
+	}
 	var columns []string
 	var values []interface{}
 
@@ -517,7 +528,10 @@ func (s *Schema) MakeUpsertRow(row interface{}) (*UpsertQuery, error) {
 		return nil, errors.New("upsert only supports unique value primary keys")
 	}
 
-	values := UnbuildStruct(table, row)
+	values, err := UnbuildStruct(table, row)
+	if err != nil {
+		return nil, err
+	}
 	var columns []string
 	for _, column := range table.Columns {
 		columns = append(columns, column.Name)
@@ -543,7 +557,10 @@ func (s *Schema) MakeUpdateRow(row interface{}) (*UpdateQuery, error) {
 		return nil, err
 	}
 
-	allValues := UnbuildStruct(table, row)
+	allValues, err := UnbuildStruct(table, row)
+	if err != nil {
+		return nil, err
+	}
 	var columns, whereColumns []string
 	var values, whereValues []interface{}
 
@@ -580,7 +597,10 @@ func (s *Schema) MakeDeleteRow(row interface{}) (*DeleteQuery, error) {
 		return nil, err
 	}
 
-	allValues := UnbuildStruct(table, row)
+	allValues, err := UnbuildStruct(table, row)
+	if err != nil {
+		return nil, err
+	}
 	var columns []string
 	var values []interface{}
 	for i, column := range table.Columns {
