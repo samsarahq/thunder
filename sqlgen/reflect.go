@@ -11,7 +11,7 @@ import (
 	"sync"
 	"unicode"
 
-	"github.com/samsarahq/thunder/fields"
+	"github.com/samsarahq/thunder/internal/fields"
 )
 
 type Filter map[string]interface{}
