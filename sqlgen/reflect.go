@@ -187,10 +187,14 @@ func (s *Schema) buildDescriptor(table string, primaryKeyType PrimaryKeyType, ty
 
 		if len(tags) > 1 {
 			for _, tag := range tags[1:] {
-				if tag != "primary" || primary {
+				switch tag {
+				case "primary":
+					primary = true
+				case "binary", "json", "string":
+					// Do nothing, fields will handle these.
+				default:
 					return nil, fmt.Errorf("bad type %s: column %s has unexpected tag %s", typ, column, tag)
 				}
-				primary = true
 			}
 		}
 
