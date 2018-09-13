@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2018-09-13
+
+### Changed
+
+- Memory optimizations (see [#166](https://github.com/samsarahq/thunder/pull/166))
+
+### Removed
+
+#### `fields`
+
+- This is now internal API and will no longer be documented in the changelog.
+
+#### `sqlgen`
+
+- `BuildStruct` is no longer necessary and was removed.
+
 ## [0.3.1] - 2018-08-28
 
 ### Changed
