@@ -14,6 +14,10 @@ func CustomTypeFromString(s string) CustomType {
 	return c
 }
 
+func (u CustomType) String() string {
+	return string([]byte(u[:]))
+}
+
 func (u CustomType) Value() (driver.Value, error) {
 	return []byte(u[:]), nil
 }
