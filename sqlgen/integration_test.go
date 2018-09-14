@@ -2,10 +2,12 @@ package sqlgen
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/internal/testfixtures"
 	"github.com/stretchr/testify/assert"
 )
@@ -133,6 +135,58 @@ func TestContextCancelBeforeRowsScan(t *testing.T) {
 	}
 	if err := rows.Err(); err != context.Canceled {
 		t.Fatalf("expecting context.Canceled from rows.Err(), got %v", err)
+	}
+}
+
+// TestBatchFilter shows sqlgen batching matcher does not match if
+// filter type does not exactly match column type.
+func TestBatchFilter(t *testing.T) {
+	tdb, db, err := setup()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tdb.Close()
+
+	if _, err := db.InsertRow(context.Background(), &User{
+		Id:   1,
+		Name: "Bob",
+		Uuid: testfixtures.CustomType{'1', '1', '2', '3', '8', '4', '9', '1', '2', '9', '3'},
+		Mood: &testfixtures.CustomType{'f', 'o', 'o', 'o', 'o', 'o', 'o'},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := batch.WithBatching(context.Background())
+
+	var user *User
+
+	// Only int64 works because id field is int64.
+	if err := db.QueryRow(ctx, &user, Filter{"id": int64(1)}, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	// Other int variants don't work.
+	if err := db.QueryRow(ctx, &user, Filter{"id": int32(1)}, nil); err != sql.ErrNoRows {
+		t.Fatalf("expecting sql.ErrNoRows, got: %v", err)
+	}
+	if err := db.QueryRow(ctx, &user, Filter{"id": int16(1)}, nil); err != sql.ErrNoRows {
+		t.Fatalf("expecting sql.ErrNoRows, got: %v", err)
+	}
+	if err := db.QueryRow(ctx, &user, Filter{"id": int8(1)}, nil); err != sql.ErrNoRows {
+		t.Fatalf("expecting sql.ErrNoRows, got: %v", err)
+	}
+	if err := db.QueryRow(ctx, &user, Filter{"id": int(1)}, nil); err != sql.ErrNoRows {
+		t.Fatalf("expecting sql.ErrNoRows, got: %v", err)
+	}
+
+	// Unsigned int does not work.
+	if err := db.QueryRow(ctx, &user, Filter{"id": uint(1)}, nil); err != sql.ErrNoRows {
+		t.Fatalf("expecting sql.ErrNoRows, got: %v", err)
+	}
+
+	// String does not work either.
+	if err := db.QueryRow(ctx, &user, Filter{"id": "1"}, nil); err != sql.ErrNoRows {
+		t.Fatalf("expecting sql.ErrNoRows, got: %v", err)
 	}
 }
 
