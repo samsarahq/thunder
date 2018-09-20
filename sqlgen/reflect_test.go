@@ -301,8 +301,8 @@ func TestMakeInsertAutoIncrement(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, "users", query.Table)
-	assert.Equal(t, []string{"name", "age", "optional"}, query.Columns)
-	assert.Equal(t, []interface{}{"bob", int64(20), nil}, query.Values)
+	assert.Equal(t, []string{"name", "age", "optional", "uuid"}, query.Columns)
+	assert.Equal(t, []interface{}{"bob", int64(20), nil, make([]byte, 16)}, query.Values)
 }
 
 func TestMakeUpsertAutoIncrement(t *testing.T) {
@@ -335,8 +335,8 @@ func TestMakeUpsertUniqueId(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, "users", query.Table)
-	assert.Equal(t, []string{"id", "name", "age", "optional"}, query.Columns)
-	assert.Equal(t, []interface{}{int64(5), "alice", int64(30), "temp"}, query.Values)
+	assert.Equal(t, []string{"id", "name", "age", "optional", "uuid"}, query.Columns)
+	assert.Equal(t, []interface{}{int64(5), "alice", int64(30), "temp", make([]byte, 16)}, query.Values)
 }
 
 func TestMakeUpdateAutoIncrement(t *testing.T) {
@@ -352,8 +352,8 @@ func TestMakeUpdateAutoIncrement(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, "users", query.Table)
-	assert.Equal(t, []string{"name", "age", "optional"}, query.Columns)
-	assert.Equal(t, []interface{}{"bob", int64(20), nil}, query.Values)
+	assert.Equal(t, []string{"name", "age", "optional", "uuid"}, query.Columns)
+	assert.Equal(t, []interface{}{"bob", int64(20), nil, make([]byte, 16)}, query.Values)
 	assert.Equal(t, []string{"id"}, query.Where.Columns)
 	assert.Equal(t, []interface{}{int64(10)}, query.Where.Values)
 }
@@ -373,8 +373,8 @@ func TestMakeUpdateUniqueId(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, "users", query.Table)
-	assert.Equal(t, []string{"name", "age", "optional"}, query.Columns)
-	assert.Equal(t, []interface{}{"alice", int64(40), "temp"}, query.Values)
+	assert.Equal(t, []string{"name", "age", "optional", "uuid"}, query.Columns)
+	assert.Equal(t, []interface{}{"alice", int64(40), "temp", make([]byte, 16)}, query.Values)
 	assert.Equal(t, []string{"id"}, query.Where.Columns)
 	assert.Equal(t, []interface{}{int64(20)}, query.Where.Values)
 }
