@@ -76,7 +76,7 @@ func (t *dbTracker) processBinlog(update *update) {
 	}
 }
 
-func (t *dbTracker) registerDependency(ctx context.Context, table string, tester sqlgen.Tester, filter sqlgen.Filter) error {
+func (t *dbTracker) registerDependency(ctx context.Context, schema *sqlgen.Schema, table string, tester sqlgen.Tester, filter sqlgen.Filter) error {
 	r := &dbResource{
 		table:    table,
 		tester:   tester,
@@ -86,7 +86,7 @@ func (t *dbTracker) registerDependency(ctx context.Context, table string, tester
 		t.remove(r)
 	})
 
-	proto, err := filterToProto(table, filter)
+	proto, err := filterToProto(schema, table, filter)
 	if err != nil {
 		return err
 	}
@@ -149,7 +149,7 @@ func (ldb *LiveDB) query(ctx context.Context, query *sqlgen.BaseSelectQuery) ([]
 		// Register the dependency before we do the query to not miss any updates
 		// between querying and registering.
 		// Do not fail the query if this step fails.
-		_ = ldb.tracker.registerDependency(ctx, query.Table.Name, tester, query.Filter)
+		_ = ldb.tracker.registerDependency(ctx, ldb.Schema, query.Table.Name, tester, query.Filter)
 
 		// Perform the query.
 		// XXX: This will build the SQL string again... :(
@@ -211,7 +211,7 @@ func (ldb *LiveDB) Close() error {
 }
 
 func (ldb *LiveDB) AddDependency(ctx context.Context, proto *thunderpb.SQLFilter) error {
-	table, filter, err := filterFromProto(proto)
+	table, filter, err := filterFromProto(ldb.Schema, proto)
 	if err != nil {
 		return err
 	}
@@ -221,7 +221,7 @@ func (ldb *LiveDB) AddDependency(ctx context.Context, proto *thunderpb.SQLFilter
 		return err
 	}
 
-	if err := ldb.tracker.registerDependency(ctx, table, tester, filter); err != nil {
+	if err := ldb.tracker.registerDependency(ctx, ldb.Schema, table, tester, filter); err != nil {
 		return err
 	}
 	return nil
