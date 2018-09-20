@@ -91,10 +91,10 @@ func (f Valuer) Value() (driver.Value, error) {
 	switch f.Kind {
 	case reflect.Bool:
 		return f.value.Bool(), nil
-	case
-		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return f.value.Int(), nil
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return int64(f.value.Uint()), nil
 	case reflect.Float32, reflect.Float64:
 		return f.value.Float(), nil
 	case reflect.String:
