@@ -663,10 +663,18 @@ func (t *tester) Test(row interface{}) bool {
 
 	struc := reflect.ValueOf(row).Elem()
 	for i, column := range t.columns {
-		// coerces some pointer types to make filters more idiomatic
-		expected := coerce(reflect.ValueOf(t.values[i]))
-		value := coerce(struc.FieldByIndex(column.Index))
-		if expected != value {
+		expected, err := column.Descriptor.Valuer(reflect.ValueOf(t.values[i])).Value()
+		if err != nil {
+			// Ignore error.
+			return false
+		}
+		value, err := column.Descriptor.Valuer(struc.FieldByIndex(column.Index)).Value()
+		if err != nil {
+			// Ignore error.
+			return false
+		}
+
+		if !driverValuesEqual(expected, value) {
 			return false
 		}
 	}

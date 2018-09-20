@@ -12,6 +12,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/samsarahq/thunder/internal/fields"
+	"github.com/samsarahq/thunder/internal/testfixtures"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -104,6 +105,7 @@ type user struct {
 	Name     string
 	Age      int64
 	Optional *string
+	Uuid     testfixtures.CustomType
 }
 
 type IntAlias int64
@@ -433,6 +435,16 @@ func TestMakeTester(t *testing.T) {
 		t.Error(err)
 	}
 
+	idInt32Ten, err := s.MakeTester("users", Filter{"id": int32(10)})
+	if err != nil {
+		t.Error(err)
+	}
+
+	idUnsignedTen, err := s.MakeTester("users", Filter{"id": uint(10)})
+	if err != nil {
+		t.Error(err)
+	}
+
 	idTenOptionalNil, err := s.MakeTester("users", Filter{
 		"id":       &ten,
 		"optional": (*string)(nil),
@@ -449,6 +461,13 @@ func TestMakeTester(t *testing.T) {
 		t.Error(err)
 	}
 
+	uuidTypedFoo, err := s.MakeTester("users", Filter{
+		"uuid": testfixtures.CustomTypeFromString("foo"),
+	})
+	if err != nil {
+		t.Error(err)
+	}
+
 	foo := "foo"
 
 	cases := []struct {
@@ -459,10 +478,16 @@ func TestMakeTester(t *testing.T) {
 	}{
 		{Description: "compare int match", Tester: idTen, User: &user{Id: 10}, Expected: true},
 		{Description: "compare int fail", Tester: idTen, User: &user{Id: 5}, Expected: false},
+		{Description: "compare int32 match", Tester: idInt32Ten, User: &user{Id: 10}, Expected: true},
+		{Description: "compare int32 fail", Tester: idInt32Ten, User: &user{Id: 5}, Expected: false},
+		{Description: "compare unsigned int match", Tester: idUnsignedTen, User: &user{Id: 10}, Expected: true},
+		{Description: "compare unsigned int fail", Tester: idUnsignedTen, User: &user{Id: 5}, Expected: false},
 		{Description: "compare nil match", Tester: idTenOptionalNil, User: &user{Id: 10}, Expected: true},
 		{Description: "compare nil fail", Tester: idTenOptionalNil, User: &user{Id: 10, Optional: &foo}, Expected: false},
 		{Description: "compare ptr match", Tester: idTenOptionalFoo, User: &user{Id: 10, Optional: &foo}, Expected: true},
 		{Description: "compare ptr fail", Tester: idTenOptionalFoo, User: &user{Id: 10}, Expected: false},
+		{Description: "compare uuid match", Tester: uuidTypedFoo, User: &user{Uuid: testfixtures.CustomTypeFromString("foo")}, Expected: true},
+		{Description: "compare uuid fail", Tester: uuidTypedFoo, User: &user{Uuid: testfixtures.CustomTypeFromString("bar")}, Expected: false},
 	}
 
 	for _, c := range cases {
