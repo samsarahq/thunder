@@ -25,4 +25,7 @@ func TestToArray(t *testing.T) {
 	testToArray(t, []interface{}{1, 2, 3, 4, 5, 6, 7, 8}, [8]interface{}{1, 2, 3, 4, 5, 6, 7, 8})
 	testToArray(t, []interface{}{1, 2, 3, 4, 5, 6, 7, 8, 9}, [9]interface{}{1, 2, 3, 4, 5, 6, 7, 8, 9})
 	testToArray(t, []interface{}{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, [10]interface{}{1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
+
+	// Byte slices are converted into strings.
+	testToArray(t, []interface{}{[]byte("hi"), []byte("there")}, [2]interface{}{"hi", "there"})
 }
