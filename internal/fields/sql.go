@@ -88,7 +88,7 @@ func (f Valuer) Value() (driver.Value, error) {
 	// Coerce our value into a valid sql/driver.Value (see sql/driver.IsValue).
 	// This not only converts base types into their sql counterparts (like int32 -> int64) but also
 	// handles custom types (like `type customString string` -> string).
-	switch f.Kind {
+	switch f.value.Kind() {
 	case reflect.Bool:
 		return f.value.Bool(), nil
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
