@@ -249,3 +249,64 @@ func Benchmark(b *testing.B) {
 		})
 	}
 }
+
+func BenchmarkSql(b *testing.B) {
+	tdb, db, err := setup()
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer tdb.Close()
+
+	ctx := context.Background()
+
+	mood := testfixtures.CustomType{'f', 'o', 'o', 'o', 'o', 'o', 'o'}
+	user := &User{
+		Id:   1,
+		Name: "Bob",
+		Uuid: testfixtures.CustomType{'1', '1', '2', '3', '8', '4', '9', '1', '2', '9', '3'},
+		Mood: &mood,
+	}
+
+	if _, err := db.InsertRow(ctx, user); err != nil {
+		b.Fatal(err)
+	}
+
+	benchmarks := []struct {
+		name string
+		fn   func() error
+	}{
+		{"Read", func() error {
+			user := &User{}
+			row := db.Conn.QueryRowContext(ctx, `SELECT * from users`)
+			return row.Scan(&user.Id, &user.Name, &user.Uuid, &user.Mood)
+		}},
+		{"Read_Where", func() error {
+			user := &User{}
+			row := db.Conn.QueryRowContext(ctx, `SELECT * from users where users.name = ?`, "Bob")
+			return row.Scan(&user.Id, &user.Name, &user.Uuid, &user.Mood)
+		}},
+		{"Create", func() error {
+			_, err := db.Conn.ExecContext(ctx, `INSERT INTO users (name, uuid, mood) VALUES (?, ?, ?)`, user.Name, user.Uuid, user.Mood)
+			return err
+		}},
+		{"Update", func() error {
+			_, err := db.Conn.ExecContext(ctx, `UPDATE users SET name = ?, uuid = ?, mood = ? WHERE users.id = ?`, user.Name, user.Uuid, user.Mood, user.Id)
+			return err
+		}},
+		{"Delete", func() error {
+			_, err := db.Conn.ExecContext(ctx, `DELETE FROM users WHERE users.id = ?`, user.Id)
+			return err
+		}},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				if err := bm.fn(); err != nil {
+					b.Error(err)
+				}
+			}
+		})
+	}
+}
