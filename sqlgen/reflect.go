@@ -3,6 +3,7 @@ package sqlgen
 import (
 	"bytes"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"reflect"
@@ -706,4 +707,40 @@ func (t *Table) extractRow(row interface{}) Filter {
 	}
 
 	return f
+}
+
+// driverValuesEqual returns true if two driver.Values are identical.
+// driver.Value must be one of the following types
+//
+//   int64
+//   float64
+//   bool
+//   []byte
+//   string
+//   time.Time
+func driverValuesEqual(dv1, dv2 driver.Value) bool {
+	k1 := reflect.ValueOf(dv1).Kind()
+	k2 := reflect.ValueOf(dv2).Kind()
+
+	// Kinds must match.
+	if k1 != k2 {
+		return false
+	}
+
+	// Special case: if both driver.Value are slices, compare their byte values.
+	if k1 == reflect.Slice || k2 == reflect.Slice {
+		if b1, ok := dv1.([]byte); ok {
+			if b2, ok := dv2.([]byte); ok {
+				return bytes.Compare(b1, b2) == 0
+			}
+		}
+		return false
+	}
+
+	// Naive equality check for remaining primitive types.
+	if dv1 == dv2 {
+		return true
+	}
+
+	return false
 }

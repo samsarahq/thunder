@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/kylelemons/godebug/pretty"
@@ -469,5 +470,53 @@ func TestMakeTester(t *testing.T) {
 		if actual != c.Expected {
 			t.Errorf("%s: got %v, expected %v", c.Description, actual, c.Expected)
 		}
+	}
+}
+
+func TestDriverValuesEqual(t *testing.T) {
+	cases := []struct {
+		left  driver.Value
+		right driver.Value
+		equal bool
+	}{
+		{left: int64(1), right: int64(1), equal: true},
+		{left: int64(1), right: int64(0), equal: false},
+		{left: int64(1), right: float64(1), equal: false},
+		{left: int64(1), right: bool(false), equal: false},
+		{left: int64(1), right: []byte("1"), equal: false},
+		{left: int64(1), right: string("1"), equal: false},
+		{left: int64(1), right: time.Time{}, equal: false},
+
+		{left: float64(1), right: float64(1), equal: true},
+		{left: float64(1), right: float64(0), equal: false},
+		{left: float64(1), right: bool(false), equal: false},
+		{left: float64(1), right: []byte("1"), equal: false},
+		{left: float64(1), right: string("1"), equal: false},
+		{left: float64(1), right: time.Time{}, equal: false},
+
+		{left: bool(true), right: bool(true), equal: true},
+		{left: bool(true), right: bool(false), equal: false},
+		{left: bool(true), right: []byte("1"), equal: false},
+		{left: bool(true), right: string("1"), equal: false},
+		{left: bool(true), right: time.Time{}, equal: false},
+
+		{left: []byte("1"), right: []byte("1"), equal: true},
+		{left: []byte("1"), right: []byte("0"), equal: false},
+		{left: []byte("1"), right: string("1"), equal: false},
+		{left: []byte("1"), right: time.Time{}, equal: false},
+
+		{left: string("1"), right: string("1"), equal: true},
+		{left: string("1"), right: string("0"), equal: false},
+		{left: string("1"), right: time.Time{}, equal: false},
+
+		{left: time.Time{}, right: time.Time{}, equal: true},
+		{left: time.Time{}, right: time.Now(), equal: false},
+	}
+
+	for _, c := range cases {
+		t.Run("", func(t *testing.T) {
+			assert.Equal(t, c.equal, driverValuesEqual(c.left, c.right))
+			assert.Equal(t, c.equal, driverValuesEqual(c.right, c.left))
+		})
 	}
 }
