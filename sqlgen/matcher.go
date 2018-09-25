@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/samsarahq/thunder/internal"
+	"github.com/obad2015/thunder/internal"
 )
 
 // extractColumns extracts the columns used in a filter. For example, for

@@ -12,8 +12,8 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/samsarahq/thunder/graphql"
-	"github.com/samsarahq/thunder/internal"
+	"github.com/obad2015/thunder/graphql"
+	"github.com/obad2015/thunder/internal"
 )
 
 type argParser struct {

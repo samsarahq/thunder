@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 package proto;
-option go_package = "github.com/samsarahq/thunder/internal/proto";
+option go_package = "github.com/obad2015/thunder/internal/proto";
 
 message ExampleEvent {
   string table = 1;

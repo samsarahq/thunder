@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/samsarahq/thunder/internal"
+	"github.com/obad2015/thunder/internal"
 )
 
 func makeQuery(onArgParse *func()) *Object {

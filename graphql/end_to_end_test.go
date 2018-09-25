@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/samsarahq/thunder/concurrencylimiter"
-	"github.com/samsarahq/thunder/graphql"
-	"github.com/samsarahq/thunder/graphql/schemabuilder"
-	"github.com/samsarahq/thunder/internal"
-	"github.com/samsarahq/thunder/reactive"
+	"github.com/obad2015/thunder/concurrencylimiter"
+	"github.com/obad2015/thunder/graphql"
+	"github.com/obad2015/thunder/graphql/schemabuilder"
+	"github.com/obad2015/thunder/internal"
+	"github.com/obad2015/thunder/reactive"
 	"github.com/stretchr/testify/assert"
 )
 

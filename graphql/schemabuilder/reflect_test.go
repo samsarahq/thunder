@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/samsarahq/thunder/graphql"
-	"github.com/samsarahq/thunder/internal"
+	"github.com/obad2015/thunder/graphql"
+	"github.com/obad2015/thunder/internal"
 	"github.com/stretchr/testify/assert"
 )
 

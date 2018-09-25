@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/samsarahq/thunder/internal/fields"
-	"github.com/samsarahq/thunder/sqlgen"
+	"github.com/obad2015/thunder/internal/fields"
+	"github.com/obad2015/thunder/sqlgen"
 	"github.com/siddontang/go-mysql/mysql"
 	"github.com/siddontang/go-mysql/replication"
 )

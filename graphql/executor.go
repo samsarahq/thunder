@@ -10,8 +10,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/samsarahq/thunder/concurrencylimiter"
-	"github.com/samsarahq/thunder/reactive"
+	"github.com/obad2015/thunder/concurrencylimiter"
+	"github.com/obad2015/thunder/reactive"
 )
 
 type pathError struct {
