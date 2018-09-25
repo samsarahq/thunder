@@ -219,6 +219,7 @@ func TestField_ValidateSQLType(t *testing.T) {
 	integer := int64(0)
 	cases := []struct {
 		In    interface{}
+		Tags  []string
 		Error bool
 	}{
 		{In: "foo", Error: false},
@@ -226,10 +227,15 @@ func TestField_ValidateSQLType(t *testing.T) {
 		{In: &integer, Error: false},
 		{In: [4]byte{}, Error: true},
 		{In: ifaceBinaryMarshal{}, Error: true},
+		{In: ifaceBinaryMarshal{}, Tags: []string{"binary"}, Error: false},
+		{In: &ifaceBinaryMarshal{}, Tags: []string{"binary"}, Error: false},
+		// Non-pointer proto does not work because the Marshal() method has a pointer receiver.
+		{In: proto.ExampleEvent{}, Tags: []string{"binary"}, Error: true},
+		{In: &proto.ExampleEvent{}, Tags: []string{"binary"}, Error: false},
 	}
 
 	for _, c := range cases {
-		descriptor := fields.New(reflect.TypeOf(c.In), nil)
+		descriptor := fields.New(reflect.TypeOf(c.In), c.Tags)
 		err := descriptor.ValidateSQLType()
 		if c.Error {
 			assert.NotNil(t, err)
