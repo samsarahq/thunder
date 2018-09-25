@@ -45,13 +45,20 @@ func (d *Descriptor) Scanner() *Scanner {
 
 // ValidateSQLType checks to see if the field is a valid SQL value.
 func (d *Descriptor) ValidateSQLType() error {
-	valuer := d.Valuer(reflect.Zero(d.Type))
-	val, err := valuer.Value()
+	var val reflect.Value
+	if d.Ptr {
+		val = reflect.New(d.Type)
+	} else {
+		val = reflect.Zero(d.Type)
+	}
+
+	valuer := d.Valuer(val)
+	sqlVal, err := valuer.Value()
 	if err != nil {
 		return err
 	}
-	if ok := driver.IsValue(val); !ok {
-		return fmt.Errorf("%T is not a valid SQL type", val)
+	if ok := driver.IsValue(sqlVal); !ok {
+		return fmt.Errorf("%T is not a valid SQL type", sqlVal)
 	}
 
 	// We need to hold onto this pointer-pointer in order to make the value addressable.
@@ -65,5 +72,5 @@ func (d *Descriptor) ValidateSQLType() error {
 
 	scanner := d.Scanner()
 	scanner.Target(value)
-	return scanner.Scan(val)
+	return scanner.Scan(sqlVal)
 }
