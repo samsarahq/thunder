@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/samsarahq/thunder/graphql"
+	"github.com/obad2015/thunder/graphql"
 )
 
 // Connection conforms to the GraphQL Connection type in the Relay Pagination spec.

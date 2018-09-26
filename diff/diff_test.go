@@ -4,8 +4,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/samsarahq/thunder/diff"
-	"github.com/samsarahq/thunder/internal"
+	"github.com/obad2015/thunder/diff"
+	"github.com/obad2015/thunder/internal"
 )
 
 func TestDiffListString(t *testing.T) {

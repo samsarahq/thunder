@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/samsarahq/thunder/batch"
-	"github.com/samsarahq/thunder/reactive"
+	"github.com/obad2015/thunder/batch"
+	"github.com/obad2015/thunder/reactive"
 )
 
 func HTTPHandler(schema *Schema, middlewares ...MiddlewareFunc) http.Handler {
@@ -73,7 +73,13 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := PrepareQuery(h.schema.Query, query.SelectionSet); err != nil {
+	var schema Type
+	if query.Kind == "mutation" {
+		schema = h.schema.Mutation
+	} else {
+		schema = h.schema.Query
+	}
+	if err := PrepareQuery(schema, query.SelectionSet); err != nil {
 		writeResponse(nil, err)
 		return
 	}
@@ -91,7 +97,7 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		middlewares = append(middlewares, h.middlewares...)
 		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
 			output := next(input)
-			output.Current, output.Error = e.Execute(input.Ctx, h.schema.Query, nil, input.ParsedQuery)
+			output.Current, output.Error = e.Execute(input.Ctx, schema, nil, input.ParsedQuery)
 			return output
 		})
 

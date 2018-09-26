@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/samsarahq/thunder/thunderpb"
+	"github.com/obad2015/thunder/thunderpb"
 )
 
 func InvalidateAfter(ctx context.Context, d time.Duration) {

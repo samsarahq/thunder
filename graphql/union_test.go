@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/kylelemons/godebug/pretty"
-	"github.com/samsarahq/thunder/graphql"
-	"github.com/samsarahq/thunder/graphql/schemabuilder"
-	"github.com/samsarahq/thunder/internal"
+	"github.com/obad2015/thunder/graphql"
+	"github.com/obad2015/thunder/graphql/schemabuilder"
+	"github.com/obad2015/thunder/internal"
 )
 
 type GatewayType int

@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/samsarahq/thunder/batch"
+	"github.com/obad2015/thunder/batch"
 )
 
 // DB uses a *sql.DB connection that is established by its owner. DB assumes the

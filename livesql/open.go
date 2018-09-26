@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/samsarahq/thunder/sqlgen"
+	"github.com/obad2015/thunder/sqlgen"
 )
 
 func Open(hostname string, port uint16, username, password, database string, schema *sqlgen.Schema) (*LiveDB, error) {

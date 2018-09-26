@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/samsarahq/thunder/batch"
+	"github.com/obad2015/thunder/batch"
 )
 
 // TestBasic tests that batch.Func with default options batches calls.

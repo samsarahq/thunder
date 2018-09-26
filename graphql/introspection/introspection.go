@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/samsarahq/thunder/graphql"
-	"github.com/samsarahq/thunder/graphql/schemabuilder"
+	"github.com/obad2015/thunder/graphql"
+	"github.com/obad2015/thunder/graphql/schemabuilder"
 )
 
 type introspection struct {

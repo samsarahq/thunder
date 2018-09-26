@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/samsarahq/thunder/graphql/introspection"
-	"github.com/samsarahq/thunder/graphql/schemabuilder"
+	"github.com/obad2015/thunder/graphql/introspection"
+	"github.com/obad2015/thunder/graphql/schemabuilder"
 )
 
 type User struct {

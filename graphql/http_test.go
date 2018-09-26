@@ -8,8 +8,8 @@ import (
 
 	"github.com/kylelemons/godebug/pretty"
 
-	"github.com/samsarahq/thunder/graphql"
-	"github.com/samsarahq/thunder/graphql/schemabuilder"
+	"github.com/obad2015/thunder/graphql"
+	"github.com/obad2015/thunder/graphql/schemabuilder"
 )
 
 func testHTTPRequest(req *http.Request) *httptest.ResponseRecorder {

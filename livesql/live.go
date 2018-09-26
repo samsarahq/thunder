@@ -4,10 +4,10 @@ import (
 	"context"
 	"sync"
 
-	"github.com/samsarahq/thunder/internal"
-	"github.com/samsarahq/thunder/reactive"
-	"github.com/samsarahq/thunder/sqlgen"
-	"github.com/samsarahq/thunder/thunderpb"
+	"github.com/obad2015/thunder/internal"
+	"github.com/obad2015/thunder/reactive"
+	"github.com/obad2015/thunder/sqlgen"
+	"github.com/obad2015/thunder/thunderpb"
 )
 
 // dbResource tracks changes to a specific table matching a filter
@@ -101,7 +101,7 @@ func (t *dbTracker) registerDependency(ctx context.Context, schema *sqlgen.Schem
 // It relies on a reactive.Rerunner being in the context to register changes in the database (which
 // are propagated through said rerunner to its clients). Without this rerunner being in the context
 // it falls back to non-live (sqlgen) behavior.
-// See https://godoc.org/github.com/samsarahq/thunder/reactive for information on reactive.
+// See https://godoc.org/github.com/obad2015/thunder/reactive for information on reactive.
 type LiveDB struct {
 	*sqlgen.DB
 
