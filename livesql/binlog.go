@@ -7,13 +7,13 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"log"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/samsarahq/thunder/internal/fields"
+	"github.com/samsarahq/thunder/logger"
 	"github.com/samsarahq/thunder/sqlgen"
 	"github.com/siddontang/go-mysql/mysql"
 	"github.com/siddontang/go-mysql/replication"
@@ -38,6 +38,8 @@ type Binlog struct {
 	mu         sync.Mutex
 	columnMaps map[string]*columnMap
 	closed     bool
+
+	logger logger.Logger
 }
 
 // checkVariable checks that the requested MySQL global variable matches
@@ -122,6 +124,8 @@ func NewBinlogWithSource(ldb *LiveDB, sourceDB *sql.DB, host string, port uint16
 		streamer:      streamer,
 		tableVersions: make(map[string]uint64),
 		columnMaps:    make(map[string]*columnMap),
+
+		logger: logger.New(),
 	}, nil
 }
 
@@ -327,6 +331,11 @@ func (b *Binlog) parseBinlogRowsEvent(event *replication.BinlogEvent) (*update, 
 	return update, nil
 }
 
+// SetOutput sets the destination for the error logger.
+func (b *Binlog) SetLogger(l logger.Logger) {
+	b.logger = l
+}
+
 // SetUpdateDelay sets the duration by which future updates will be delayed.
 func (b *Binlog) SetUpdateDelay(d time.Duration) {
 	b.delayMu.Lock()
@@ -370,9 +379,7 @@ func (b *Binlog) RunPollLoop() error {
 			} else if err != nil && err.Error() == "sql: database is closed" {
 				continue
 			} else if err != nil {
-				// TODO: handle these errors more gracefully -- for now, we just log
-				// them the console.
-				log.Printf("error parsing rows event %v", err)
+				b.logger.Error("livesql: failed to parse rows event", "error", err)
 				continue
 			}
 
