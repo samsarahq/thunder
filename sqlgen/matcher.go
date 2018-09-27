@@ -81,7 +81,7 @@ func newMatcher() *matcher {
 // add adds a query to the matcher, associating an opaque id with the query.
 func (m *matcher) add(id interface{}, filter Filter) {
 	columnSet := extractColumns(filter)
-	tuple := internal.ToArray(extractValuesTuple(filter, columnSet))
+	tuple := internal.MakeHashable(extractValuesTuple(filter, columnSet))
 	key := columnsKey(columnSet)
 
 	g, ok := m.groups[key]
@@ -105,7 +105,7 @@ func (m *matcher) add(id interface{}, filter Filter) {
 // removes removes a query from the matcher.
 func (m *matcher) remove(id interface{}, filter Filter) {
 	columnSet := extractColumns(filter)
-	tuple := internal.ToArray(extractValuesTuple(filter, columnSet))
+	tuple := internal.MakeHashable(extractValuesTuple(filter, columnSet))
 	key := columnsKey(columnSet)
 
 	g, ok := m.groups[key]
@@ -136,7 +136,7 @@ func (m *matcher) remove(id interface{}, filter Filter) {
 func (m *matcher) match(o map[string]interface{}) []interface{} {
 	var result []interface{}
 	for _, g := range m.groups {
-		for query := range g.queriesByTuple[internal.ToArray(extractValuesTuple(o, g.columns))] {
+		for query := range g.queriesByTuple[internal.MakeHashable(extractValuesTuple(o, g.columns))] {
 			result = append(result, query)
 		}
 	}
