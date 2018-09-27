@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Changed
+
+#### `livesql`
+
+- Support filter types that serialize into `[]byte`. ([#172](https://github.com/samsarahq/thunder/pull/172))
+
 ## [0.4.0] - 2018-09-13
 
 ### Changed
