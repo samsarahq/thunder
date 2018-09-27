@@ -215,7 +215,7 @@ func parseBinlogRow(table *sqlgen.Table, binlogRow []interface{}, columnMap *col
 		scanner := scanners[i].(*fields.Scanner)
 		scanner.Target(field)
 		if err := scanner.Scan(binlogRow[j]); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("binlog: `%s`.`%s` error: %v", table.Name, table.Columns[i].Name, err)
 		}
 	}
 
