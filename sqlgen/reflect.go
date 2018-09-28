@@ -61,7 +61,7 @@ func UnbuildStruct(table *Table, strct interface{}) ([]interface{}, error) {
 		var err error
 		values[i], err = column.Descriptor.Valuer(val).Value()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("sqlgen: serialization error for `%s`.`%s`: %v", table.Name, column.Name, err)
 		}
 	}
 
@@ -88,7 +88,8 @@ func parseQueryRow(table *Table, scanner *sql.Rows) (interface{}, error) {
 	}
 
 	if err := scanner.Scan(scanners...); err != nil {
-		return nil, err
+		columns, _ := scanner.Columns()
+		return nil, fmt.Errorf("sqlgen: parsing error for `%s`.(%v): %v", table.Name, columns, err)
 	}
 
 	return ptr.Interface(), nil
@@ -345,7 +346,7 @@ func makeWhere(table *Table, filter Filter) (*SimpleWhere, error) {
 
 		v, err := column.Descriptor.Valuer(reflect.ValueOf(value)).Value()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("sqlgen: filter error for `%s`.`%s`: %v", table.Name, column.Name, err)
 		}
 		l = append(l, whereElem{column: column, value: v})
 	}
