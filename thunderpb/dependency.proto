@@ -20,13 +20,15 @@ enum FieldKind {
 
 message Field {
   FieldKind kind = 1;
-  bool bool = 2;
-  sint64 int = 3;
-  uint64 uint = 4;
-  string string = 5;
-  bytes bytes = 6;
-  double float64 = 7;
-  google.protobuf.Timestamp time = 8 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+  oneof value {
+    bool bool = 2;
+    sint64 int = 3;
+    uint64 uint = 4;
+    string string = 5;
+    bytes bytes = 6;
+    double float64 = 7;
+    google.protobuf.Timestamp time = 8 [(gogoproto.stdtime) = true]; // gogoproto.nullable = false is not compatible with oneof.
+  }
 }
 
 message SQLFilter {
