@@ -25,17 +25,17 @@ func valueToField(value driver.Value) (*thunderpb.Field, error) {
 	case nil:
 		return &thunderpb.Field{Kind: thunderpb.FieldKind_Null}, nil
 	case int64:
-		return &thunderpb.Field{Kind: thunderpb.FieldKind_Int, Int: column}, nil
+		return &thunderpb.Field{Kind: thunderpb.FieldKind_Int, Value: &thunderpb.Field_Int{Int: column}}, nil
 	case float64:
-		return &thunderpb.Field{Kind: thunderpb.FieldKind_Float64, Float64: column}, nil
+		return &thunderpb.Field{Kind: thunderpb.FieldKind_Float64, Value: &thunderpb.Field_Float64{Float64: column}}, nil
 	case bool:
-		return &thunderpb.Field{Kind: thunderpb.FieldKind_Bool, Bool: column}, nil
+		return &thunderpb.Field{Kind: thunderpb.FieldKind_Bool, Value: &thunderpb.Field_Bool{Bool: column}}, nil
 	case []byte:
-		return &thunderpb.Field{Kind: thunderpb.FieldKind_Bytes, Bytes: column}, nil
+		return &thunderpb.Field{Kind: thunderpb.FieldKind_Bytes, Value: &thunderpb.Field_Bytes{Bytes: column}}, nil
 	case string:
-		return &thunderpb.Field{Kind: thunderpb.FieldKind_String, String_: column}, nil
+		return &thunderpb.Field{Kind: thunderpb.FieldKind_String, Value: &thunderpb.Field_String_{String_: column}}, nil
 	case time.Time:
-		return &thunderpb.Field{Kind: thunderpb.FieldKind_Time, Time: column}, nil
+		return &thunderpb.Field{Kind: thunderpb.FieldKind_Time, Value: &thunderpb.Field_Time{Time: &column}}, nil
 	default:
 		return nil, fmt.Errorf("unknown type %s", reflect.TypeOf(column))
 	}
@@ -46,19 +46,19 @@ func fieldToValue(field *thunderpb.Field) (driver.Value, error) {
 	case thunderpb.FieldKind_Null:
 		return nil, nil
 	case thunderpb.FieldKind_Bool:
-		return field.Bool, nil
+		return field.Value.(*thunderpb.Field_Bool).Bool, nil
 	case thunderpb.FieldKind_Int:
-		return field.Int, nil
+		return field.Value.(*thunderpb.Field_Int).Int, nil
 	case thunderpb.FieldKind_Uint:
-		return field.Uint, nil
+		return field.Value.(*thunderpb.Field_Uint).Uint, nil
 	case thunderpb.FieldKind_String:
-		return field.String_, nil // field.String is a function.
+		return field.Value.(*thunderpb.Field_String_).String_, nil
 	case thunderpb.FieldKind_Bytes:
-		return field.Bytes, nil
+		return field.Value.(*thunderpb.Field_Bytes).Bytes, nil
 	case thunderpb.FieldKind_Float64:
-		return field.Float64, nil
+		return field.Value.(*thunderpb.Field_Float64).Float64, nil
 	case thunderpb.FieldKind_Time:
-		return field.Time, nil
+		return *field.Value.(*thunderpb.Field_Time).Time, nil
 	default:
 		return nil, fmt.Errorf("unknown kind %s", field.Kind.String())
 	}
