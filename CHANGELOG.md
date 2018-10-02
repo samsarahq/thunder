@@ -13,6 +13,10 @@
 
 - `reactive.AddDependency` accepts a serializable object to be added to dependency set tracker. ([#165](https://github.com/samsarahq/thunder/pull/165))
 
+#### `sqlgen`
+
+- `sqlgen.Tester` now compares `driver.Value`s. ([#170](https://github.com/samsarahq/thunder/pull/170))
+
 ## [0.4.0] - 2018-09-13
 
 ### Changed
