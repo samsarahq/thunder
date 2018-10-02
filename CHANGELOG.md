@@ -7,6 +7,11 @@
 #### `livesql`
 
 - Support filter types that serialize into `[]byte`. ([#172](https://github.com/samsarahq/thunder/pull/172))
+- Serializes `sqlgen.Tester` into protobuf message.
+
+#### `reactive`
+
+- `reactive.AddDependency` accepts a serializable object to be added to dependency set tracker. ([#165](https://github.com/samsarahq/thunder/pull/165))
 
 ## [0.4.0] - 2018-09-13
 
