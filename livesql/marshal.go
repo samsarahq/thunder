@@ -46,19 +46,23 @@ func fieldToValue(field *thunderpb.Field) (driver.Value, error) {
 	case thunderpb.FieldKind_Null:
 		return nil, nil
 	case thunderpb.FieldKind_Bool:
-		return field.Value.(*thunderpb.Field_Bool).Bool, nil
+		return field.GetBool(), nil
 	case thunderpb.FieldKind_Int:
-		return field.Value.(*thunderpb.Field_Int).Int, nil
+		return field.GetInt(), nil
 	case thunderpb.FieldKind_Uint:
-		return field.Value.(*thunderpb.Field_Uint).Uint, nil
+		return field.GetUint(), nil
 	case thunderpb.FieldKind_String:
-		return field.Value.(*thunderpb.Field_String_).String_, nil
+		return field.GetString_(), nil
 	case thunderpb.FieldKind_Bytes:
-		return field.Value.(*thunderpb.Field_Bytes).Bytes, nil
+		return field.GetBytes(), nil
 	case thunderpb.FieldKind_Float64:
-		return field.Value.(*thunderpb.Field_Float64).Float64, nil
+		return field.GetFloat64(), nil
 	case thunderpb.FieldKind_Time:
-		return *field.Value.(*thunderpb.Field_Time).Time, nil
+		ptr := field.GetTime()
+		if ptr == nil {
+			return time.Time{}, nil
+		}
+		return *ptr, nil
 	default:
 		return nil, fmt.Errorf("unknown kind %s", field.Kind.String())
 	}
