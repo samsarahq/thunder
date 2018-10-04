@@ -193,6 +193,10 @@ func (s *Schema) buildDescriptor(table string, primaryKeyType PrimaryKeyType, ty
 					primary = true
 				case "binary", "json", "string":
 					// Do nothing, fields will handle these.
+				case "implicitnull":
+					if field.Type.Kind() == reflect.Ptr {
+						return nil, fmt.Errorf("bad type %s: column %s cannot use `implicitnull` with pointer type", typ, column)
+					}
 				default:
 					return nil, fmt.Errorf("bad type %s: column %s has unexpected tag %s", typ, column, tag)
 				}

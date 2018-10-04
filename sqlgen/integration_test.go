@@ -23,7 +23,8 @@ func setup() (*testfixtures.TestDatabase, *DB, error) {
 			id   BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 			name VARCHAR(255),
 			uuid VARCHAR(255),
-			mood VARCHAR(255)
+			mood VARCHAR(255),
+			implicit_null VARCHAR(255)
 		)
 	`); err != nil {
 		return nil, nil, err
@@ -35,18 +36,20 @@ func setup() (*testfixtures.TestDatabase, *DB, error) {
 }
 
 type User struct {
-	Id   int64 `sql:",primary"`
-	Name string
-	Uuid testfixtures.CustomType
-	Mood *testfixtures.CustomType
+	Id           int64 `sql:",primary"`
+	Name         string
+	Uuid         testfixtures.CustomType
+	Mood         *testfixtures.CustomType
+	ImplicitNull string `sql:",implicitnull"`
 }
 
 type Complex struct {
-	Id       int64 `sql:",primary"`
-	Name     string
-	Text     []byte            `sql:",string"`
-	Blob     []byte            `sql:",binary"`
-	Mappings map[string]string `sql:",json"`
+	Id           int64 `sql:",primary"`
+	Name         string
+	Text         []byte            `sql:",string"`
+	Blob         []byte            `sql:",binary"`
+	Mappings     map[string]string `sql:",json"`
+	ImplicitNull string            `sql:",implicitnull"`
 }
 
 func TestTagOverrides(t *testing.T) {
@@ -201,10 +204,11 @@ func Benchmark(b *testing.B) {
 
 	mood := testfixtures.CustomType{'f', 'o', 'o', 'o', 'o', 'o', 'o'}
 	user := &User{
-		Id:   1,
-		Name: "Bob",
-		Uuid: testfixtures.CustomType{'1', '1', '2', '3', '8', '4', '9', '1', '2', '9', '3'},
-		Mood: &mood,
+		Id:           1,
+		Name:         "Bob",
+		Uuid:         testfixtures.CustomType{'1', '1', '2', '3', '8', '4', '9', '1', '2', '9', '3'},
+		Mood:         &mood,
+		ImplicitNull: "test",
 	}
 
 	if _, err := db.InsertRow(ctx, user); err != nil {
