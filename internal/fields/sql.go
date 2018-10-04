@@ -115,8 +115,7 @@ var _ driver.Valuer = &Valuer{}
 // into the type dictated by our descriptor.
 type Scanner struct {
 	*Descriptor
-	value   reflect.Value
-	isValid bool
+	value reflect.Value
 }
 
 func (s *Scanner) Target(value reflect.Value) {
@@ -137,9 +136,9 @@ func (s *Scanner) Scan(src interface{}) error {
 	defer func() { s.value = reflect.Value{} }()
 
 	// Keep track of whether our value was empty.
-	s.isValid = src != nil
+	isValid := src != nil
 
-	if s.isValid && s.Ptr {
+	if isValid && s.Ptr {
 		s.value.Set(reflect.New(s.Type))
 	}
 
@@ -166,14 +165,14 @@ func (s *Scanner) Scan(src interface{}) error {
 		}
 
 		// If we have a scanner it will handle its own validity.
-		s.isValid = true
+		isValid = true
 		return scanner.Scan(src)
 	}
 
 	// Null values are simply set to zero. Because we're not holding on to pointers, we need to
 	// represent this as a boolean. This comes _after_ the scanner step, just in case the scanner
 	// handles nil differently.
-	if !s.isValid {
+	if !isValid {
 		return nil
 	}
 
