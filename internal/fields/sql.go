@@ -77,6 +77,10 @@ func (f Valuer) Value() (driver.Value, error) {
 			return iface.MarshalJSON()
 		}
 		return json.Marshal(i)
+	case f.Tags.Contains("implicitnull"):
+		if isZero(f.value) {
+			return nil, nil
+		}
 	}
 
 	// At this point we have already handled `nil` above, so we can assume that all
