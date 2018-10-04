@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"math/rand"
-	"os"
 )
 
 type DBConfig struct {
@@ -20,15 +19,9 @@ func (d DBConfig) String() string {
 
 var DefaultDBConfig = DBConfig{
 	Username: "root",
-	Password: "",
+	Password: "dev",
 	Hostname: "localhost",
 	Port:     3307,
-}
-
-func init() {
-	if pw := os.Getenv("DB_PASSWORD"); pw != "" {
-		DefaultDBConfig.Password = pw
-	}
 }
 
 type TestDatabase struct {
