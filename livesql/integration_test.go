@@ -15,10 +15,11 @@ import (
 )
 
 type User struct {
-	Id   int64 `sql:",primary"`
-	Name string
-	Uuid testfixtures.CustomType
-	Mood *testfixtures.CustomType
+	Id              int64 `sql:",primary"`
+	Name            string
+	Uuid            testfixtures.CustomType
+	Mood            *testfixtures.CustomType
+	ImplicitNullStr string `sql:,implicitnull`
 }
 
 func TestIntegrationBasic(t *testing.T) {
@@ -36,7 +37,8 @@ func TestIntegrationBasic(t *testing.T) {
                        id   BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
                        name VARCHAR(255),
                        uuid VARCHAR(255),
-                       mood VARCHAR(255)
+                       mood VARCHAR(255),
+                       implicit_null_str VARCHAR(255)
                )
        `)
 	if err != nil {
@@ -55,6 +57,8 @@ func TestIntegrationBasic(t *testing.T) {
 	newMood := testfixtures.CustomTypeFromString("outrage")
 	uuid := testfixtures.CustomTypeFromString("11238491293")
 	newUuid := testfixtures.CustomTypeFromString("11232481203")
+	implicitNullStr := ""
+	newImplicitNullStr := "not null"
 
 	result, err := db.InsertRow(context.Background(), &User{Name: name, Uuid: uuid, Mood: &mood})
 	assert.NoError(t, err)
@@ -74,22 +78,32 @@ func TestIntegrationBasic(t *testing.T) {
 	defer rerunner.Stop()
 
 	// Initial rerunner query matches initial insert.
-	assert.Equal(t, User{Id: userId, Name: name, Uuid: uuid, Mood: &mood}, <-users)
+	assert.Equal(t, User{Id: userId, Name: name, Uuid: uuid, Mood: &mood, ImplicitNullStr: implicitNullStr}, <-users)
 
 	// Upon update we get another rerunner result with the updated name.
-	err = db.UpdateRow(context.Background(), &User{Id: userId, Name: newName, Uuid: uuid, Mood: &mood})
+	err = db.UpdateRow(context.Background(), &User{Id: userId, Name: newName, Uuid: uuid, Mood: &mood, ImplicitNullStr: implicitNullStr})
 	assert.NoError(t, err)
-	assert.Equal(t, User{Id: userId, Name: newName, Uuid: uuid, Mood: &mood}, <-users)
+	assert.Equal(t, User{Id: userId, Name: newName, Uuid: uuid, Mood: &mood, ImplicitNullStr: implicitNullStr}, <-users)
 
 	// Upon update we get another rerunner result with the updated uuid.
-	err = db.UpdateRow(context.Background(), &User{Id: userId, Name: newName, Uuid: newUuid, Mood: &mood})
+	err = db.UpdateRow(context.Background(), &User{Id: userId, Name: newName, Uuid: newUuid, Mood: &mood, ImplicitNullStr: implicitNullStr})
 	assert.NoError(t, err)
-	assert.Equal(t, User{Id: userId, Name: newName, Uuid: newUuid, Mood: &mood}, <-users)
+	assert.Equal(t, User{Id: userId, Name: newName, Uuid: newUuid, Mood: &mood, ImplicitNullStr: implicitNullStr}, <-users)
 
 	// Upon update we get another rerunner result with the updated mood.
-	err = db.UpdateRow(context.Background(), &User{Id: userId, Name: newName, Uuid: newUuid, Mood: &newMood})
+	err = db.UpdateRow(context.Background(), &User{Id: userId, Name: newName, Uuid: newUuid, Mood: &newMood, ImplicitNullStr: implicitNullStr})
 	assert.NoError(t, err)
-	assert.Equal(t, User{Id: userId, Name: newName, Uuid: newUuid, Mood: &newMood}, <-users)
+	assert.Equal(t, User{Id: userId, Name: newName, Uuid: newUuid, Mood: &newMood, ImplicitNullStr: implicitNullStr}, <-users)
+
+	// Upon update we get another rerunner result with the updated implicitNullStr.
+	err = db.UpdateRow(context.Background(), &User{Id: userId, Name: newName, Uuid: newUuid, Mood: &newMood, ImplicitNullStr: newImplicitNullStr})
+	assert.NoError(t, err)
+	assert.Equal(t, User{Id: userId, Name: newName, Uuid: newUuid, Mood: &newMood, ImplicitNullStr: newImplicitNullStr}, <-users)
+
+	// Upon update we get another rerunner result with the original implicitNullStr.
+	err = db.UpdateRow(context.Background(), &User{Id: userId, Name: newName, Uuid: newUuid, Mood: &newMood, ImplicitNullStr: implicitNullStr})
+	assert.NoError(t, err)
+	assert.Equal(t, User{Id: userId, Name: newName, Uuid: newUuid, Mood: &newMood, ImplicitNullStr: implicitNullStr}, <-users)
 }
 
 func TestIntegrationFilterCustomType(t *testing.T) {
@@ -107,7 +121,8 @@ func TestIntegrationFilterCustomType(t *testing.T) {
                        id   BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
                        name VARCHAR(255),
                        uuid VARCHAR(255),
-                       mood VARCHAR(255)
+                       mood VARCHAR(255),
+                       implicit_null_str VARCHAR(255)
                )
        `)
 	if err != nil {
@@ -126,8 +141,10 @@ func TestIntegrationFilterCustomType(t *testing.T) {
 	newMood := testfixtures.CustomTypeFromString("outrage")
 	uuid := testfixtures.CustomTypeFromString("11238491293")
 	newUuid := testfixtures.CustomTypeFromString("11232481203")
+	implicitNullStr := ""
+	newImplicitNullStr := "not null"
 
-	result, err := db.InsertRow(context.Background(), &User{Name: name, Uuid: uuid, Mood: &mood})
+	result, err := db.InsertRow(context.Background(), &User{Name: name, Uuid: uuid, Mood: &mood, ImplicitNullStr: implicitNullStr})
 	assert.NoError(t, err)
 	userId, err := result.LastInsertId()
 	assert.NoError(t, err)
@@ -140,7 +157,6 @@ func TestIntegrationFilterCustomType(t *testing.T) {
 		if err := db.QueryRow(ctx, &user, sqlgen.Filter{"mood": &mood}, nil); err != nil {
 			users <- nil
 			return nil, nil
-			// t.Errorf("couldn't query row: %v", err)
 		}
 		users <- user
 		return nil, nil
@@ -148,20 +164,25 @@ func TestIntegrationFilterCustomType(t *testing.T) {
 	defer rerunner.Stop()
 
 	// Initial rerunner query matches initial insert.
-	assert.Equal(t, &User{Id: userId, Name: name, Uuid: uuid, Mood: &mood}, <-users)
+	assert.Equal(t, &User{Id: userId, Name: name, Uuid: uuid, Mood: &mood, ImplicitNullStr: implicitNullStr}, <-users)
 
 	// Upon update we get another rerunner result with the updated name.
-	err = db.UpdateRow(context.Background(), &User{Id: userId, Name: newName, Uuid: uuid, Mood: &mood})
+	err = db.UpdateRow(context.Background(), &User{Id: userId, Name: newName, Uuid: uuid, Mood: &mood, ImplicitNullStr: implicitNullStr})
 	assert.NoError(t, err)
-	assert.Equal(t, &User{Id: userId, Name: newName, Uuid: uuid, Mood: &mood}, <-users)
+	assert.Equal(t, &User{Id: userId, Name: newName, Uuid: uuid, Mood: &mood, ImplicitNullStr: implicitNullStr}, <-users)
 
 	// Upon update we get another rerunner result with the updated uuid.
-	err = db.UpdateRow(context.Background(), &User{Id: userId, Name: newName, Uuid: newUuid, Mood: &mood})
+	err = db.UpdateRow(context.Background(), &User{Id: userId, Name: newName, Uuid: newUuid, Mood: &mood, ImplicitNullStr: implicitNullStr})
 	assert.NoError(t, err)
-	assert.Equal(t, &User{Id: userId, Name: newName, Uuid: newUuid, Mood: &mood}, <-users)
+	assert.Equal(t, &User{Id: userId, Name: newName, Uuid: newUuid, Mood: &mood, ImplicitNullStr: implicitNullStr}, <-users)
+
+	// Upon update we get another rerunner result with the updated implicitNullStr.
+	err = db.UpdateRow(context.Background(), &User{Id: userId, Name: newName, Uuid: newUuid, Mood: &mood, ImplicitNullStr: newImplicitNullStr})
+	assert.NoError(t, err)
+	assert.Equal(t, &User{Id: userId, Name: newName, Uuid: newUuid, Mood: &mood, ImplicitNullStr: newImplicitNullStr}, <-users)
 
 	// Upon update we get another rerunner result with the updated mood.
-	err = db.UpdateRow(context.Background(), &User{Id: userId, Name: newName, Uuid: newUuid, Mood: &newMood})
+	err = db.UpdateRow(context.Background(), &User{Id: userId, Name: newName, Uuid: newUuid, Mood: &newMood, ImplicitNullStr: implicitNullStr})
 	assert.NoError(t, err)
 	assert.Equal(t, (*User)(nil), <-users)
 }
