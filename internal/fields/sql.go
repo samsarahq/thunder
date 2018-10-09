@@ -19,6 +19,17 @@ type Valuer struct {
 	value reflect.Value
 }
 
+var marshalerType = reflect.TypeOf((*marshaler)(nil)).Elem()
+
+func nonPointerMarshal(d *Descriptor, val reflect.Value) (reflect.Value, bool) {
+	if !d.Ptr && reflect.PtrTo(d.Type).Implements(marshalerType) {
+		v := reflect.New(d.Type)
+		v.Elem().Set(val)
+		return v, true
+	}
+	return val, false
+}
+
 // Value satisfies the sql/driver.Valuer interface.
 // The value should be one of the following:
 //    int64
@@ -62,6 +73,9 @@ func (f Valuer) Value() (driver.Value, error) {
 	// }
 	switch {
 	case f.Tags.Contains("binary"):
+		if v, ok := nonPointerMarshal(f.Descriptor, f.value); ok {
+			return v.Interface().(marshaler).Marshal()
+		}
 		if iface, ok := i.(marshaler); ok {
 			return iface.Marshal()
 		}
