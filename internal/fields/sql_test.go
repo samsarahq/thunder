@@ -229,8 +229,7 @@ func TestField_ValidateSQLType(t *testing.T) {
 		{In: ifaceBinaryMarshal{}, Error: true},
 		{In: ifaceBinaryMarshal{}, Tags: []string{"binary"}, Error: false},
 		{In: &ifaceBinaryMarshal{}, Tags: []string{"binary"}, Error: false},
-		// Non-pointer proto does not work because the Marshal() method has a pointer receiver.
-		{In: proto.ExampleEvent{}, Tags: []string{"binary"}, Error: true},
+		{In: proto.ExampleEvent{}, Tags: []string{"binary"}, Error: false},
 		{In: &proto.ExampleEvent{}, Tags: []string{"binary"}, Error: false},
 	}
 
@@ -246,15 +245,31 @@ func TestField_ValidateSQLType(t *testing.T) {
 }
 
 func TestField_SupportsProtobuf(t *testing.T) {
-	event := &proto.ExampleEvent{Table: "users"}
-	descriptor := fields.New(reflect.TypeOf(event), []string{"binary"})
-	valuer := descriptor.Valuer(reflect.ValueOf(event))
-	b, err := valuer.Value()
-	assert.NoError(t, err)
+	t.Run("pointer", func(t *testing.T) {
+		event := &proto.ExampleEvent{Table: "users"}
+		descriptor := fields.New(reflect.TypeOf(event), []string{"binary"})
+		valuer := descriptor.Valuer(reflect.ValueOf(event))
+		b, err := valuer.Value()
+		assert.NoError(t, err)
 
-	got := reflect.New(reflect.TypeOf(event)).Elem()
-	scanner := descriptor.Scanner()
-	scanner.Target(got)
-	scanner.Scan(b)
-	assert.Equal(t, event, got.Interface())
+		got := reflect.New(reflect.TypeOf(event)).Elem()
+		scanner := descriptor.Scanner()
+		scanner.Target(got)
+		scanner.Scan(b)
+		assert.Equal(t, event, got.Interface())
+	})
+
+	t.Run("pointer", func(t *testing.T) {
+		event := proto.ExampleEvent{Table: "users"}
+		descriptor := fields.New(reflect.TypeOf(event), []string{"binary"})
+		valuer := descriptor.Valuer(reflect.ValueOf(event))
+		b, err := valuer.Value()
+		assert.NoError(t, err)
+
+		got := reflect.New(reflect.TypeOf(event))
+		scanner := descriptor.Scanner()
+		scanner.Target(got)
+		scanner.Scan(b)
+		assert.Equal(t, event, got.Elem().Interface())
+	})
 }

@@ -17,6 +17,7 @@
 
 - `sqlgen.Tester` now compares `driver.Value`s. ([#170](https://github.com/samsarahq/thunder/pull/170))
 - Support converting the zero value of fields to NULL in the db with tag `sql:",implicitnull"`. ([#181](https://github.com/samsarahq/thunder/pull/181))
+- Support non-pointer protobuf structs. ([#185](https://github.com/samsarahq/thunder/pull/185))
 
 ## [0.4.0] - 2018-09-13
 
