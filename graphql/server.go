@@ -220,15 +220,18 @@ func (c *conn) handleSubscribe(in *inEnvelope) error {
 			return output
 		})
 
-		output := runMiddlewares(middlewares, &ComputationInput{
-			Ctx:         ctx,
-			Id:          id,
-			ParsedQuery: query,
-			Previous:    previous,
-			Query:       subscribe.Query,
-			Variables:   subscribe.Variables,
-			Extensions:  in.Extensions,
-		})
+		computationInput := &ComputationInput{
+			Ctx:                  ctx,
+			Id:                   id,
+			ParsedQuery:          query,
+			Previous:             previous,
+			IsInitialComputation: initial,
+			Query:                subscribe.Query,
+			Variables:            subscribe.Variables,
+			Extensions:           in.Extensions,
+		}
+
+		output := runMiddlewares(middlewares, computationInput)
 		current, err := output.Current, output.Error
 
 		c.logger.FinishExecution(ctx, tags, time.Since(start))
@@ -269,19 +272,27 @@ func (c *conn) handleSubscribe(in *inEnvelope) error {
 			return nil, err
 		}
 
-		d := diff.Diff(previous, current)
+		d := diff.Diff(computationInput.Previous, current)
 		previous = current
-		initial = false
 
-		if initial || d != nil {
+		if d != nil {
 			c.writeOrClose(outEnvelope{
 				ID:       id,
 				Type:     "update",
 				Message:  d,
 				Metadata: output.Metadata,
 			})
+		} else if initial {
+			// When a client first subscribes, they expect a response with the new diff (even if the diff is unchanged).
+			c.writeOrClose(outEnvelope{
+				ID:       id,
+				Type:     "update",
+				Message:  struct{}{}, // This is an empty diff for any message, rather than nil which means the new message is empty.
+				Metadata: output.Metadata,
+			})
 		}
 
+		initial = false
 		return nil, nil
 	}, c.minRerunIntervalFunc(c.ctx, query))
 
@@ -315,6 +326,7 @@ func (c *conn) handleMutate(in *inEnvelope) error {
 		return err
 	}
 
+	initial := true
 	e := Executor{}
 	c.subscriptions[id] = reactive.NewRerunner(c.ctx, func(ctx context.Context) (interface{}, error) {
 		// Serialize all mutates for a given connection.
@@ -335,15 +347,18 @@ func (c *conn) handleMutate(in *inEnvelope) error {
 			return output
 		})
 
-		output := runMiddlewares(middlewares, &ComputationInput{
-			Ctx:         ctx,
-			Id:          id,
-			ParsedQuery: query,
-			Previous:    nil,
-			Query:       mutate.Query,
-			Variables:   mutate.Variables,
-			Extensions:  in.Extensions,
-		})
+		computationInput := &ComputationInput{
+			Ctx:                  ctx,
+			Id:                   id,
+			ParsedQuery:          query,
+			Previous:             nil,
+			IsInitialComputation: initial,
+			Query:                mutate.Query,
+			Variables:            mutate.Variables,
+			Extensions:           in.Extensions,
+		}
+
+		output := runMiddlewares(middlewares, computationInput)
 		current, err := output.Current, output.Error
 
 		c.logger.FinishExecution(ctx, tags, time.Since(start))
@@ -377,6 +392,7 @@ func (c *conn) handleMutate(in *inEnvelope) error {
 
 		go c.rerunSubscriptionsImmediately()
 
+		initial = false
 		return nil, errors.New("stop")
 	}, c.minRerunIntervalFunc(c.ctx, query))
 

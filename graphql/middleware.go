@@ -5,13 +5,14 @@ import (
 )
 
 type ComputationInput struct {
-	Id          string
-	Query       string
-	ParsedQuery *Query
-	Variables   map[string]interface{}
-	Ctx         context.Context
-	Previous    interface{}
-	Extensions  map[string]interface{}
+	Id                   string
+	Query                string
+	ParsedQuery          *Query
+	Variables            map[string]interface{}
+	Ctx                  context.Context
+	Previous             interface{}
+	IsInitialComputation bool
+	Extensions           map[string]interface{}
 }
 
 type ComputationOutput struct {
