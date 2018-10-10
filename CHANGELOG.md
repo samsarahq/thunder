@@ -19,6 +19,10 @@
 - Support converting the zero value of fields to NULL in the db with tag `sql:",implicitnull"`. ([#181](https://github.com/samsarahq/thunder/pull/181))
 - Support non-pointer protobuf structs. ([#185](https://github.com/samsarahq/thunder/pull/185))
 
+#### `diff`
+
+- Arrays with `nil` values no longer cause panics in `diff.Diff`. ([#184](https://github.com/samsarahq/thunder/pull/184))
+
 ## [0.4.0] - 2018-09-13
 
 ### Changed
