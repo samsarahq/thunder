@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/samsarahq/go/oops"
 	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/diff"
 	"github.com/samsarahq/thunder/reactive"
@@ -167,7 +168,7 @@ func (c *conn) handleSubscribe(in *inEnvelope) error {
 	id := in.ID
 	var subscribe subscribeMessage
 	if err := json.Unmarshal(in.Message, &subscribe); err != nil {
-		return err
+		return oops.Wrapf(err, "failed to parse subscribe message: %s", in.Message)
 	}
 
 	c.mu.Lock()
@@ -292,7 +293,7 @@ func (c *conn) handleMutate(in *inEnvelope) error {
 	id := in.ID
 	var mutate mutateMessage
 	if err := json.Unmarshal(in.Message, &mutate); err != nil {
-		return err
+		return oops.Wrapf(err, "failed to parse mutate message: %s", in.Message)
 	}
 
 	c.mu.Lock()
