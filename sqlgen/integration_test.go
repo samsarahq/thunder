@@ -8,6 +8,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/samsarahq/thunder/batch"
+	"github.com/samsarahq/thunder/internal/proto"
 	"github.com/samsarahq/thunder/internal/testfixtures"
 	"github.com/stretchr/testify/assert"
 )
@@ -20,10 +21,11 @@ func setup() (*testfixtures.TestDatabase, *DB, error) {
 
 	if _, err = testDb.Exec(`
 		CREATE TABLE users (
-			id   BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-			name VARCHAR(255),
-			uuid VARCHAR(255),
-			mood VARCHAR(255),
+			id            BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+			name          VARCHAR(255),
+			uuid          VARCHAR(255),
+			mood          VARCHAR(255),
+			proto         BLOB,
 			implicit_null VARCHAR(255)
 		)
 	`); err != nil {
@@ -40,7 +42,8 @@ type User struct {
 	Name         string
 	Uuid         testfixtures.CustomType
 	Mood         *testfixtures.CustomType
-	ImplicitNull string `sql:",implicitnull"`
+	Proto        proto.ExampleEvent `sql:",binary"`
+	ImplicitNull string             `sql:",implicitnull"`
 }
 
 type Complex struct {
