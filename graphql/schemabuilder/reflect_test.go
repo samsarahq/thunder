@@ -370,13 +370,13 @@ type kitchenSinkArgs struct {
 	Hello               int64
 	Hello32             int32
 	Hello16             int16
-	HelloFloat32		float32
-	HelloFloat64		float64
+	HelloFloat32        float32
+	HelloFloat64        float64
 	FooBar              string
 	Bool                bool
 	OptionalInt         *int64
-	OptionalFloat32		*float32
-	OptionalFloat64		*float64
+	OptionalFloat32     *float32
+	OptionalFloat64     *float64
 	OptionalStruct      *inner
 	Ints                []int64
 	OptionalStructs     *[]*inner
@@ -448,8 +448,8 @@ func TestArgParser(t *testing.T) {
 		Hello:           20,
 		Hello32:         20,
 		Hello16:         20,
-		HelloFloat32:	 42.0,
-		HelloFloat64:	 42.0,
+		HelloFloat32:    42.0,
+		HelloFloat64:    42.0,
 		FooBar:          "foo!",
 		Bool:            true,
 		OptionalInt:     nil,
@@ -500,8 +500,8 @@ func TestArgParser(t *testing.T) {
 		Hello:               40,
 		Hello32:             40,
 		Hello16:             40,
-		HelloFloat64:		 40.0,
-		HelloFloat32:		 40.0,
+		HelloFloat64:        40.0,
+		HelloFloat32:        40.0,
 		FooBar:              "bar!",
 		Bool:                false,
 		OptionalInt:         &ten,
@@ -602,4 +602,75 @@ func TestBadArguments(t *testing.T) {
 	if _, err := schema.Build(); err.Error() != "bad method aField on type schemabuilder.query: attempted to parse int64 as arguments struct, but failed: expected struct but received type int64" {
 		t.Errorf("expected non-struct args argument to fail, but received %s", err.Error())
 	}
+}
+
+func TestObjectKeyMustBeScalar(t *testing.T) {
+	t.Run("struct key tag", func(t *testing.T) {
+		type key struct{ Name string }
+		type object struct {
+			Key key `graphql:",key"`
+		}
+		builder := NewSchema()
+		builder.Object("object", object{})
+		builder.Query().FieldFunc("objects", func(ctx context.Context) []*object { return []*object(nil) })
+		_, err := builder.Build()
+		assert.Error(t, err, "key type must be scalar")
+	})
+
+	t.Run("string key tag", func(t *testing.T) {
+		type object struct {
+			Key string `graphql:",key"`
+		}
+		builder := NewSchema()
+		builder.Object("object", object{})
+		builder.Query().FieldFunc("objects", func(ctx context.Context) []*object { return []*object(nil) })
+		_, err := builder.Build()
+		assert.NoError(t, err)
+	})
+
+	t.Run("pointer string key tag", func(t *testing.T) {
+		type object struct {
+			Key *string `graphql:",key"`
+		}
+		builder := NewSchema()
+		builder.Object("object", object{})
+		builder.Query().FieldFunc("objects", func(ctx context.Context) []*object { return []*object(nil) })
+		_, err := builder.Build()
+		assert.NoError(t, err)
+	})
+
+	t.Run("struct key", func(t *testing.T) {
+		type key struct{ Name string }
+		type object struct {
+			Key key
+		}
+		builder := NewSchema()
+		builder.Object("object", object{}).Key("key")
+		builder.Query().FieldFunc("objects", func(ctx context.Context) []*object { return []*object(nil) })
+		_, err := builder.Build()
+		assert.Error(t, err, "key type must be scalar")
+	})
+
+	t.Run("string key", func(t *testing.T) {
+		type object struct {
+			Key string
+		}
+		builder := NewSchema()
+		builder.Object("object", object{}).Key("key")
+		builder.Query().FieldFunc("objects", func(ctx context.Context) []*object { return []*object(nil) })
+		_, err := builder.Build()
+		assert.NoError(t, err)
+	})
+
+	t.Run("pointer string key", func(t *testing.T) {
+		type object struct {
+			Key *string
+		}
+		builder := NewSchema()
+		builder.Object("object", object{}).Key("key")
+		builder.Query().FieldFunc("objects", func(ctx context.Context) []*object { return []*object(nil) })
+		_, err := builder.Build()
+		assert.NoError(t, err)
+	})
+
 }
