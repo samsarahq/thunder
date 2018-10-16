@@ -839,6 +839,16 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 		}
 	}
 
+	isScalarType := func(typ graphql.Type) bool {
+		if nonNull, ok := typ.(*graphql.NonNull); ok {
+			typ = nonNull.Type
+		}
+		if _, ok := typ.(*graphql.Scalar); !ok {
+			return false
+		}
+		return true
+	}
+
 	object := &graphql.Object{
 		Name:        name,
 		Description: description,
@@ -888,6 +898,9 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 			if object.Key != nil {
 				return fmt.Errorf("bad type %s: multiple key fields", typ)
 			}
+			if !isScalarType(built.Type) {
+				return fmt.Errorf("bad type %s: key type must be scalar, got %T", typ, built.Type)
+			}
 			object.Key = built.Resolve
 		}
 	}
@@ -920,6 +933,10 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 		keyPtr, ok := object.Fields[objectKey]
 		if !ok {
 			return fmt.Errorf("key field doesn't exist on object")
+		}
+
+		if !isScalarType(keyPtr.Type) {
+			return fmt.Errorf("bad type %s: key type must be scalar, got %s", typ, keyPtr.Type.String())
 		}
 		object.Key = keyPtr.Resolve
 	}
