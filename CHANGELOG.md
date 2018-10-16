@@ -4,6 +4,10 @@
 
 ### Changed
 
+#### `graphql`
+
+- Object key must now be scalar. ([#190](https://github.com/samsarahq/thunder/pull/190))
+
 #### `livesql`
 
 - Support filter types that serialize into `[]byte`. ([#172](https://github.com/samsarahq/thunder/pull/172))
