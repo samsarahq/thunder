@@ -33,6 +33,12 @@
 			"revisionTime": "2018-09-14T05:40:05Z"
 		},
 		{
+			"checksumSHA1": "yVe7CpN40HbYMohj9M4HFHfnJCk=",
+			"path": "github.com/samsarahq/go/oops",
+			"revision": "c046b0801eb2cce61be49fa8ee8b38eda4a9fc54",
+			"revisionTime": "2018-07-10T17:52:00Z"
+		},
+		{
 			"checksumSHA1": "k7K1XgcDxQczOrIhHJAhDW4LkwI=",
 			"path": "github.com/siddontang/go-mysql/client",
 			"revision": "d8e777f00cdbb2bc200ebeb80364b0bcc098362e",
