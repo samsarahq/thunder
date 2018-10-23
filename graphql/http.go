@@ -104,7 +104,7 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		current, err := output.Current, output.Error
 
 		if err != nil {
-			if extractPathError(err) == context.Canceled {
+			if ErrorCause(err) == context.Canceled {
 				return nil, err
 			}
 
