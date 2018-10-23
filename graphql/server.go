@@ -237,7 +237,7 @@ func (c *conn) handleSubscribe(in *inEnvelope) error {
 		c.logger.FinishExecution(ctx, tags, time.Since(start))
 
 		if err != nil {
-			if extractPathError(err) == context.Canceled {
+			if ErrorCause(err) == context.Canceled {
 				go c.closeSubscription(id)
 				return nil, err
 			}
@@ -373,7 +373,7 @@ func (c *conn) handleMutate(in *inEnvelope) error {
 
 			go c.closeSubscription(id)
 
-			if extractPathError(err) == context.Canceled {
+			if ErrorCause(err) == context.Canceled {
 				return nil, err
 			}
 
