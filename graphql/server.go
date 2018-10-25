@@ -236,12 +236,12 @@ func (c *conn) handleSubscribe(in *inEnvelope) error {
 
 		c.logger.FinishExecution(ctx, tags, time.Since(start))
 
-		if err != nil {
-			if ErrorCause(err) == context.Canceled {
-				go c.closeSubscription(id)
-				return nil, err
-			}
+		if computationInput.Ctx.Err() == context.Canceled {
+			go c.closeSubscription(id)
+			return nil, err
+		}
 
+		if err != nil {
 			if !initial {
 				// If this a re-computation, tell the Rerunner to retry the computation
 				// without dumping the contents of the current computation cache.
@@ -363,6 +363,11 @@ func (c *conn) handleMutate(in *inEnvelope) error {
 
 		c.logger.FinishExecution(ctx, tags, time.Since(start))
 
+		if computationInput.Ctx.Err() == context.Canceled {
+			go c.closeSubscription(id)
+			return nil, err
+		}
+
 		if err != nil {
 			c.writeOrClose(outEnvelope{
 				ID:       id,
@@ -372,10 +377,6 @@ func (c *conn) handleMutate(in *inEnvelope) error {
 			})
 
 			go c.closeSubscription(id)
-
-			if ErrorCause(err) == context.Canceled {
-				return nil, err
-			}
 
 			if _, ok := err.(SanitizedError); !ok {
 				c.logger.Error(ctx, err, tags)
