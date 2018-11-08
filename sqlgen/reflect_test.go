@@ -14,6 +14,7 @@ import (
 	"github.com/samsarahq/thunder/internal/fields"
 	"github.com/samsarahq/thunder/internal/testfixtures"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func testMakeSnake(t *testing.T, s, expected string) {
@@ -544,4 +545,20 @@ func TestDriverValuesEqual(t *testing.T) {
 			assert.Equal(t, c.equal, driverValuesEqual(c.right, c.left))
 		})
 	}
+}
+
+func TestBuildStruct(t *testing.T) {
+	s := NewSchema()
+	require.NoError(t, s.RegisterType("users", AutoIncrement, user{}))
+
+	u, err := s.BuildStruct("users", []driver.Value{
+		1, "foo", 18, nil, []byte("bar"),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, &user{
+		Id:   1,
+		Name: "foo",
+		Age:  18,
+		Uuid: testfixtures.CustomTypeFromString("bar"),
+	}, u)
 }
