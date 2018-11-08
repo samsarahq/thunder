@@ -766,3 +766,36 @@ func (s *Schema) UnbuildStruct(tableName string, strct interface{}) ([]interface
 	}
 	return table.unbuildStruct(strct)
 }
+
+// BuildStruct scans a row in struct's column order into a struct pointer.
+func (s *Schema) BuildStruct(tableName string, row []driver.Value) (interface{}, error) {
+	table, ok := s.ByName[tableName]
+	if !ok {
+		return nil, fmt.Errorf("unknown table: %s", tableName)
+	}
+
+	ptr := reflect.New(table.Type)
+	elem := ptr.Elem()
+
+	if len(row) != len(table.Columns) {
+		return nil, fmt.Errorf("row has %d columns but table %s struct %s has %d columns",
+			len(row), table.Name, table.Type.String(), len(table.Columns))
+	}
+
+	scanners := table.Scanners.Get().([]interface{})
+	defer table.Scanners.Put(scanners)
+
+	for i := range row {
+		field := elem.FieldByIndex(table.Columns[i].Index)
+		if field.Kind() != reflect.Ptr {
+			field = field.Addr()
+		}
+		scanner := scanners[i].(*fields.Scanner)
+		scanner.Target(field)
+		if err := scanner.Scan(row[i]); err != nil {
+			return nil, fmt.Errorf("`%s`.`%s` error: %v", table.Name, table.Columns[i].Name, err)
+		}
+	}
+
+	return ptr.Interface(), nil
+}
