@@ -51,23 +51,6 @@ const (
 	UniqueId
 )
 
-// UnbuildStruct extracts SQL values from a struct
-func UnbuildStruct(table *Table, strct interface{}) ([]interface{}, error) {
-	elem := reflect.ValueOf(strct).Elem()
-	values := make([]interface{}, len(table.Columns))
-
-	for i, column := range table.Columns {
-		val := elem.FieldByIndex(column.Index)
-		var err error
-		values[i], err = column.Descriptor.Valuer(val).Value()
-		if err != nil {
-			return nil, fmt.Errorf("sqlgen: serialization error for `%s`.`%s`: %v", table.Name, column.Name, err)
-		}
-	}
-
-	return values, nil
-}
-
 // parseQueryRow parses a row from a sql.DB query into a struct
 func parseQueryRow(table *Table, scanner *sql.Rows) (interface{}, error) {
 	ptr := reflect.New(table.Type)
@@ -257,6 +240,23 @@ func (s *Schema) buildDescriptor(table string, primaryKeyType PrimaryKeyType, ty
 
 		Scanners: scanners,
 	}, nil
+}
+
+// unbuildStruct extracts SQL values from a struct.
+func (table *Table) unbuildStruct(strct interface{}) ([]interface{}, error) {
+	elem := reflect.ValueOf(strct).Elem()
+	values := make([]interface{}, len(table.Columns))
+
+	for i, column := range table.Columns {
+		val := elem.FieldByIndex(column.Index)
+		var err error
+		values[i], err = column.Descriptor.Valuer(val).Value()
+		if err != nil {
+			return nil, fmt.Errorf("sqlgen: serialization error for `%s`.`%s`: %v", table.Name, column.Name, err)
+		}
+	}
+
+	return values, nil
 }
 
 type Schema struct {
@@ -495,7 +495,7 @@ func (s *Schema) MakeInsertRow(row interface{}) (*InsertQuery, error) {
 		return nil, err
 	}
 
-	allValues, err := UnbuildStruct(table, row)
+	allValues, err := table.unbuildStruct(row)
 	if err != nil {
 		return nil, err
 	}
@@ -534,7 +534,7 @@ func (s *Schema) MakeUpsertRow(row interface{}) (*UpsertQuery, error) {
 		return nil, errors.New("upsert only supports unique value primary keys")
 	}
 
-	values, err := UnbuildStruct(table, row)
+	values, err := table.unbuildStruct(row)
 	if err != nil {
 		return nil, err
 	}
@@ -563,7 +563,7 @@ func (s *Schema) MakeUpdateRow(row interface{}) (*UpdateQuery, error) {
 		return nil, err
 	}
 
-	allValues, err := UnbuildStruct(table, row)
+	allValues, err := table.unbuildStruct(row)
 	if err != nil {
 		return nil, err
 	}
@@ -603,7 +603,7 @@ func (s *Schema) MakeDeleteRow(row interface{}) (*DeleteQuery, error) {
 		return nil, err
 	}
 
-	allValues, err := UnbuildStruct(table, row)
+	allValues, err := table.unbuildStruct(row)
 	if err != nil {
 		return nil, err
 	}
@@ -756,4 +756,13 @@ func driverValuesEqual(dv1, dv2 driver.Value) bool {
 	}
 
 	return false
+}
+
+// UnbuildStruct extracts SQL values from a struct.
+func (s *Schema) UnbuildStruct(tableName string, strct interface{}) ([]interface{}, error) {
+	table, ok := s.ByName[tableName]
+	if !ok {
+		return nil, fmt.Errorf("unknown table: %s", tableName)
+	}
+	return table.unbuildStruct(strct)
 }
