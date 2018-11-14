@@ -156,6 +156,10 @@ type Serializable interface {
 	Unmarshal([]byte) error
 }
 
+type DependencyCallbackFunc func(context.Context, Serializable)
+
+type dependencyCallbackKey struct{}
+
 func AddDependency(ctx context.Context, r *Resource, serializable Serializable) {
 	if !HasRerunner(ctx) {
 		r.node.addOut(&node{released: true})
@@ -170,7 +174,16 @@ func AddDependency(ctx context.Context, r *Resource, serializable Serializable) 
 		if ok && depSet != nil {
 			depSet.add(serializable)
 		}
+		if callback, ok := ctx.Value(dependencyCallbackKey{}).(DependencyCallbackFunc); ok && callback != nil {
+			callback(ctx, serializable)
+		}
 	}
+}
+
+// WithDependencyCallback registers a callback that is invoked when
+// AddDependency is called with non-nil serializable dependency.
+func WithDependencyCallback(ctx context.Context, f DependencyCallbackFunc) context.Context {
+	return context.WithValue(ctx, dependencyCallbackKey{}, f)
 }
 
 func Dependencies(ctx context.Context) []Serializable {
