@@ -41,7 +41,8 @@ func valueToField(value driver.Value) (*thunderpb.Field, error) {
 	}
 }
 
-func fieldToValue(field *thunderpb.Field) (driver.Value, error) {
+// FieldToValue converts thunderpb.Field to driver.Value.
+func FieldToValue(field *thunderpb.Field) (driver.Value, error) {
 	switch field.Kind {
 	case thunderpb.FieldKind_Null:
 		return nil, nil
@@ -112,7 +113,7 @@ func filterFromProto(schema *sqlgen.Schema, proto *thunderpb.SQLFilter) (string,
 
 	filter := make(sqlgen.Filter, len(proto.Fields))
 	for col, field := range proto.Fields {
-		val, err := fieldToValue(field)
+		val, err := FieldToValue(field)
 		if err != nil {
 			return "", nil, err
 		}
