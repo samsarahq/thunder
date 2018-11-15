@@ -335,12 +335,10 @@ func getConnection(key string, out []reflect.Value, args PaginationArgs, returns
 // If the resolver needs to use the pagination arguments, then the PaginationArgs struct must be
 // embedded in the args struct passed in the resolver function, and the PaginationInfo struct needs
 // to be returned in the resolver func.
+//
+// Deprecated: Use FieldFunc(name, func, Paginated) instead.
 func (o *Object) PaginateFieldFunc(name string, f interface{}) {
-	o.paginatedFields = append(o.paginatedFields,
-		paginationObject{
-			Name: name,
-			Fn:   f,
-		})
+	o.FieldFunc(name, f, Paginated)
 }
 
 func isEmbeddedPaginationArgs(argType reflect.Type) bool {
@@ -448,10 +446,10 @@ func (funcCtx *funcContext) parsePaginatedReturnSignature(m *method) (retPageInf
 
 // buildPaginatedField corresponds to buildFunction on a paginated type. It wraps the return result
 // of f in a connection type.
-func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, f interface{}) (*graphql.Field, error) {
+func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*graphql.Field, error) {
 	funcCtx := &funcContext{typ: typ}
 
-	fun, err := funcCtx.getFuncVal(&method{Fn: f})
+	fun, err := funcCtx.getFuncVal(m)
 	if err != nil {
 		return nil, err
 	}

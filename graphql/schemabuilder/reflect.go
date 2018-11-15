@@ -822,14 +822,12 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 	var name string
 	var description string
 	var methods Methods
-	var paginatedFields []paginationObject
 	var objectKey string
 	if object, ok := sb.objects[typ]; ok {
 		name = object.Name
 		description = object.Description
 		methods = object.Methods
 		objectKey = object.key
-		paginatedFields = object.paginatedFields
 	}
 
 	if name == "" {
@@ -914,19 +912,20 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 	for _, name := range names {
 		method := methods[name]
 
+		if method.Paginated {
+			typedField, err := sb.buildPaginatedField(typ, method)
+			if err != nil {
+				return err
+			}
+			object.Fields[name] = typedField
+			continue
+		}
+
 		built, err := sb.buildFunction(typ, method)
 		if err != nil {
 			return fmt.Errorf("bad method %s on type %s: %s", name, typ, err)
 		}
 		object.Fields[name] = built
-	}
-
-	for _, field := range paginatedFields {
-		typedField, err := sb.buildPaginatedField(typ, field.Fn)
-		if err != nil {
-			return err
-		}
-		object.Fields[field.Name] = typedField
 	}
 
 	if objectKey != "" {
