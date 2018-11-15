@@ -91,10 +91,10 @@ func TestMarshal(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			proto, err := filterToProto(schema, "users", c.filter)
+			proto, err := FilterToProto(schema, "users", c.filter)
 			assert.NoError(t, err)
 
-			table, filter, err := filterFromProto(schema, proto)
+			table, filter, err := FilterFromProto(schema, proto)
 			if c.err {
 				assert.NotNil(t, err)
 			} else {
