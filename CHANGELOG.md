@@ -8,6 +8,7 @@
 
 - Object key must now be scalar. ([#190](https://github.com/samsarahq/thunder/pull/190))
 - `ErrorCause` is a new exported function that can be used to unwrap pathErrors returned from middlleware. ([#191](https://github.com/samsarahq/thunder/pull/191))
+- `FieldFunc` now supports Pagination option, `PaginateFieldFunc` is deprecated. ([#197](https://github.com/samsarahq/thunder/pull/197))
 
 #### `livesql`
 
