@@ -7,7 +7,6 @@ import (
 	"github.com/samsarahq/thunder/internal"
 	"github.com/samsarahq/thunder/reactive"
 	"github.com/samsarahq/thunder/sqlgen"
-	"github.com/samsarahq/thunder/thunderpb"
 )
 
 // dbResource tracks changes to a specific table matching a filter
@@ -76,6 +75,12 @@ func (t *dbTracker) processBinlog(update *update) {
 	}
 }
 
+// QueryDependency represents a dependency on SQL query.
+type QueryDependency struct {
+	Table  string
+	Filter sqlgen.Filter
+}
+
 func (t *dbTracker) registerDependency(ctx context.Context, schema *sqlgen.Schema, table string, tester sqlgen.Tester, filter sqlgen.Filter) error {
 	r := &dbResource{
 		table:    table,
@@ -86,12 +91,7 @@ func (t *dbTracker) registerDependency(ctx context.Context, schema *sqlgen.Schem
 		t.remove(r)
 	})
 
-	proto, err := filterToProto(schema, table, filter)
-	if err != nil {
-		return err
-	}
-
-	reactive.AddDependency(ctx, r.resource, proto)
+	reactive.AddDependency(ctx, r.resource, QueryDependency{Table: table, Filter: filter})
 
 	t.add(r)
 	return nil
@@ -210,18 +210,13 @@ func (ldb *LiveDB) Close() error {
 	return ldb.Conn.Close()
 }
 
-func (ldb *LiveDB) AddDependency(ctx context.Context, proto *thunderpb.SQLFilter) error {
-	table, filter, err := filterFromProto(ldb.Schema, proto)
+func (ldb *LiveDB) AddDependency(ctx context.Context, dep QueryDependency) error {
+	tester, err := ldb.Schema.MakeTester(dep.Table, dep.Filter)
 	if err != nil {
 		return err
 	}
 
-	tester, err := ldb.Schema.MakeTester(table, filter)
-	if err != nil {
-		return err
-	}
-
-	if err := ldb.tracker.registerDependency(ctx, ldb.Schema, table, tester, filter); err != nil {
+	if err := ldb.tracker.registerDependency(ctx, ldb.Schema, dep.Table, tester, dep.Filter); err != nil {
 		return err
 	}
 	return nil

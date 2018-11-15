@@ -69,8 +69,8 @@ func FieldToValue(field *thunderpb.Field) (driver.Value, error) {
 	}
 }
 
-// filterToProto takes a sqlgen.Filter, runs Valuer on each filter value, and returns a thunderpb.SQLFilter.
-func filterToProto(schema *sqlgen.Schema, tableName string, filter sqlgen.Filter) (*thunderpb.SQLFilter, error) {
+// FilterToProto takes a sqlgen.Filter, runs Valuer on each filter value, and returns a thunderpb.SQLFilter.
+func FilterToProto(schema *sqlgen.Schema, tableName string, filter sqlgen.Filter) (*thunderpb.SQLFilter, error) {
 	table, ok := schema.ByName[tableName]
 	if !ok {
 		return nil, fmt.Errorf("unknown table: %s", tableName)
@@ -101,8 +101,8 @@ func filterToProto(schema *sqlgen.Schema, tableName string, filter sqlgen.Filter
 	return &thunderpb.SQLFilter{Table: tableName, Fields: fields}, nil
 }
 
-// filterFromProto takes a thunderpb.SQLFilter, runs Scanner on each field value, and returns a sqlgen.Filter.
-func filterFromProto(schema *sqlgen.Schema, proto *thunderpb.SQLFilter) (string, sqlgen.Filter, error) {
+// FilterFromProto takes a thunderpb.SQLFilter, runs Scanner on each field value, and returns a sqlgen.Filter.
+func FilterFromProto(schema *sqlgen.Schema, proto *thunderpb.SQLFilter) (string, sqlgen.Filter, error) {
 	table, ok := schema.ByName[proto.Table]
 	if !ok {
 		return "", nil, fmt.Errorf("unknown table: %s", proto.Table)

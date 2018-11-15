@@ -135,32 +135,28 @@ type dependencySetKey struct{}
 
 type dependencySet struct {
 	mu           sync.Mutex
-	dependencies []Serializable
+	dependencies []Dependency
 }
 
-func (ds *dependencySet) add(serializable Serializable) {
+func (ds *dependencySet) add(dep Dependency) {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
-	ds.dependencies = append(ds.dependencies, serializable)
+	ds.dependencies = append(ds.dependencies, dep)
 }
 
-func (ds *dependencySet) get() []Serializable {
+func (ds *dependencySet) get() []Dependency {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
 	return ds.dependencies
 }
 
-type Serializable interface {
-	// proto.Marshaler and proto.Unmarshaler.
-	Marshal() ([]byte, error)
-	Unmarshal([]byte) error
-}
+type Dependency interface{}
 
-type DependencyCallbackFunc func(context.Context, Serializable)
+type DependencyCallbackFunc func(context.Context, Dependency)
 
 type dependencyCallbackKey struct{}
 
-func AddDependency(ctx context.Context, r *Resource, serializable Serializable) {
+func AddDependency(ctx context.Context, r *Resource, dep Dependency) {
 	if !HasRerunner(ctx) {
 		r.node.addOut(&node{released: true})
 		return
@@ -169,13 +165,13 @@ func AddDependency(ctx context.Context, r *Resource, serializable Serializable) 
 	computation := ctx.Value(computationKey{}).(*computation)
 	r.node.addOut(&computation.node)
 
-	if serializable != nil {
+	if dep != nil {
 		depSet, ok := ctx.Value(dependencySetKey{}).(*dependencySet)
 		if ok && depSet != nil {
-			depSet.add(serializable)
+			depSet.add(dep)
 		}
 		if callback, ok := ctx.Value(dependencyCallbackKey{}).(DependencyCallbackFunc); ok && callback != nil {
-			callback(ctx, serializable)
+			callback(ctx, dep)
 		}
 	}
 }
@@ -186,7 +182,7 @@ func WithDependencyCallback(ctx context.Context, f DependencyCallbackFunc) conte
 	return context.WithValue(ctx, dependencyCallbackKey{}, f)
 }
 
-func Dependencies(ctx context.Context) []Serializable {
+func Dependencies(ctx context.Context) []Dependency {
 	depSet := ctx.Value(dependencySetKey{}).(*dependencySet)
 	if depSet == nil {
 		return nil
