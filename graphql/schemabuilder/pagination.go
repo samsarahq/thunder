@@ -316,6 +316,36 @@ func getEdges(key string, nodes []interface{}) (edges []Edge) {
 	return edges
 }
 
+// Creates a pages slice, starting with a blank cursor, then every n+1 edge's cursor (if you have 20
+// entries per page, 19, 39, 59 etc). This works for `after:` but works unexpectedly for `before:`
+
+// NOTE: The cursors are based off of the total and are not relative to the current query, meaning
+// that they will shift with each query as entries are added.
+func getPages(edges []Edge, limit int) (pages []string) {
+	for i, edge := range edges {
+		// The blank cursor indicates the initial page.
+		if i == 0 {
+			pages = append(pages, "")
+		}
+
+		// Limit at zero means infinite / no pages.
+		if limit == 0 {
+			continue
+		}
+		// The last cursor can't be followed by another page because there are no more entries.
+		if i == len(edges)-1 {
+			continue
+		}
+		// If the next cursor is the start cursor of a page then push the current cursor
+		// to the list.
+		if (i+1)%limit == 0 {
+			pages = append(pages, edge.Cursor)
+		}
+	}
+
+	return pages
+}
+
 // getConnection applies the ConnectionArgs to nodes and returns the result in a wrapped Connection
 // type.
 func (c *connectionContext) getConnection(out []reflect.Value, args PaginationArgs) (Connection, error) {
@@ -326,17 +356,7 @@ func (c *connectionContext) getConnection(out []reflect.Value, args PaginationAr
 
 	limit := args.Limit()
 	edges := getEdges(c.Key, nodes)
-	var pages []string
-	for i, edge := range edges {
-		if i == 0 {
-			pages = append(pages, "")
-		}
-		// If the next cursor is the start cursor of a page then push the current cursor to the
-		// list. If an end cursor is the last cursor, then it cannot be followed by a page.
-		if limit != 0 && i != len(nodes)-1 && (i+1)%limit == 0 {
-			pages = append(pages, edge.Cursor)
-		}
-	}
+	pages := getPages(edges, limit)
 	edges, nextPage, prevPage, err := EdgesToReturn(edges, args.Before, args.After, args.First, args.Last)
 	if err != nil {
 		return Connection{}, err
