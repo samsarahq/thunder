@@ -302,31 +302,40 @@ func applyCursorsToAllEdges(allEdges []Edge, before *string, after *string) ([]E
 
 }
 
+func getEdges(key string, nodes []interface{}) (edges []Edge) {
+	for _, node := range nodes {
+		keyValue := reflect.ValueOf(node)
+		if keyValue.Kind() == reflect.Ptr {
+			keyValue = keyValue.Elem()
+		}
+		keyString := []byte(fmt.Sprintf("%v", keyValue.FieldByName(key).Interface()))
+		cursorVal := base64.StdEncoding.EncodeToString(keyString)
+		edges = append(edges, Edge{Node: node, Cursor: cursorVal})
+	}
+
+	return edges
+}
+
 // getConnection applies the ConnectionArgs to nodes and returns the result in a wrapped Connection
 // type.
 func (c *connectionContext) getConnection(out []reflect.Value, args PaginationArgs) (Connection, error) {
 	nodes := castSlice(out[0].Interface())
-	limit := args.Limit()
+	if len(nodes) == 0 {
+		return Connection{}, nil
+	}
 
-	var edges []Edge
+	limit := args.Limit()
+	edges := getEdges(c.Key, nodes)
 	var pages []string
-	for i, val := range nodes {
+	for i, edge := range edges {
 		if i == 0 {
 			pages = append(pages, "")
 		}
-		// Get the value of the key field and then b64 encode it for the cursor.
-		keyValue := reflect.ValueOf(val)
-		if keyValue.Kind() == reflect.Ptr {
-			keyValue = keyValue.Elem()
-		}
-		keyString := []byte(fmt.Sprintf("%v", keyValue.FieldByName(c.Key).Interface()))
-		cursorVal := base64.StdEncoding.EncodeToString(keyString)
 		// If the next cursor is the start cursor of a page then push the current cursor to the
 		// list. If an end cursor is the last cursor, then it cannot be followed by a page.
 		if limit != 0 && i != len(nodes)-1 && (i+1)%limit == 0 {
-			pages = append(pages, cursorVal)
+			pages = append(pages, edge.Cursor)
 		}
-		edges = append(edges, Edge{Node: val, Cursor: cursorVal})
 	}
 	edges, nextPage, prevPage, err := EdgesToReturn(edges, args.Before, args.After, args.First, args.Last)
 	if err != nil {
@@ -342,11 +351,8 @@ func (c *connectionContext) getConnection(out []reflect.Value, args PaginationAr
 			Pages:       pages,
 		},
 	}
-	if len(edges) > 0 {
-		connection.PageInfo.EndCursor = edges[len(edges)-1].Cursor
-		connection.PageInfo.StartCursor = edges[0].Cursor
-	}
-
+	connection.PageInfo.EndCursor = edges[len(edges)-1].Cursor
+	connection.PageInfo.StartCursor = edges[0].Cursor
 	if c.ReturnsPageInfo {
 		connInfo := out[1].Interface().(PaginationInfo)
 		connection.PageInfo.HasNextPage = connInfo.HasNextPage
