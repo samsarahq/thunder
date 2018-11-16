@@ -545,9 +545,9 @@ func TestEmbeddedArgs(t *testing.T) {
 		retList[4] = Item{Id: 5}
 		return retList,
 			schemabuilder.PaginationInfo{
-				HasNextPage: true,
-				HasPrevPage: false,
-				TotalCount:  func() int64 { return int64(5) },
+				HasNextPage:    true,
+				HasPrevPage:    false,
+				TotalCountFunc: func() int64 { return int64(5) },
 			}, nil
 	})
 	builtSchema := schema.MustBuild()
@@ -654,9 +654,9 @@ func TestEmbeddedFail(t *testing.T) {
 		retList[4] = Item{Id: 5}
 		return retList,
 			schemabuilder.PaginationInfo{
-				HasNextPage: true,
-				HasPrevPage: false,
-				TotalCount:  func() int64 { return int64(5) },
+				HasNextPage:    true,
+				HasPrevPage:    false,
+				TotalCountFunc: func() int64 { return int64(5) },
 			}, nil
 	})
 
