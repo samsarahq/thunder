@@ -51,14 +51,31 @@ type PaginationArgs struct {
 	Before *string
 }
 
+func (p PaginationArgs) Limit() int {
+	if p.First != nil {
+		return int(*p.First)
+	}
+	if p.Last != nil {
+		return int(*p.Last)
+	}
+	return 0
+}
+
 // PaginationInfo can be returned in a PaginateFieldFunc. The TotalCount function returns the
 // totalCount field on the connection Type. If the resolver makes a SQL Query, then HasNextPage and
 // HasPrevPage can be resolved in an efficient manner by requesting first/last:n + 1 items in the
 // query. Then the flags can be filled in by checking the result size.
 type PaginationInfo struct {
-	TotalCount  func() int64
-	HasNextPage bool
-	HasPrevPage bool
+	TotalCountFunc func() int64
+	HasNextPage    bool
+	HasPrevPage    bool
+}
+
+func (i PaginationInfo) TotalCount() int64 {
+	if i.TotalCountFunc == nil {
+		return 0
+	}
+	return i.TotalCountFunc()
 }
 
 func getTypeName(typ reflect.Type) string {
@@ -288,22 +305,15 @@ func applyCursorsToAllEdges(allEdges []Edge, before *string, after *string) ([]E
 // getConnection applies the ConnectionArgs to nodes and returns the result in a wrapped Connection
 // type.
 func (c *connectionContext) getConnection(out []reflect.Value, args PaginationArgs) (Connection, error) {
-
 	nodes := castSlice(out[0].Interface())
+	limit := args.Limit()
+
 	var edges []Edge
-
-	lim := int64(0)
-	if args.First != nil {
-		lim = *args.First
-	} else if args.Last != nil {
-		lim = *args.Last
-	}
-
 	var pages []string
-	if len(nodes) > 0 {
-		pages = append(pages, "")
-	}
 	for i, val := range nodes {
+		if i == 0 {
+			pages = append(pages, "")
+		}
 		// Get the value of the key field and then b64 encode it for the cursor.
 		keyValue := reflect.ValueOf(val)
 		if keyValue.Kind() == reflect.Ptr {
@@ -313,7 +323,7 @@ func (c *connectionContext) getConnection(out []reflect.Value, args PaginationAr
 		cursorVal := base64.StdEncoding.EncodeToString(keyString)
 		// If the next cursor is the start cursor of a page then push the current cursor to the
 		// list. If an end cursor is the last cursor, then it cannot be followed by a page.
-		if lim != 0 && i != len(nodes)-1 && (int64(i+1)%lim) == 0 {
+		if limit != 0 && i != len(nodes)-1 && (i+1)%limit == 0 {
 			pages = append(pages, cursorVal)
 		}
 		edges = append(edges, Edge{Node: val, Cursor: cursorVal})
@@ -323,31 +333,27 @@ func (c *connectionContext) getConnection(out []reflect.Value, args PaginationAr
 		return Connection{}, err
 	}
 
-	endCursor := ""
-	if len(edges) > 0 {
-		endCursor = edges[len(edges)-1].Cursor
+	connection := Connection{
+		TotalCount: int64(len(nodes)),
+		Edges:      edges,
+		PageInfo: PageInfo{
+			HasNextPage: nextPage,
+			HasPrevPage: prevPage,
+			Pages:       pages,
+		},
 	}
-	startCursor := ""
 	if len(edges) > 0 {
-		startCursor = edges[0].Cursor
+		connection.PageInfo.EndCursor = edges[len(edges)-1].Cursor
+		connection.PageInfo.StartCursor = edges[0].Cursor
 	}
 
 	if c.ReturnsPageInfo {
 		connInfo := out[1].Interface().(PaginationInfo)
-		pageInfo := PageInfo{
-			HasNextPage: connInfo.HasNextPage,
-			HasPrevPage: connInfo.HasPrevPage,
-			StartCursor: startCursor,
-			EndCursor:   endCursor,
-		}
-		totalCount := int64(0)
-		if connInfo.TotalCount != nil {
-			totalCount = connInfo.TotalCount()
-		}
-		return Connection{TotalCount: totalCount, Edges: edges, PageInfo: pageInfo}, nil
+		connection.PageInfo.HasNextPage = connInfo.HasNextPage
+		connection.PageInfo.HasPrevPage = connInfo.HasPrevPage
+		connection.TotalCount = connInfo.TotalCount()
 	}
-	pageInfo := PageInfo{HasNextPage: nextPage, EndCursor: endCursor, StartCursor: startCursor, HasPrevPage: prevPage, Pages: pages}
-	return Connection{TotalCount: int64(len(nodes)), Edges: edges, PageInfo: pageInfo}, nil
+	return connection, nil
 
 }
 
