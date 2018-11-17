@@ -143,14 +143,20 @@ type connectionContext struct {
 	PaginationArgsIndex int
 }
 
-// EmbedsPaginationArgs returns true if PaginationArgs were embedded.
-func (c *connectionContext) EmbedsPaginationArgs() bool {
+// embedsPaginationArgs returns true if PaginationArgs were embedded.
+func (c *connectionContext) embedsPaginationArgs() bool {
 	return c.PaginationArgsIndex != -1
+}
+
+// IsExternallyManaged returns true if the connection is managed by the FieldFunc's function
+// and not thunder.
+func (c *connectionContext) IsExternallyManaged() bool {
+	return c.embedsPaginationArgs() || c.ReturnsPageInfo
 }
 
 // Validate returns an error if the connection isn't correctly implemented.
 func (c *connectionContext) Validate() error {
-	if (c.EmbedsPaginationArgs() || c.ReturnsPageInfo) && !(c.EmbedsPaginationArgs() && c.ReturnsPageInfo) {
+	if c.IsExternallyManaged() && !(c.embedsPaginationArgs() && c.ReturnsPageInfo) {
 		return fmt.Errorf("If pagination args are embedded then pagination info must be included as a return value")
 	}
 	return nil
@@ -247,7 +253,7 @@ func (c *connectionContext) constructConnType(sb *schemaBuilder, typ reflect.Typ
 	// If a PaginateFieldFunc returns connection info then it means that the resolver needs to
 	// handle slicing according to the connection args. Hence, it's no longer feasible to determine
 	// the entire set of pages on the connection.
-	if c.ReturnsPageInfo {
+	if c.IsExternallyManaged() {
 		delete(pageInfoObj.Fields, "pages")
 	}
 	if err != nil {
@@ -381,7 +387,7 @@ func (c *connectionContext) getConnection(out []reflect.Value, args PaginationAr
 	}
 	connection.setCursors()
 
-	if c.ReturnsPageInfo {
+	if c.IsExternallyManaged() {
 		connection.externallySetPageInfo(out[1].Interface().(PaginationInfo))
 	}
 	return connection, nil
@@ -423,7 +429,7 @@ func (c *connectionContext) consumePaginatedArgs(sb *schemaBuilder, in []reflect
 	// needs to be constructed differently from the default case.
 	if len(in) > 0 && in[0] != selectionSetType {
 		c.PaginationArgsIndex = indexOfPaginationArgs(in[0])
-		if c.EmbedsPaginationArgs() {
+		if c.IsExternallyManaged() {
 			argParser, argType, err = sb.buildEmbeddedPaginatedArgParser(in[0])
 			if err != nil {
 				return nil, nil, in, err
@@ -561,7 +567,7 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 	ret := &graphql.Field{
 		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
 			argsVal := args
-			if !c.EmbedsPaginationArgs() {
+			if !c.IsExternallyManaged() {
 				val, ok := args.(ConnectionArgs)
 				if !ok {
 					return nil, fmt.Errorf("arguments should implement ConnectionArgs")
@@ -594,7 +600,7 @@ func (c *connectionContext) extractPaginatedRetAndErr(out []reflect.Value, args 
 
 	// If the pagination args are not embedded then they need to be extracted out of ConnectionArgs
 	// struct and setup for the slicing functions.
-	if !c.EmbedsPaginationArgs() {
+	if !c.IsExternallyManaged() {
 		connectionArgs, _ := args.(ConnectionArgs)
 		paginationArgs = PaginationArgs{
 			First:  connectionArgs.First,
