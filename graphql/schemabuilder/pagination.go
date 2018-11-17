@@ -382,14 +382,19 @@ func (c *connectionContext) getConnection(out []reflect.Value, args PaginationAr
 			Pages: pages,
 		},
 	}
-	if err := connection.paginateManually(args); err != nil {
-		return Connection{}, err
+
+	// If the pagination is externally managed, thunder isn't going to handle setting page
+	// information or reducing the edges.
+	if c.IsExternallyManaged() {
+		// XXX: We might want to handle the case where the externally managed result set is of
+		// incorrect size (too big) and error.
+		connection.externallySetPageInfo(out[1].Interface().(PaginationInfo))
+	} else {
+		if err := connection.paginateManually(args); err != nil {
+			return Connection{}, err
+		}
 	}
 	connection.setCursors()
-
-	if c.IsExternallyManaged() {
-		connection.externallySetPageInfo(out[1].Interface().(PaginationInfo))
-	}
 	return connection, nil
 
 }
