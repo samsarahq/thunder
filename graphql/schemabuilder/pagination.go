@@ -17,6 +17,54 @@ type Connection struct {
 	PageInfo   PageInfo
 }
 
+// paginateManually applies the pagination arguments to the edges in memory and sets hasNextPage +
+// hasPrevPage. The behavior is expected to conform to the Relay Cursor spec:
+// https://facebook.github.io/relay/graphql/connections.htm#EdgesToReturn()
+func (c *Connection) paginateManually(args PaginationArgs) error {
+	var elemsAfter, elemsBefore bool
+	c.Edges, elemsAfter, elemsBefore = applyCursorsToAllEdges(c.Edges, args.Before, args.After)
+
+	c.PageInfo.HasNextPage = args.Before != nil && elemsAfter
+	c.PageInfo.HasPrevPage = args.After != nil && elemsBefore
+
+	if (safeInt64Ptr(args.First) < 0) || safeInt64Ptr(args.Last) < 0 {
+		return graphql.NewClientError("first/last cannot be a negative integer")
+	}
+
+	if args.First != nil && args.Last != nil {
+		return graphql.NewClientError("Cannot use both first and last together")
+	}
+
+	if args.First != nil && len(c.Edges) > int(*args.First) {
+		c.Edges = c.Edges[:int(*args.First)]
+		c.PageInfo.HasNextPage = true
+	}
+
+	if args.Last != nil && len(c.Edges) > int(*args.Last) {
+		c.Edges = c.Edges[len(c.Edges)-int(*args.Last):]
+		c.PageInfo.HasPrevPage = true
+	}
+	return nil
+}
+
+// setCursors sets the start and end cursors of the current page.
+func (c *Connection) setCursors() {
+	if len(c.Edges) == 0 {
+		return
+	}
+	c.PageInfo.EndCursor = c.Edges[len(c.Edges)-1].Cursor
+	c.PageInfo.StartCursor = c.Edges[0].Cursor
+}
+
+// externallySetPageInfo takes in a user-defined PaginationInfo struct,
+// using its count, HasNextPage and HasPrevPage information as the source
+// of truth.
+func (c *Connection) externallySetPageInfo(info PaginationInfo) {
+	c.PageInfo.HasNextPage = info.HasNextPage
+	c.PageInfo.HasPrevPage = info.HasPrevPage
+	c.TotalCount = info.TotalCount()
+}
+
 // PageInfo contains information for pagination on a connection type. The list of Pages is used for
 // page-number based pagination where the ith index corresponds to the start cursor of (i+1)st page.
 type PageInfo struct {
@@ -216,46 +264,11 @@ func (c *connectionContext) constructConnType(sb *schemaBuilder, typ reflect.Typ
 	return retObject, nil
 }
 
-// EdgesToReturn returns the slice of edges by appyling the pagination arguments. It also returns
-// the hasNextPage and hasPrevPage values respectively. The behavior is expected to conform to the
-// Relay Cursor spec: https://facebook.github.io/relay/graphql/connections.htm#EdgesToReturn()
-func EdgesToReturn(allEdges []Edge, before *string, after *string, first *int64, last *int64) ([]Edge, bool, bool, error) {
-	edges, elemsAfter, elemsBefore := applyCursorsToAllEdges(allEdges, before, after)
-
-	prevPage := false
-	nextPage := false
-
-	if first != nil {
-		if *first < 0 {
-			return nil, nextPage, prevPage, graphql.NewClientError("first should be a non-negative integer")
-		}
-		if len(edges) > int(*first) {
-			edges = edges[:int(*first)]
-			nextPage = true
-		}
+func safeInt64Ptr(i *int64) int64 {
+	if i == nil {
+		return 0
 	}
-	if before != nil {
-		if elemsAfter {
-			nextPage = true
-		}
-	}
-
-	if last != nil {
-		if *last < 0 {
-			return nil, nextPage, prevPage, graphql.NewClientError("last should be a non-negative integer")
-		}
-		if len(edges) > int(*last) {
-			edges = edges[len(edges)-int(*last):]
-			prevPage = true
-		}
-	}
-	if after != nil {
-		if elemsBefore {
-			prevPage = true
-		}
-	}
-
-	return edges, nextPage, prevPage, nil
+	return *i
 }
 
 // getCursorIndex returns the index corresponding to the cursor in the slice.
@@ -356,27 +369,20 @@ func (c *connectionContext) getConnection(out []reflect.Value, args PaginationAr
 	limit := args.Limit()
 	edges := getEdges(c.Key, nodes)
 	pages := getPages(edges, limit)
-	edges, nextPage, prevPage, err := EdgesToReturn(edges, args.Before, args.After, args.First, args.Last)
-	if err != nil {
-		return Connection{}, err
-	}
-
 	connection := Connection{
 		TotalCount: int64(len(nodes)),
 		Edges:      edges,
 		PageInfo: PageInfo{
-			HasNextPage: nextPage,
-			HasPrevPage: prevPage,
-			Pages:       pages,
+			Pages: pages,
 		},
 	}
-	connection.PageInfo.EndCursor = edges[len(edges)-1].Cursor
-	connection.PageInfo.StartCursor = edges[0].Cursor
+	if err := connection.paginateManually(args); err != nil {
+		return Connection{}, err
+	}
+	connection.setCursors()
+
 	if c.ReturnsPageInfo {
-		connInfo := out[1].Interface().(PaginationInfo)
-		connection.PageInfo.HasNextPage = connInfo.HasNextPage
-		connection.PageInfo.HasPrevPage = connInfo.HasPrevPage
-		connection.TotalCount = connInfo.TotalCount()
+		connection.externallySetPageInfo(out[1].Interface().(PaginationInfo))
 	}
 	return connection, nil
 
