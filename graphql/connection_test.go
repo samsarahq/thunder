@@ -554,7 +554,7 @@ func TestEmbeddedArgs(t *testing.T) {
 	q := graphql.MustParse(`
 		{
 			inner {
-				innerConnection(first: 1, after: "", additional: "jk") {
+				innerConnection(first: 5, after: "", additional: "jk") {
 					totalCount
 					edges {
 						node {
@@ -583,19 +583,48 @@ func TestEmbeddedArgs(t *testing.T) {
 		"inner": map[string]interface{}{
 			"innerConnection": map[string]interface{}{
 				"totalCount": int64(5),
-				"edges": []interface{}{map[string]interface{}{
-					"node": map[string]interface{}{
-						"__key": int64(1),
-						"id":    int64(1),
+				"edges": []interface{}{
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": int64(1),
+							"id":    int64(1),
+						},
+						"cursor": "MQ==",
 					},
-					"cursor": "MQ==",
-				},
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": int64(2),
+							"id":    int64(2),
+						},
+						"cursor": "Mg==",
+					},
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": int64(3),
+							"id":    int64(3),
+						},
+						"cursor": "Mw==",
+					},
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": int64(4),
+							"id":    int64(4),
+						},
+						"cursor": "NA==",
+					},
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": int64(5),
+							"id":    int64(5),
+						},
+						"cursor": "NQ==",
+					},
 				},
 				"pageInfo": map[string]interface{}{
 					"hasNextPage": true,
 					"hasPrevPage": false,
 					"startCursor": "MQ==",
-					"endCursor":   "MQ==",
+					"endCursor":   "NQ==",
 				},
 			},
 		},
