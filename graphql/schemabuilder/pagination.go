@@ -83,6 +83,14 @@ func (c *connectionContext) EmbedsPaginationArgs() bool {
 	return c.PaginationArgsIndex != -1
 }
 
+// Validate returns an error if the connection isn't correctly implemented.
+func (c *connectionContext) Validate() error {
+	if (c.EmbedsPaginationArgs() || c.ReturnsPageInfo) && !(c.EmbedsPaginationArgs() && c.ReturnsPageInfo) {
+		return fmt.Errorf("If pagination args are embedded then pagination info must be included as a return value")
+	}
+	return nil
+}
+
 // constructEdgeType wraps the typ (which is the type of the Node) in an Edge type conforming to the
 // Relay spec.
 func (sb *schemaBuilder) constructEdgeType(typ reflect.Type) (graphql.Type, error) {
@@ -491,8 +499,8 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 	if err := c.parsePaginatedReturnSignature(&method{MarkedNonNullable: true}); err != nil {
 		return nil, err
 	}
-	if (c.EmbedsPaginationArgs() || c.ReturnsPageInfo) && !(c.EmbedsPaginationArgs() && c.ReturnsPageInfo) {
-		return nil, fmt.Errorf("if pagination args are embedded then pagination info must be included as a return value")
+	if err := c.Validate(); err != nil {
+		return nil, err
 	}
 
 	// It's safe to assume that there's a return type since the method is marked as non-nullable
