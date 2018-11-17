@@ -68,6 +68,10 @@ func getTypeName(typ reflect.Type) string {
 	return fmt.Sprintf("NonNull%s", typ.Name())
 }
 
+type connectionContext struct {
+	*funcContext
+}
+
 // constructEdgeType wraps the typ (which is the type of the Node) in an Edge type conforming to the
 // Relay spec.
 func (sb *schemaBuilder) constructEdgeType(typ reflect.Type) (graphql.Type, error) {
@@ -121,7 +125,7 @@ func (sb *schemaBuilder) constructEdgeType(typ reflect.Type) (graphql.Type, erro
 }
 
 // constructConnType wraps typ (type of the Node) in a Connection Type conforming to the Relay spec.
-func (funcCtx *funcContext) constructConnType(sb *schemaBuilder, typ reflect.Type, returnsPageInfo bool) (graphql.Type, error) {
+func (c *connectionContext) constructConnType(sb *schemaBuilder, typ reflect.Type, returnsPageInfo bool) (graphql.Type, error) {
 	fieldMap := make(map[string]*graphql.Field)
 
 	countType, _ := reflect.TypeOf(Connection{}).FieldByName("TotalCount")
@@ -352,7 +356,7 @@ func isEmbeddedPaginationArgs(argType reflect.Type) bool {
 	return false
 }
 
-func (funcCtx *funcContext) consumePaginatedArgs(sb *schemaBuilder, in []reflect.Type) (*argParser, graphql.Type, []reflect.Type, bool, error) {
+func (c *connectionContext) consumePaginatedArgs(sb *schemaBuilder, in []reflect.Type) (*argParser, graphql.Type, []reflect.Type, bool, error) {
 	var argParser *argParser
 	var argType graphql.Type
 	var err error
@@ -409,16 +413,16 @@ func (sb *schemaBuilder) getKeyFieldOnStruct(nodeType reflect.Type) (string, err
 }
 
 // Parses the return types and checks if there's a pageInfo struct being returned by the resolver
-func (funcCtx *funcContext) parsePaginatedReturnSignature(m *method) (retPageInfo bool, err error) {
+func (c *connectionContext) parsePaginatedReturnSignature(m *method) (retPageInfo bool, err error) {
 	retPageInfo = false
 
-	out := make([]reflect.Type, 0, funcCtx.funcType.NumOut())
-	for i := 0; i < funcCtx.funcType.NumOut(); i++ {
-		out = append(out, funcCtx.funcType.Out(i))
+	out := make([]reflect.Type, 0, c.funcType.NumOut())
+	for i := 0; i < c.funcType.NumOut(); i++ {
+		out = append(out, c.funcType.Out(i))
 	}
 
 	if len(out) > 0 && out[0] != errType {
-		funcCtx.hasRet = true
+		c.hasRet = true
 		out = out[1:]
 	}
 
@@ -428,16 +432,16 @@ func (funcCtx *funcContext) parsePaginatedReturnSignature(m *method) (retPageInf
 	}
 
 	if len(out) > 0 && out[0] == errType {
-		funcCtx.hasError = true
+		c.hasError = true
 		out = out[1:]
 	}
 	if len(out) != 0 {
-		err = fmt.Errorf("%s return values should [result][, error]", funcCtx.funcType)
+		err = fmt.Errorf("%s return values should [result][, error]", c.funcType)
 		return
 	}
 
-	if !funcCtx.hasRet && m.MarkedNonNullable {
-		err = fmt.Errorf("%s is marked non-nullable, but has no return value", funcCtx.funcType)
+	if !c.hasRet && m.MarkedNonNullable {
+		err = fmt.Errorf("%s is marked non-nullable, but has no return value", c.funcType)
 		return
 	}
 	return
@@ -447,32 +451,32 @@ func (funcCtx *funcContext) parsePaginatedReturnSignature(m *method) (retPageInf
 // buildPaginatedField corresponds to buildFunction on a paginated type. It wraps the return result
 // of f in a connection type.
 func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*graphql.Field, error) {
-	funcCtx := &funcContext{typ: typ}
+	c := &connectionContext{funcContext: &funcContext{typ: typ}}
 
-	fun, err := funcCtx.getFuncVal(m)
+	fun, err := c.getFuncVal(m)
 	if err != nil {
 		return nil, err
 	}
 
-	in := funcCtx.getFuncInputTypes()
-	in = funcCtx.consumeContextAndSource(in)
+	in := c.getFuncInputTypes()
+	in = c.consumeContextAndSource(in)
 
-	argParser, argType, in, embedsArgs, err := funcCtx.consumePaginatedArgs(sb, in)
+	argParser, argType, in, embedsArgs, err := c.consumePaginatedArgs(sb, in)
 	if err != nil {
 		return nil, err
 	}
-	funcCtx.hasArgs = true
+	c.hasArgs = true
 
-	in = funcCtx.consumeSelectionSet(in)
+	in = c.consumeSelectionSet(in)
 
 	// We have succeeded if no arguments remain.
 	if len(in) != 0 {
-		return nil, fmt.Errorf("%s arguments should be [context][, [*]%s][, args][, selectionSet]", funcCtx.funcType, typ)
+		return nil, fmt.Errorf("%s arguments should be [context][, [*]%s][, args][, selectionSet]", c.funcType, typ)
 	}
 
 	// Parse return values. The first return value must be the actual value, and
 	// the second value can optionally be an error.
-	returnsPageInfo, err := funcCtx.parsePaginatedReturnSignature(&method{MarkedNonNullable: true})
+	returnsPageInfo, err := c.parsePaginatedReturnSignature(&method{MarkedNonNullable: true})
 	if err != nil {
 		return nil, err
 	}
@@ -482,11 +486,11 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 
 	// It's safe to assume that there's a return type since the method is marked as non-nullable
 	// when calling parseReturnSignature above.
-	if funcCtx.funcType.Out(0).Kind() != reflect.Slice {
+	if c.funcType.Out(0).Kind() != reflect.Slice {
 		return nil, fmt.Errorf("paginated field func must return a slice type")
 	}
-	nodeType := funcCtx.funcType.Out(0).Elem()
-	retType, err := funcCtx.constructConnType(sb, nodeType, returnsPageInfo)
+	nodeType := c.funcType.Out(0).Elem()
+	retType, err := c.constructConnType(sb, nodeType, returnsPageInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -496,7 +500,7 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 		return nil, err
 	}
 
-	args, err := funcCtx.argsTypeMap(argType)
+	args, err := c.argsTypeMap(argType)
 
 	ret := &graphql.Field{
 		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
@@ -506,30 +510,30 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 				if !ok {
 					return nil, fmt.Errorf("arguments should implement ConnectionArgs")
 				}
-				funcCtx.hasArgs = val.Args != nil
-				if funcCtx.hasArgs {
+				c.hasArgs = val.Args != nil
+				if c.hasArgs {
 					argsVal = reflect.ValueOf(val.Args).Elem().Interface()
 				}
 			}
 
-			in := funcCtx.prepareResolveArgs(source, argsVal, ctx)
+			in := c.prepareResolveArgs(source, argsVal, ctx)
 
 			// Call the function.
 			out := fun.Call(in)
 
-			return funcCtx.extractPaginatedRetAndErr(nodeKey, out, args, retType, embedsArgs, returnsPageInfo)
+			return c.extractPaginatedRetAndErr(nodeKey, out, args, retType, embedsArgs, returnsPageInfo)
 
 		},
 		Args:           args,
 		Type:           retType,
 		ParseArguments: argParser.Parse,
-		Expensive:      funcCtx.hasContext,
+		Expensive:      c.hasContext,
 	}
 
 	return ret, nil
 }
 
-func (funcCtx *funcContext) extractPaginatedRetAndErr(nodeKey string, out []reflect.Value, args interface{}, retType graphql.Type, embedsArgs bool, returnsPageInfo bool) (interface{}, error) {
+func (c *connectionContext) extractPaginatedRetAndErr(nodeKey string, out []reflect.Value, args interface{}, retType graphql.Type, embedsArgs bool, returnsPageInfo bool) (interface{}, error) {
 	var result interface{}
 	var paginationArgs PaginationArgs
 
@@ -564,7 +568,7 @@ func (funcCtx *funcContext) extractPaginatedRetAndErr(nodeKey string, out []refl
 	if returnsPageInfo {
 		out = out[1:]
 	}
-	if funcCtx.hasError {
+	if c.hasError {
 		if err := out[0]; !err.IsNil() {
 			return nil, err.Interface().(error)
 		}
