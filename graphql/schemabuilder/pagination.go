@@ -72,8 +72,15 @@ type connectionContext struct {
 	*funcContext
 	// The string value for the key field name.
 	Key string
-	// Whether or not the FieldFunc returns PageInfo (overrides thunder's auto-populated PageInfo)
+	// Whether or not the FieldFunc returns PageInfo (overrides thunder's auto-populated PageInfo).
 	ReturnsPageInfo bool
+	// The index of PaginationArgs in the arguments provided to the FieldFunc.
+	PaginationArgsIndex int
+}
+
+// EmbedsPaginationArgs returns true if PaginationArgs were embedded.
+func (c *connectionContext) EmbedsPaginationArgs() bool {
+	return c.PaginationArgsIndex != -1
 }
 
 // constructEdgeType wraps the typ (which is the type of the Node) in an Edge type conforming to the
@@ -349,47 +356,49 @@ func (o *Object) PaginateFieldFunc(name string, f interface{}) {
 	o.FieldFunc(name, f, Paginated)
 }
 
-func isEmbeddedPaginationArgs(argType reflect.Type) bool {
+// indexOfPaginationArgs gets the index of PaginationArgs if they were embedded in a struct,
+// otherwise returns -1.
+func indexOfPaginationArgs(argType reflect.Type) int {
 	for i := 0; i < argType.NumField(); i++ {
 		field := argType.Field(i)
 
 		if field.Type == reflect.TypeOf(PaginationArgs{}) {
-			return true
+			return i
 		}
 	}
-	return false
+	return -1
 }
 
-func (c *connectionContext) consumePaginatedArgs(sb *schemaBuilder, in []reflect.Type) (*argParser, graphql.Type, []reflect.Type, bool, error) {
+func (c *connectionContext) consumePaginatedArgs(sb *schemaBuilder, in []reflect.Type) (*argParser, graphql.Type, []reflect.Type, error) {
 	var argParser *argParser
 	var argType graphql.Type
 	var err error
-	embedsArgs := false
+	c.PaginationArgsIndex = -1
 	// If the args passed into paginated field func embed the PaginationArgs then the arg parser
 	// needs to be constructed differently from the default case.
 	if len(in) > 0 && in[0] != selectionSetType {
-		if isEmbeddedPaginationArgs(in[0]) {
+		c.PaginationArgsIndex = indexOfPaginationArgs(in[0])
+		if c.EmbedsPaginationArgs() {
 			argParser, argType, err = sb.buildEmbeddedPaginatedArgParser(in[0])
-			embedsArgs = true
 			if err != nil {
-				return nil, nil, in, embedsArgs, err
+				return nil, nil, in, err
 			}
 		} else {
 			argParser, argType, err = sb.buildPaginatedArgParser(in[0])
 			if err != nil {
-				return nil, nil, in, embedsArgs, err
+				return nil, nil, in, err
 			}
 		}
 		in = in[1:]
 	} else {
 		argParser, argType, err = sb.buildPaginatedArgParser(nil)
 		if err != nil {
-			return nil, nil, in, embedsArgs, err
+			return nil, nil, in, err
 		}
 
 	}
 
-	return argParser, argType, in, embedsArgs, nil
+	return argParser, argType, in, nil
 }
 
 func (sb *schemaBuilder) getKeyFieldOnStruct(nodeType reflect.Type) (string, error) {
@@ -464,7 +473,7 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 	in := c.getFuncInputTypes()
 	in = c.consumeContextAndSource(in)
 
-	argParser, argType, in, embedsArgs, err := c.consumePaginatedArgs(sb, in)
+	argParser, argType, in, err := c.consumePaginatedArgs(sb, in)
 	if err != nil {
 		return nil, err
 	}
@@ -482,7 +491,7 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 	if err := c.parsePaginatedReturnSignature(&method{MarkedNonNullable: true}); err != nil {
 		return nil, err
 	}
-	if (embedsArgs || c.ReturnsPageInfo) && !(embedsArgs && c.ReturnsPageInfo) {
+	if (c.EmbedsPaginationArgs() || c.ReturnsPageInfo) && !(c.EmbedsPaginationArgs() && c.ReturnsPageInfo) {
 		return nil, fmt.Errorf("if pagination args are embedded then pagination info must be included as a return value")
 	}
 
@@ -507,7 +516,7 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 	ret := &graphql.Field{
 		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
 			argsVal := args
-			if !embedsArgs {
+			if !c.EmbedsPaginationArgs() {
 				val, ok := args.(ConnectionArgs)
 				if !ok {
 					return nil, fmt.Errorf("arguments should implement ConnectionArgs")
@@ -523,7 +532,7 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 			// Call the function.
 			out := fun.Call(in)
 
-			return c.extractPaginatedRetAndErr(out, args, retType, embedsArgs)
+			return c.extractPaginatedRetAndErr(out, args, retType)
 
 		},
 		Args:           args,
@@ -535,13 +544,13 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 	return ret, nil
 }
 
-func (c *connectionContext) extractPaginatedRetAndErr(out []reflect.Value, args interface{}, retType graphql.Type, embedsArgs bool) (interface{}, error) {
+func (c *connectionContext) extractPaginatedRetAndErr(out []reflect.Value, args interface{}, retType graphql.Type) (interface{}, error) {
 	var result interface{}
 	var paginationArgs PaginationArgs
 
 	// If the pagination args are not embedded then they need to be extracted out of ConnectionArgs
 	// struct and setup for the slicing functions.
-	if !embedsArgs {
+	if !c.EmbedsPaginationArgs() {
 		connectionArgs, _ := args.(ConnectionArgs)
 		paginationArgs = PaginationArgs{
 			First:  connectionArgs.First,
@@ -550,16 +559,7 @@ func (c *connectionContext) extractPaginatedRetAndErr(out []reflect.Value, args 
 			Before: connectionArgs.Before,
 		}
 	} else {
-		pagTyp := reflect.TypeOf(args)
-		fieldInd := -1
-		for i := 0; i < pagTyp.NumField(); i++ {
-			field := pagTyp.Field(i)
-			if field.Type == reflect.TypeOf(PaginationArgs{}) {
-				fieldInd = i
-			}
-		}
-
-		paginationArgs = reflect.ValueOf(args).Field(fieldInd).Interface().(PaginationArgs)
+		paginationArgs = reflect.ValueOf(args).Field(c.PaginationArgsIndex).Interface().(PaginationArgs)
 	}
 
 	result, err := c.getConnection(out, paginationArgs)
