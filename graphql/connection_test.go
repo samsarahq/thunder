@@ -399,7 +399,7 @@ func TestConnection(t *testing.T) {
 	}
 	e = graphql.Executor{}
 	val, err = e.Execute(context.Background(), builtSchema.Query, nil, q)
-	if err == nil || err.Error() != "last should be a non-negative integer" {
+	if err == nil || err.Error() != "first/last cannot be a negative integer" {
 		t.Errorf("bad error: %v", err)
 	}
 
