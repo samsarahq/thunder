@@ -271,9 +271,8 @@ func getCursorIndex(edges []Edge, cursor string) int {
 // applyCursorsToAllEdges returns the slice of edges after applying the after and before arguments.
 // It also implements part of the hasNextPage and hasPrevPage algorithm by returning if there are
 // elements after or before the arguments.
-func applyCursorsToAllEdges(allEdges []Edge, before *string, after *string) ([]Edge, bool, bool) {
-	edges := allEdges
-
+func applyCursorsToAllEdges(edges []Edge, before *string, after *string) ([]Edge, bool, bool) {
+	edgeCount := len(edges)
 	elemsAfter := false
 	elemsBefore := false
 
@@ -291,7 +290,7 @@ func applyCursorsToAllEdges(allEdges []Edge, before *string, after *string) ([]E
 		i := getCursorIndex(edges, *before)
 		if i != -1 {
 			edges = edges[:i]
-			if i != len(allEdges)-1 {
+			if i != edgeCount-1 {
 				elemsAfter = true
 			}
 		}
@@ -585,7 +584,6 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 }
 
 func (c *connectionContext) extractPaginatedRetAndErr(out []reflect.Value, args interface{}, retType graphql.Type) (interface{}, error) {
-	var result interface{}
 	var paginationArgs PaginationArgs
 
 	// If the pagination args are not embedded then they need to be extracted out of ConnectionArgs
@@ -606,12 +604,8 @@ func (c *connectionContext) extractPaginatedRetAndErr(out []reflect.Value, args 
 	if err != nil {
 		return nil, err
 	}
-	out = out[1:]
-	if c.ReturnsPageInfo {
-		out = out[1:]
-	}
 	if c.hasError {
-		if err := out[0]; !err.IsNil() {
+		if err := out[len(out)-1]; !err.IsNil() {
 			return nil, err.Interface().(error)
 		}
 	}
