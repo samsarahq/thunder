@@ -70,6 +70,9 @@ func getTypeName(typ reflect.Type) string {
 
 type connectionContext struct {
 	*funcContext
+	// The string value for the key field name.
+	Key string
+	// Whether or not the FieldFunc returns PageInfo (overrides thunder's auto-populated PageInfo)
 	ReturnsPageInfo bool
 }
 
@@ -269,7 +272,7 @@ func applyCursorsToAllEdges(allEdges []Edge, before *string, after *string) ([]E
 
 // getConnection applies the ConnectionArgs to nodes and returns the result in a wrapped Connection
 // type.
-func getConnection(key string, out []reflect.Value, args PaginationArgs, returnsPageInfo bool) (Connection, error) {
+func (c *connectionContext) getConnection(out []reflect.Value, args PaginationArgs) (Connection, error) {
 
 	nodes := castSlice(out[0].Interface())
 	var edges []Edge
@@ -291,7 +294,7 @@ func getConnection(key string, out []reflect.Value, args PaginationArgs, returns
 		if keyValue.Kind() == reflect.Ptr {
 			keyValue = keyValue.Elem()
 		}
-		keyString := []byte(fmt.Sprintf("%v", keyValue.FieldByName(key).Interface()))
+		keyString := []byte(fmt.Sprintf("%v", keyValue.FieldByName(c.Key).Interface()))
 		cursorVal := base64.StdEncoding.EncodeToString(keyString)
 		// If the next cursor is the start cursor of a page then push the current cursor to the
 		// list. If an end cursor is the last cursor, then it cannot be followed by a page.
@@ -314,7 +317,7 @@ func getConnection(key string, out []reflect.Value, args PaginationArgs, returns
 		startCursor = edges[0].Cursor
 	}
 
-	if returnsPageInfo {
+	if c.ReturnsPageInfo {
 		connInfo := out[1].Interface().(PaginationInfo)
 		pageInfo := PageInfo{
 			HasNextPage: connInfo.HasNextPage,
@@ -390,7 +393,6 @@ func (c *connectionContext) consumePaginatedArgs(sb *schemaBuilder, in []reflect
 }
 
 func (sb *schemaBuilder) getKeyFieldOnStruct(nodeType reflect.Type) (string, error) {
-
 	nodeObj := sb.objects[nodeType]
 	if nodeObj == nil && nodeType.Kind() == reflect.Ptr {
 		nodeObj = sb.objects[nodeType.Elem()]
@@ -495,7 +497,7 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 		return nil, err
 	}
 
-	nodeKey, err := sb.getKeyFieldOnStruct(nodeType)
+	c.Key, err = sb.getKeyFieldOnStruct(nodeType)
 	if err != nil {
 		return nil, err
 	}
@@ -521,7 +523,7 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 			// Call the function.
 			out := fun.Call(in)
 
-			return c.extractPaginatedRetAndErr(nodeKey, out, args, retType, embedsArgs)
+			return c.extractPaginatedRetAndErr(out, args, retType, embedsArgs)
 
 		},
 		Args:           args,
@@ -533,7 +535,7 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 	return ret, nil
 }
 
-func (c *connectionContext) extractPaginatedRetAndErr(nodeKey string, out []reflect.Value, args interface{}, retType graphql.Type, embedsArgs bool) (interface{}, error) {
+func (c *connectionContext) extractPaginatedRetAndErr(out []reflect.Value, args interface{}, retType graphql.Type, embedsArgs bool) (interface{}, error) {
 	var result interface{}
 	var paginationArgs PaginationArgs
 
@@ -560,7 +562,7 @@ func (c *connectionContext) extractPaginatedRetAndErr(nodeKey string, out []refl
 		paginationArgs = reflect.ValueOf(args).Field(fieldInd).Interface().(PaginationArgs)
 	}
 
-	result, err := getConnection(nodeKey, out, paginationArgs, c.ReturnsPageInfo)
+	result, err := c.getConnection(out, paginationArgs)
 	if err != nil {
 		return nil, err
 	}
