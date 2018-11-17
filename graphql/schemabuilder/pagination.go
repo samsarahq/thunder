@@ -70,6 +70,7 @@ func getTypeName(typ reflect.Type) string {
 
 type connectionContext struct {
 	*funcContext
+	ReturnsPageInfo bool
 }
 
 // constructEdgeType wraps the typ (which is the type of the Node) in an Edge type conforming to the
@@ -125,7 +126,7 @@ func (sb *schemaBuilder) constructEdgeType(typ reflect.Type) (graphql.Type, erro
 }
 
 // constructConnType wraps typ (type of the Node) in a Connection Type conforming to the Relay spec.
-func (c *connectionContext) constructConnType(sb *schemaBuilder, typ reflect.Type, returnsPageInfo bool) (graphql.Type, error) {
+func (c *connectionContext) constructConnType(sb *schemaBuilder, typ reflect.Type) (graphql.Type, error) {
 	fieldMap := make(map[string]*graphql.Field)
 
 	countType, _ := reflect.TypeOf(Connection{}).FieldByName("TotalCount")
@@ -163,7 +164,7 @@ func (c *connectionContext) constructConnType(sb *schemaBuilder, typ reflect.Typ
 	// If a PaginateFieldFunc returns connection info then it means that the resolver needs to
 	// handle slicing according to the connection args. Hence, it's no longer feasible to determine
 	// the entire set of pages on the connection.
-	if returnsPageInfo {
+	if c.ReturnsPageInfo {
 		delete(pageInfoObj.Fields, "pages")
 	}
 	if err != nil {
@@ -413,8 +414,8 @@ func (sb *schemaBuilder) getKeyFieldOnStruct(nodeType reflect.Type) (string, err
 }
 
 // Parses the return types and checks if there's a pageInfo struct being returned by the resolver
-func (c *connectionContext) parsePaginatedReturnSignature(m *method) (retPageInfo bool, err error) {
-	retPageInfo = false
+func (c *connectionContext) parsePaginatedReturnSignature(m *method) (err error) {
+	c.ReturnsPageInfo = false
 
 	out := make([]reflect.Type, 0, c.funcType.NumOut())
 	for i := 0; i < c.funcType.NumOut(); i++ {
@@ -427,7 +428,7 @@ func (c *connectionContext) parsePaginatedReturnSignature(m *method) (retPageInf
 	}
 
 	if len(out) > 0 && out[0] == reflect.TypeOf(PaginationInfo{}) {
-		retPageInfo = true
+		c.ReturnsPageInfo = true
 		out = out[1:]
 	}
 
@@ -476,11 +477,10 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 
 	// Parse return values. The first return value must be the actual value, and
 	// the second value can optionally be an error.
-	returnsPageInfo, err := c.parsePaginatedReturnSignature(&method{MarkedNonNullable: true})
-	if err != nil {
+	if err := c.parsePaginatedReturnSignature(&method{MarkedNonNullable: true}); err != nil {
 		return nil, err
 	}
-	if (embedsArgs || returnsPageInfo) && !(embedsArgs && returnsPageInfo) {
+	if (embedsArgs || c.ReturnsPageInfo) && !(embedsArgs && c.ReturnsPageInfo) {
 		return nil, fmt.Errorf("if pagination args are embedded then pagination info must be included as a return value")
 	}
 
@@ -490,7 +490,7 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 		return nil, fmt.Errorf("paginated field func must return a slice type")
 	}
 	nodeType := c.funcType.Out(0).Elem()
-	retType, err := c.constructConnType(sb, nodeType, returnsPageInfo)
+	retType, err := c.constructConnType(sb, nodeType)
 	if err != nil {
 		return nil, err
 	}
@@ -521,7 +521,7 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 			// Call the function.
 			out := fun.Call(in)
 
-			return c.extractPaginatedRetAndErr(nodeKey, out, args, retType, embedsArgs, returnsPageInfo)
+			return c.extractPaginatedRetAndErr(nodeKey, out, args, retType, embedsArgs)
 
 		},
 		Args:           args,
@@ -533,7 +533,7 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 	return ret, nil
 }
 
-func (c *connectionContext) extractPaginatedRetAndErr(nodeKey string, out []reflect.Value, args interface{}, retType graphql.Type, embedsArgs bool, returnsPageInfo bool) (interface{}, error) {
+func (c *connectionContext) extractPaginatedRetAndErr(nodeKey string, out []reflect.Value, args interface{}, retType graphql.Type, embedsArgs bool) (interface{}, error) {
 	var result interface{}
 	var paginationArgs PaginationArgs
 
@@ -560,12 +560,12 @@ func (c *connectionContext) extractPaginatedRetAndErr(nodeKey string, out []refl
 		paginationArgs = reflect.ValueOf(args).Field(fieldInd).Interface().(PaginationArgs)
 	}
 
-	result, err := getConnection(nodeKey, out, paginationArgs, returnsPageInfo)
+	result, err := getConnection(nodeKey, out, paginationArgs, c.ReturnsPageInfo)
 	if err != nil {
 		return nil, err
 	}
 	out = out[1:]
-	if returnsPageInfo {
+	if c.ReturnsPageInfo {
 		out = out[1:]
 	}
 	if c.hasError {
