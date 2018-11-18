@@ -1,9 +1,9 @@
 package graphql_test
 
 import (
-	"reflect"
 	"testing"
 
+	"github.com/kylelemons/godebug/pretty"
 	. "github.com/samsarahq/thunder/graphql"
 )
 
@@ -89,26 +89,32 @@ fragment Bar on Foo {
 								},
 							},
 						},
-						Fragments: []*Fragment{
+						Fragments: []*FragmentSpread{
 							{
-								On: "Foo",
-								SelectionSet: &SelectionSet{
-									Selections: []*Selection{
-										{
-											Name:  "asd",
-											Alias: "asd",
-											Args:  map[string]interface{}{},
+								Fragment: &FragmentDefinition{
+									Name: "",
+									On:   "Foo",
+									SelectionSet: &SelectionSet{
+										Selections: []*Selection{
+											{
+												Name:  "asd",
+												Alias: "asd",
+												Args:  map[string]interface{}{},
+											},
 										},
-									},
-									Fragments: []*Fragment{
-										{
-											On: "Foo",
-											SelectionSet: &SelectionSet{
-												Selections: []*Selection{
-													{
-														Name:  "zxc",
-														Alias: "zxc",
-														Args:  map[string]interface{}{},
+										Fragments: []*FragmentSpread{
+											{
+												Fragment: &FragmentDefinition{
+													Name: "Bar",
+													On:   "Foo",
+													SelectionSet: &SelectionSet{
+														Selections: []*Selection{
+															{
+																Name:  "zxc",
+																Alias: "zxc",
+																Args:  map[string]interface{}{},
+															},
+														},
 													},
 												},
 											},
@@ -128,8 +134,8 @@ fragment Bar on Foo {
 		},
 	}
 
-	if !reflect.DeepEqual(query, expected) {
-		t.Error("unexpected parse")
+	if d := pretty.Compare(query, expected); d != "" {
+		t.Errorf("unexpected diff: %s", d)
 	}
 
 	query, err = Parse(`
@@ -156,8 +162,8 @@ mutation foo($var: bar) {
 			},
 		},
 	}
-	if !reflect.DeepEqual(query, expected) {
-		t.Error("unexpected parse")
+	if d := pretty.Compare(query, expected); d != "" {
+		t.Errorf("unexpected diff: %s", d)
 	}
 }
 
@@ -206,14 +212,6 @@ func TestParseUnsupported(t *testing.T) {
 }`, map[string]interface{}{})
 	if err == nil || err.Error() != "same alias with different name" {
 		t.Error("expected different names in fragment to fail", err)
-	}
-
-	_, err = Parse(`
-{
-	a @test
-}`, map[string]interface{}{})
-	if err == nil || err.Error() != "directives not supported" {
-		t.Error("expected directives to fail", err)
 	}
 
 	_, err = Parse(`
@@ -278,5 +276,19 @@ query Operation($x: int64 = 2) {
 
 	if val := args["x"]; val != float64(2) {
 		t.Errorf("expected 2, received %v", val)
+	}
+}
+
+func TestSkippedFragment(t *testing.T) {
+	_, err := Parse(`query Test($something: bool) {
+		something @skip(if: $something) {
+			...Frag
+		}
+	}
+
+	fragment Frag on Something { somethingElse }`, map[string]interface{}{"something": true})
+
+	if err != nil {
+		t.Errorf("expected no error, received %s", err.Error())
 	}
 }

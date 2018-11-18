@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/kylelemons/godebug/pretty"
 	"github.com/samsarahq/thunder/concurrencylimiter"
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
@@ -445,4 +447,122 @@ func TestConcurrencyLimiterDeadlock(t *testing.T) {
 
 	wg.Wait()
 	defer rerunner.Stop()
+}
+
+func TestSkipDirectives(t *testing.T) {
+	schema := schemabuilder.NewSchema()
+	query := schema.Query()
+	query.FieldFunc("value", func() string { return "s" })
+	builtSchema := schema.MustBuild()
+
+	execute := func(queryString string, vars map[string]interface{}) (interface{}, error) {
+		q := graphql.MustParse(queryString, vars)
+
+		if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
+			return nil, err
+		}
+
+		e := graphql.Executor{}
+		return e.Execute(context.Background(), builtSchema.Query, nil, q)
+	}
+
+	// Variable skip
+	result, err := execute(`
+		query x {
+			value @skip(if: $var)
+		}`, map[string]interface{}{"var": true})
+	if err != nil {
+		t.Errorf("expected no err, received %s", err.Error())
+	}
+	if d := pretty.Compare(result, internal.ParseJSON("{}")); d != "" {
+		t.Errorf("unexpected diff: %s", d)
+	}
+
+	result, err = execute(`
+		query x {
+			value @skip(if: $var)
+		}`, map[string]interface{}{"var": false})
+	if err != nil {
+		t.Errorf("expected no err, received %s", err.Error())
+	}
+	if d := pretty.Compare(result, internal.ParseJSON(`{"value": "s"}`)); d != "" {
+		t.Errorf("unexpected diff: %s", d)
+	}
+
+	// Variable include
+	result, err = execute(`
+		query x {
+			value @include(if: $var)
+		}`, map[string]interface{}{"var": false})
+	if err != nil {
+		t.Errorf("expected no err, received %s", err.Error())
+	}
+	if d := pretty.Compare(result, internal.ParseJSON("{}")); d != "" {
+		t.Errorf("unexpected diff: %s", d)
+	}
+
+	result, err = execute(`
+		query x {
+			value @include(if: $var)
+		}`, map[string]interface{}{"var": true})
+	if err != nil {
+		t.Errorf("expected no err, received %s", err.Error())
+	}
+	if d := pretty.Compare(result, internal.ParseJSON(`{"value": "s"}`)); d != "" {
+		t.Errorf("unexpected diff: %s", d)
+	}
+
+	// Wrong type
+	result, err = execute(`
+		query x {
+			value @skip(if: $var)
+		}`, map[string]interface{}{"var": 5})
+	if err == nil {
+		t.Errorf("expected err, received nil")
+	}
+	if !strings.Contains(err.Error(), "expected type boolean, found 5") {
+		t.Errorf("expected err, received: %s", err.Error())
+	}
+
+	// Missing if
+	result, err = execute(`
+		query x {
+			value @skip
+		}`, nil)
+	if err == nil {
+		t.Errorf("expected err, received nil")
+	}
+	if !strings.Contains(err.Error(), "required argument not provided: if") {
+		t.Errorf("expected err, received: %s", err.Error())
+	}
+
+	// Fragments
+	result, err = execute(`
+		query x {
+			... on Query @skip(if: true) {
+				value
+			}
+		}`, nil)
+	if err != nil {
+		t.Errorf("expected no err, received %s", err.Error())
+	}
+	if d := pretty.Compare(result, internal.ParseJSON("{}")); d != "" {
+		t.Errorf("unexpected diff: %s", d)
+	}
+
+	result, err = execute(`
+		query x {
+			...X @skip(if: true)
+		}
+
+		fragment X on Query {
+			value
+		}
+`, nil)
+	if err != nil {
+		t.Errorf("expected no err, received %s", err.Error())
+	}
+	if d := pretty.Compare(result, internal.ParseJSON("{}")); d != "" {
+		t.Errorf("unexpected diff: %s", d)
+	}
 }
