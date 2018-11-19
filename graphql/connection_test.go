@@ -41,7 +41,7 @@ func TestConnection(t *testing.T) {
 	inner := schema.Object("inner", Inner{})
 	item := schema.Object("item", Item{})
 	item.Key("id")
-	inner.PaginateFieldFunc("innerConnection", func(args Args) []Item {
+	inner.FieldFunc("innerConnection", func(args Args) []Item {
 		retList := make([]Item, 5)
 		retList[0] = Item{Id: 1}
 		retList[1] = Item{Id: 2}
@@ -49,8 +49,8 @@ func TestConnection(t *testing.T) {
 		retList[3] = Item{Id: 4}
 		retList[4] = Item{Id: 5}
 		return retList
-	})
-	inner.PaginateFieldFunc("innerConnectionNilArg", func() []Item {
+	}, schemabuilder.Paginated)
+	inner.FieldFunc("innerConnectionNilArg", func() []Item {
 		retList := make([]Item, 5)
 		retList[0] = Item{Id: 1}
 		retList[1] = Item{Id: 2}
@@ -58,8 +58,8 @@ func TestConnection(t *testing.T) {
 		retList[3] = Item{Id: 4}
 		retList[4] = Item{Id: 5}
 		return retList
-	})
-	inner.PaginateFieldFunc("innerConnectionWithCtxAndError", func(ctx context.Context, args Args) ([]Item, error) {
+	}, schemabuilder.Paginated)
+	inner.FieldFunc("innerConnectionWithCtxAndError", func(ctx context.Context, args Args) ([]Item, error) {
 		retList := make([]Item, 5)
 		retList[0] = Item{Id: 1}
 		retList[1] = Item{Id: 2}
@@ -67,10 +67,10 @@ func TestConnection(t *testing.T) {
 		retList[3] = Item{Id: 4}
 		retList[4] = Item{Id: 5}
 		return retList, nil
-	})
-	inner.PaginateFieldFunc("innerConnectionWithError", func(ctx context.Context, args Args) ([]*Item, error) {
+	}, schemabuilder.Paginated)
+	inner.FieldFunc("innerConnectionWithError", func(ctx context.Context, args Args) ([]*Item, error) {
 		return nil, graphql.NewSafeError("this is an error")
-	})
+	}, schemabuilder.Paginated)
 	builtSchema := schema.MustBuild()
 
 	// Test for the normal case with first and after.
