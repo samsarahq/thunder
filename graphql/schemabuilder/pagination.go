@@ -8,6 +8,7 @@ import (
 	"reflect"
 
 	"github.com/samsarahq/thunder/graphql"
+	"github.com/samsarahq/thunder/internal/filter"
 )
 
 // Connection conforms to the GraphQL Connection type in the Relay Pagination spec.
@@ -16,6 +17,8 @@ type Connection struct {
 	Edges      []Edge
 	PageInfo   PageInfo
 }
+
+var typeOfString = reflect.TypeOf("")
 
 // paginateManually applies the pagination arguments to the edges in memory and sets hasNextPage +
 // hasPrevPage. The behavior is expected to conform to the Relay Cursor spec:
@@ -95,6 +98,8 @@ type ConnectionArgs struct {
 	Before *string
 	// User-facing args.
 	Args interface{}
+	// filterText: "text search"
+	FilterText *string
 }
 
 // PaginationArgs are used in externally set connections by embedding them in an args struct. They
@@ -104,6 +109,8 @@ type PaginationArgs struct {
 	Last   *int64
 	After  *string
 	Before *string
+
+	FilterText *string
 }
 
 func (p PaginationArgs) limit() int {
@@ -148,6 +155,8 @@ type connectionContext struct {
 	ReturnsPageInfo bool
 	// The index of PaginationArgs in the arguments provided to the FieldFunc.
 	PaginationArgsIndex int
+	// The GraphQL fields for filtered text to be resolved.
+	FilterTextFields map[string]*graphql.Field
 }
 
 // embedsPaginationArgs returns true if PaginationArgs were embedded.
@@ -164,7 +173,7 @@ func (c *connectionContext) IsExternallyManaged() bool {
 // Validate returns an error if the connection isn't correctly implemented.
 func (c *connectionContext) Validate() error {
 	if c.IsExternallyManaged() && !(c.embedsPaginationArgs() && c.ReturnsPageInfo) {
-		return errors.New("If pagination args are embedded then pagination info must be included as a return value")
+		return errors.New("if pagination args are embedded then pagination info must be included as a return value")
 	}
 	return nil
 }
@@ -193,7 +202,7 @@ func (sb *schemaBuilder) constructEdgeType(typ reflect.Type) (graphql.Type, erro
 	}
 	fieldMap["node"] = nodeField
 
-	cursorType, err := sb.getType(reflect.TypeOf(string("")))
+	cursorType, err := sb.getType(typeOfString)
 	if err != nil {
 		return nil, err
 	}
@@ -372,12 +381,56 @@ func (c *connectionContext) pagesFromEdges(edges []Edge, limit int) (pages []str
 	return pages
 }
 
+func (c *connectionContext) applyTextFilter(nodes []interface{}, args PaginationArgs) ([]interface{}, error) {
+	if args.FilterText == nil || *args.FilterText == "" {
+		return nodes, nil
+	}
+
+	var filteredNodes []interface{}
+	for _, node := range nodes {
+		keep := false
+		// For each possible field we're matching against, check if there's a match.
+		for name, filterField := range c.FilterTextFields {
+			// Resolve the graphql.Field made for sorting.
+			text, err := filterField.Resolve(context.TODO(), node, nil, nil)
+			if err != nil {
+				return nil, err
+			}
+
+			// Only strings are allowed for FilterText fields.
+			textString, ok := text.(string)
+			if !ok {
+				return nil, fmt.Errorf("filter %s returned %T, must be a string", name, text)
+			}
+
+			if filter.Match(textString, *args.FilterText) {
+				keep = true
+				break
+			}
+		}
+
+		if keep {
+			filteredNodes = append(filteredNodes, node)
+		}
+	}
+
+	return filteredNodes, nil
+}
+
 // getConnection applies the ConnectionArgs to nodes and returns the result in a wrapped Connection
 // type.
 func (c *connectionContext) getConnection(out []reflect.Value, args PaginationArgs) (Connection, error) {
 	nodes := castSlice(out[0].Interface())
 	if len(nodes) == 0 {
 		return Connection{}, nil
+	}
+
+	if !c.IsExternallyManaged() {
+		var err error
+		nodes, err = c.applyTextFilter(nodes, args)
+		if err != nil {
+			return Connection{}, err
+		}
 	}
 
 	limit := args.limit()
@@ -432,6 +485,34 @@ func indexOfPaginationArgs(argType reflect.Type) int {
 		}
 	}
 	return -1
+}
+
+func getFuncReturnType(fn interface{}) reflect.Type {
+	typ := reflect.TypeOf(fn)
+	return typ.Out(0)
+}
+
+func (c *connectionContext) consumeTextFilters(sb *schemaBuilder, m *method, typ reflect.Type) error {
+	c.FilterTextFields = make(map[string]*graphql.Field)
+
+	for name, fn := range m.TextFilterFuncs {
+		funcTyp := getFuncReturnType(fn)
+		if funcTyp != typeOfString {
+			return fmt.Errorf("invalid text filter field %s: unsupported return type %v, must be a string", name, funcTyp)
+		}
+
+		// Build a GraphQL field for the function.
+		field, err := sb.buildFunction(typ, &method{Fn: fn})
+		if err != nil {
+			return err
+		}
+		if field.Args != nil && len(field.Args) > 0 {
+			return fmt.Errorf("invalid text filter field %s: text filter fields can't take arguments", name)
+		}
+		c.FilterTextFields[name] = field
+	}
+
+	return nil
 }
 
 func (c *connectionContext) consumePaginatedArgs(sb *schemaBuilder, in []reflect.Type) (*argParser, graphql.Type, []reflect.Type, error) {
@@ -571,6 +652,10 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 		return nil, err
 	}
 
+	if err := c.consumeTextFilters(sb, m, nodeType); err != nil {
+		return nil, err
+	}
+
 	c.Key, err = sb.getKeyFieldOnStruct(nodeType)
 	if err != nil {
 		return nil, err
@@ -617,10 +702,11 @@ func (c *connectionContext) extractReturnAndErr(out []reflect.Value, args interf
 	if !c.IsExternallyManaged() {
 		connectionArgs, _ := args.(ConnectionArgs)
 		paginationArgs = PaginationArgs{
-			First:  connectionArgs.First,
-			Last:   connectionArgs.Last,
-			After:  connectionArgs.After,
-			Before: connectionArgs.Before,
+			First:      connectionArgs.First,
+			Last:       connectionArgs.Last,
+			After:      connectionArgs.After,
+			Before:     connectionArgs.Before,
+			FilterText: connectionArgs.FilterText,
 		}
 	} else {
 		paginationArgs = reflect.ValueOf(args).Field(c.PaginationArgsIndex).Interface().(PaginationArgs)

@@ -200,5 +200,74 @@
         "Error": "first/last cannot be a negative integer"
       }
     ]
+  },
+  {
+    "Name": "Pagination, filter",
+    "Values": [
+      {
+        "inner": {
+          "filterByBan": {
+            "edges": [
+              {
+                "cursor": "NA==",
+                "node": {
+                  "__key": 4,
+                  "filterText": "soban",
+                  "id": 4
+                }
+              }
+            ],
+            "pageInfo": {
+              "endCursor": "NA==",
+              "hasNextPage": false,
+              "hasPrevPage": false,
+              "pages": [
+                ""
+              ],
+              "startCursor": "NA=="
+            },
+            "totalCount": 1
+          },
+          "filterByCan": {
+            "edges": [
+              {
+                "cursor": "MQ==",
+                "node": {
+                  "__key": 1,
+                  "filterText": "can",
+                  "id": 1
+                }
+              },
+              {
+                "cursor": "Mw==",
+                "node": {
+                  "__key": 3,
+                  "filterText": "cannot",
+                  "id": 3
+                }
+              },
+              {
+                "cursor": "NQ==",
+                "node": {
+                  "__key": 5,
+                  "filterText": "socan",
+                  "id": 5
+                }
+              }
+            ],
+            "pageInfo": {
+              "endCursor": "NQ==",
+              "hasNextPage": false,
+              "hasPrevPage": false,
+              "pages": [
+                ""
+              ],
+              "startCursor": "MQ=="
+            },
+            "totalCount": 3
+          }
+        }
+      }
+    ]
   }
 ]

@@ -26,7 +26,8 @@ type Args struct {
 }
 
 type Item struct {
-	Id int64
+	Id         int64
+	FilterText string
 }
 
 func TestConnection(t *testing.T) {
@@ -43,31 +44,26 @@ func TestConnection(t *testing.T) {
 	item := schema.Object("item", Item{})
 	item.Key("id")
 	inner.FieldFunc("innerConnection", func(args Args) []Item {
-		retList := make([]Item, 5)
-		retList[0] = Item{Id: 1}
-		retList[1] = Item{Id: 2}
-		retList[2] = Item{Id: 3}
-		retList[3] = Item{Id: 4}
-		retList[4] = Item{Id: 5}
-		return retList
+		return []Item{{Id: 1}, {Id: 2}, {Id: 3}, {Id: 4}, {Id: 5}}
 	}, schemabuilder.Paginated)
+	inner.FieldFunc("innerConnectionWithFilter", func() []Item {
+		return []Item{
+			{Id: 1, FilterText: "can"},
+			{Id: 2, FilterText: "man"},
+			{Id: 3, FilterText: "cannot"},
+			{Id: 4, FilterText: "soban"},
+			{Id: 5, FilterText: "socan"},
+		}
+	}, schemabuilder.Paginated, schemabuilder.TextFilterFields{
+		"foo": func(ctx context.Context, i Item) string {
+			return i.FilterText
+		},
+	})
 	inner.FieldFunc("innerConnectionNilArg", func() []Item {
-		retList := make([]Item, 5)
-		retList[0] = Item{Id: 1}
-		retList[1] = Item{Id: 2}
-		retList[2] = Item{Id: 3}
-		retList[3] = Item{Id: 4}
-		retList[4] = Item{Id: 5}
-		return retList
+		return []Item{{Id: 1}, {Id: 2}, {Id: 3}, {Id: 4}, {Id: 5}}
 	}, schemabuilder.Paginated)
 	inner.FieldFunc("innerConnectionWithCtxAndError", func(ctx context.Context, args Args) ([]Item, error) {
-		retList := make([]Item, 5)
-		retList[0] = Item{Id: 1}
-		retList[1] = Item{Id: 2}
-		retList[2] = Item{Id: 3}
-		retList[3] = Item{Id: 4}
-		retList[4] = Item{Id: 5}
-		return retList, nil
+		return []Item{{Id: 1}, {Id: 2}, {Id: 3}, {Id: 4}, {Id: 5}}, nil
 	}, schemabuilder.Paginated)
 	inner.FieldFunc("innerConnectionWithError", func(ctx context.Context, args Args) ([]*Item, error) {
 		return nil, graphql.NewSafeError("this is an error")
@@ -239,6 +235,45 @@ func TestConnection(t *testing.T) {
 			}
 		}
 	}`, testgraphql.RecordError)
+
+	snap.SnapshotQuery("Pagination, filter", `{
+		inner {
+			filterByCan: innerConnectionWithFilter(filterText: "can", first: 5, after: "") {
+				totalCount
+				edges {
+					node {
+						id
+						filterText
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+					pages
+				}
+			}
+			filterByBan: innerConnectionWithFilter(filterText: "ban", first: 5, after: "") {
+				totalCount
+				edges {
+					node {
+						id
+						filterText
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+					pages
+				}
+			}
+		}
+	}`)
 }
 
 func TestPaginateBuildFailure(t *testing.T) {
