@@ -7,6 +7,7 @@ import (
 
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
+	"github.com/samsarahq/thunder/internal/testgraphql"
 	"github.com/samsarahq/thunder/reactive"
 	"github.com/stretchr/testify/assert"
 )
@@ -73,336 +74,171 @@ func TestConnection(t *testing.T) {
 	}, schemabuilder.Paginated)
 	builtSchema := schema.MustBuild()
 
-	// Test for the normal case with first and after.
-	q := graphql.MustParse(`
-		{
-			inner {
-				innerConnection(first: 1, after: "", additional: "jk") {
-					totalCount
-					edges {
-						node {
-							id
-						}
-						cursor
+	snap := testgraphql.NewSnapshotter(t, builtSchema)
+	defer snap.Verify()
+
+	snap.SnapshotQuery("Pagination, first + after", `{
+		inner {
+			innerConnection(first: 1, after: "", additional: "jk") {
+				totalCount
+				edges {
+					node {
+						id
 					}
-					pageInfo {
-						hasNextPage
-						hasPrevPage
-						startCursor
-						endCursor
-					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
 				}
 			}
-	    }`, nil)
+		}
+	}`)
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
-		t.Error(err)
-	}
-	e := graphql.Executor{}
-	val, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
-	assert.Nil(t, err)
-
-	assert.Equal(t, map[string]interface{}{
-		"inner": map[string]interface{}{
-			"innerConnection": map[string]interface{}{
-				"totalCount": int64(5),
-				"edges": []interface{}{map[string]interface{}{
-					"node": map[string]interface{}{
-						"__key": int64(1),
-						"id":    int64(1),
-					},
-					"cursor": "MQ==",
-				},
-				},
-				"pageInfo": map[string]interface{}{
-					"hasNextPage": true,
-					"hasPrevPage": false,
-					"startCursor": "MQ==",
-					"endCursor":   "MQ==",
-				},
-			},
-		},
-	}, val)
-
-	// Test for last and before with pages.
-	q = graphql.MustParse(`
-		{
-			inner {
-				innerConnection(last: 2, before: "", additional: "jk") {
-					totalCount
-					edges {
-						node {
-							id
-						}
-						cursor
+	snap.SnapshotQuery("Pagination, last + before", `{
+		inner {
+			innerConnection(last: 2, before: "", additional: "jk") {
+				totalCount
+				edges {
+					node {
+						id
 					}
-					pageInfo {
-						hasNextPage
-						hasPrevPage
-						startCursor
-						endCursor
-						pages
-					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+					pages
 				}
 			}
-	    }`, nil)
+		}
+	}`)
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
-		t.Error(err)
-	}
-	e = graphql.Executor{}
-	val, err = e.Execute(context.Background(), builtSchema.Query, nil, q)
-	assert.Nil(t, err)
-	assert.Equal(t, map[string]interface{}{
-		"inner": map[string]interface{}{
-			"innerConnection": map[string]interface{}{
-				"totalCount": int64(5),
-				"edges": []interface{}{
-					map[string]interface{}{
-						"node": map[string]interface{}{
-							"__key": int64(4),
-							"id":    int64(4),
-						},
-						"cursor": "NA==",
-					},
-					map[string]interface{}{
-						"node": map[string]interface{}{
-							"__key": int64(5),
-							"id":    int64(5),
-						},
-						"cursor": "NQ==",
-					},
-				},
-				"pageInfo": map[string]interface{}{
-					"hasNextPage": false,
-					"hasPrevPage": true,
-					"startCursor": "NA==",
-					"endCursor":   "NQ==",
-					"pages":       []interface{}{"", "Mg==", "NA=="},
-				},
-			},
-		},
-	}, val)
-
-	q = graphql.MustParse(`
-		{
-			inner {
-				innerConnection(additional: "jk") {
-					totalCount
-					edges {
-						node {
-							id
-						}
-						cursor
+	snap.SnapshotQuery("Pagination, no args given", `{
+		inner {
+			innerConnection(additional: "jk") {
+				totalCount
+				edges {
+					node {
+						id
 					}
-					pageInfo {
-						hasNextPage
-						hasPrevPage
-						startCursor
-						endCursor
-						pages
-					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+					pages
 				}
 			}
-	    }`, nil)
+		}
+	}`)
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
-		t.Error(err)
-	}
-	e = graphql.Executor{}
-	val, err = e.Execute(context.Background(), builtSchema.Query, nil, q)
-	assert.Nil(t, err)
-	assert.Equal(t, map[string]interface{}{
-		"inner": map[string]interface{}{
-			"innerConnection": map[string]interface{}{
-				"totalCount": int64(5),
-				"edges": []interface{}{
-					map[string]interface{}{
-						"node": map[string]interface{}{
-							"__key": int64(1),
-							"id":    int64(1),
-						},
-						"cursor": "MQ==",
-					},
-					map[string]interface{}{
-						"node": map[string]interface{}{
-							"__key": int64(2),
-							"id":    int64(2),
-						},
-						"cursor": "Mg==",
-					},
-					map[string]interface{}{
-						"node": map[string]interface{}{
-							"__key": int64(3),
-							"id":    int64(3),
-						},
-						"cursor": "Mw==",
-					},
-					map[string]interface{}{
-						"node": map[string]interface{}{
-							"__key": int64(4),
-							"id":    int64(4),
-						},
-						"cursor": "NA==",
-					},
-					map[string]interface{}{
-						"node": map[string]interface{}{
-							"__key": int64(5),
-							"id":    int64(5),
-						},
-						"cursor": "NQ==",
-					},
-				},
-				"pageInfo": map[string]interface{}{
-					"hasNextPage": false,
-					"hasPrevPage": false,
-					"startCursor": "MQ==",
-					"endCursor":   "NQ==",
-					"pages":       []interface{}{""},
-				},
-			},
-		},
-	}, val)
-
-	q = graphql.MustParse(`
-		{
-			inner {
-				innerConnectionNilArg(first: 1, after: "") {
-					totalCount
-					edges {
-						node {
-							id
-						}
-						cursor
+	snap.SnapshotQuery("Pagination, nil args", `{
+		inner {
+			innerConnectionNilArg(first: 1, after: "") {
+				totalCount
+				edges {
+					node {
+						id
 					}
-					pageInfo {
-						hasNextPage
-						hasPrevPage
-						startCursor
-						endCursor
-					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
 				}
 			}
-	    }`, nil)
+		}
+	}`)
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
-		t.Error(err)
-	}
-	e = graphql.Executor{}
-	val, err = e.Execute(context.Background(), builtSchema.Query, nil, q)
-	assert.Nil(t, err)
-
-	q = graphql.MustParse(`
-		{
-			inner {
-				innerConnectionWithCtxAndError(first: 1, after: "", additional: "jk") {
-					totalCount
-					edges {
-						node {
-							id
-						}
-						cursor
+	snap.SnapshotQuery("Pagination, with ctx and error", `{
+		inner {
+			innerConnectionWithCtxAndError(first: 1, after: "", additional: "jk") {
+				totalCount
+				edges {
+					node {
+						id
 					}
-					pageInfo {
-						hasNextPage
-						hasPrevPage
-						startCursor
-						endCursor
-					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
 				}
 			}
-	    }`, nil)
+		}
+	}`)
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
-		t.Error(err)
-	}
-	e = graphql.Executor{}
-	val, err = e.Execute(context.Background(), builtSchema.Query, nil, q)
-	assert.Nil(t, err)
-	assert.Equal(t, map[string]interface{}{
-		"inner": map[string]interface{}{
-			"innerConnectionWithCtxAndError": map[string]interface{}{
-				"totalCount": int64(5),
-				"edges": []interface{}{map[string]interface{}{
-					"node": map[string]interface{}{
-						"__key": int64(1),
-						"id":    int64(1),
-					},
-					"cursor": "MQ==",
-				},
-				},
-				"pageInfo": map[string]interface{}{
-					"hasNextPage": true,
-					"hasPrevPage": false,
-					"startCursor": "MQ==",
-					"endCursor":   "MQ==",
-				},
-			},
-		},
-	}, val)
-
-	q = graphql.MustParse(`
-		{
-			inner {
-				innerConnectionWithError(first: 1, after: "", additional: "jk") {
-					totalCount
-					edges {
-						node {
-							id
-						}
-						cursor
+	snap.SnapshotQuery("Pagination, with ctx and error", `{
+		inner {
+			innerConnectionWithError(first: 1, after: "", additional: "jk") {
+				totalCount
+				edges {
+					node {
+						id
 					}
-					pageInfo {
-						hasNextPage
-						hasPrevPage
-						startCursor
-						endCursor
-					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
 				}
 			}
-	    }`, nil)
+		}
+	}`, testgraphql.RecordError)
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
-		t.Error(err)
-	}
-
-	e = graphql.Executor{}
-	_, err = e.Execute(context.Background(), builtSchema.Query, nil, q)
-	if err == nil || err.Error() != "this is an error" {
-		t.Errorf("bad error: %v", err)
-	}
-
-	q = graphql.MustParse(`
-		{
-			inner {
-				innerConnection(last: -2, before: "", additional: "jk") {
-					totalCount
-					edges {
-						node {
-							id
-						}
-						cursor
+	snap.SnapshotQuery("Pagination, with error", `{
+		inner {
+			innerConnectionWithError(first: 1, after: "", additional: "jk") {
+				totalCount
+				edges {
+					node {
+						id
 					}
-					pageInfo {
-						hasNextPage
-						hasPrevPage
-						startCursor
-						endCursor
-						pages
-					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
 				}
 			}
-	    }`, nil)
+		}
+	}`, testgraphql.RecordError)
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
-		t.Error(err)
-	}
-	e = graphql.Executor{}
-	val, err = e.Execute(context.Background(), builtSchema.Query, nil, q)
-	if err == nil || err.Error() != "first/last cannot be a negative integer" {
-		t.Errorf("bad error: %v", err)
-	}
-
+	snap.SnapshotQuery("Pagination, with error", `{
+		inner {
+			innerConnection(last: -2, before: "", additional: "jk") {
+				totalCount
+				edges {
+					node {
+						id
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+					pages
+				}
+			}
+		}
+	}`, testgraphql.RecordError)
 }
 
 func TestPaginateBuildFailure(t *testing.T) {
