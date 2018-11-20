@@ -2,13 +2,12 @@ package introspection_test
 
 import (
 	"encoding/json"
-	"io/ioutil"
-	"os"
-	"reflect"
 	"testing"
 
+	"github.com/samsarahq/go/snapshotter"
 	"github.com/samsarahq/thunder/graphql/introspection"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
+	"github.com/stretchr/testify/require"
 )
 
 type User struct {
@@ -90,27 +89,14 @@ func makeSchema() *schemabuilder.Schema {
 }
 
 func TestComputeSchemaJSON(t *testing.T) {
+	snap := snapshotter.New(t)
+	defer snap.Verify()
 	schemaBuilderSchema := makeSchema()
 
 	actualBytes, err := introspection.ComputeSchemaJSON(*schemaBuilderSchema)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+
 	var actual map[string]interface{}
 	json.Unmarshal(actualBytes, &actual)
-
-	if os.Getenv("UPDATE_TEST_RESULTS") != "" {
-		ioutil.WriteFile("test-schema.json", actualBytes, 0644)
-	}
-
-	expectedBytes, err := ioutil.ReadFile("test-schema.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var expected map[string]interface{}
-	json.Unmarshal(expectedBytes, &expected)
-
-	if !reflect.DeepEqual(expected, actual) {
-		t.Errorf("schema JSONs do not match:\n---expected---\n%+v\n---actual---\n%+v", expected, actual)
-	}
+	snap.Snapshot("schema", actual)
 }
