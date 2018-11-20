@@ -646,7 +646,7 @@ type funcContext struct {
 	selectionSet *graphql.SelectionSet
 }
 
-func (funcCtx *funcContext) prepareResolveArgs(source interface{}, args interface{}, ctx context.Context) []reflect.Value {
+func (funcCtx *funcContext) prepareResolveArgs(source interface{}, args interface{}, ctx context.Context, selectionSet *graphql.SelectionSet) []reflect.Value {
 
 	in := make([]reflect.Value, 0, funcCtx.funcType.NumIn())
 	if funcCtx.hasContext {
@@ -674,7 +674,7 @@ func (funcCtx *funcContext) prepareResolveArgs(source interface{}, args interfac
 		in = append(in, reflect.ValueOf(args))
 	}
 	if funcCtx.hasSelectionSet {
-		in = append(in, reflect.ValueOf(funcCtx.selectionSet))
+		in = append(in, reflect.ValueOf(selectionSet))
 	}
 
 	return in
@@ -726,7 +726,7 @@ func (sb *schemaBuilder) buildFunction(typ reflect.Type, m *method) (*graphql.Fi
 		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
 			// Set up function arguments.
 
-			in := funcCtx.prepareResolveArgs(source, args, ctx)
+			in := funcCtx.prepareResolveArgs(source, args, ctx, selectionSet)
 			// Call the function.
 			out := fun.Call(in)
 
