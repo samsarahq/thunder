@@ -28,6 +28,15 @@
 - `UnbuildStruct` is now defined `sqlgen.Schema`. It's not a package level
   function anymore. ([#195](https://github.com/samsarahq/thunder/pull/195))
 
+#### `schemabuilder`
+
+- Deprecated `PaginateFieldFunc` in favor of `FieldFunc(..., schemabuilder.Paginated)`
+- When you embed `PaginationArgs` and return `PaginationInfo` (between list and error)
+  your paginated endpoint is seen as "externally managed", meaning `thunder`
+  will not paginate the endpoint automatically, instead letting the field
+  function determine pages.
+- When a page has zero results, our connection has no information on cursors or pages.
+
 ## [0.4.0] - 2018-09-13
 
 ### Changed
