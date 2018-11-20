@@ -182,6 +182,9 @@ func diffMap(old map[string]interface{}, newAny interface{}) interface{} {
 
 // reoderKey returns the key to use for a
 func reorderKey(i interface{}) interface{} {
+	if i == nil {
+		return i
+	}
 	if object, ok := i.(map[string]interface{}); ok {
 		if key, ok := object["__key"]; ok {
 			return key

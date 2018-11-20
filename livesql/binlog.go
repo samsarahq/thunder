@@ -7,12 +7,13 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"log"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/samsarahq/thunder/fields"
+	"github.com/samsarahq/thunder/internal/fields"
+	"github.com/samsarahq/thunder/logger"
 	"github.com/samsarahq/thunder/sqlgen"
 	"github.com/siddontang/go-mysql/mysql"
 	"github.com/siddontang/go-mysql/replication"
@@ -37,6 +38,8 @@ type Binlog struct {
 	mu         sync.Mutex
 	columnMaps map[string]*columnMap
 	closed     bool
+
+	logger logger.Logger
 }
 
 // checkVariable checks that the requested MySQL global variable matches
@@ -121,6 +124,8 @@ func NewBinlogWithSource(ldb *LiveDB, sourceDB *sql.DB, host string, port uint16
 		streamer:      streamer,
 		tableVersions: make(map[string]uint64),
 		columnMaps:    make(map[string]*columnMap),
+
+		logger: logger.New(),
 	}, nil
 }
 
@@ -188,24 +193,33 @@ func buildColumnMap(conn *sql.DB, database string, table *sqlgen.Table) (*column
 
 // parseBinlogRow parses a binlog row into a struct
 func parseBinlogRow(table *sqlgen.Table, binlogRow []interface{}, columnMap *columnMap) (interface{}, error) {
+	ptr := reflect.New(table.Type)
+	elem := ptr.Elem()
+
 	if len(binlogRow) != columnMap.expectedColumns {
 		return nil, fmt.Errorf("binlog for %s has %d columns, expected %d",
 			table.Name, len(binlogRow), columnMap.expectedColumns)
 	}
 
-	scanners := make([]*fields.Scanner, len(columnMap.source))
+	scanners := table.Scanners.Get().([]interface{})
+	defer table.Scanners.Put(scanners)
+
 	for i, j := range columnMap.source {
 		if j == -1 {
 			continue
 		}
-		scanner := table.Columns[i].Descriptor.Scanner()
-		if err := scanner.Scan(binlogRow[j]); err != nil {
-			return nil, err
+		field := elem.FieldByIndex(table.Columns[i].Index)
+		if field.Kind() != reflect.Ptr {
+			field = field.Addr()
 		}
-		scanners[i] = scanner
+		scanner := scanners[i].(*fields.Scanner)
+		scanner.Target(field)
+		if err := scanner.Scan(binlogRow[j]); err != nil {
+			return nil, fmt.Errorf("binlog: `%s`.`%s` error: %v", table.Name, table.Columns[i].Name, err)
+		}
 	}
 
-	return sqlgen.BuildStruct(table, scanners), nil
+	return ptr.Interface(), nil
 }
 
 // getColumnMap returns the a column map for the table, fetching schema
@@ -317,6 +331,11 @@ func (b *Binlog) parseBinlogRowsEvent(event *replication.BinlogEvent) (*update, 
 	return update, nil
 }
 
+// SetOutput sets the destination for the error logger.
+func (b *Binlog) SetLogger(l logger.Logger) {
+	b.logger = l
+}
+
 // SetUpdateDelay sets the duration by which future updates will be delayed.
 func (b *Binlog) SetUpdateDelay(d time.Duration) {
 	b.delayMu.Lock()
@@ -360,9 +379,7 @@ func (b *Binlog) RunPollLoop() error {
 			} else if err != nil && err.Error() == "sql: database is closed" {
 				continue
 			} else if err != nil {
-				// TODO: handle these errors more gracefully -- for now, we just log
-				// them the console.
-				log.Printf("error parsing rows event %v", err)
+				b.logger.Error("livesql: failed to parse rows event", "error", err)
 				continue
 			}
 

@@ -23,7 +23,7 @@ type User struct {
 
 func (s *Server) registerUser(schema *schemabuilder.Schema) {
 	object := schema.Object("User", User{})
-	object.Key("Id")
+	object.Key("id")
 
 	object.FieldFunc("fullName", func(u *User) string {
 		return u.FirstName + " " + u.LastName

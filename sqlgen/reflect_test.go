@@ -7,11 +7,14 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/kylelemons/godebug/pretty"
-	"github.com/samsarahq/thunder/fields"
+	"github.com/samsarahq/thunder/internal/fields"
+	"github.com/samsarahq/thunder/internal/testfixtures"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func testMakeSnake(t *testing.T, s, expected string) {
@@ -103,49 +106,7 @@ type user struct {
 	Name     string
 	Age      int64
 	Optional *string
-}
-
-func TestBuildStruct(t *testing.T) {
-	s := NewSchema()
-	if err := s.RegisterType("users", AutoIncrement, user{}); err != nil {
-		t.Fatal(err)
-	}
-	var foo = "foo"
-	table := s.ByName["users"]
-
-	id := fieldFromValue(int64(0)).Scanner()
-	name := fieldFromValue("").Scanner()
-	age := fieldFromValue(int64(0)).Scanner()
-	optional := fieldFromValue(&foo).Scanner()
-
-	id.Scan(10)
-	name.Scan("bob")
-	age.Scan(nil)
-	optional.Scan(nil)
-
-	assert.Equal(t, &user{
-		Id:       10,
-		Name:     "bob",
-		Age:      0,
-		Optional: nil,
-	}, BuildStruct(table, []*fields.Scanner{id, name, age, optional}))
-
-	id = fieldFromValue(int64(0)).Scanner()
-	name = fieldFromValue("").Scanner()
-	age = fieldFromValue(int64(0)).Scanner()
-	optional = fieldFromValue(&foo).Scanner()
-
-	id.Scan(nil)
-	name.Scan(nil)
-	age.Scan(5)
-	optional.Scan("foo")
-
-	assert.Equal(t, &user{
-		Id:       0,
-		Name:     "",
-		Age:      5,
-		Optional: &foo,
-	}, BuildStruct(table, []*fields.Scanner{id, name, age, optional}))
+	Uuid     testfixtures.CustomType
 }
 
 type IntAlias int64
@@ -182,28 +143,6 @@ func fieldFromValue(i interface{}) *fields.Descriptor {
 	return fields.New(reflect.TypeOf(i), nil)
 }
 
-func TestBuildStructWithAlias(t *testing.T) {
-	s := NewSchema()
-	if err := s.RegisterType("customs", AutoIncrement, custom{}); err != nil {
-		t.Fatal(err)
-	}
-	table := s.ByName["customs"]
-
-	id := fieldFromValue(int64(0)).Scanner()
-	intAlias := fieldFromValue(IntAlias(0)).Scanner()
-	suffixString := fieldFromValue(SuffixString("")).Scanner()
-
-	id.Scan(10)
-	intAlias.Scan(int64(20))
-	suffixString.Scan("foo")
-
-	assert.Equal(t, &custom{
-		Id:           10,
-		IntAlias:     20,
-		SuffixString: "foo-FOO",
-	}, BuildStruct(table, []*fields.Scanner{id, intAlias, suffixString}))
-}
-
 func TestMakeWhere(t *testing.T) {
 	s := NewSchema()
 	if err := s.RegisterType("users", AutoIncrement, user{}); err != nil {
@@ -214,12 +153,12 @@ func TestMakeWhere(t *testing.T) {
 	where, err := makeWhere(table, Filter{"id": 10})
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"id"}, where.Columns)
-	assertSameValues(t, []interface{}{int64(10)}, where.Values)
+	assert.Equal(t, []interface{}{int64(10)}, where.Values)
 
 	where, err = makeWhere(table, Filter{"id": 10, "name": "bob", "age": 30})
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"id", "name", "age"}, where.Columns)
-	assertSameValues(t, []interface{}{int64(10), "bob", int64(30)}, where.Values)
+	assert.Equal(t, []interface{}{int64(10), "bob", int64(30)}, where.Values)
 
 	where, err = makeWhere(table, Filter{})
 	assert.NoError(t, err)
@@ -351,20 +290,6 @@ func TestMakeSelectRow(t *testing.T) {
 	}, query)
 }
 
-func assertSameValues(t *testing.T, expected []interface{}, got []interface{}) {
-	if len(expected) != len(got) {
-		t.Errorf("Mistmatched values length")
-		return
-	}
-
-	for i := range expected {
-		valuer := got[i].(fields.Valuer)
-		val, err := valuer.Value()
-		assert.NoError(t, err)
-		assert.Equal(t, expected[i], val)
-	}
-}
-
 func TestMakeInsertAutoIncrement(t *testing.T) {
 	s := NewSchema()
 	if err := s.RegisterType("users", AutoIncrement, user{}); err != nil {
@@ -377,8 +302,8 @@ func TestMakeInsertAutoIncrement(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, "users", query.Table)
-	assert.Equal(t, []string{"name", "age", "optional"}, query.Columns)
-	assertSameValues(t, []interface{}{"bob", int64(20), nil}, query.Values)
+	assert.Equal(t, []string{"name", "age", "optional", "uuid"}, query.Columns)
+	assert.Equal(t, []interface{}{"bob", int64(20), nil, make([]byte, 16)}, query.Values)
 }
 
 func TestMakeUpsertAutoIncrement(t *testing.T) {
@@ -411,8 +336,8 @@ func TestMakeUpsertUniqueId(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, "users", query.Table)
-	assert.Equal(t, []string{"id", "name", "age", "optional"}, query.Columns)
-	assertSameValues(t, []interface{}{int64(5), "alice", int64(30), "temp"}, query.Values)
+	assert.Equal(t, []string{"id", "name", "age", "optional", "uuid"}, query.Columns)
+	assert.Equal(t, []interface{}{int64(5), "alice", int64(30), "temp", make([]byte, 16)}, query.Values)
 }
 
 func TestMakeUpdateAutoIncrement(t *testing.T) {
@@ -428,10 +353,10 @@ func TestMakeUpdateAutoIncrement(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, "users", query.Table)
-	assert.Equal(t, []string{"name", "age", "optional"}, query.Columns)
-	assertSameValues(t, []interface{}{"bob", int64(20), nil}, query.Values)
+	assert.Equal(t, []string{"name", "age", "optional", "uuid"}, query.Columns)
+	assert.Equal(t, []interface{}{"bob", int64(20), nil, make([]byte, 16)}, query.Values)
 	assert.Equal(t, []string{"id"}, query.Where.Columns)
-	assertSameValues(t, []interface{}{int64(10)}, query.Where.Values)
+	assert.Equal(t, []interface{}{int64(10)}, query.Where.Values)
 }
 
 func TestMakeUpdateUniqueId(t *testing.T) {
@@ -449,10 +374,10 @@ func TestMakeUpdateUniqueId(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, "users", query.Table)
-	assert.Equal(t, []string{"name", "age", "optional"}, query.Columns)
-	assertSameValues(t, []interface{}{"alice", int64(40), "temp"}, query.Values)
+	assert.Equal(t, []string{"name", "age", "optional", "uuid"}, query.Columns)
+	assert.Equal(t, []interface{}{"alice", int64(40), "temp", make([]byte, 16)}, query.Values)
 	assert.Equal(t, []string{"id"}, query.Where.Columns)
-	assertSameValues(t, []interface{}{int64(20)}, query.Where.Values)
+	assert.Equal(t, []interface{}{int64(20)}, query.Where.Values)
 }
 
 func TestMakeDelete(t *testing.T) {
@@ -469,7 +394,7 @@ func TestMakeDelete(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "users", query.Table)
 	assert.Equal(t, []string{"id"}, query.Where.Columns)
-	assertSameValues(t, []interface{}{int64(10)}, query.Where.Values)
+	assert.Equal(t, []interface{}{int64(10)}, query.Where.Values)
 }
 
 func TestCoerce(t *testing.T) {
@@ -511,6 +436,16 @@ func TestMakeTester(t *testing.T) {
 		t.Error(err)
 	}
 
+	idInt32Ten, err := s.MakeTester("users", Filter{"id": int32(10)})
+	if err != nil {
+		t.Error(err)
+	}
+
+	idUnsignedTen, err := s.MakeTester("users", Filter{"id": uint(10)})
+	if err != nil {
+		t.Error(err)
+	}
+
 	idTenOptionalNil, err := s.MakeTester("users", Filter{
 		"id":       &ten,
 		"optional": (*string)(nil),
@@ -527,6 +462,13 @@ func TestMakeTester(t *testing.T) {
 		t.Error(err)
 	}
 
+	uuidTypedFoo, err := s.MakeTester("users", Filter{
+		"uuid": testfixtures.CustomTypeFromString("foo"),
+	})
+	if err != nil {
+		t.Error(err)
+	}
+
 	foo := "foo"
 
 	cases := []struct {
@@ -537,10 +479,16 @@ func TestMakeTester(t *testing.T) {
 	}{
 		{Description: "compare int match", Tester: idTen, User: &user{Id: 10}, Expected: true},
 		{Description: "compare int fail", Tester: idTen, User: &user{Id: 5}, Expected: false},
+		{Description: "compare int32 match", Tester: idInt32Ten, User: &user{Id: 10}, Expected: true},
+		{Description: "compare int32 fail", Tester: idInt32Ten, User: &user{Id: 5}, Expected: false},
+		{Description: "compare unsigned int match", Tester: idUnsignedTen, User: &user{Id: 10}, Expected: true},
+		{Description: "compare unsigned int fail", Tester: idUnsignedTen, User: &user{Id: 5}, Expected: false},
 		{Description: "compare nil match", Tester: idTenOptionalNil, User: &user{Id: 10}, Expected: true},
 		{Description: "compare nil fail", Tester: idTenOptionalNil, User: &user{Id: 10, Optional: &foo}, Expected: false},
 		{Description: "compare ptr match", Tester: idTenOptionalFoo, User: &user{Id: 10, Optional: &foo}, Expected: true},
 		{Description: "compare ptr fail", Tester: idTenOptionalFoo, User: &user{Id: 10}, Expected: false},
+		{Description: "compare uuid match", Tester: uuidTypedFoo, User: &user{Uuid: testfixtures.CustomTypeFromString("foo")}, Expected: true},
+		{Description: "compare uuid fail", Tester: uuidTypedFoo, User: &user{Uuid: testfixtures.CustomTypeFromString("bar")}, Expected: false},
 	}
 
 	for _, c := range cases {
@@ -549,4 +497,68 @@ func TestMakeTester(t *testing.T) {
 			t.Errorf("%s: got %v, expected %v", c.Description, actual, c.Expected)
 		}
 	}
+}
+
+func TestDriverValuesEqual(t *testing.T) {
+	cases := []struct {
+		left  driver.Value
+		right driver.Value
+		equal bool
+	}{
+		{left: int64(1), right: int64(1), equal: true},
+		{left: int64(1), right: int64(0), equal: false},
+		{left: int64(1), right: float64(1), equal: false},
+		{left: int64(1), right: bool(false), equal: false},
+		{left: int64(1), right: []byte("1"), equal: false},
+		{left: int64(1), right: string("1"), equal: false},
+		{left: int64(1), right: time.Time{}, equal: false},
+
+		{left: float64(1), right: float64(1), equal: true},
+		{left: float64(1), right: float64(0), equal: false},
+		{left: float64(1), right: bool(false), equal: false},
+		{left: float64(1), right: []byte("1"), equal: false},
+		{left: float64(1), right: string("1"), equal: false},
+		{left: float64(1), right: time.Time{}, equal: false},
+
+		{left: bool(true), right: bool(true), equal: true},
+		{left: bool(true), right: bool(false), equal: false},
+		{left: bool(true), right: []byte("1"), equal: false},
+		{left: bool(true), right: string("1"), equal: false},
+		{left: bool(true), right: time.Time{}, equal: false},
+
+		{left: []byte("1"), right: []byte("1"), equal: true},
+		{left: []byte("1"), right: []byte("0"), equal: false},
+		{left: []byte("1"), right: string("1"), equal: false},
+		{left: []byte("1"), right: time.Time{}, equal: false},
+
+		{left: string("1"), right: string("1"), equal: true},
+		{left: string("1"), right: string("0"), equal: false},
+		{left: string("1"), right: time.Time{}, equal: false},
+
+		{left: time.Time{}, right: time.Time{}, equal: true},
+		{left: time.Time{}, right: time.Now(), equal: false},
+	}
+
+	for _, c := range cases {
+		t.Run("", func(t *testing.T) {
+			assert.Equal(t, c.equal, driverValuesEqual(c.left, c.right))
+			assert.Equal(t, c.equal, driverValuesEqual(c.right, c.left))
+		})
+	}
+}
+
+func TestBuildStruct(t *testing.T) {
+	s := NewSchema()
+	require.NoError(t, s.RegisterType("users", AutoIncrement, user{}))
+
+	u, err := s.BuildStruct("users", []driver.Value{
+		1, "foo", 18, nil, []byte("bar"),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, &user{
+		Id:   1,
+		Name: "foo",
+		Age:  18,
+		Uuid: testfixtures.CustomTypeFromString("bar"),
+	}, u)
 }

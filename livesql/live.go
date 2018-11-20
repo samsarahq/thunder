@@ -75,7 +75,13 @@ func (t *dbTracker) processBinlog(update *update) {
 	}
 }
 
-func (t *dbTracker) registerDependency(ctx context.Context, table string, tester sqlgen.Tester) {
+// QueryDependency represents a dependency on SQL query.
+type QueryDependency struct {
+	Table  string
+	Filter sqlgen.Filter
+}
+
+func (t *dbTracker) registerDependency(ctx context.Context, schema *sqlgen.Schema, table string, tester sqlgen.Tester, filter sqlgen.Filter) error {
 	r := &dbResource{
 		table:    table,
 		tester:   tester,
@@ -84,9 +90,11 @@ func (t *dbTracker) registerDependency(ctx context.Context, table string, tester
 	r.resource.Cleanup(func() {
 		t.remove(r)
 	})
-	reactive.AddDependency(ctx, r.resource)
+
+	reactive.AddDependency(ctx, r.resource, QueryDependency{Table: table, Filter: filter})
 
 	t.add(r)
+	return nil
 }
 
 // LiveDB is a SQL client that supports live updating queries.
@@ -120,7 +128,6 @@ func (ldb *LiveDB) query(ctx context.Context, query *sqlgen.BaseSelectQuery) ([]
 	if !reactive.HasRerunner(ctx) || ldb.HasTx(ctx) {
 		return ldb.DB.BaseQuery(ctx, query)
 	}
-
 	selectQuery, err := query.MakeSelectQuery()
 	if err != nil {
 		return nil, err
@@ -130,7 +137,7 @@ func (ldb *LiveDB) query(ctx context.Context, query *sqlgen.BaseSelectQuery) ([]
 
 	// Build a cache key for the query. Convert the args slice into an array so
 	// it can be stored as a map key.
-	key := queryCacheKey{clause: clause, args: internal.ToArray(args)}
+	key := queryCacheKey{clause: clause, args: internal.MakeHashable(args)}
 
 	result, err := reactive.Cache(ctx, key, func(ctx context.Context) (interface{}, error) {
 		// Build a tester for the dependency.
@@ -141,7 +148,8 @@ func (ldb *LiveDB) query(ctx context.Context, query *sqlgen.BaseSelectQuery) ([]
 
 		// Register the dependency before we do the query to not miss any updates
 		// between querying and registering.
-		ldb.tracker.registerDependency(ctx, query.Table.Name, tester)
+		// Do not fail the query if this step fails.
+		_ = ldb.tracker.registerDependency(ctx, ldb.Schema, query.Table.Name, tester, query.Filter)
 
 		// Perform the query.
 		// XXX: This will build the SQL string again... :(
@@ -200,4 +208,16 @@ func (ldb *LiveDB) QueryRow(ctx context.Context, result interface{}, filter sqlg
 
 func (ldb *LiveDB) Close() error {
 	return ldb.Conn.Close()
+}
+
+func (ldb *LiveDB) AddDependency(ctx context.Context, dep QueryDependency) error {
+	tester, err := ldb.Schema.MakeTester(dep.Table, dep.Filter)
+	if err != nil {
+		return err
+	}
+
+	if err := ldb.tracker.registerDependency(ctx, ldb.Schema, dep.Table, tester, dep.Filter); err != nil {
+		return err
+	}
+	return nil
 }

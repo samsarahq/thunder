@@ -38,7 +38,7 @@ func nestPathError(key string, err error) error {
 	}
 }
 
-func extractPathError(err error) error {
+func ErrorCause(err error) error {
 	if pe, ok := err.(*pathError); ok {
 		return pe.inner
 	}

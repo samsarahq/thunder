@@ -31,42 +31,46 @@ func New(t reflect.Type, tags []string) *Descriptor {
 }
 
 // Valuer creates a sql/driver.Valuer from the type and value.
-func (d Descriptor) Valuer(val reflect.Value) Valuer {
+func (d *Descriptor) Valuer(val reflect.Value) Valuer {
 	// Ideally we would de-reference pointers here in order to simplify how we work with the value.
 	// However, some interfaces (I'm looking at you, gogo/protobuf) implement their methods as
 	// pointer methods.
-	return Valuer{Descriptor: &d, value: val}
+	return Valuer{Descriptor: d, value: val}
 }
 
 // Scanner creates a sql.Scanner from the descriptor.
-func (d Descriptor) Scanner() *Scanner { return &Scanner{Descriptor: &d} }
+func (d *Descriptor) Scanner() *Scanner {
+	return &Scanner{Descriptor: d}
+}
 
 // ValidateSQLType checks to see if the field is a valid SQL value.
-func (d Descriptor) ValidateSQLType() error {
-	valuer := d.Valuer(reflect.Zero(d.Type))
-	val, err := valuer.Value()
+func (d *Descriptor) ValidateSQLType() error {
+	var val reflect.Value
+	if d.Ptr {
+		val = reflect.New(d.Type)
+	} else {
+		val = reflect.Zero(d.Type)
+	}
+
+	valuer := d.Valuer(val)
+	sqlVal, err := valuer.Value()
 	if err != nil {
 		return err
 	}
-	if ok := driver.IsValue(val); !ok {
-		return fmt.Errorf("%T is not a valid SQL type", val)
-	}
-	return d.Scanner().Scan(val)
-}
-
-func (d Descriptor) copy(from, to reflect.Value, isValid bool) {
-	// Set non-pointer by setting reference
-	if !d.Ptr {
-		to.Set(from)
-		return
+	if ok := driver.IsValue(sqlVal); !ok {
+		return fmt.Errorf("%T is not a valid SQL type", sqlVal)
 	}
 
-	if !isValid {
-		return
+	// We need to hold onto this pointer-pointer in order to make the value addressable.
+	var value, ptrptr reflect.Value
+	if d.Ptr {
+		ptrptr = reflect.New(reflect.PtrTo(d.Type))
+		value = ptrptr.Elem()
+	} else {
+		value = reflect.New(d.Type)
 	}
 
-	// Set pointer by creating a new reference.
-	tmp := reflect.New(d.Type)
-	tmp.Elem().Set(from)
-	to.Set(tmp)
+	scanner := d.Scanner()
+	scanner.Target(value)
+	return scanner.Scan(sqlVal)
 }

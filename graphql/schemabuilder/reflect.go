@@ -822,14 +822,12 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 	var name string
 	var description string
 	var methods Methods
-	var paginatedFields []paginationObject
 	var objectKey string
 	if object, ok := sb.objects[typ]; ok {
 		name = object.Name
 		description = object.Description
 		methods = object.Methods
 		objectKey = object.key
-		paginatedFields = object.paginatedFields
 	}
 
 	if name == "" {
@@ -837,6 +835,16 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 		if name == "" {
 			return fmt.Errorf("bad type %s: should have a name", typ)
 		}
+	}
+
+	isScalarType := func(typ graphql.Type) bool {
+		if nonNull, ok := typ.(*graphql.NonNull); ok {
+			typ = nonNull.Type
+		}
+		if _, ok := typ.(*graphql.Scalar); !ok {
+			return false
+		}
+		return true
 	}
 
 	object := &graphql.Object{
@@ -888,6 +896,9 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 			if object.Key != nil {
 				return fmt.Errorf("bad type %s: multiple key fields", typ)
 			}
+			if !isScalarType(built.Type) {
+				return fmt.Errorf("bad type %s: key type must be scalar, got %T", typ, built.Type)
+			}
 			object.Key = built.Resolve
 		}
 	}
@@ -901,6 +912,15 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 	for _, name := range names {
 		method := methods[name]
 
+		if method.Paginated {
+			typedField, err := sb.buildPaginatedField(typ, method)
+			if err != nil {
+				return err
+			}
+			object.Fields[name] = typedField
+			continue
+		}
+
 		built, err := sb.buildFunction(typ, method)
 		if err != nil {
 			return fmt.Errorf("bad method %s on type %s: %s", name, typ, err)
@@ -908,18 +928,14 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 		object.Fields[name] = built
 	}
 
-	for _, field := range paginatedFields {
-		typedField, err := sb.buildPaginatedField(typ, field.Fn)
-		if err != nil {
-			return err
-		}
-		object.Fields[field.Name] = typedField
-	}
-
 	if objectKey != "" {
 		keyPtr, ok := object.Fields[objectKey]
 		if !ok {
 			return fmt.Errorf("key field doesn't exist on object")
+		}
+
+		if !isScalarType(keyPtr.Type) {
+			return fmt.Errorf("bad type %s: key type must be scalar, got %s", typ, keyPtr.Type.String())
 		}
 		object.Key = keyPtr.Resolve
 	}

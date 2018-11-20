@@ -6,6 +6,7 @@ import (
 
 	"github.com/samsarahq/thunder/diff"
 	"github.com/samsarahq/thunder/internal"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestDiffListString(t *testing.T) {
@@ -125,7 +126,9 @@ func TestDiffListOrder(t *testing.T) {
 		map[string]interface{}{"__key": "1"},
 		map[string]interface{}{"__key": "2"},
 		map[string]interface{}{"__key": "3"},
+		nil,
 	}, []interface{}{
+		nil,
 		map[string]interface{}{"__key": "3"},
 		map[string]interface{}{"__key": "-1"},
 		map[string]interface{}{"__key": "0"},
@@ -133,22 +136,22 @@ func TestDiffListOrder(t *testing.T) {
 		map[string]interface{}{"__key": "4"},
 	})
 
-	if !reflect.DeepEqual(internal.AsJSON(d), internal.ParseJSON(`
-		{"$": [3, -1, [0, 2], -1], "1": [{}], "4": [{}]}
-	`)) {
-		t.Error("bad reorder")
-	}
+	assert.Equal(t, internal.ParseJSON(`
+		{"$": [4, 3, -1, [0, 2], -1], "2": [{}], "5": [{}]}
+	`), internal.AsJSON(d))
 
 	d = diff.Diff([]interface{}{
 		map[string]interface{}{"__key": "0"},
 		map[string]interface{}{"__key": "1"},
 		map[string]interface{}{"__key": "2"},
 		map[string]interface{}{"__key": "3"},
+		nil,
 	}, []interface{}{
 		map[string]interface{}{"__key": "0"},
 		map[string]interface{}{"__key": "1"},
 		map[string]interface{}{"__key": "2"},
 		map[string]interface{}{"__key": "3"},
+		nil,
 	})
 	if d != nil {
 		t.Error("bad identical")

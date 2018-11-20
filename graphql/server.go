@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/samsarahq/go/oops"
 	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/diff"
 	"github.com/samsarahq/thunder/reactive"
@@ -28,6 +29,8 @@ type JSONSocket interface {
 }
 
 type MakeCtxFunc func(context.Context) context.Context
+
+type RerunIntervalFunc func(context.Context, *Query) time.Duration
 
 type GraphqlLogger interface {
 	StartExecution(ctx context.Context, tags map[string]string, initial bool)
@@ -66,8 +69,8 @@ type conn struct {
 	mu            sync.Mutex
 	subscriptions map[string]*reactive.Rerunner
 
-	minRerunInterval time.Duration
-	maxSubscriptions int
+	minRerunIntervalFunc RerunIntervalFunc
+	maxSubscriptions     int
 }
 
 type inEnvelope struct {
@@ -165,7 +168,7 @@ func (c *conn) handleSubscribe(in *inEnvelope) error {
 	id := in.ID
 	var subscribe subscribeMessage
 	if err := json.Unmarshal(in.Message, &subscribe); err != nil {
-		return err
+		return oops.Wrapf(err, "failed to parse subscribe message: %s", in.Message)
 	}
 
 	c.mu.Lock()
@@ -217,21 +220,24 @@ func (c *conn) handleSubscribe(in *inEnvelope) error {
 			return output
 		})
 
-		output := runMiddlewares(middlewares, &ComputationInput{
-			Ctx:         ctx,
-			Id:          id,
-			ParsedQuery: query,
-			Previous:    previous,
-			Query:       subscribe.Query,
-			Variables:   subscribe.Variables,
-			Extensions:  in.Extensions,
-		})
+		computationInput := &ComputationInput{
+			Ctx:                  ctx,
+			Id:                   id,
+			ParsedQuery:          query,
+			Previous:             previous,
+			IsInitialComputation: initial,
+			Query:                subscribe.Query,
+			Variables:            subscribe.Variables,
+			Extensions:           in.Extensions,
+		}
+
+		output := runMiddlewares(middlewares, computationInput)
 		current, err := output.Current, output.Error
 
 		c.logger.FinishExecution(ctx, tags, time.Since(start))
 
 		if err != nil {
-			if extractPathError(err) == context.Canceled {
+			if ErrorCause(err) == context.Canceled {
 				go c.closeSubscription(id)
 				return nil, err
 			}
@@ -266,21 +272,29 @@ func (c *conn) handleSubscribe(in *inEnvelope) error {
 			return nil, err
 		}
 
-		d := diff.Diff(previous, current)
+		d := diff.Diff(computationInput.Previous, current)
 		previous = current
-		initial = false
 
-		if initial || d != nil {
+		if d != nil {
 			c.writeOrClose(outEnvelope{
 				ID:       id,
 				Type:     "update",
 				Message:  d,
 				Metadata: output.Metadata,
 			})
+		} else if initial {
+			// When a client first subscribes, they expect a response with the new diff (even if the diff is unchanged).
+			c.writeOrClose(outEnvelope{
+				ID:       id,
+				Type:     "update",
+				Message:  struct{}{}, // This is an empty diff for any message, rather than nil which means the new message is empty.
+				Metadata: output.Metadata,
+			})
 		}
 
+		initial = false
 		return nil, nil
-	}, c.minRerunInterval)
+	}, c.minRerunIntervalFunc(c.ctx, query))
 
 	return nil
 }
@@ -290,7 +304,7 @@ func (c *conn) handleMutate(in *inEnvelope) error {
 	id := in.ID
 	var mutate mutateMessage
 	if err := json.Unmarshal(in.Message, &mutate); err != nil {
-		return err
+		return oops.Wrapf(err, "failed to parse mutate message: %s", in.Message)
 	}
 
 	c.mu.Lock()
@@ -312,6 +326,7 @@ func (c *conn) handleMutate(in *inEnvelope) error {
 		return err
 	}
 
+	initial := true
 	e := Executor{}
 	c.subscriptions[id] = reactive.NewRerunner(c.ctx, func(ctx context.Context) (interface{}, error) {
 		// Serialize all mutates for a given connection.
@@ -332,15 +347,18 @@ func (c *conn) handleMutate(in *inEnvelope) error {
 			return output
 		})
 
-		output := runMiddlewares(middlewares, &ComputationInput{
-			Ctx:         ctx,
-			Id:          id,
-			ParsedQuery: query,
-			Previous:    nil,
-			Query:       mutate.Query,
-			Variables:   mutate.Variables,
-			Extensions:  in.Extensions,
-		})
+		computationInput := &ComputationInput{
+			Ctx:                  ctx,
+			Id:                   id,
+			ParsedQuery:          query,
+			Previous:             nil,
+			IsInitialComputation: initial,
+			Query:                mutate.Query,
+			Variables:            mutate.Variables,
+			Extensions:           in.Extensions,
+		}
+
+		output := runMiddlewares(middlewares, computationInput)
 		current, err := output.Current, output.Error
 
 		c.logger.FinishExecution(ctx, tags, time.Since(start))
@@ -355,7 +373,7 @@ func (c *conn) handleMutate(in *inEnvelope) error {
 
 			go c.closeSubscription(id)
 
-			if extractPathError(err) == context.Canceled {
+			if ErrorCause(err) == context.Canceled {
 				return nil, err
 			}
 
@@ -374,8 +392,9 @@ func (c *conn) handleMutate(in *inEnvelope) error {
 
 		go c.rerunSubscriptionsImmediately()
 
+		initial = false
 		return nil, errors.New("stop")
-	}, c.minRerunInterval)
+	}, c.minRerunIntervalFunc(c.ctx, query))
 
 	return nil
 }
@@ -527,8 +546,8 @@ func CreateConnection(ctx context.Context, socket JSONSocket, schema *Schema, op
 		makeCtx: func(ctx context.Context) context.Context {
 			return ctx
 		},
-		maxSubscriptions: DefaultMaxSubscriptions,
-		minRerunInterval: DefaultMinRerunInterval,
+		maxSubscriptions:     DefaultMaxSubscriptions,
+		minRerunIntervalFunc: func(context.Context, *Query) time.Duration { return DefaultMinRerunInterval },
 	}
 	for _, opt := range opts {
 		opt(c)
@@ -545,7 +564,7 @@ func WithExecutionLogger(logger GraphqlLogger) ConnectionOption {
 
 func WithMinRerunInterval(d time.Duration) ConnectionOption {
 	return func(c *conn) {
-		c.minRerunInterval = d
+		c.minRerunIntervalFunc = func(context.Context, *Query) time.Duration { return d }
 	}
 }
 
@@ -570,6 +589,13 @@ func WithMakeCtx(makeCtx MakeCtxFunc) ConnectionOption {
 func WithSubscriptionLogger(logger SubscriptionLogger) ConnectionOption {
 	return func(c *conn) {
 		c.subscriptionLogger = logger
+	}
+}
+
+// WithMinRerunIntervalFunc is deprecated.
+func WithMinRerunIntervalFunc(fn RerunIntervalFunc) ConnectionOption {
+	return func(c *conn) {
+		c.minRerunIntervalFunc = fn
 	}
 }
 

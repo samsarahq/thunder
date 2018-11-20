@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"reflect"
 	"time"
+
+	"github.com/go-sql-driver/mysql"
 )
 
 // Valuer fulfills the sql/driver.Valuer interface which deserializes our
@@ -15,6 +17,17 @@ import (
 type Valuer struct {
 	*Descriptor
 	value reflect.Value
+}
+
+var marshalerType = reflect.TypeOf((*marshaler)(nil)).Elem()
+
+func nonPointerMarshal(d *Descriptor, val reflect.Value) (reflect.Value, bool) {
+	if !d.Ptr && reflect.PtrTo(d.Type).Implements(marshalerType) {
+		v := reflect.New(d.Type)
+		v.Elem().Set(val)
+		return v, true
+	}
+	return val, false
 }
 
 // Value satisfies the sql/driver.Valuer interface.
@@ -60,6 +73,9 @@ func (f Valuer) Value() (driver.Value, error) {
 	// }
 	switch {
 	case f.Tags.Contains("binary"):
+		if v, ok := nonPointerMarshal(f.Descriptor, f.value); ok {
+			return v.Interface().(marshaler).Marshal()
+		}
 		if iface, ok := i.(marshaler); ok {
 			return iface.Marshal()
 		}
@@ -75,6 +91,10 @@ func (f Valuer) Value() (driver.Value, error) {
 			return iface.MarshalJSON()
 		}
 		return json.Marshal(i)
+	case f.Tags.Contains("implicitnull"):
+		if isZero(f.value) {
+			return nil, nil
+		}
 	}
 
 	// At this point we have already handled `nil` above, so we can assume that all
@@ -86,13 +106,13 @@ func (f Valuer) Value() (driver.Value, error) {
 	// Coerce our value into a valid sql/driver.Value (see sql/driver.IsValue).
 	// This not only converts base types into their sql counterparts (like int32 -> int64) but also
 	// handles custom types (like `type customString string` -> string).
-	switch f.Kind {
+	switch f.value.Kind() {
 	case reflect.Bool:
 		return f.value.Bool(), nil
-	case
-		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return f.value.Int(), nil
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return int64(f.value.Uint()), nil
 	case reflect.Float32, reflect.Float64:
 		return f.value.Float(), nil
 	case reflect.String:
@@ -113,21 +133,11 @@ var _ driver.Valuer = &Valuer{}
 // into the type dictated by our descriptor.
 type Scanner struct {
 	*Descriptor
-	value   reflect.Value
-	isValid bool
+	value reflect.Value
 }
 
-// Interface returns the value deserialized into the scanner.
-func (s Scanner) Interface() interface{} {
-	if s.value.IsValid() {
-		return s.value.Interface()
-	}
-	return nil
-}
-
-// CopyTo copies the scanner value to another reflect.Value. This is used for setting structs.
-func (s *Scanner) CopyTo(to reflect.Value) {
-	s.copy(s.value, to, s.isValid)
+func (s *Scanner) Target(value reflect.Value) {
+	s.value = value
 }
 
 // Scan satisfies the sql.Scanner interface.
@@ -140,10 +150,19 @@ func (s *Scanner) CopyTo(to reflect.Value) {
 //    time.Time
 //    nil - for NULL values
 func (s *Scanner) Scan(src interface{}) error {
+	// Clear out the value after a scan so we aren't holding onto references.
+	defer func() { s.value = reflect.Value{} }()
+
+	// Keep track of whether our value was empty.
+	isValid := src != nil
+
+	if isValid && s.Ptr {
+		s.value.Set(reflect.New(s.Type))
+	}
+
 	// Get a value of the pointer of our type. The Scanner and Unmarshalers should
 	// only be implemented as dereference methods, since they would do nothing otherwise. Therefore
 	// we can safely assume that we should check for these interfaces on the pointer value.
-	s.value = reflect.New(s.Type)
 	i := s.value.Interface()
 	// Our value however should continue referencing a non-pointer for easier assignment.
 	s.value = s.value.Elem()
@@ -151,18 +170,27 @@ func (s *Scanner) Scan(src interface{}) error {
 	// If our interface supports sql.Scanner we can immediately short-circuit as this is what the
 	// MySQL driver would do.
 	if scanner, ok := i.(sql.Scanner); ok {
+		// If the scanner base type is nullable (pointer or one of the below), make it nil,
+		// otherwise allow it to scan and handle nil.
+		if s.Ptr && src == nil {
+			return nil
+		}
+		switch s.Kind {
+		case reflect.Chan, reflect.Map, reflect.Func, reflect.Interface, reflect.Slice:
+			if src == nil {
+				return nil
+			}
+		}
+
 		// If we have a scanner it will handle its own validity.
-		s.isValid = true
+		isValid = true
 		return scanner.Scan(src)
 	}
-
-	// Keep track of whether our value was empty.
-	s.isValid = src != nil
 
 	// Null values are simply set to zero. Because we're not holding on to pointers, we need to
 	// represent this as a boolean. This comes _after_ the scanner step, just in case the scanner
 	// handles nil differently.
-	if !s.isValid {
+	if !isValid {
 		return nil
 	}
 
@@ -182,10 +210,12 @@ func (s *Scanner) Scan(src interface{}) error {
 			return nil
 		}
 	case *time.Time:
-		if _, ok := src.(time.Time); ok {
-			s.value.Set(reflect.ValueOf(src))
-			return nil
+		t := mysql.NullTime{}
+		if err := t.Scan(src); err != nil {
+			return err
 		}
+		s.value.Set(reflect.ValueOf(t.Time))
+		return nil
 	}
 
 	// Override deserialization behavior with tags (these take precedence over how a type would

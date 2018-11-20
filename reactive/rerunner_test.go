@@ -49,7 +49,7 @@ func TestRerun(t *testing.T) {
 	run := NewExpect()
 
 	runner := NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
-		AddDependency(ctx, dep)
+		AddDependency(ctx, dep, nil)
 		run.Trigger()
 		return nil, nil
 	}, 0)
@@ -72,7 +72,7 @@ func TestCache(t *testing.T) {
 	innerRun := NewExpect()
 
 	NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
-		AddDependency(ctx, dep)
+		AddDependency(ctx, dep, nil)
 
 		Cache(ctx, 0, func(ctx context.Context) (interface{}, error) {
 			innerRun.Trigger()
@@ -101,7 +101,7 @@ func TestRerunCache(t *testing.T) {
 
 	NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
 		Cache(ctx, 0, func(ctx context.Context) (interface{}, error) {
-			AddDependency(ctx, dep)
+			AddDependency(ctx, dep, nil)
 			run.Trigger()
 			return nil, nil
 		})
@@ -123,7 +123,7 @@ func TestStop(t *testing.T) {
 	run := NewExpect()
 
 	runner := NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
-		AddDependency(ctx, dep)
+		AddDependency(ctx, dep, nil)
 		run.Trigger()
 		return nil, nil
 	}, 0)
@@ -142,7 +142,7 @@ func TestError(t *testing.T) {
 	run := NewExpect()
 
 	NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
-		AddDependency(ctx, dep)
+		AddDependency(ctx, dep, nil)
 		run.Trigger()
 		return nil, errors.New("error")
 	}, 0)
@@ -164,7 +164,7 @@ func TestErrorRetry(t *testing.T) {
 	shouldSentinel := false
 
 	NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
-		AddDependency(ctx, dep)
+		AddDependency(ctx, dep, nil)
 		Cache(ctx, "", func(ctx context.Context) (interface{}, error) {
 			innerRuns = innerRuns + 1
 			return nil, nil
@@ -330,7 +330,7 @@ func TestMinRerunInterval(t *testing.T) {
 	var ran time.Time
 
 	NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
-		AddDependency(ctx, r)
+		AddDependency(ctx, r, nil)
 		run.Trigger()
 
 		if ran.IsZero() {
@@ -361,7 +361,7 @@ func TestRerunImmediately(t *testing.T) {
 	var ran time.Time
 
 	runner := NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
-		AddDependency(ctx, r)
+		AddDependency(ctx, r, nil)
 		run.Trigger()
 
 		if ran.IsZero() {

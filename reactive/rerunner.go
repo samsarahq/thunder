@@ -131,7 +131,32 @@ func (r *Resource) Cleanup(f func()) {
 type computationKey struct{}
 type cacheKey struct{}
 
-func AddDependency(ctx context.Context, r *Resource) {
+type dependencySetKey struct{}
+
+type dependencySet struct {
+	mu           sync.Mutex
+	dependencies []Dependency
+}
+
+func (ds *dependencySet) add(dep Dependency) {
+	ds.mu.Lock()
+	defer ds.mu.Unlock()
+	ds.dependencies = append(ds.dependencies, dep)
+}
+
+func (ds *dependencySet) get() []Dependency {
+	ds.mu.Lock()
+	defer ds.mu.Unlock()
+	return ds.dependencies
+}
+
+type Dependency interface{}
+
+type DependencyCallbackFunc func(context.Context, Dependency)
+
+type dependencyCallbackKey struct{}
+
+func AddDependency(ctx context.Context, r *Resource, dep Dependency) {
 	if !HasRerunner(ctx) {
 		r.node.addOut(&node{released: true})
 		return
@@ -139,6 +164,30 @@ func AddDependency(ctx context.Context, r *Resource) {
 
 	computation := ctx.Value(computationKey{}).(*computation)
 	r.node.addOut(&computation.node)
+
+	if dep != nil {
+		depSet, ok := ctx.Value(dependencySetKey{}).(*dependencySet)
+		if ok && depSet != nil {
+			depSet.add(dep)
+		}
+		if callback, ok := ctx.Value(dependencyCallbackKey{}).(DependencyCallbackFunc); ok && callback != nil {
+			callback(ctx, dep)
+		}
+	}
+}
+
+// WithDependencyCallback registers a callback that is invoked when
+// AddDependency is called with non-nil serializable dependency.
+func WithDependencyCallback(ctx context.Context, f DependencyCallbackFunc) context.Context {
+	return context.WithValue(ctx, dependencyCallbackKey{}, f)
+}
+
+func Dependencies(ctx context.Context) []Dependency {
+	depSet := ctx.Value(dependencySetKey{}).(*dependencySet)
+	if depSet == nil {
+		return nil
+	}
+	return depSet.get()
 }
 
 type ComputeFunc func(context.Context) (interface{}, error)
@@ -287,6 +336,7 @@ func (r *Rerunner) run() {
 
 	r.cache.cleanInvalidated()
 	ctx := context.WithValue(r.ctx, cacheKey{}, r.cache)
+	ctx = context.WithValue(ctx, dependencySetKey{}, &dependencySet{})
 
 	computation, err := run(ctx, r.f)
 	r.lastRun = time.Now()

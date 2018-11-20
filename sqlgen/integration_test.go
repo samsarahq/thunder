@@ -2,10 +2,13 @@ package sqlgen
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/samsarahq/thunder/batch"
+	"github.com/samsarahq/thunder/internal/proto"
 	"github.com/samsarahq/thunder/internal/testfixtures"
 	"github.com/stretchr/testify/assert"
 )
@@ -18,10 +21,12 @@ func setup() (*testfixtures.TestDatabase, *DB, error) {
 
 	if _, err = testDb.Exec(`
 		CREATE TABLE users (
-			id   BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-			name VARCHAR(255),
-			uuid VARCHAR(255),
-			mood VARCHAR(255)
+			id            BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+			name          VARCHAR(255),
+			uuid          VARCHAR(255),
+			mood          VARCHAR(255),
+			proto         BLOB,
+			implicit_null VARCHAR(255)
 		)
 	`); err != nil {
 		return nil, nil, err
@@ -33,10 +38,27 @@ func setup() (*testfixtures.TestDatabase, *DB, error) {
 }
 
 type User struct {
-	Id   int64 `sql:",primary"`
-	Name string
-	Uuid testfixtures.CustomType
-	Mood *testfixtures.CustomType
+	Id           int64 `sql:",primary"`
+	Name         string
+	Uuid         testfixtures.CustomType
+	Mood         *testfixtures.CustomType
+	Proto        proto.ExampleEvent `sql:",binary"`
+	ImplicitNull string             `sql:",implicitnull"`
+}
+
+type Complex struct {
+	Id           int64 `sql:",primary"`
+	Name         string
+	Text         []byte            `sql:",string"`
+	Blob         []byte            `sql:",binary"`
+	Mappings     map[string]string `sql:",json"`
+	ImplicitNull string            `sql:",implicitnull"`
+}
+
+func TestTagOverrides(t *testing.T) {
+	schema := NewSchema()
+	err := schema.RegisterType("complex", AutoIncrement, Complex{})
+	assert.NoError(t, err)
 }
 
 func TestContextDeadlineEnforced(t *testing.T) {
@@ -122,6 +144,58 @@ func TestContextCancelBeforeRowsScan(t *testing.T) {
 	}
 }
 
+// TestBatchFilter shows sqlgen batching matcher does not match if
+// filter type does not exactly match column type.
+func TestBatchFilter(t *testing.T) {
+	tdb, db, err := setup()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tdb.Close()
+
+	if _, err := db.InsertRow(context.Background(), &User{
+		Id:   1,
+		Name: "Bob",
+		Uuid: testfixtures.CustomType{'1', '1', '2', '3', '8', '4', '9', '1', '2', '9', '3'},
+		Mood: &testfixtures.CustomType{'f', 'o', 'o', 'o', 'o', 'o', 'o'},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := batch.WithBatching(context.Background())
+
+	var user *User
+
+	// Only int64 works because id field is int64.
+	if err := db.QueryRow(ctx, &user, Filter{"id": int64(1)}, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	// Other int variants don't work.
+	if err := db.QueryRow(ctx, &user, Filter{"id": int32(1)}, nil); err != sql.ErrNoRows {
+		t.Fatalf("expecting sql.ErrNoRows, got: %v", err)
+	}
+	if err := db.QueryRow(ctx, &user, Filter{"id": int16(1)}, nil); err != sql.ErrNoRows {
+		t.Fatalf("expecting sql.ErrNoRows, got: %v", err)
+	}
+	if err := db.QueryRow(ctx, &user, Filter{"id": int8(1)}, nil); err != sql.ErrNoRows {
+		t.Fatalf("expecting sql.ErrNoRows, got: %v", err)
+	}
+	if err := db.QueryRow(ctx, &user, Filter{"id": int(1)}, nil); err != sql.ErrNoRows {
+		t.Fatalf("expecting sql.ErrNoRows, got: %v", err)
+	}
+
+	// Unsigned int does not work.
+	if err := db.QueryRow(ctx, &user, Filter{"id": uint(1)}, nil); err != sql.ErrNoRows {
+		t.Fatalf("expecting sql.ErrNoRows, got: %v", err)
+	}
+
+	// String does not work either.
+	if err := db.QueryRow(ctx, &user, Filter{"id": "1"}, nil); err != sql.ErrNoRows {
+		t.Fatalf("expecting sql.ErrNoRows, got: %v", err)
+	}
+}
+
 func Benchmark(b *testing.B) {
 	tdb, db, err := setup()
 	if err != nil {
@@ -133,10 +207,11 @@ func Benchmark(b *testing.B) {
 
 	mood := testfixtures.CustomType{'f', 'o', 'o', 'o', 'o', 'o', 'o'}
 	user := &User{
-		Id:   1,
-		Name: "Bob",
-		Uuid: testfixtures.CustomType{'1', '1', '2', '3', '8', '4', '9', '1', '2', '9', '3'},
-		Mood: &mood,
+		Id:           1,
+		Name:         "Bob",
+		Uuid:         testfixtures.CustomType{'1', '1', '2', '3', '8', '4', '9', '1', '2', '9', '3'},
+		Mood:         &mood,
+		ImplicitNull: "test",
 	}
 
 	if _, err := db.InsertRow(ctx, user); err != nil {
@@ -150,6 +225,10 @@ func Benchmark(b *testing.B) {
 		{"Read", func() error {
 			user := &User{}
 			return db.QueryRow(ctx, &user, nil, nil)
+		}},
+		{"Read_Where", func() error {
+			user := &User{}
+			return db.QueryRow(ctx, &user, Filter{"name": "Bob"}, nil)
 		}},
 		{"Create", func() error {
 			_, err := db.InsertRow(ctx, user)

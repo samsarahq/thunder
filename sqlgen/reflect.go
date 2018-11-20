@@ -3,14 +3,16 @@ package sqlgen
 import (
 	"bytes"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 	"unicode"
 
-	"github.com/samsarahq/thunder/fields"
+	"github.com/samsarahq/thunder/internal/fields"
 )
 
 type Filter map[string]interface{}
@@ -49,56 +51,31 @@ const (
 	UniqueId
 )
 
-// UnbuildStruct extracts SQL values from a struct
-func UnbuildStruct(table *Table, strct interface{}) []interface{} {
-	elem := reflect.ValueOf(strct).Elem()
-	values := make([]interface{}, len(table.Columns))
-
-	for i, column := range table.Columns {
-		val := elem.FieldByIndex(column.Index)
-		values[i] = column.Descriptor.Valuer(val)
-	}
-
-	return values
-}
-
-// BuildStruct constructs a struct value defined by table and field values.
-func BuildStruct(table *Table, scanners []*fields.Scanner) interface{} {
+// parseQueryRow parses a row from a sql.DB query into a struct
+func parseQueryRow(table *Table, scanner *sql.Rows) (interface{}, error) {
 	ptr := reflect.New(table.Type)
 	elem := ptr.Elem()
 
+	scanners := table.Scanners.Get().([]interface{})
+	defer table.Scanners.Put(scanners)
+
+	// Descriptor Scanner is instantiated with a reference to our struct fields.
+	// It scans directly into our struct.
 	for i, column := range table.Columns {
-		// These values are all copies (as opposed to references) of database values.
-		// This means there's no funky business that can happen with the database re-using pointers.
-		value := scanners[i].Interface()
-		if value == nil {
-			continue
+		field := elem.FieldByIndex(column.Index)
+		if field.Kind() != reflect.Ptr {
+			field = field.Addr()
 		}
-
-		scanners[i].CopyTo(elem.FieldByIndex(column.Index))
+		// Scan into field.
+		scanners[i].(*fields.Scanner).Target(field)
 	}
 
-	return ptr.Interface()
-}
-
-// parseQueryRow parses a row from a sql.DB query into a struct
-func parseQueryRow(table *Table, scanner *sql.Rows) (interface{}, error) {
-	// Pass fields which fulfill the interface `sql.Scanner` and coerce values.
-	values := make([]interface{}, len(table.Columns))
-	for i := range values {
-		values[i] = table.Columns[i].Descriptor.Scanner()
+	if err := scanner.Scan(scanners...); err != nil {
+		columns, _ := scanner.Columns()
+		return nil, fmt.Errorf("sqlgen: parsing error for `%s`.(%v): %v", table.Name, columns, err)
 	}
 
-	if err := scanner.Scan(values...); err != nil {
-		return nil, err
-	}
-
-	scanners := make([]*fields.Scanner, len(table.Columns))
-	for i := range scanners {
-		scanners[i] = values[i].(*fields.Scanner)
-	}
-
-	return BuildStruct(table, scanners), nil
+	return ptr.Interface(), nil
 }
 
 func CopySlice(result interface{}, rows []interface{}) error {
@@ -157,6 +134,8 @@ type Table struct {
 
 	Columns       []*Column
 	ColumnsByName map[string]*Column
+
+	Scanners *sync.Pool
 }
 
 func (s *Schema) buildDescriptor(table string, primaryKeyType PrimaryKeyType, typ reflect.Type) (*Table, error) {
@@ -192,10 +171,18 @@ func (s *Schema) buildDescriptor(table string, primaryKeyType PrimaryKeyType, ty
 
 		if len(tags) > 1 {
 			for _, tag := range tags[1:] {
-				if tag != "primary" || primary {
+				switch tag {
+				case "primary":
+					primary = true
+				case "binary", "json", "string":
+					// Do nothing, fields will handle these.
+				case "implicitnull":
+					if field.Type.Kind() == reflect.Ptr {
+						return nil, fmt.Errorf("bad type %s: column %s cannot use `implicitnull` with pointer type", typ, column)
+					}
+				default:
 					return nil, fmt.Errorf("bad type %s: column %s has unexpected tag %s", typ, column, tag)
 				}
-				primary = true
 			}
 		}
 
@@ -233,6 +220,16 @@ func (s *Schema) buildDescriptor(table string, primaryKeyType PrimaryKeyType, ty
 		return nil, fmt.Errorf("bad type %s: no primary key specified", typ)
 	}
 
+	scanners := &sync.Pool{
+		New: func() interface{} {
+			scanners := make([]interface{}, len(columns))
+			for i, column := range columns {
+				scanners[i] = column.Descriptor.Scanner()
+			}
+			return scanners
+		},
+	}
+
 	return &Table{
 		Name:           table,
 		Type:           typ,
@@ -240,7 +237,26 @@ func (s *Schema) buildDescriptor(table string, primaryKeyType PrimaryKeyType, ty
 
 		Columns:       columns,
 		ColumnsByName: columnsByName,
+
+		Scanners: scanners,
 	}, nil
+}
+
+// unbuildStruct extracts SQL values from a struct.
+func (table *Table) unbuildStruct(strct interface{}) ([]interface{}, error) {
+	elem := reflect.ValueOf(strct).Elem()
+	values := make([]interface{}, len(table.Columns))
+
+	for i, column := range table.Columns {
+		val := elem.FieldByIndex(column.Index)
+		var err error
+		values[i], err = column.Descriptor.Valuer(val).Value()
+		if err != nil {
+			return nil, fmt.Errorf("sqlgen: serialization error for `%s`.`%s`: %v", table.Name, column.Name, err)
+		}
+	}
+
+	return values, nil
 }
 
 type Schema struct {
@@ -332,7 +348,11 @@ func makeWhere(table *Table, filter Filter) (*SimpleWhere, error) {
 			return nil, fmt.Errorf("unknown column %s", name)
 		}
 
-		l = append(l, whereElem{column: column, value: column.Descriptor.Valuer(reflect.ValueOf(value))})
+		v, err := column.Descriptor.Valuer(reflect.ValueOf(value)).Value()
+		if err != nil {
+			return nil, fmt.Errorf("sqlgen: filter error for `%s`.`%s`: %v", table.Name, column.Name, err)
+		}
+		l = append(l, whereElem{column: column, value: v})
 	}
 
 	sort.Sort(l)
@@ -475,7 +495,10 @@ func (s *Schema) MakeInsertRow(row interface{}) (*InsertQuery, error) {
 		return nil, err
 	}
 
-	allValues := UnbuildStruct(table, row)
+	allValues, err := table.unbuildStruct(row)
+	if err != nil {
+		return nil, err
+	}
 	var columns []string
 	var values []interface{}
 
@@ -511,7 +534,10 @@ func (s *Schema) MakeUpsertRow(row interface{}) (*UpsertQuery, error) {
 		return nil, errors.New("upsert only supports unique value primary keys")
 	}
 
-	values := UnbuildStruct(table, row)
+	values, err := table.unbuildStruct(row)
+	if err != nil {
+		return nil, err
+	}
 	var columns []string
 	for _, column := range table.Columns {
 		columns = append(columns, column.Name)
@@ -537,7 +563,10 @@ func (s *Schema) MakeUpdateRow(row interface{}) (*UpdateQuery, error) {
 		return nil, err
 	}
 
-	allValues := UnbuildStruct(table, row)
+	allValues, err := table.unbuildStruct(row)
+	if err != nil {
+		return nil, err
+	}
 	var columns, whereColumns []string
 	var values, whereValues []interface{}
 
@@ -574,7 +603,10 @@ func (s *Schema) MakeDeleteRow(row interface{}) (*DeleteQuery, error) {
 		return nil, err
 	}
 
-	allValues := UnbuildStruct(table, row)
+	allValues, err := table.unbuildStruct(row)
+	if err != nil {
+		return nil, err
+	}
 	var columns []string
 	var values []interface{}
 	for i, column := range table.Columns {
@@ -636,10 +668,18 @@ func (t *tester) Test(row interface{}) bool {
 
 	struc := reflect.ValueOf(row).Elem()
 	for i, column := range t.columns {
-		// coerces some pointer types to make filters more idiomatic
-		expected := coerce(reflect.ValueOf(t.values[i]))
-		value := coerce(struc.FieldByIndex(column.Index))
-		if expected != value {
+		expected, err := column.Descriptor.Valuer(reflect.ValueOf(t.values[i])).Value()
+		if err != nil {
+			// Ignore error.
+			return false
+		}
+		value, err := column.Descriptor.Valuer(struc.FieldByIndex(column.Index)).Value()
+		if err != nil {
+			// Ignore error.
+			return false
+		}
+
+		if !driverValuesEqual(expected, value) {
 			return false
 		}
 	}
@@ -680,4 +720,82 @@ func (t *Table) extractRow(row interface{}) Filter {
 	}
 
 	return f
+}
+
+// driverValuesEqual returns true if two driver.Values are identical.
+// driver.Value must be one of the following types
+//
+//   int64
+//   float64
+//   bool
+//   []byte
+//   string
+//   time.Time
+func driverValuesEqual(dv1, dv2 driver.Value) bool {
+	k1 := reflect.ValueOf(dv1).Kind()
+	k2 := reflect.ValueOf(dv2).Kind()
+
+	// Kinds must match.
+	if k1 != k2 {
+		return false
+	}
+
+	// Special case: if both driver.Value are slices, compare their byte values.
+	if k1 == reflect.Slice || k2 == reflect.Slice {
+		if b1, ok := dv1.([]byte); ok {
+			if b2, ok := dv2.([]byte); ok {
+				return bytes.Compare(b1, b2) == 0
+			}
+		}
+		return false
+	}
+
+	// Naive equality check for remaining primitive types.
+	if dv1 == dv2 {
+		return true
+	}
+
+	return false
+}
+
+// UnbuildStruct extracts SQL values from a struct.
+func (s *Schema) UnbuildStruct(tableName string, strct interface{}) ([]interface{}, error) {
+	table, ok := s.ByName[tableName]
+	if !ok {
+		return nil, fmt.Errorf("unknown table: %s", tableName)
+	}
+	return table.unbuildStruct(strct)
+}
+
+// BuildStruct scans a row in struct's column order into a struct pointer.
+func (s *Schema) BuildStruct(tableName string, row []driver.Value) (interface{}, error) {
+	table, ok := s.ByName[tableName]
+	if !ok {
+		return nil, fmt.Errorf("unknown table: %s", tableName)
+	}
+
+	ptr := reflect.New(table.Type)
+	elem := ptr.Elem()
+
+	if len(row) != len(table.Columns) {
+		return nil, fmt.Errorf("row has %d columns but table %s struct %s has %d columns",
+			len(row), table.Name, table.Type.String(), len(table.Columns))
+	}
+
+	scanners := table.Scanners.Get().([]interface{})
+	defer table.Scanners.Put(scanners)
+
+	for i := range row {
+		field := elem.FieldByIndex(table.Columns[i].Index)
+		if field.Kind() != reflect.Ptr {
+			field = field.Addr()
+		}
+		scanner := scanners[i].(*fields.Scanner)
+		scanner.Target(field)
+		if err := scanner.Scan(row[i]); err != nil {
+			return nil, fmt.Errorf("`%s`.`%s` error: %v", table.Name, table.Columns[i].Name, err)
+		}
+	}
+
+	return ptr.Interface(), nil
 }

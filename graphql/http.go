@@ -73,7 +73,11 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := PrepareQuery(h.schema.Query, query.SelectionSet); err != nil {
+	schema := h.schema.Query
+	if query.Kind == "mutation" {
+		schema = h.schema.Mutation
+	}
+	if err := PrepareQuery(schema, query.SelectionSet); err != nil {
 		writeResponse(nil, err)
 		return
 	}
@@ -91,7 +95,7 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		middlewares = append(middlewares, h.middlewares...)
 		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
 			output := next(input)
-			output.Current, output.Error = e.Execute(input.Ctx, h.schema.Query, nil, input.ParsedQuery)
+			output.Current, output.Error = e.Execute(input.Ctx, schema, nil, input.ParsedQuery)
 			return output
 		})
 
@@ -104,7 +108,7 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		current, err := output.Current, output.Error
 
 		if err != nil {
-			if extractPathError(err) == context.Canceled {
+			if ErrorCause(err) == context.Canceled {
 				return nil, err
 			}
 
