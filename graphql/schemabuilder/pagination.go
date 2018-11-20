@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sort"
 
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/internal/filter"
@@ -100,6 +101,10 @@ type ConnectionArgs struct {
 	Args interface{}
 	// filterText: "text search"
 	FilterText *string
+	// sortBy: "fieldName"
+	SortBy *string
+	// sortOrder: "asc" | "desc"
+	SortOrder *SortOrder
 }
 
 // PaginationArgs are used in externally set connections by embedding them in an args struct. They
@@ -111,6 +116,8 @@ type PaginationArgs struct {
 	Before *string
 
 	FilterText *string
+	SortBy     *string
+	SortOrder  *SortOrder
 }
 
 func (p PaginationArgs) limit() int {
@@ -157,6 +164,10 @@ type connectionContext struct {
 	PaginationArgsIndex int
 	// The GraphQL fields for filtered text to be resolved.
 	FilterTextFields map[string]*graphql.Field
+	// The GraphQL fields for sorting to be resolved.
+	SortFields map[string]*graphql.Field
+	// The slice sorting function for each GraphQL field.
+	SortFunctions map[string]func([]sortReference, SortOrder)
 }
 
 // embedsPaginationArgs returns true if PaginationArgs were embedded.
@@ -417,6 +428,51 @@ func (c *connectionContext) applyTextFilter(nodes []interface{}, args Pagination
 	return filteredNodes, nil
 }
 
+func (c *connectionContext) applySort(nodes []interface{}, args PaginationArgs) ([]interface{}, error) {
+	if args.SortBy == nil {
+		return nodes, nil
+	}
+
+	// Default to ascending sort.
+	sortOrder := SortOrder_Ascending
+	if args.SortOrder != nil {
+		sortOrder = *args.SortOrder
+	}
+
+	sortField, ok := c.SortFields[*args.SortBy]
+	// If the field wasn't registered, it's an unknown sort field.
+	if !ok {
+		return nil, fmt.Errorf("Unknown sort field %s", *args.SortBy)
+	}
+
+	// sortValues is the slice we'll be sorting (with the sorted values) in order to figure out
+	// node order.
+	sortValues := make([]sortReference, len(nodes))
+	for i, node := range nodes {
+		// Resolve the graphql.Field made for sorting.
+		sortValue, err := sortField.Resolve(context.TODO(), node, nil, nil)
+		if err != nil {
+			return nil, err
+		}
+		// Hang onto index in order added in order to properly sort the nodes.
+		sortValues[i] = sortReference{
+			index: i,
+			value: reflect.ValueOf(sortValue),
+		}
+	}
+
+	// Sort values by appropriate function.
+	c.SortFunctions[*args.SortBy](sortValues, sortOrder)
+
+	// Map sort order onto nodes.
+	sortedNodes := make([]interface{}, len(nodes))
+	for i, val := range sortValues {
+		sortedNodes[i] = nodes[val.index]
+	}
+
+	return sortedNodes, nil
+}
+
 // getConnection applies the ConnectionArgs to nodes and returns the result in a wrapped Connection
 // type.
 func (c *connectionContext) getConnection(out []reflect.Value, args PaginationArgs) (Connection, error) {
@@ -428,6 +484,10 @@ func (c *connectionContext) getConnection(out []reflect.Value, args PaginationAr
 	if !c.IsExternallyManaged() {
 		var err error
 		nodes, err = c.applyTextFilter(nodes, args)
+		if err != nil {
+			return Connection{}, err
+		}
+		nodes, err = c.applySort(nodes, args)
 		if err != nil {
 			return Connection{}, err
 		}
@@ -490,6 +550,121 @@ func indexOfPaginationArgs(argType reflect.Type) int {
 func getFuncReturnType(fn interface{}) reflect.Type {
 	typ := reflect.TypeOf(fn)
 	return typ.Out(0)
+}
+
+func supportedSort(typ reflect.Type) bool {
+	switch typ.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Float32, reflect.Float64,
+		reflect.String:
+		return true
+	}
+	return false
+}
+
+type SortOrder int64
+
+const (
+	SortOrder_Ascending SortOrder = iota
+	SortOrder_Descending
+)
+
+type sortReference struct {
+	index int
+	value reflect.Value
+}
+
+func getSort(typ reflect.Type) func([]sortReference, SortOrder) {
+	switch typ.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return sorts[reflect.Int64]
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return sorts[reflect.Uint64]
+	case reflect.Float32, reflect.Float64:
+		return sorts[reflect.Float64]
+	case reflect.String:
+		return sorts[reflect.String]
+	default:
+		// This should literally be impossible.
+		panic(fmt.Sprintf("unexpected type %v used in getSort", typ))
+	}
+}
+
+var sorts = map[reflect.Kind]func([]sortReference, SortOrder){
+	reflect.Int64: func(slice []sortReference, order SortOrder) {
+		sort.SliceStable(slice, func(i, j int) bool {
+			a := slice[i].value
+			b := slice[j].value
+			if order == SortOrder_Ascending {
+				return a.Int() < b.Int()
+			} else {
+				return a.Int() > b.Int()
+			}
+		})
+	},
+	reflect.Uint64: func(slice []sortReference, order SortOrder) {
+		sort.SliceStable(slice, func(i, j int) bool {
+			a := slice[i].value
+			b := slice[j].value
+			if order == SortOrder_Ascending {
+				return a.Uint() < b.Uint()
+			} else {
+				return a.Uint() > b.Uint()
+			}
+		})
+	},
+	reflect.Float64: func(slice []sortReference, order SortOrder) {
+		sort.SliceStable(slice, func(i, j int) bool {
+			a := slice[i].value
+			b := slice[j].value
+			if order == SortOrder_Ascending {
+				return a.Float() < b.Float()
+			} else {
+				return a.Float() > b.Float()
+			}
+		})
+	},
+	reflect.String: func(slice []sortReference, order SortOrder) {
+		sort.SliceStable(slice, func(i, j int) bool {
+			a := slice[i].value
+			b := slice[j].value
+			if order == SortOrder_Ascending {
+				return a.String() < b.String()
+			} else {
+				return a.String() > b.String()
+			}
+		})
+	},
+}
+
+func (c *connectionContext) consumeSorts(sb *schemaBuilder, m *method, typ reflect.Type) error {
+	c.SortFunctions = make(map[string]func([]sortReference, SortOrder))
+	c.SortFields = make(map[string]*graphql.Field)
+
+	for name, fn := range m.SortFuncs {
+		sortableTyp := getFuncReturnType(fn)
+		if !supportedSort(sortableTyp) {
+			return fmt.Errorf(
+				"invalid sort field %s: unsupported return type %v, must be of kind int, uint, float or string",
+				name,
+				sortableTyp,
+			)
+		}
+		c.SortFunctions[name] = getSort(sortableTyp)
+
+		// Build a GraphQL field for the function.
+		field, err := sb.buildFunction(typ, &method{Fn: fn})
+		if err != nil {
+			return err
+		}
+		if len(field.Args) > 2 {
+			return fmt.Errorf("invalid sort field %s: sort fields can't take arguments", name)
+		}
+		c.SortFields[name] = field
+	}
+
+	return nil
 }
 
 func (c *connectionContext) consumeTextFilters(sb *schemaBuilder, m *method, typ reflect.Type) error {
@@ -656,6 +831,10 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 		return nil, err
 	}
 
+	if err := c.consumeSorts(sb, m, nodeType); err != nil {
+		return nil, err
+	}
+
 	c.Key, err = sb.getKeyFieldOnStruct(nodeType)
 	if err != nil {
 		return nil, err
@@ -707,6 +886,8 @@ func (c *connectionContext) extractReturnAndErr(out []reflect.Value, args interf
 			After:      connectionArgs.After,
 			Before:     connectionArgs.Before,
 			FilterText: connectionArgs.FilterText,
+			SortBy:     connectionArgs.SortBy,
+			SortOrder:  connectionArgs.SortOrder,
 		}
 	} else {
 		paginationArgs = reflect.ValueOf(args).Field(c.PaginationArgsIndex).Interface().(PaginationArgs)

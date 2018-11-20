@@ -28,6 +28,9 @@ type Args struct {
 type Item struct {
 	Id         int64
 	FilterText string
+	Number     int64
+	String     string
+	Float      float64
 }
 
 func TestConnection(t *testing.T) {
@@ -57,6 +60,25 @@ func TestConnection(t *testing.T) {
 	}, schemabuilder.Paginated, schemabuilder.TextFilterFields{
 		"foo": func(ctx context.Context, i Item) string {
 			return i.FilterText
+		},
+	})
+	inner.FieldFunc("innerConnectionWithSort", func() []Item {
+		return []Item{
+			{Id: 1, Number: 1, String: "1", Float: 1.0},
+			{Id: 2, Number: 3, String: "3", Float: 3.0},
+			{Id: 3, Number: 5, String: "5", Float: 5.0},
+			{Id: 4, Number: 2, String: "2", Float: 2.0},
+			{Id: 5, Number: 4, String: "4", Float: 4.0},
+		}
+	}, schemabuilder.Paginated, schemabuilder.SortFields{
+		"numbers": func(ctx context.Context, i Item) int64 {
+			return i.Number
+		},
+		"strings": func(ctx context.Context, i Item) string {
+			return i.String
+		},
+		"floats": func(ctx context.Context, i Item) float64 {
+			return i.Float
 		},
 	})
 	inner.FieldFunc("innerConnectionNilArg", func() []Item {
@@ -261,6 +283,113 @@ func TestConnection(t *testing.T) {
 					node {
 						id
 						filterText
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+					pages
+				}
+			}
+		}
+	}`)
+
+	snap.SnapshotQuery("Pagination, sorts", `{
+		inner {
+			numbersAsc: innerConnectionWithSort(sortBy: "numbers", sortOrder: "asc", first: 5, after: "") {
+				totalCount
+				edges {
+					node {
+						id
+						number
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+					pages
+				}
+			}
+			numbersDesc: innerConnectionWithSort(sortBy: "numbers", sortOrder: "desc", first: 5, after: "") {
+				totalCount
+				edges {
+					node {
+						id
+						number
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+					pages
+				}
+			}
+			stringsAsc: innerConnectionWithSort(sortBy: "strings", sortOrder: "asc", first: 5, after: "") {
+				totalCount
+				edges {
+					node {
+						id
+						string
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+					pages
+				}
+			}
+			stringsDesc: innerConnectionWithSort(sortBy: "strings", sortOrder: "desc", first: 5, after: "") {
+				totalCount
+				edges {
+					node {
+						id
+						string
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+					pages
+				}
+			}
+			floatsAsc: innerConnectionWithSort(sortBy: "floats", sortOrder: "asc", first: 5, after: "") {
+				totalCount
+				edges {
+					node {
+						id
+						float
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+					pages
+				}
+			}
+			floatsDesc: innerConnectionWithSort(sortBy: "floats", sortOrder: "desc", first: 5, after: "") {
+				totalCount
+				edges {
+					node {
+						id
+						float
 					}
 					cursor
 				}

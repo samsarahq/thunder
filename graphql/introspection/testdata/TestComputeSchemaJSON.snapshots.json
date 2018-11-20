@@ -423,6 +423,26 @@
                         "name": "int64",
                         "ofType": null
                       }
+                    },
+                    {
+                      "defaultValue": null,
+                      "description": "",
+                      "name": "sortBy",
+                      "type": {
+                        "kind": "SCALAR",
+                        "name": "string",
+                        "ofType": null
+                      }
+                    },
+                    {
+                      "defaultValue": null,
+                      "description": "",
+                      "name": "sortOrder",
+                      "type": {
+                        "kind": "ENUM",
+                        "name": "SortOrder",
+                        "ofType": null
+                      }
                     }
                   ],
                   "deprecationReason": "",
@@ -490,6 +510,26 @@
                         "name": "int64",
                         "ofType": null
                       }
+                    },
+                    {
+                      "defaultValue": null,
+                      "description": "",
+                      "name": "sortBy",
+                      "type": {
+                        "kind": "SCALAR",
+                        "name": "string",
+                        "ofType": null
+                      }
+                    },
+                    {
+                      "defaultValue": null,
+                      "description": "",
+                      "name": "sortOrder",
+                      "type": {
+                        "kind": "ENUM",
+                        "name": "SortOrder",
+                        "ofType": null
+                      }
                     }
                   ],
                   "deprecationReason": "",
@@ -527,6 +567,29 @@
               "interfaces": [],
               "kind": "OBJECT",
               "name": "Query",
+              "possibleTypes": []
+            },
+            {
+              "description": "",
+              "enumValues": [
+                {
+                  "deprecationReason": "",
+                  "description": "0",
+                  "isDeprecated": false,
+                  "name": "asc"
+                },
+                {
+                  "deprecationReason": "",
+                  "description": "1",
+                  "isDeprecated": false,
+                  "name": "desc"
+                }
+              ],
+              "fields": [],
+              "inputFields": [],
+              "interfaces": [],
+              "kind": "ENUM",
+              "name": "SortOrder",
               "possibleTypes": []
             },
             {
