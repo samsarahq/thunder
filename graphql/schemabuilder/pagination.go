@@ -32,7 +32,7 @@ func (c *Connection) paginateManually(args PaginationArgs) error {
 	}
 
 	if args.First != nil && args.Last != nil {
-		return graphql.NewClientError("Cannot use both first and last together")
+		return graphql.NewClientError("cannot use both first and last together")
 	}
 
 	if args.First != nil && len(c.Edges) > int(*args.First) {
@@ -59,10 +59,11 @@ func (c *Connection) setCursors() {
 // externallySetPageInfo takes in a user-defined PaginationInfo struct,
 // using its count, HasNextPage and HasPrevPage information as the source
 // of truth.
-func (c *Connection) externallySetPageInfo(info PaginationInfo) {
+func (c *Connection) externallySetPageInfo(info PaginationInfo) (err error) {
 	c.PageInfo.HasNextPage = info.HasNextPage
 	c.PageInfo.HasPrevPage = info.HasPrevPage
-	c.TotalCount = info.TotalCount()
+	c.TotalCount, err = info.TotalCount()
+	return err
 }
 
 // PageInfo contains information for pagination on a connection type. The list of Pages is used for
@@ -82,16 +83,22 @@ type Edge struct {
 }
 
 // ConnectionArgs conform to the pagination arguments as specified by the Relay Spec for Connection
-// types. The Args field consits of the user-facing args.
+// types. https://facebook.github.io/relay/graphql/connections.htm#sec-Arguments
 type ConnectionArgs struct {
-	First  *int64
-	Last   *int64
-	After  *string
+	// first: n
+	First *int64
+	// last: n
+	Last *int64
+	// after: cursor
+	After *string
+	// before: cursor
 	Before *string
-	Args   interface{}
+	// User-facing args.
+	Args interface{}
 }
 
-// PaginationArgs are embedded in a struct
+// PaginationArgs are used in externally set connections by embedding them in an args struct. They
+// are mapped onto ConnectionArgs, which follows the Relay spec for connection types.
 type PaginationArgs struct {
 	First  *int64
 	Last   *int64
@@ -99,7 +106,7 @@ type PaginationArgs struct {
 	Before *string
 }
 
-func (p PaginationArgs) Limit() int {
+func (p PaginationArgs) limit() int {
 	if p.First != nil {
 		return int(*p.First)
 	}
@@ -119,11 +126,11 @@ type PaginationInfo struct {
 	HasPrevPage    bool
 }
 
-func (i PaginationInfo) TotalCount() int64 {
+func (i PaginationInfo) TotalCount() (int64, error) {
 	if i.TotalCountFunc == nil {
-		return 0
+		return 0, errors.New("must set TotalCountFunc on PaginationInfo")
 	}
-	return i.TotalCountFunc()
+	return i.TotalCountFunc(), nil
 }
 
 func getTypeName(typ reflect.Type) string {
@@ -157,7 +164,7 @@ func (c *connectionContext) IsExternallyManaged() bool {
 // Validate returns an error if the connection isn't correctly implemented.
 func (c *connectionContext) Validate() error {
 	if c.IsExternallyManaged() && !(c.embedsPaginationArgs() && c.ReturnsPageInfo) {
-		return fmt.Errorf("If pagination args are embedded then pagination info must be included as a return value")
+		return errors.New("If pagination args are embedded then pagination info must be included as a return value")
 	}
 	return nil
 }
@@ -214,8 +221,8 @@ func (sb *schemaBuilder) constructEdgeType(typ reflect.Type) (graphql.Type, erro
 
 }
 
-// constructConnType wraps typ (type of the Node) in a Connection Type conforming to the Relay spec.
-func (c *connectionContext) constructConnType(sb *schemaBuilder, typ reflect.Type) (graphql.Type, error) {
+// constructConnectionType wraps typ (type of the Node) in a Connection Type conforming to the Relay spec.
+func (c *connectionContext) constructConnectionType(sb *schemaBuilder, typ reflect.Type) (graphql.Type, error) {
 	fieldMap := make(map[string]*graphql.Field)
 
 	countType, _ := reflect.TypeOf(Connection{}).FieldByName("TotalCount")
@@ -320,13 +327,13 @@ func applyCursorsToAllEdges(edges []Edge, before *string, after *string) ([]Edge
 
 }
 
-func getEdges(key string, nodes []interface{}) (edges []Edge) {
+func (c *connectionContext) nodesToEdges(nodes []interface{}) (edges []Edge) {
 	for _, node := range nodes {
 		keyValue := reflect.ValueOf(node)
 		if keyValue.Kind() == reflect.Ptr {
 			keyValue = keyValue.Elem()
 		}
-		keyString := []byte(fmt.Sprintf("%v", keyValue.FieldByName(key).Interface()))
+		keyString := []byte(fmt.Sprintf("%v", keyValue.FieldByName(c.Key).Interface()))
 		cursorVal := base64.StdEncoding.EncodeToString(keyString)
 		edges = append(edges, Edge{Node: node, Cursor: cursorVal})
 	}
@@ -335,11 +342,12 @@ func getEdges(key string, nodes []interface{}) (edges []Edge) {
 }
 
 // Creates a pages slice, starting with a blank cursor, then every n+1 edge's cursor (if you have 20
-// entries per page, 19, 39, 59 etc). This works for `after:` but works unexpectedly for `before:`
+// entries per page, 19, 39, 59 etc). This works for `after:` but works unexpectedly for `before:`,
+// in that it is off by two (You would get 1-18 for before: 19).
 
 // NOTE: The cursors are based off of the total and are not relative to the current query, meaning
 // that they will shift with each query as entries are added.
-func getPages(edges []Edge, limit int) (pages []string) {
+func (c *connectionContext) pagesFromEdges(edges []Edge, limit int) (pages []string) {
 	for i, edge := range edges {
 		// The blank cursor indicates the initial page.
 		if i == 0 {
@@ -372,9 +380,9 @@ func (c *connectionContext) getConnection(out []reflect.Value, args PaginationAr
 		return Connection{}, nil
 	}
 
-	limit := args.Limit()
-	edges := getEdges(c.Key, nodes)
-	pages := getPages(edges, limit)
+	limit := args.limit()
+	edges := c.nodesToEdges(nodes)
+	pages := c.pagesFromEdges(edges, limit)
 	connection := Connection{
 		TotalCount: int64(len(nodes)),
 		Edges:      edges,
@@ -388,7 +396,9 @@ func (c *connectionContext) getConnection(out []reflect.Value, args PaginationAr
 	if c.IsExternallyManaged() {
 		// XXX: We might want to handle the case where the externally managed result set is of
 		// incorrect size (too big) and error.
-		connection.externallySetPageInfo(out[1].Interface().(PaginationInfo))
+		if err := connection.externallySetPageInfo(out[1].Interface().(PaginationInfo)); err != nil {
+			return Connection{}, err
+		}
 	} else {
 		if err := connection.paginateManually(args); err != nil {
 			return Connection{}, err
@@ -396,7 +406,6 @@ func (c *connectionContext) getConnection(out []reflect.Value, args PaginationAr
 	}
 	connection.setCursors()
 	return connection, nil
-
 }
 
 // PaginateFieldFunc registers a function that is also paginated according to the Relay
@@ -557,7 +566,7 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 		return nil, fmt.Errorf("paginated field func must return a slice type")
 	}
 	nodeType := c.funcType.Out(0).Elem()
-	retType, err := c.constructConnType(sb, nodeType)
+	retType, err := c.constructConnectionType(sb, nodeType)
 	if err != nil {
 		return nil, err
 	}
@@ -588,7 +597,7 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 			// Call the function.
 			out := fun.Call(in)
 
-			return c.extractPaginatedRetAndErr(out, args, retType)
+			return c.extractReturnAndErr(out, args, retType)
 
 		},
 		Args:           args,
@@ -600,7 +609,7 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 	return ret, nil
 }
 
-func (c *connectionContext) extractPaginatedRetAndErr(out []reflect.Value, args interface{}, retType graphql.Type) (interface{}, error) {
+func (c *connectionContext) extractReturnAndErr(out []reflect.Value, args interface{}, retType graphql.Type) (interface{}, error) {
 	var paginationArgs PaginationArgs
 
 	// If the pagination args are not embedded then they need to be extracted out of ConnectionArgs
