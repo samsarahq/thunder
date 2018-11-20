@@ -392,7 +392,7 @@ func (c *connectionContext) pagesFromEdges(edges []Edge, limit int) (pages []str
 	return pages
 }
 
-func (c *connectionContext) applyTextFilter(nodes []interface{}, args PaginationArgs) ([]interface{}, error) {
+func (c *connectionContext) applyTextFilter(ctx context.Context, nodes []interface{}, args PaginationArgs) ([]interface{}, error) {
 	if args.FilterText == nil || *args.FilterText == "" {
 		return nodes, nil
 	}
@@ -403,7 +403,7 @@ func (c *connectionContext) applyTextFilter(nodes []interface{}, args Pagination
 		// For each possible field we're matching against, check if there's a match.
 		for name, filterField := range c.FilterTextFields {
 			// Resolve the graphql.Field made for sorting.
-			text, err := filterField.Resolve(context.TODO(), node, nil, nil)
+			text, err := filterField.Resolve(ctx, node, nil, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -428,7 +428,7 @@ func (c *connectionContext) applyTextFilter(nodes []interface{}, args Pagination
 	return filteredNodes, nil
 }
 
-func (c *connectionContext) applySort(nodes []interface{}, args PaginationArgs) ([]interface{}, error) {
+func (c *connectionContext) applySort(ctx context.Context, nodes []interface{}, args PaginationArgs) ([]interface{}, error) {
 	if args.SortBy == nil {
 		return nodes, nil
 	}
@@ -442,7 +442,7 @@ func (c *connectionContext) applySort(nodes []interface{}, args PaginationArgs) 
 	sortField, ok := c.SortFields[*args.SortBy]
 	// If the field wasn't registered, it's an unknown sort field.
 	if !ok {
-		return nil, fmt.Errorf("Unknown sort field %s", *args.SortBy)
+		return nil, fmt.Errorf("unknown sort field %s", *args.SortBy)
 	}
 
 	// sortValues is the slice we'll be sorting (with the sorted values) in order to figure out
@@ -450,7 +450,7 @@ func (c *connectionContext) applySort(nodes []interface{}, args PaginationArgs) 
 	sortValues := make([]sortReference, len(nodes))
 	for i, node := range nodes {
 		// Resolve the graphql.Field made for sorting.
-		sortValue, err := sortField.Resolve(context.TODO(), node, nil, nil)
+		sortValue, err := sortField.Resolve(ctx, node, nil, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -475,7 +475,7 @@ func (c *connectionContext) applySort(nodes []interface{}, args PaginationArgs) 
 
 // getConnection applies the ConnectionArgs to nodes and returns the result in a wrapped Connection
 // type.
-func (c *connectionContext) getConnection(out []reflect.Value, args PaginationArgs) (Connection, error) {
+func (c *connectionContext) getConnection(ctx context.Context, out []reflect.Value, args PaginationArgs) (Connection, error) {
 	nodes := castSlice(out[0].Interface())
 	if len(nodes) == 0 {
 		return Connection{}, nil
@@ -483,11 +483,11 @@ func (c *connectionContext) getConnection(out []reflect.Value, args PaginationAr
 
 	if !c.IsExternallyManaged() {
 		var err error
-		nodes, err = c.applyTextFilter(nodes, args)
+		nodes, err = c.applyTextFilter(ctx, nodes, args)
 		if err != nil {
 			return Connection{}, err
 		}
-		nodes, err = c.applySort(nodes, args)
+		nodes, err = c.applySort(ctx, nodes, args)
 		if err != nil {
 			return Connection{}, err
 		}
@@ -861,7 +861,7 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 			// Call the function.
 			out := fun.Call(in)
 
-			return c.extractReturnAndErr(out, args, retType)
+			return c.extractReturnAndErr(ctx, out, args, retType)
 
 		},
 		Args:           args,
@@ -873,7 +873,7 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 	return ret, nil
 }
 
-func (c *connectionContext) extractReturnAndErr(out []reflect.Value, args interface{}, retType graphql.Type) (interface{}, error) {
+func (c *connectionContext) extractReturnAndErr(ctx context.Context, out []reflect.Value, args interface{}, retType graphql.Type) (interface{}, error) {
 	var paginationArgs PaginationArgs
 
 	// If the pagination args are not embedded then they need to be extracted out of ConnectionArgs
@@ -893,7 +893,7 @@ func (c *connectionContext) extractReturnAndErr(out []reflect.Value, args interf
 		paginationArgs = reflect.ValueOf(args).Field(c.PaginationArgsIndex).Interface().(PaginationArgs)
 	}
 
-	result, err := c.getConnection(out, paginationArgs)
+	result, err := c.getConnection(ctx, out, paginationArgs)
 	if err != nil {
 		return nil, err
 	}
