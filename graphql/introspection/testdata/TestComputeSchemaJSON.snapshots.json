@@ -397,6 +397,16 @@
                     {
                       "defaultValue": null,
                       "description": "",
+                      "name": "filterText",
+                      "type": {
+                        "kind": "SCALAR",
+                        "name": "string",
+                        "ofType": null
+                      }
+                    },
+                    {
+                      "defaultValue": null,
+                      "description": "",
                       "name": "first",
                       "type": {
                         "kind": "SCALAR",
@@ -445,6 +455,16 @@
                       "defaultValue": null,
                       "description": "",
                       "name": "before",
+                      "type": {
+                        "kind": "SCALAR",
+                        "name": "string",
+                        "ofType": null
+                      }
+                    },
+                    {
+                      "defaultValue": null,
+                      "description": "",
+                      "name": "filterText",
                       "type": {
                         "kind": "SCALAR",
                         "name": "string",

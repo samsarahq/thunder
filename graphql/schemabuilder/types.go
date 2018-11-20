@@ -41,6 +41,12 @@ var Paginated fieldFuncOptionFunc = func(m *method) {
 	m.Paginated = true
 }
 
+type TextFilterFields map[string]interface{}
+
+func (s TextFilterFields) apply(m *method) {
+	m.TextFilterFuncs = s
+}
+
 // FieldFunc exposes a field on an object. The function f can take a number of
 // optional arguments:
 // func([ctx context.Context], [o *Type], [args struct {}]) ([Result], [error])
@@ -92,7 +98,8 @@ type method struct {
 	Fn                interface{}
 
 	// Connection configuration
-	Paginated bool
+	Paginated       bool
+	TextFilterFuncs map[string]interface{}
 }
 
 // A Methods map represents the set of methods exposed on a Object.
