@@ -1047,9 +1047,17 @@ type Schema struct {
 }
 
 func NewSchema() *Schema {
-	return &Schema{
+	schema := &Schema{
 		objects: make(map[string]*Object),
 	}
+
+	// Default registrations.
+	schema.Enum(SortOrder(0), map[string]SortOrder{
+		"asc":  SortOrder_Ascending,
+		"desc": SortOrder_Descending,
+	})
+
+	return schema
 }
 
 // Enum registers an enumType in the schema. The val should be any arbitrary value

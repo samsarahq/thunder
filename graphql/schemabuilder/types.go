@@ -47,6 +47,12 @@ func (s TextFilterFields) apply(m *method) {
 	m.TextFilterFuncs = s
 }
 
+type SortFields map[string]interface{}
+
+func (s SortFields) apply(m *method) {
+	m.SortFuncs = s
+}
+
 // FieldFunc exposes a field on an object. The function f can take a number of
 // optional arguments:
 // func([ctx context.Context], [o *Type], [args struct {}]) ([Result], [error])
@@ -97,9 +103,12 @@ type method struct {
 	MarkedNonNullable bool
 	Fn                interface{}
 
-	// Connection configuration
-	Paginated       bool
+	// Whether or not the FieldFunc is paginated.
+	Paginated bool
+	// Text filter methods
 	TextFilterFuncs map[string]interface{}
+	// Sort methods
+	SortFuncs map[string]interface{}
 }
 
 // A Methods map represents the set of methods exposed on a Object.
