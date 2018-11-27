@@ -539,6 +539,54 @@ func TestPaginateBuildFailure(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "text filter fields can't take arguments")
 	})
+
+	t.Run("non-string sort return", func(t *testing.T) {
+		schema := schemabuilder.NewSchema()
+		type StructWithKey struct {
+			Id int64
+		}
+		query := schema.Query()
+		query.FieldFunc("inner", func() Inner {
+			return Inner{}
+		})
+
+		inner := schema.Object("inner", Inner{})
+		object := schema.Object("structWithKey", StructWithKey{})
+		object.Key("id")
+		inner.FieldFunc("connection", func(ctx context.Context, args Args) ([]StructWithKey, error) {
+			return nil, nil
+		}, schemabuilder.Paginated, schemabuilder.SortFields{
+			"badReturn": func() struct{} { return struct{}{} },
+		})
+
+		_, err := schema.Build()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "unsupported return type struct {}")
+	})
+
+	t.Run("sort with args", func(t *testing.T) {
+		schema := schemabuilder.NewSchema()
+		type StructWithKey struct {
+			Id int64
+		}
+		query := schema.Query()
+		query.FieldFunc("inner", func() Inner { return Inner{} })
+
+		inner := schema.Object("inner", Inner{})
+		object := schema.Object("structWithKey", StructWithKey{})
+		object.Key("id")
+		inner.FieldFunc("connection", func(ctx context.Context, i *Inner, args Args) ([]StructWithKey, error) {
+			return nil, nil
+		}, schemabuilder.Paginated, schemabuilder.SortFields{
+			"someArgs": func(ctx context.Context, i *StructWithKey, args Args) string {
+				return ""
+			},
+		})
+
+		_, err := schema.Build()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "sort fields can't take arguments")
+	})
 }
 
 func TestPaginateNodeTypeFailure(t *testing.T) {
