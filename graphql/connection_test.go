@@ -467,6 +467,78 @@ func TestPaginateBuildFailure(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "key field doesn't exist on object")
 	})
+
+	t.Run("empty filterText return", func(t *testing.T) {
+		schema := schemabuilder.NewSchema()
+		type StructWithKey struct {
+			Id int64
+		}
+		query := schema.Query()
+		query.FieldFunc("inner", func() Inner {
+			return Inner{}
+		})
+
+		inner := schema.Object("inner", Inner{})
+		object := schema.Object("structWithKey", StructWithKey{})
+		object.Key("id")
+		inner.FieldFunc("connection", func(ctx context.Context, args Args) ([]StructWithKey, error) {
+			return nil, nil
+		}, schemabuilder.Paginated, schemabuilder.TextFilterFields{
+			"noargs": func() {},
+		})
+
+		_, err := schema.Build()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "unsupported return type <nil>")
+	})
+
+	t.Run("non-string filterText return", func(t *testing.T) {
+		schema := schemabuilder.NewSchema()
+		type StructWithKey struct {
+			Id int64
+		}
+		query := schema.Query()
+		query.FieldFunc("inner", func() Inner {
+			return Inner{}
+		})
+
+		inner := schema.Object("inner", Inner{})
+		object := schema.Object("structWithKey", StructWithKey{})
+		object.Key("id")
+		inner.FieldFunc("connection", func(ctx context.Context, args Args) ([]StructWithKey, error) {
+			return nil, nil
+		}, schemabuilder.Paginated, schemabuilder.TextFilterFields{
+			"intReturn": func() int64 { return 0 },
+		})
+
+		_, err := schema.Build()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "unsupported return type int64")
+	})
+
+	t.Run("filterText with args", func(t *testing.T) {
+		schema := schemabuilder.NewSchema()
+		type StructWithKey struct {
+			Id int64
+		}
+		query := schema.Query()
+		query.FieldFunc("inner", func() Inner { return Inner{} })
+
+		inner := schema.Object("inner", Inner{})
+		object := schema.Object("structWithKey", StructWithKey{})
+		object.Key("id")
+		inner.FieldFunc("connection", func(ctx context.Context, i *Inner, args Args) ([]StructWithKey, error) {
+			return nil, nil
+		}, schemabuilder.Paginated, schemabuilder.TextFilterFields{
+			"someArgs": func(ctx context.Context, i *StructWithKey, args Args) string {
+				return ""
+			},
+		})
+
+		_, err := schema.Build()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "text filter fields can't take arguments")
+	})
 }
 
 func TestPaginateNodeTypeFailure(t *testing.T) {

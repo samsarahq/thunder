@@ -549,6 +549,9 @@ func indexOfPaginationArgs(argType reflect.Type) int {
 
 func getFuncReturnType(fn interface{}) reflect.Type {
 	typ := reflect.TypeOf(fn)
+	if typ.NumOut() == 0 {
+		return nil
+	}
 	return typ.Out(0)
 }
 
@@ -672,6 +675,7 @@ func (c *connectionContext) consumeTextFilters(sb *schemaBuilder, m *method, typ
 
 	for name, fn := range m.TextFilterFuncs {
 		funcTyp := getFuncReturnType(fn)
+
 		if funcTyp != typeOfString {
 			return fmt.Errorf("invalid text filter field %s: unsupported return type %v, must be a string", name, funcTyp)
 		}
