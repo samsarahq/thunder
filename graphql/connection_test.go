@@ -10,6 +10,7 @@ import (
 	"github.com/samsarahq/thunder/internal/testgraphql"
 	"github.com/samsarahq/thunder/reactive"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type User struct {
@@ -406,7 +407,6 @@ func TestConnection(t *testing.T) {
 }
 
 func TestPaginateBuildFailure(t *testing.T) {
-	badMethodStr := "bad method inner on type schemabuilder.query:"
 	type Inner struct{}
 
 	t.Run("slice type return error", func(t *testing.T) {
@@ -425,9 +425,8 @@ func TestPaginateBuildFailure(t *testing.T) {
 			return nil, nil
 		}, schemabuilder.Paginated)
 		_, err := schema.Build()
-		if err == nil || err.Error() != fmt.Sprintf("%v paginated field func must return a slice type", badMethodStr) {
-			t.Errorf("bad error: %v", err)
-		}
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "paginated field func must return a slice type")
 	})
 
 	t.Run("key field error", func(t *testing.T) {
@@ -444,9 +443,8 @@ func TestPaginateBuildFailure(t *testing.T) {
 			return nil, nil
 		}, schemabuilder.Paginated)
 		_, err := schema.Build()
-		if err == nil || err.Error() != fmt.Sprintf("%v a key field must be registered for paginated objects", badMethodStr) {
-			t.Errorf("bad error: %v", err)
-		}
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "a key field must be registered for paginated objects")
 	})
 
 	t.Run("key field doesn't exist error", func(t *testing.T) {
@@ -466,9 +464,8 @@ func TestPaginateBuildFailure(t *testing.T) {
 			return nil, nil
 		}, schemabuilder.Paginated)
 		_, err := schema.Build()
-		if err == nil || err.Error() != fmt.Sprintf("%v key field doesn't exist on object", badMethodStr) {
-			t.Errorf("bad error: %v", err)
-		}
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "key field doesn't exist on object")
 	})
 }
 
