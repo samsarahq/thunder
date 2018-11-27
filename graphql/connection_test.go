@@ -421,9 +421,9 @@ func TestPaginateBuildFailure(t *testing.T) {
 		item := schema.Object("item", Item{})
 		item.Key("id")
 
-		inner.PaginateFieldFunc("innerConnectionWithCtxAndError", func(ctx context.Context, args Args) (*Item, error) {
+		inner.FieldFunc("innerConnectionWithCtxAndError", func(ctx context.Context, args Args) (*Item, error) {
 			return nil, nil
-		})
+		}, schemabuilder.Paginated)
 		_, err := schema.Build()
 		if err == nil || err.Error() != fmt.Sprintf("%v paginated field func must return a slice type", badMethodStr) {
 			t.Errorf("bad error: %v", err)
@@ -440,9 +440,9 @@ func TestPaginateBuildFailure(t *testing.T) {
 		inner := schema.Object("inner", Inner{})
 		_ = schema.Object("item", Item{})
 
-		inner.PaginateFieldFunc("innerConnectionWithCtxAndError", func(ctx context.Context, args Args) ([]Item, error) {
+		inner.FieldFunc("innerConnectionWithCtxAndError", func(ctx context.Context, args Args) ([]Item, error) {
 			return nil, nil
-		})
+		}, schemabuilder.Paginated)
 		_, err := schema.Build()
 		if err == nil || err.Error() != fmt.Sprintf("%v a key field must be registered for paginated objects", badMethodStr) {
 			t.Errorf("bad error: %v", err)
@@ -462,9 +462,9 @@ func TestPaginateBuildFailure(t *testing.T) {
 		inner := schema.Object("inner", Inner{})
 		object := schema.Object("structWithKey", StructWithKey{})
 		object.Key("wrongField")
-		inner.PaginateFieldFunc("innerConnectionWithWrongKey", func(ctx context.Context, args Args) ([]StructWithKey, error) {
+		inner.FieldFunc("innerConnectionWithWrongKey", func(ctx context.Context, args Args) ([]StructWithKey, error) {
 			return nil, nil
-		})
+		}, schemabuilder.Paginated)
 		_, err := schema.Build()
 		if err == nil || err.Error() != fmt.Sprintf("%v key field doesn't exist on object", badMethodStr) {
 			t.Errorf("bad error: %v", err)

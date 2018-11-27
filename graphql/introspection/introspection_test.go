@@ -53,12 +53,12 @@ func makeSchema() *schemabuilder.Schema {
 	query.FieldFunc("nullableUser", func() (*User, error) {
 		return nil, nil
 	})
-	query.PaginateFieldFunc("usersConnection", func() ([]User, error) {
+	query.FieldFunc("usersConnection", func() ([]User, error) {
 		return nil, nil
-	})
-	query.PaginateFieldFunc("usersConnectionPtr", func() ([]*User, error) {
+	}, schemabuilder.Paginated)
+	query.FieldFunc("usersConnectionPtr", func() ([]*User, error) {
 		return nil, nil
-	})
+	}, schemabuilder.Paginated)
 
 	query.FieldFunc("gateway", func() (*Gateway, error) {
 		return nil, nil
