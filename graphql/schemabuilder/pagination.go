@@ -661,7 +661,7 @@ func (c *connectionContext) consumeSorts(sb *schemaBuilder, m *method, typ refle
 		if err != nil {
 			return err
 		}
-		if len(field.Args) > 2 {
+		if field.Args != nil && len(field.Args) > 0 {
 			return fmt.Errorf("invalid sort field %s: sort fields can't take arguments", name)
 		}
 		c.SortFields[name] = field
