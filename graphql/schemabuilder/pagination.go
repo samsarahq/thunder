@@ -208,7 +208,7 @@ func (sb *schemaBuilder) constructEdgeType(typ reflect.Type) (graphql.Type, erro
 			return nil, fmt.Errorf("error resolving node in edge")
 
 		},
-		Type:           nodeType,
+		Type:           &graphql.NonNull{Type: nodeType},
 		ParseArguments: nilParseArguments,
 	}
 	fieldMap["node"] = nodeField
