@@ -277,12 +277,12 @@ func BenchmarkSql(b *testing.B) {
 	}{
 		{"Read", func() error {
 			user := &User{}
-			row := db.Conn.QueryRowContext(ctx, `SELECT * from users`)
+			row := db.Conn.QueryRowContext(ctx, `SELECT id, name, uuid, mood from users`)
 			return row.Scan(&user.Id, &user.Name, &user.Uuid, &user.Mood)
 		}},
 		{"Read_Where", func() error {
 			user := &User{}
-			row := db.Conn.QueryRowContext(ctx, `SELECT * from users where users.name = ?`, "Bob")
+			row := db.Conn.QueryRowContext(ctx, `SELECT id, name, uuid, mood from users where users.name = ?`, "Bob")
 			return row.Scan(&user.Id, &user.Name, &user.Uuid, &user.Mood)
 		}},
 		{"Create", func() error {
