@@ -200,9 +200,13 @@
                     "kind": "NON_NULL",
                     "name": "",
                     "ofType": {
-                      "kind": "OBJECT",
-                      "name": "user",
-                      "ofType": null
+                      "kind": "NON_NULL",
+                      "name": "",
+                      "ofType": {
+                        "kind": "OBJECT",
+                        "name": "user",
+                        "ofType": null
+                      }
                     }
                   }
                 }
@@ -686,9 +690,13 @@
                   "isDeprecated": false,
                   "name": "node",
                   "type": {
-                    "kind": "OBJECT",
-                    "name": "user",
-                    "ofType": null
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "OBJECT",
+                      "name": "user",
+                      "ofType": null
+                    }
                   }
                 }
               ],
