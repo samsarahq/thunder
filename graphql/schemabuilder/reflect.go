@@ -684,6 +684,10 @@ func (funcCtx *funcContext) prepareResolveArgs(source interface{}, args interfac
 func (sb *schemaBuilder) buildFunction(typ reflect.Type, m *method) (*graphql.Field, error) {
 	funcCtx := &funcContext{typ: typ}
 
+	if typ.Kind() == reflect.Ptr {
+		return nil, fmt.Errorf("source-type of buildFunction cannot be a pointer (got: %v)", typ)
+	}
+
 	fun, err := funcCtx.getFuncVal(m)
 	if err != nil {
 		return nil, err
