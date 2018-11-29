@@ -62,6 +62,9 @@ func TestConnection(t *testing.T) {
 		"foo": func(ctx context.Context, i Item) string {
 			return i.FilterText
 		},
+		"bar": func(ctx context.Context, i *Item) string {
+			return ""
+		},
 	})
 	inner.FieldFunc("innerConnectionWithSort", func() []Item {
 		return []Item{
@@ -75,7 +78,7 @@ func TestConnection(t *testing.T) {
 		"numbers": func(ctx context.Context, i Item) int64 {
 			return i.Number
 		},
-		"strings": func(ctx context.Context, i Item) string {
+		"strings": func(ctx context.Context, i *Item) string {
 			return i.String
 		},
 		"floats": func(ctx context.Context, i Item) float64 {

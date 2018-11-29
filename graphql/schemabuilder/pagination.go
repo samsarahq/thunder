@@ -831,11 +831,18 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 		return nil, err
 	}
 
-	if err := c.consumeTextFilters(sb, m, nodeType); err != nil {
+	// If the node type is a pointer, get a non-pointer reference for building text filter and
+	// sort FieldFuncs.
+	nonPtrNodeType := nodeType
+	if nodeType.Kind() == reflect.Ptr {
+		nonPtrNodeType = nodeType.Elem()
+	}
+
+	if err := c.consumeTextFilters(sb, m, nonPtrNodeType); err != nil {
 		return nil, err
 	}
 
-	if err := c.consumeSorts(sb, m, nodeType); err != nil {
+	if err := c.consumeSorts(sb, m, nonPtrNodeType); err != nil {
 		return nil, err
 	}
 
