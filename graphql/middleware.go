@@ -24,7 +24,7 @@ type ComputationOutput struct {
 type MiddlewareFunc func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput
 type MiddlewareNextFunc func(input *ComputationInput) *ComputationOutput
 
-func runMiddlewares(middlewares []MiddlewareFunc, input *ComputationInput) *ComputationOutput {
+func RunMiddlewares(middlewares []MiddlewareFunc, input *ComputationInput) *ComputationOutput {
 	var run func(index int, middlewares []MiddlewareFunc, input *ComputationInput) *ComputationOutput
 	run = func(index int, middlewares []MiddlewareFunc, input *ComputationInput) *ComputationOutput {
 		if index >= len(middlewares) {
