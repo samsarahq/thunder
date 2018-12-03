@@ -10,6 +10,7 @@ import (
 
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/internal/filter"
+	"golang.org/x/sync/errgroup"
 )
 
 // Connection conforms to the GraphQL Connection type in the Relay Pagination spec.
@@ -397,31 +398,47 @@ func (c *connectionContext) applyTextFilter(ctx context.Context, nodes []interfa
 		return nodes, nil
 	}
 
+	nodesToKeep := make([]bool, len(nodes))
+
+	g, ctx := errgroup.WithContext(ctx)
+	for unscopedI, unscopedNode := range nodes {
+		i, node := unscopedI, unscopedNode
+		g.Go(func() error {
+			keep := false
+			for name, filterField := range c.FilterTextFields {
+				// Resolve the graphql.Field made for sorting.
+				text, err := filterField.Resolve(ctx, node, nil, nil)
+				if err != nil {
+					return err
+				}
+
+				// Only strings are allowed for FilterText fields.
+				textString, ok := text.(string)
+				if !ok {
+					return fmt.Errorf("filter %s returned %T, must be a string", name, text)
+				}
+
+				if filter.Match(textString, *args.FilterText) {
+					keep = true
+					break
+				}
+			}
+
+			nodesToKeep[i] = keep
+
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+
 	var filteredNodes []interface{}
-	for _, node := range nodes {
-		keep := false
-		// For each possible field we're matching against, check if there's a match.
-		for name, filterField := range c.FilterTextFields {
-			// Resolve the graphql.Field made for sorting.
-			text, err := filterField.Resolve(ctx, node, nil, nil)
-			if err != nil {
-				return nil, err
-			}
 
-			// Only strings are allowed for FilterText fields.
-			textString, ok := text.(string)
-			if !ok {
-				return nil, fmt.Errorf("filter %s returned %T, must be a string", name, text)
-			}
-
-			if filter.Match(textString, *args.FilterText) {
-				keep = true
-				break
-			}
-		}
-
+	for i, keep := range nodesToKeep {
 		if keep {
-			filteredNodes = append(filteredNodes, node)
+			filteredNodes = append(filteredNodes, nodes[i])
 		}
 	}
 
@@ -448,17 +465,28 @@ func (c *connectionContext) applySort(ctx context.Context, nodes []interface{}, 
 	// sortValues is the slice we'll be sorting (with the sorted values) in order to figure out
 	// node order.
 	sortValues := make([]sortReference, len(nodes))
-	for i, node := range nodes {
-		// Resolve the graphql.Field made for sorting.
-		sortValue, err := sortField.Resolve(ctx, node, nil, nil)
-		if err != nil {
-			return nil, err
-		}
-		// Hang onto index in order added in order to properly sort the nodes.
-		sortValues[i] = sortReference{
-			index: i,
-			value: reflect.ValueOf(sortValue),
-		}
+	g, ctx := errgroup.WithContext(ctx)
+
+	for unscopedI, unscopedNode := range nodes {
+		i, node := unscopedI, unscopedNode
+		g.Go(func() error {
+			// Resolve the graphql.Field made for sorting.
+			sortValue, err := sortField.Resolve(ctx, node, nil, nil)
+			if err != nil {
+				return err
+			}
+			// Hang onto index in order added in order to properly sort the nodes.
+			sortValues[i] = sortReference{
+				index: i,
+				value: reflect.ValueOf(sortValue),
+			}
+
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, err
 	}
 
 	// Sort values by appropriate function.
