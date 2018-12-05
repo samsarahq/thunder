@@ -8,9 +8,13 @@ import (
 )
 
 var (
-	// Sentrinel error to tell the rerunner to not dump the current
+	// Sentinel error to tell the rerunner to not dump the current
 	// computation cache and let the error'd function retry.
 	RetrySentinelError = errors.New("retry")
+
+	// WriteThenReadDelay is how long to wait after hearing a change
+	// was made, before reading that change by rerunning.
+	WriteThenReadDelay = 200 * time.Millisecond
 )
 
 // locker is a collection of mutexes indexed by arbitrary keys
@@ -334,6 +338,10 @@ func (r *Rerunner) run() {
 		return
 	}
 
+	if !r.lastRun.IsZero() {
+		// Delay the rerun in order to emulate write-then-read consistency.
+		time.Sleep(WriteThenReadDelay)
+	}
 	r.cache.cleanInvalidated()
 	ctx := context.WithValue(r.ctx, cacheKey{}, r.cache)
 	ctx = context.WithValue(ctx, dependencySetKey{}, &dependencySet{})
