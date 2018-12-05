@@ -283,7 +283,7 @@ func TestEndToEndAwaitAndCache(t *testing.T) {
 
 	result := <-results
 	duration := time.Since(start)
-	if duration > 150*time.Millisecond {
+	if duration > 450*time.Millisecond {
 		t.Errorf("did not execute in parallel; duration %v > 150ms", duration)
 	}
 	if !reflect.DeepEqual(result, internal.ParseJSON(`
@@ -302,7 +302,7 @@ func TestEndToEndAwaitAndCache(t *testing.T) {
 	users[0].resource.Strobe()
 	result = <-results
 	duration = time.Since(start)
-	if duration > 150*time.Millisecond {
+	if duration > 450*time.Millisecond {
 		t.Errorf("did not execute in parallel; duration %v > 150ms", duration)
 	}
 	if !reflect.DeepEqual(result, internal.ParseJSON(`
