@@ -14,6 +14,8 @@ func TestMatch(t *testing.T) {
 		Matches bool
 	}{
 		{"hi, san francisco", `"san fran"`, true},
+		{"hi, San Francisco", `"san fran"`, true},
+		{"hi, San Francisco", `"SAN FRAN"`, true},
 		{"hi, san francisco", `"san fran" and`, true},
 		{"hi, sandy francisco", `"san fran"`, false},
 		{"hi, sandy francisco", `"san fran" and`, true},
