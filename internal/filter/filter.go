@@ -30,7 +30,7 @@ func Match(str, query string) bool {
 			matchString = match[2]
 		}
 
-		if strings.Contains(str, matchString) {
+		if strings.Contains(strings.ToLower(str), strings.ToLower(matchString)) {
 			return true
 		}
 	}
