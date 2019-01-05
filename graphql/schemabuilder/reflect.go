@@ -360,51 +360,77 @@ func (sb *schemaBuilder) getStructObjectFields(typ reflect.Type) (*graphql.Input
 
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
-		if field.PkgPath != "" && !field.Anonymous {
-			continue
-		}
 		if field.Anonymous {
 			return nil, nil, fmt.Errorf("bad arg type %s: anonymous fields not supported", typ)
 		}
-		tags := strings.Split(field.Tag.Get("graphql"), ",")
-		var name string
-		if len(tags) > 0 {
-			name = tags[0]
+
+		fieldInfo, err := parseGraphQLFieldInfo(field)
+		if err != nil {
+			return nil, nil, fmt.Errorf("bad type %s: %s", typ, err.Error())
 		}
-		if name == "" {
-			name = makeGraphql(field.Name)
-		}
-		if name == "-" {
+		if fieldInfo.Skipped {
 			continue
 		}
 
-		var key bool
-
-		if len(tags) > 1 {
-			for _, tag := range tags[1:] {
-				if tag != "key" || key {
-					return nil, nil, fmt.Errorf("bad type %s: field %s has unexpected tag %s", typ, name, tag)
-				}
-				key = true
-			}
-		}
-
-		if _, ok := fields[name]; ok {
-			return nil, nil, fmt.Errorf("bad arg type %s: duplicate field %s", typ, name)
+		if _, ok := fields[fieldInfo.Name]; ok {
+			return nil, nil, fmt.Errorf("bad arg type %s: duplicate field %s", typ, fieldInfo.Name)
 		}
 		parser, fieldArgTyp, err := sb.makeArgParser(field.Type)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		fields[name] = argField{
+		fields[fieldInfo.Name] = argField{
 			field:  field,
 			parser: parser,
 		}
-		argType.InputFields[name] = fieldArgTyp
+		argType.InputFields[fieldInfo.Name] = fieldArgTyp
 	}
 
 	return argType, fields, nil
+}
+
+// graphQLFieldInfo contains basic struct field information related to GraphQL.
+type graphQLFieldInfo struct {
+	// Skipped indicates that this field should not be included in GraphQL.
+	Skipped bool
+
+	// Name is the GraphQL field name that should be exposed for this field.
+	Name string
+
+	// KeyField indicates that this field should be treated as a Object Key field.
+	KeyField bool
+}
+
+// parseGraphQLFieldInfo parses a struct field and returns a struct with the
+// parsed information about the field (tag info, name, etc).
+func parseGraphQLFieldInfo(field reflect.StructField) (*graphQLFieldInfo, error) {
+	if field.PkgPath != "" {
+		return &graphQLFieldInfo{Skipped: true}, nil
+	}
+	tags := strings.Split(field.Tag.Get("graphql"), ",")
+	var name string
+	if len(tags) > 0 {
+		name = tags[0]
+	}
+	if name == "" {
+		name = makeGraphql(field.Name)
+	}
+	if name == "-" {
+		return &graphQLFieldInfo{Skipped: true}, nil
+	}
+
+	var key bool
+
+	if len(tags) > 1 {
+		for _, tag := range tags[1:] {
+			if tag != "key" || key {
+				return nil, fmt.Errorf("field %s has unexpected tag %s", name, tag)
+			}
+			key = true
+		}
+	}
+	return &graphQLFieldInfo{Name: name, KeyField: key}, nil
 }
 
 func (sb *schemaBuilder) makeStructParser(typ reflect.Type) (*argParser, graphql.Type, error) {
@@ -874,43 +900,24 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
-		if field.PkgPath != "" {
+		fieldInfo, err := parseGraphQLFieldInfo(field)
+		if err != nil {
+			return fmt.Errorf("bad type %s: %s", typ, fieldInfo.Name)
+		}
+		if fieldInfo.Skipped {
 			continue
 		}
 
-		tags := strings.Split(field.Tag.Get("graphql"), ",")
-		var name string
-		if len(tags) > 0 {
-			name = tags[0]
-		}
-		if name == "" {
-			name = makeGraphql(field.Name)
-		}
-		if name == "-" {
-			continue
-		}
-
-		var key bool
-
-		if len(tags) > 1 {
-			for _, tag := range tags[1:] {
-				if tag != "key" || key {
-					return fmt.Errorf("bad type %s: field %s has unexpected tag %s", typ, name, tag)
-				}
-				key = true
-			}
-		}
-
-		if _, ok := object.Fields[name]; ok {
-			return fmt.Errorf("bad type %s: two fields named %s", typ, name)
+		if _, ok := object.Fields[fieldInfo.Name]; ok {
+			return fmt.Errorf("bad type %s: two fields named %s", typ, fieldInfo.Name)
 		}
 
 		built, err := sb.buildField(field)
 		if err != nil {
-			return fmt.Errorf("bad field %s on type %s: %s", name, typ, err)
+			return fmt.Errorf("bad field %s on type %s: %s", fieldInfo.Name, typ, err)
 		}
-		object.Fields[name] = built
-		if key {
+		object.Fields[fieldInfo.Name] = built
+		if fieldInfo.KeyField {
 			if object.Key != nil {
 				return fmt.Errorf("bad type %s: multiple key fields", typ)
 			}
