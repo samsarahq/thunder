@@ -865,16 +865,6 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 		}
 	}
 
-	isScalarType := func(typ graphql.Type) bool {
-		if nonNull, ok := typ.(*graphql.NonNull); ok {
-			typ = nonNull.Type
-		}
-		if _, ok := typ.(*graphql.Scalar); !ok {
-			return false
-		}
-		return true
-	}
-
 	object := &graphql.Object{
 		Name:        name,
 		Description: description,
@@ -969,6 +959,16 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 	}
 
 	return nil
+}
+
+func isScalarType(typ graphql.Type) bool {
+	if nonNull, ok := typ.(*graphql.NonNull); ok {
+		typ = nonNull.Type
+	}
+	if _, ok := typ.(*graphql.Scalar); !ok {
+		return false
+	}
+	return true
 }
 
 var scalars = map[reflect.Type]string{
