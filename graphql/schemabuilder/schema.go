@@ -7,11 +7,15 @@ import (
 	"github.com/samsarahq/thunder/graphql"
 )
 
+// Schema is a struct that can be used to build out a GraphQL schema.  Functions
+// can be registered against the "Mutation" and "Query" objects in order to
+// build out a full GraphQL schema.
 type Schema struct {
 	objects   map[string]*Object
 	enumTypes map[reflect.Type]*EnumMapping
 }
 
+// NewSchema creates a new schema.
 func NewSchema() *Schema {
 	schema := &Schema{
 		objects: make(map[string]*Object),
@@ -83,6 +87,11 @@ func getEnumMap(enumMap interface{}, typ reflect.Type) (map[string]interface{}, 
 
 }
 
+// Object registers a struct as a GraphQL Object in our Schema.
+// (https://facebook.github.io/graphql/June2018/#sec-Objects)
+// We'll read the fields of the struct to determine it's basic "Fields" and
+// we'll return an Object struct that we can use to register custom
+// relationships and fields on the object.
 func (s *Schema) Object(name string, typ interface{}) *Object {
 	if object, ok := s.objects[name]; ok {
 		if reflect.TypeOf(object.Type) != reflect.TypeOf(typ) {
@@ -100,16 +109,25 @@ func (s *Schema) Object(name string, typ interface{}) *Object {
 
 type query struct{}
 
+// Query returns an Object struct that we can use to register all the top level
+// graphql query functions we'd like to expose.
 func (s *Schema) Query() *Object {
 	return s.Object("Query", query{})
 }
 
 type mutation struct{}
 
+// Mutation returns an Object struct that we can use to register all the top level
+// graphql mutations functions we'd like to expose.
 func (s *Schema) Mutation() *Object {
 	return s.Object("Mutation", mutation{})
 }
 
+// Build takes the schema we have built on our Query and Mutation starting
+// points and builds a full graphql.Schema we can use to execute and run
+// queries.  Essentially we read through all the methods we've attached to our
+// Query and Mutation Objects and ensure that those functions are returning
+// other Objects that we can resolve in our GraphQL graph.
 func (s *Schema) Build() (*graphql.Schema, error) {
 	sb := &schemaBuilder{
 		types:        make(map[reflect.Type]graphql.Type),
@@ -145,7 +163,7 @@ func (s *Schema) Build() (*graphql.Schema, error) {
 	}, nil
 }
 
-// MustBuildSchema builds a schema and panics if an error occurs
+// MustBuildSchema builds a schema and panics if an error occurs.
 func (s *Schema) MustBuild() *graphql.Schema {
 	built, err := s.Build()
 	if err != nil {
