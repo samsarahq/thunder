@@ -11,16 +11,23 @@ import (
 	"github.com/samsarahq/thunder/internal"
 )
 
+// argField is a representation of an input parameter field for a function.  It
+// must be a field on a struct and will have an associated "argParser" for
+// reading an input JSON and filling the struct field.
 type argField struct {
 	field  reflect.StructField
 	parser *argParser
 }
 
+// argParser is a struct that holds information for how to deserialize a JSON
+// input into a particular go variable.
 type argParser struct {
 	FromJSON func(interface{}, reflect.Value) error
 	Type     reflect.Type
 }
 
+// Parse is a convenience function that takes in JSON args and writes them into
+// a new variable type for the argParser.
 func (p *argParser) Parse(args interface{}) (interface{}, error) {
 	if p == nil {
 		return nilParseArguments(args)
@@ -32,6 +39,8 @@ func (p *argParser) Parse(args interface{}) (interface{}, error) {
 	return parsed.Interface(), nil
 }
 
+// nilParseArguments is a default function for parsing args.  It expects to be
+// called with nothing, and will return an error if called with non-empty args.
 func nilParseArguments(args interface{}) (interface{}, error) {
 	if args == nil {
 		return nil, nil
@@ -42,6 +51,7 @@ func nilParseArguments(args interface{}) (interface{}, error) {
 	return nil, nil
 }
 
+// makeStructParser constructs an argParser for the passed in struct type.
 func (sb *schemaBuilder) makeStructParser(typ reflect.Type) (*argParser, graphql.Type, error) {
 	argType, fields, err := sb.getStructObjectFields(typ)
 	if err != nil {
@@ -74,6 +84,9 @@ func (sb *schemaBuilder) makeStructParser(typ reflect.Type) (*argParser, graphql
 	}, argType, nil
 }
 
+// getStructObjectFields loops through a struct's fields and builds argParsers
+// for all the struct's subfields.  These fields will then be used when we want
+// to create an instance of the original struct from JSON.
 func (sb *schemaBuilder) getStructObjectFields(typ reflect.Type) (*graphql.InputObject, map[string]argField, error) {
 	// Check if the struct type is already cached
 	if cached, ok := sb.typeCache[typ]; ok {
@@ -128,6 +141,8 @@ func (sb *schemaBuilder) getStructObjectFields(typ reflect.Type) (*graphql.Input
 	return argType, fields, nil
 }
 
+// makeArgParser reads the information on a passed in variable type and returns
+// an ArgParser that can be used to "fill" that type from a GraphQL JSON input.
 func (sb *schemaBuilder) makeArgParser(typ reflect.Type) (*argParser, graphql.Type, error) {
 	if typ.Kind() == reflect.Ptr {
 		parser, argType, err := sb.makeArgParserInner(typ.Elem())
@@ -144,6 +159,8 @@ func (sb *schemaBuilder) makeArgParser(typ reflect.Type) (*argParser, graphql.Ty
 	return parser, &graphql.NonNull{Type: argType}, nil
 }
 
+// makeArgParserInner is a helper function for makeArgParser that doesn't need
+// to worry about pointer types.
 func (sb *schemaBuilder) makeArgParserInner(typ reflect.Type) (*argParser, graphql.Type, error) {
 	if sb.enumMappings[typ] != nil {
 		parser, argType := sb.getEnumArgParser(typ)
@@ -171,6 +188,8 @@ func (sb *schemaBuilder) makeArgParserInner(typ reflect.Type) (*argParser, graph
 	}
 }
 
+// wrapPtrParser wraps an ArgParser with a helper that will convert the parsed
+// type into a pointer type.
 func wrapPtrParser(inner *argParser) *argParser {
 	return &argParser{
 		FromJSON: func(value interface{}, dest reflect.Value) error {
@@ -190,6 +209,7 @@ func wrapPtrParser(inner *argParser) *argParser {
 	}
 }
 
+// getEnumArgParser creates an arg parser for an Enum type.
 func (sb *schemaBuilder) getEnumArgParser(typ reflect.Type) (*argParser, graphql.Type) {
 	var values []string
 	for mapping := range sb.enumMappings[typ].Map {
@@ -210,6 +230,7 @@ func (sb *schemaBuilder) getEnumArgParser(typ reflect.Type) (*argParser, graphql
 
 }
 
+// makeSliceParser creates an arg parser for a slice field.
 func (sb *schemaBuilder) makeSliceParser(typ reflect.Type) (*argParser, graphql.Type, error) {
 	inner, argType, err := sb.makeArgParser(typ.Elem())
 	if err != nil {
@@ -237,6 +258,7 @@ func (sb *schemaBuilder) makeSliceParser(typ reflect.Type) (*argParser, graphql.
 	}, &graphql.List{Type: argType}, nil
 }
 
+// getScalarArgParser creates an arg parser for a scalar type.
 func getScalarArgParser(typ reflect.Type) (*argParser, graphql.Type, bool) {
 	for match, argParser := range scalarArgParsers {
 		if internal.TypesIdenticalOrScalarAliases(match, typ) {
@@ -260,6 +282,8 @@ func getScalarArgParser(typ reflect.Type) (*argParser, graphql.Type, bool) {
 	return nil, nil, false
 }
 
+// scalarArgParsers are the static arg parsers that we can use for all scalar &
+// static types.
 var scalarArgParsers = map[reflect.Type]*argParser{
 	reflect.TypeOf(bool(false)): {
 		FromJSON: func(value interface{}, dest reflect.Value) error {
@@ -412,6 +436,8 @@ var scalarArgParsers = map[reflect.Type]*argParser{
 }
 
 func init() {
+	// When loading the scalarArgParsers we need to fill the "Type" fields
+	// appropriately.
 	for typ, arg := range scalarArgParsers {
 		arg.Type = typ
 	}
