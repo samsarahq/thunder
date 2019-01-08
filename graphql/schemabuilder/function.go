@@ -18,7 +18,7 @@ func (sb *schemaBuilder) buildFunction(typ reflect.Type, m *method) (*graphql.Fi
 		return nil, fmt.Errorf("source-type of buildFunction cannot be a pointer (got: %v)", typ)
 	}
 
-	fun, err := funcCtx.getFuncVal(m)
+	callableFunc, err := funcCtx.getFuncVal(m)
 	if err != nil {
 		return nil, err
 	}
@@ -57,14 +57,14 @@ func (sb *schemaBuilder) buildFunction(typ reflect.Type, m *method) (*graphql.Fi
 	}
 
 	return &graphql.Field{
-		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
+		Resolve: func(ctx context.Context, source, funcRawArgs interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
 			// Set up function arguments.
+			funcInputArgs := funcCtx.prepareResolveArgs(source, funcRawArgs, ctx)
 
-			in := funcCtx.prepareResolveArgs(source, args, ctx)
 			// Call the function.
-			out := fun.Call(in)
+			funcOutputArgs := callableFunc.Call(funcInputArgs)
 
-			return funcCtx.extractResultAndErr(out, retType)
+			return funcCtx.extractResultAndErr(funcOutputArgs, retType)
 
 		},
 		Args:           args,
