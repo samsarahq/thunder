@@ -12,9 +12,8 @@ import (
 )
 
 type argField struct {
-	field    reflect.StructField
-	parser   *argParser
-	optional bool
+	field  reflect.StructField
+	parser *argParser
 }
 
 type argParser struct {
