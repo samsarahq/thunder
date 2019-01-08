@@ -8,6 +8,9 @@ import (
 	"github.com/samsarahq/thunder/graphql"
 )
 
+// buildFunction takes the reflect type of an object and a method attached to
+// that object to build a GraphQL Field that can be resolved in the GraphQL
+// graph.
 func (sb *schemaBuilder) buildFunction(typ reflect.Type, m *method) (*graphql.Field, error) {
 	funcCtx := &funcContext{typ: typ}
 
@@ -86,6 +89,7 @@ type funcContext struct {
 	selectionSet *graphql.SelectionSet
 }
 
+// getFuncVal returns a reflect.Value of an executable function.
 func (funcCtx *funcContext) getFuncVal(m *method) (reflect.Value, error) {
 	fun := reflect.ValueOf(m.Fn)
 	if fun.Kind() != reflect.Func {
@@ -95,6 +99,8 @@ func (funcCtx *funcContext) getFuncVal(m *method) (reflect.Value, error) {
 	return fun, nil
 }
 
+// getFuncInputTypes returns the input arguments for the function we're
+// representing.
 func (funcCtx *funcContext) getFuncInputTypes() []reflect.Type {
 	in := make([]reflect.Type, 0, funcCtx.funcType.NumIn())
 	for i := 0; i < funcCtx.funcType.NumIn(); i++ {
@@ -103,6 +109,12 @@ func (funcCtx *funcContext) getFuncInputTypes() []reflect.Type {
 	return in
 }
 
+// consumeContextAndSource reads in the input parameters for the provided
+// function and determines whether the function has a Context input parameter
+// and/or whether it includes the "source" input parameter ("source" will be the
+// object type that this function is connected to).  If we find either of these
+// fields we will pop that field from the input parameters we return (since we've
+// already "dealt" with those fields).
 func (funcCtx *funcContext) consumeContextAndSource(in []reflect.Type) []reflect.Type {
 	ptr := reflect.PtrTo(funcCtx.typ)
 
@@ -120,6 +132,10 @@ func (funcCtx *funcContext) consumeContextAndSource(in []reflect.Type) []reflect
 	return in
 }
 
+// getArgParserAndTyp reads a list of input parameters, and, if we have a set
+// of custom parameters for the field func (at this point any input type other
+// than the selectionSet is considered the args input), we will return the
+// argParser for that type and pop that field from the returned input parameters.
 func (funcCtx *funcContext) getArgParserAndTyp(sb *schemaBuilder, in []reflect.Type) (*argParser, graphql.Type, []reflect.Type, error) {
 	var argParser *argParser
 	var argType graphql.Type
@@ -133,6 +149,9 @@ func (funcCtx *funcContext) getArgParserAndTyp(sb *schemaBuilder, in []reflect.T
 	return argParser, argType, in, nil
 }
 
+// consumeSelectionSet reads the input parameters and will pop off the
+// selectionSet type if we detect it in the input fields.  Check out
+// graphql.SelectionSet for more infomation about selection sets.
 func (funcCtx *funcContext) consumeSelectionSet(in []reflect.Type) []reflect.Type {
 	if len(in) > 0 && in[0] == selectionSetType {
 		in = in[:len(in)-1]
@@ -143,6 +162,8 @@ func (funcCtx *funcContext) consumeSelectionSet(in []reflect.Type) []reflect.Typ
 	return in
 }
 
+// parseReturnSignature reads and validates the return signature of the function
+// to determine whether it has a return type and/or an error response.
 func (funcCtx *funcContext) parseReturnSignature(m *method) (err error) {
 	out := make([]reflect.Type, 0, funcCtx.funcType.NumOut())
 	for i := 0; i < funcCtx.funcType.NumOut(); i++ {
@@ -171,6 +192,9 @@ func (funcCtx *funcContext) parseReturnSignature(m *method) (err error) {
 	return
 }
 
+// getReturnType returns a GraphQL node type for the return type of the
+// function.  So an object "User" that has a linked function which returns a
+// list of "Hats" will resolve the GraphQL type of a "Hat" at this point.
 func (funcCtx *funcContext) getReturnType(sb *schemaBuilder, m *method) (graphql.Type, error) {
 	var retType graphql.Type
 	if funcCtx.hasRet {
@@ -195,6 +219,8 @@ func (funcCtx *funcContext) getReturnType(sb *schemaBuilder, m *method) (graphql
 	return retType, nil
 }
 
+// argsTypeMap returns a map from input arg field names to a graphQL type
+// associated with that field name.
 func (funcCtx *funcContext) argsTypeMap(argType graphql.Type) (map[string]graphql.Type, error) {
 	args := make(map[string]graphql.Type)
 	if funcCtx.hasArgs {
@@ -210,6 +236,8 @@ func (funcCtx *funcContext) argsTypeMap(argType graphql.Type) (map[string]graphq
 	return args, nil
 }
 
+// prepareResolveArgs converts the provided source, args and context into the
+// required list of reflect.Value types that the function needs to be called.
 func (funcCtx *funcContext) prepareResolveArgs(source interface{}, args interface{}, ctx context.Context) []reflect.Value {
 	in := make([]reflect.Value, 0, funcCtx.funcType.NumIn())
 	if funcCtx.hasContext {
@@ -243,6 +271,9 @@ func (funcCtx *funcContext) prepareResolveArgs(source interface{}, args interfac
 	return in
 }
 
+// extractResultAndErr converts the response from calling the function into
+// the expected type for the response object (as opposed to a reflect.Value).
+// It also handles reading whether the function ended with errors.
 func (funcCtx *funcContext) extractResultAndErr(out []reflect.Value, retType graphql.Type) (interface{}, error) {
 	var result interface{}
 	if funcCtx.hasRet {
