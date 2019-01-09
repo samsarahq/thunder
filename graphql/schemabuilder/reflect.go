@@ -11,6 +11,7 @@ import (
 	"github.com/samsarahq/thunder/graphql"
 )
 
+// makeGraphql converts a field name "MyField" into a graphQL field name "myField".
 func makeGraphql(s string) string {
 	var b bytes.Buffer
 	for i, c := range s {
@@ -23,6 +24,8 @@ func makeGraphql(s string) string {
 	return b.String()
 }
 
+// reverseGraphqlFieldName converts a graphql field name "myField" into a
+// non-graphQL field name "MyField".
 func reverseGraphqlFieldName(s string) string {
 	var b bytes.Buffer
 	for i, c := range s {
@@ -78,6 +81,7 @@ func parseGraphQLFieldInfo(field reflect.StructField) (*graphQLFieldInfo, error)
 	return &graphQLFieldInfo{Name: name, KeyField: key}, nil
 }
 
+// Common Types that we will need to perform type assertions against.
 var errType reflect.Type
 var contextType reflect.Type
 var selectionSetType reflect.Type
