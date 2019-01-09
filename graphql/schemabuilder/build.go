@@ -9,6 +9,9 @@ import (
 	"github.com/samsarahq/thunder/internal"
 )
 
+// schemaBuilder is a struct for holding all the graph information for types as
+// we build out graphql types for our graphql schema.  Resolved graphQL "types"
+// are stored in the type map which we can use to see sections of the graph.
 type schemaBuilder struct {
 	types        map[reflect.Type]graphql.Type
 	objects      map[reflect.Type]*Object
@@ -16,6 +19,8 @@ type schemaBuilder struct {
 	typeCache    map[reflect.Type]cachedType // typeCache maps Go types to GraphQL datatypes
 }
 
+// EnumMapping is a representation of an enum that includes both the mapping and
+// reverse mapping.
 type EnumMapping struct {
 	Map        map[string]interface{}
 	ReverseMap map[interface{}]string
@@ -27,6 +32,11 @@ type cachedType struct {
 	fields  map[string]argField
 }
 
+// getType is the "core" function of the GraphQL schema builder.  It takes in a
+// reflect type and builds the appropriate graphQL "type".  This includes going
+// through struct fields and attached object methods to generate the entire
+// graphql graph of possible queries.  This function will be called recursively
+// for types as we go through the graph.
 func (sb *schemaBuilder) getType(t reflect.Type) (graphql.Type, error) {
 	// Support scalars and optional scalars. Scalars have precedence over structs
 	// to have eg. time.Time function as a scalar.
@@ -76,6 +86,8 @@ func (sb *schemaBuilder) getType(t reflect.Type) (graphql.Type, error) {
 	}
 }
 
+// getEnum gets the Enum type information for the passed in reflect.Type by
+// looking it up in our enum mappings.
 func (sb *schemaBuilder) getEnum(typ reflect.Type) (string, []string, bool) {
 	if sb.enumMappings[typ] != nil {
 		var values []string
@@ -87,6 +99,8 @@ func (sb *schemaBuilder) getEnum(typ reflect.Type) (string, []string, bool) {
 	return "", nil, false
 }
 
+// getScalar grabs the appropriate scalar graphql field type name for the passed
+// in variable reflect type.
 func getScalar(typ reflect.Type) (string, bool) {
 	for match, name := range scalars {
 		if internal.TypesIdenticalOrScalarAliases(match, typ) {
