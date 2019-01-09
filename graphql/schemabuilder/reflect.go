@@ -82,15 +82,7 @@ func parseGraphQLFieldInfo(field reflect.StructField) (*graphQLFieldInfo, error)
 }
 
 // Common Types that we will need to perform type assertions against.
-var errType reflect.Type
-var contextType reflect.Type
-var selectionSetType reflect.Type
+var errType = reflect.TypeOf((*error)(nil)).Elem()
+var contextType = reflect.TypeOf((*context.Context)(nil)).Elem()
+var selectionSetType = reflect.TypeOf(&graphql.SelectionSet{})
 
-func init() {
-	var err error
-	errType = reflect.TypeOf(&err).Elem()
-	var context context.Context
-	contextType = reflect.TypeOf(&context).Elem()
-	var selectionSet *graphql.SelectionSet
-	selectionSetType = reflect.TypeOf(selectionSet)
-}
