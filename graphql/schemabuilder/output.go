@@ -9,6 +9,10 @@ import (
 	"github.com/samsarahq/thunder/graphql"
 )
 
+// buildStruct is a function for building the graphql.Type for a passed in
+// struct type.  This function reads the "Object" information and Fields of the
+// passed in struct to create a "graphql.Object" type that represents this type
+// and can be used to resolve graphql requests.
 func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 	if sb.types[typ] != nil {
 		return nil
@@ -117,6 +121,8 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 	return nil
 }
 
+// hasUnionMarkerEmbedded determines if a struct has an embedded schemabuilder.Union
+// field embedded on the type.
 func hasUnionMarkerEmbedded(typ reflect.Type) bool {
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
@@ -127,6 +133,8 @@ func hasUnionMarkerEmbedded(typ reflect.Type) bool {
 	return false
 }
 
+// buildUnionStruct builds a graphql.Union type that has the ability to be one
+// of many different graphql types.
 func (sb *schemaBuilder) buildUnionStruct(typ reflect.Type) error {
 	var name string
 	var description string
@@ -174,6 +182,8 @@ func (sb *schemaBuilder) buildUnionStruct(typ reflect.Type) error {
 	return nil
 }
 
+// isScalarType returns whether a graphql.Type is a scalar type (or a non-null
+// wrapped scalar type).
 func isScalarType(typ graphql.Type) bool {
 	if nonNull, ok := typ.(*graphql.NonNull); ok {
 		typ = nonNull.Type
@@ -184,6 +194,8 @@ func isScalarType(typ graphql.Type) bool {
 	return true
 }
 
+// buildField generates a graphQL field for a struct's field.  This field can be
+// used to "resolve" a response for a graphql request.
 func (sb *schemaBuilder) buildField(field reflect.StructField) (*graphql.Field, error) {
 	retType, err := sb.getType(field.Type)
 	if err != nil {
