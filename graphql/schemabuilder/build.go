@@ -37,52 +37,52 @@ type cachedType struct {
 // through struct fields and attached object methods to generate the entire
 // graphql graph of possible queries.  This function will be called recursively
 // for types as we go through the graph.
-func (sb *schemaBuilder) getType(t reflect.Type) (graphql.Type, error) {
+func (sb *schemaBuilder) getType(nodeType reflect.Type) (graphql.Type, error) {
 	// Support scalars and optional scalars. Scalars have precedence over structs
 	// to have eg. time.Time function as a scalar.
-	if typ, values, ok := sb.getEnum(t); ok {
-		return &graphql.NonNull{Type: &graphql.Enum{Type: typ, Values: values, ReverseMap: sb.enumMappings[t].ReverseMap}}, nil
+	if typeName, values, ok := sb.getEnum(nodeType); ok {
+		return &graphql.NonNull{Type: &graphql.Enum{Type: typeName, Values: values, ReverseMap: sb.enumMappings[nodeType].ReverseMap}}, nil
 	}
 
-	if typ, ok := getScalar(t); ok {
-		return &graphql.NonNull{Type: &graphql.Scalar{Type: typ}}, nil
+	if typeName, ok := getScalar(nodeType); ok {
+		return &graphql.NonNull{Type: &graphql.Scalar{Type: typeName}}, nil
 	}
-	if t.Kind() == reflect.Ptr {
-		if typ, ok := getScalar(t.Elem()); ok {
-			return &graphql.Scalar{Type: typ}, nil // XXX: prefix typ with "*"
+	if nodeType.Kind() == reflect.Ptr {
+		if typeName, ok := getScalar(nodeType.Elem()); ok {
+			return &graphql.Scalar{Type: typeName}, nil // XXX: prefix typ with "*"
 		}
 	}
 
 	// Structs
-	if t.Kind() == reflect.Struct {
-		if err := sb.buildStruct(t); err != nil {
+	if nodeType.Kind() == reflect.Struct {
+		if err := sb.buildStruct(nodeType); err != nil {
 			return nil, err
 		}
-		return &graphql.NonNull{Type: sb.types[t]}, nil
+		return &graphql.NonNull{Type: sb.types[nodeType]}, nil
 	}
-	if t.Kind() == reflect.Ptr && t.Elem().Kind() == reflect.Struct {
-		if err := sb.buildStruct(t.Elem()); err != nil {
+	if nodeType.Kind() == reflect.Ptr && nodeType.Elem().Kind() == reflect.Struct {
+		if err := sb.buildStruct(nodeType.Elem()); err != nil {
 			return nil, err
 		}
-		return sb.types[t.Elem()], nil
+		return sb.types[nodeType.Elem()], nil
 	}
 
-	switch t.Kind() {
+	switch nodeType.Kind() {
 	case reflect.Slice:
-		typ, err := sb.getType(t.Elem())
+		elementType, err := sb.getType(nodeType.Elem())
 		if err != nil {
 			return nil, err
 		}
 
 		// Wrap all slice elements in NonNull.
-		if _, ok := typ.(*graphql.NonNull); !ok {
-			typ = &graphql.NonNull{Type: typ}
+		if _, ok := elementType.(*graphql.NonNull); !ok {
+			elementType = &graphql.NonNull{Type: elementType}
 		}
 
-		return &graphql.NonNull{Type: &graphql.List{Type: typ}}, nil
+		return &graphql.NonNull{Type: &graphql.List{Type: elementType}}, nil
 
 	default:
-		return nil, fmt.Errorf("bad type %s: should be a scalar, slice, or struct type", t)
+		return nil, fmt.Errorf("bad type %s: should be a scalar, slice, or struct type", nodeType)
 	}
 }
 
