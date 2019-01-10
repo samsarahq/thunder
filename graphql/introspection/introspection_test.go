@@ -13,15 +13,18 @@ import (
 type User struct {
 	Name     string
 	MaybeAge *int64
+	Uuid     Uuid
 }
 
 type Vehicle struct {
 	Name  string
 	Speed int64
+	Uuid  Uuid
 }
 type Asset struct {
 	Name         string
 	BatteryLevel int64
+	Uuid         Uuid
 }
 
 type Gateway struct {
@@ -59,6 +62,12 @@ func makeSchema() *schemabuilder.Schema {
 	query.FieldFunc("usersConnectionPtr", func() ([]*User, error) {
 		return nil, nil
 	}, schemabuilder.Paginated)
+	query.FieldFunc("userUuid", func() (*Uuid, error) {
+		return nil, nil
+	})
+	query.FieldFunc("usersUuid", func() ([]Uuid, error) {
+		return nil, nil
+	})
 
 	query.FieldFunc("gateway", func() (*Gateway, error) {
 		return nil, nil
@@ -99,4 +108,15 @@ func TestComputeSchemaJSON(t *testing.T) {
 	var actual map[string]interface{}
 	json.Unmarshal(actualBytes, &actual)
 	snap.Snapshot("schema", actual)
+}
+
+// Uuid is a stub version of a "Text Marshalable" type.
+type Uuid struct{}
+
+func (u Uuid) MarshalText() ([]byte, error) {
+	return nil, nil
+}
+
+func (u *Uuid) UnmarshalText(data []byte) error {
+	return nil
 }
