@@ -1,6 +1,7 @@
 package schemabuilder
 
 import (
+	"encoding"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -171,6 +172,10 @@ func (sb *schemaBuilder) makeArgParserInner(typ reflect.Type) (*argParser, graph
 		return parser, argType, nil
 	}
 
+	if reflect.PtrTo(typ).Implements(textUnmarshalerType) {
+		return sb.makeTextUnmarshalerParser(typ)
+	}
+
 	switch typ.Kind() {
 	case reflect.Struct:
 		parser, argType, err := sb.makeStructParser(typ)
@@ -228,6 +233,29 @@ func (sb *schemaBuilder) getEnumArgParser(typ reflect.Type) (*argParser, graphql
 		return nil
 	}, Type: typ}, &graphql.Enum{Type: typ.Name(), Values: values, ReverseMap: sb.enumMappings[typ].ReverseMap}
 
+}
+
+// makeTextUnmarshalerParser returns an argParser that will read the passed in
+// value as a string and insert it into the destination type using the
+// encoding.TextUnmarshaler API.
+func (sb *schemaBuilder) makeTextUnmarshalerParser(typ reflect.Type) (*argParser, graphql.Type, error) {
+	return &argParser{
+		FromJSON: func(value interface{}, dest reflect.Value) error {
+			asString, ok := value.(string)
+			if !ok {
+				return errors.New("not a string")
+			}
+			if !dest.CanAddr() {
+				return errors.New("destination type cannot be referenced")
+			}
+			unmarshalable, ok := dest.Addr().Interface().(encoding.TextUnmarshaler)
+			if !ok {
+				return errors.New("not unmarshalable")
+			}
+			return unmarshalable.UnmarshalText([]byte(asString))
+		},
+		Type: typ,
+	}, &graphql.Scalar{Type: "string"}, nil
 }
 
 // makeSliceParser creates an arg parser for a slice field.
