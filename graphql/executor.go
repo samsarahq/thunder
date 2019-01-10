@@ -366,6 +366,9 @@ func (e *Executor) execute(ctx context.Context, typ Type, source interface{}, se
 	}
 	switch typ := typ.(type) {
 	case *Scalar:
+		if typ.Unwrapper != nil {
+			return typ.Unwrapper(source)
+		}
 		return unwrap(source), nil
 	case *Enum:
 		val := unwrap(source)
