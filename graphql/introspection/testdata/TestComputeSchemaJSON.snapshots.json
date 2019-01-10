@@ -47,6 +47,22 @@
                       "ofType": null
                     }
                   }
+                },
+                {
+                  "args": [],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
+                  "name": "uuid",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "string",
+                      "ofType": null
+                    }
+                  }
                 }
               ],
               "inputFields": [],
@@ -377,6 +393,18 @@
                   }
                 },
                 {
+                  "args": [],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
+                  "name": "userUuid",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "string",
+                    "ofType": null
+                  }
+                },
+                {
                   "args": [
                     {
                       "defaultValue": null,
@@ -547,6 +575,30 @@
                       "kind": "OBJECT",
                       "name": "UserConnection",
                       "ofType": null
+                    }
+                  }
+                },
+                {
+                  "args": [],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
+                  "name": "usersUuid",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "LIST",
+                      "name": "",
+                      "ofType": {
+                        "kind": "NON_NULL",
+                        "name": "",
+                        "ofType": {
+                          "kind": "SCALAR",
+                          "name": "string",
+                          "ofType": null
+                        }
+                      }
                     }
                   }
                 },
@@ -734,6 +786,20 @@
                       "ofType": null
                     }
                   }
+                },
+                {
+                  "defaultValue": null,
+                  "description": "",
+                  "name": "uuid",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "string",
+                      "ofType": null
+                    }
+                  }
                 }
               ],
               "interfaces": [],
@@ -773,6 +839,22 @@
                     "ofType": {
                       "kind": "SCALAR",
                       "name": "int64",
+                      "ofType": null
+                    }
+                  }
+                },
+                {
+                  "args": [],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
+                  "name": "uuid",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "string",
                       "ofType": null
                     }
                   }
@@ -944,6 +1026,22 @@
                   "description": "",
                   "isDeprecated": false,
                   "name": "name",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "string",
+                      "ofType": null
+                    }
+                  }
+                },
+                {
+                  "args": [],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
+                  "name": "uuid",
                   "type": {
                     "kind": "NON_NULL",
                     "name": "",
