@@ -1,6 +1,7 @@
 package schemabuilder
 
 import (
+	"encoding"
 	"fmt"
 	"reflect"
 	"time"
@@ -53,6 +54,10 @@ func (sb *schemaBuilder) getType(nodeType reflect.Type) (graphql.Type, error) {
 		}
 	}
 
+	if nodeType.Implements(textMarshalerType) {
+		return sb.getTextMarshalerType(nodeType)
+	}
+
 	// Structs
 	if nodeType.Kind() == reflect.Struct {
 		if err := sb.buildStruct(nodeType); err != nil {
@@ -84,6 +89,34 @@ func (sb *schemaBuilder) getType(nodeType reflect.Type) (graphql.Type, error) {
 	default:
 		return nil, fmt.Errorf("bad type %s: should be a scalar, slice, or struct type", nodeType)
 	}
+}
+
+// getTextMarshalerType returns a graphQL type that can be used to parse a
+// encoding.TextMarshaler and convert it's value into a string in the graphQL
+// response.
+func (sb *schemaBuilder) getTextMarshalerType(typ reflect.Type) (graphql.Type, error) {
+	scalar := &graphql.Scalar{
+		Type: "string",
+		Unwrapper: func(source interface{}) (interface{}, error) {
+			i := reflect.ValueOf(source)
+			if i.Kind() == reflect.Ptr && i.IsNil() {
+				return "", nil
+			}
+			marshalVal, ok := i.Interface().(encoding.TextMarshaler)
+			if !ok {
+				return nil, fmt.Errorf("cannot convert field to text")
+			}
+			val, err := marshalVal.MarshalText()
+			if err != nil {
+				return nil, err
+			}
+			return string(val), nil
+		},
+	}
+	if typ.Kind() == reflect.Ptr {
+		return scalar, nil
+	}
+	return &graphql.NonNull{Type: scalar}, nil
 }
 
 // getEnum gets the Enum type information for the passed in reflect.Type by
