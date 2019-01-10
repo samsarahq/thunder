@@ -43,7 +43,12 @@ func (s *Snapshotter) SnapshotQuery(name, query string, opts ...Option) {
 	opt := applyOpts(opts)
 
 	q := graphql.MustParse(query, nil)
-	require.NoError(s.t, graphql.PrepareQuery(s.schema.Query, q.SelectionSet))
+	err := graphql.PrepareQuery(s.schema.Query, q.SelectionSet)
+	if err != nil && opt.recordError {
+		s.Snapshot(name, struct{ Error string }{err.Error()})
+		return
+	}
+	require.NoError(s.t, err)
 	output, err := s.executor.Execute(context.Background(), s.schema.Query, nil, q)
 
 	if err != nil && opt.recordError {
