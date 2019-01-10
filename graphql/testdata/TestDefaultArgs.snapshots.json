@@ -1,0 +1,32 @@
+[
+  {
+    "Name": "happy path all provided",
+    "Values": [
+      {
+        "inner": {
+          "optionalValue": "teeeeeeeest",
+          "requiredValue": "requiredInput!"
+        }
+      }
+    ]
+  },
+  {
+    "Name": "missing required parameter",
+    "Values": [
+      {
+        "Error": "error parsing args for \"inner\": requiredInput: not a string"
+      }
+    ]
+  },
+  {
+    "Name": "missing optional parameter does not error",
+    "Values": [
+      {
+        "inner": {
+          "optionalValue": "",
+          "requiredValue": "teeeeeeeest"
+        }
+      }
+    ]
+  }
+]
