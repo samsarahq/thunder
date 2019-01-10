@@ -3,6 +3,7 @@ package schemabuilder
 import (
 	"bytes"
 	"context"
+	"encoding"
 	"fmt"
 	"reflect"
 	"strings"
@@ -85,4 +86,5 @@ func parseGraphQLFieldInfo(field reflect.StructField) (*graphQLFieldInfo, error)
 var errType = reflect.TypeOf((*error)(nil)).Elem()
 var contextType = reflect.TypeOf((*context.Context)(nil)).Elem()
 var selectionSetType = reflect.TypeOf(&graphql.SelectionSet{})
-
+var textMarshalerType = reflect.TypeOf((*encoding.TextMarshaler)(nil)).Elem()
+var textUnmarshalerType = reflect.TypeOf((*encoding.TextUnmarshaler)(nil)).Elem()
