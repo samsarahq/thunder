@@ -2,12 +2,14 @@
 
 ## [Unreleased]
 
+## [0.5.0] 2019-01-10
+
 ### Changed
 
 #### `graphql`
 
-- Added support for marking input parameters as `graphql:",optional"` for graphql functions. These fields will be guaranteed to not error if they are not provided by callers.
-- Added automatic support for encoding.TextMarshaler/Unmarshaler types to be exposed as string fields.
+- Added support for marking input parameters as `graphql:",optional"` for graphql functions. These fields will be guaranteed to not error if they are not provided by callers. ([#215](https://github.com/samsarahq/thunder/pull/215))
+- Added automatic support for encoding.TextMarshaler/Unmarshaler types to be exposed as string fields. ([#214](https://github.com/samsarahq/thunder/pull/214))
 - Object key must now be scalar. ([#190](https://github.com/samsarahq/thunder/pull/190))
 - `ErrorCause` is a new exported function that can be used to unwrap pathErrors returned from middlleware. ([#191](https://github.com/samsarahq/thunder/pull/191))
 - `FieldFunc` now supports Pagination option, `PaginateFieldFunc` is deprecated. ([#197](https://github.com/samsarahq/thunder/pull/197))
