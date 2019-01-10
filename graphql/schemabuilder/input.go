@@ -131,6 +131,9 @@ func (sb *schemaBuilder) getStructObjectFields(typ reflect.Type) (*graphql.Input
 		if err != nil {
 			return nil, nil, err
 		}
+		if fieldInfo.OptionalInputField {
+			parser = wrapWithZeroValue(parser)
+		}
 
 		fields[fieldInfo.Name] = argField{
 			field:  field,
@@ -211,6 +214,22 @@ func wrapPtrParser(inner *argParser) *argParser {
 			return nil
 		},
 		Type: reflect.PtrTo(inner.Type),
+	}
+}
+
+// wrapWithZeroValue wraps an ArgParser with a helper that will convert non-
+// provided parameters into the argParser's zero value (basically do nothing).
+func wrapWithZeroValue(inner *argParser) *argParser {
+	return &argParser{
+		FromJSON: func(value interface{}, dest reflect.Value) error {
+			if value == nil {
+				// optional value
+				return nil
+			}
+
+			return inner.FromJSON(value, dest)
+		},
+		Type: inner.Type,
 	}
 }
 
