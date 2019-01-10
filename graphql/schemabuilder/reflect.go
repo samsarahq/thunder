@@ -49,6 +49,10 @@ type graphQLFieldInfo struct {
 
 	// KeyField indicates that this field should be treated as a Object Key field.
 	KeyField bool
+
+	// OptionalInputField indicates that this field should be treated as an optional
+	// field on graphQL input args.
+	OptionalInputField bool
 }
 
 // parseGraphQLFieldInfo parses a struct field and returns a struct with the
@@ -70,16 +74,20 @@ func parseGraphQLFieldInfo(field reflect.StructField) (*graphQLFieldInfo, error)
 	}
 
 	var key bool
+	var optional bool
 
 	if len(tags) > 1 {
 		for _, tag := range tags[1:] {
-			if tag != "key" || key {
+			if tag == "key" && !key {
+				key = true
+			} else if tag == "optional" && !optional {
+				optional = true
+			} else {
 				return nil, fmt.Errorf("field %s has unexpected tag %s", name, tag)
 			}
-			key = true
 		}
 	}
-	return &graphQLFieldInfo{Name: name, KeyField: key}, nil
+	return &graphQLFieldInfo{Name: name, KeyField: key, OptionalInputField: optional}, nil
 }
 
 // Common Types that we will need to perform type assertions against.
