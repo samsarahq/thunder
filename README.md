@@ -43,6 +43,8 @@ func registerFriend(schema *schemabuilder.Schema) {
 }
 ```
 
+## [Pagination](./doc/pagination.md)
+
 ## Live queries
 
 Thunder has support for automatically updating queries using _resolver

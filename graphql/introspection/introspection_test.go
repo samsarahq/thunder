@@ -2,27 +2,29 @@ package introspection_test
 
 import (
 	"encoding/json"
-	"io/ioutil"
-	"os"
-	"reflect"
 	"testing"
 
+	"github.com/samsarahq/go/snapshotter"
 	"github.com/samsarahq/thunder/graphql/introspection"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
+	"github.com/stretchr/testify/require"
 )
 
 type User struct {
 	Name     string
 	MaybeAge *int64
+	Uuid     Uuid
 }
 
 type Vehicle struct {
 	Name  string
 	Speed int64
+	Uuid  Uuid
 }
 type Asset struct {
 	Name         string
 	BatteryLevel int64
+	Uuid         Uuid
 }
 
 type Gateway struct {
@@ -54,10 +56,16 @@ func makeSchema() *schemabuilder.Schema {
 	query.FieldFunc("nullableUser", func() (*User, error) {
 		return nil, nil
 	})
-	query.PaginateFieldFunc("usersConnection", func() ([]User, error) {
+	query.FieldFunc("usersConnection", func() ([]User, error) {
+		return nil, nil
+	}, schemabuilder.Paginated)
+	query.FieldFunc("usersConnectionPtr", func() ([]*User, error) {
+		return nil, nil
+	}, schemabuilder.Paginated)
+	query.FieldFunc("userUuid", func() (*Uuid, error) {
 		return nil, nil
 	})
-	query.PaginateFieldFunc("usersConnectionPtr", func() ([]*User, error) {
+	query.FieldFunc("usersUuid", func() ([]Uuid, error) {
 		return nil, nil
 	})
 
@@ -90,27 +98,25 @@ func makeSchema() *schemabuilder.Schema {
 }
 
 func TestComputeSchemaJSON(t *testing.T) {
+	snap := snapshotter.New(t)
+	defer snap.Verify()
 	schemaBuilderSchema := makeSchema()
 
 	actualBytes, err := introspection.ComputeSchemaJSON(*schemaBuilderSchema)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+
 	var actual map[string]interface{}
 	json.Unmarshal(actualBytes, &actual)
+	snap.Snapshot("schema", actual)
+}
 
-	if os.Getenv("UPDATE_TEST_RESULTS") != "" {
-		ioutil.WriteFile("test-schema.json", actualBytes, 0644)
-	}
+// Uuid is a stub version of a "Text Marshalable" type.
+type Uuid struct{}
 
-	expectedBytes, err := ioutil.ReadFile("test-schema.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var expected map[string]interface{}
-	json.Unmarshal(expectedBytes, &expected)
+func (u Uuid) MarshalText() ([]byte, error) {
+	return nil, nil
+}
 
-	if !reflect.DeepEqual(expected, actual) {
-		t.Errorf("schema JSONs do not match:\n---expected---\n%+v\n---actual---\n%+v", expected, actual)
-	}
+func (u *Uuid) UnmarshalText(data []byte) error {
+	return nil
 }

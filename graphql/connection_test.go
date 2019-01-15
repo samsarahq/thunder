@@ -7,8 +7,10 @@ import (
 
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
+	"github.com/samsarahq/thunder/internal/testgraphql"
 	"github.com/samsarahq/thunder/reactive"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type User struct {
@@ -25,7 +27,11 @@ type Args struct {
 }
 
 type Item struct {
-	Id int64
+	Id         int64
+	FilterText string
+	Number     int64
+	String     string
+	Float      float64
 }
 
 func TestConnection(t *testing.T) {
@@ -41,437 +47,549 @@ func TestConnection(t *testing.T) {
 	inner := schema.Object("inner", Inner{})
 	item := schema.Object("item", Item{})
 	item.Key("id")
-	inner.PaginateFieldFunc("innerConnection", func(args Args) []Item {
-		retList := make([]Item, 5)
-		retList[0] = Item{Id: 1}
-		retList[1] = Item{Id: 2}
-		retList[2] = Item{Id: 3}
-		retList[3] = Item{Id: 4}
-		retList[4] = Item{Id: 5}
-		return retList
+	inner.FieldFunc("innerConnection", func(args Args) []Item {
+		return []Item{{Id: 1}, {Id: 2}, {Id: 3}, {Id: 4}, {Id: 5}}
+	}, schemabuilder.Paginated)
+	inner.FieldFunc("innerConnectionWithFilter", func() []Item {
+		return []Item{
+			{Id: 1, FilterText: "can"},
+			{Id: 2, FilterText: "man"},
+			{Id: 3, FilterText: "cannot"},
+			{Id: 4, FilterText: "soban"},
+			{Id: 5, FilterText: "socan"},
+		}
+	}, schemabuilder.Paginated, schemabuilder.TextFilterFields{
+		"foo": func(ctx context.Context, i Item) string {
+			return i.FilterText
+		},
+		"bar": func(ctx context.Context, i *Item) string {
+			return ""
+		},
 	})
-	inner.PaginateFieldFunc("innerConnectionNilArg", func() []Item {
-		retList := make([]Item, 5)
-		retList[0] = Item{Id: 1}
-		retList[1] = Item{Id: 2}
-		retList[2] = Item{Id: 3}
-		retList[3] = Item{Id: 4}
-		retList[4] = Item{Id: 5}
-		return retList
+	inner.FieldFunc("innerConnectionWithSort", func() []Item {
+		return []Item{
+			{Id: 1, Number: 1, String: "1", Float: 1.0},
+			{Id: 2, Number: 3, String: "3", Float: 3.0},
+			{Id: 3, Number: 5, String: "5", Float: 5.0},
+			{Id: 4, Number: 2, String: "2", Float: 2.0},
+			{Id: 5, Number: 4, String: "4", Float: 4.0},
+		}
+	}, schemabuilder.Paginated, schemabuilder.SortFields{
+		"numbers": func(ctx context.Context, i Item) int64 {
+			return i.Number
+		},
+		"strings": func(ctx context.Context, i *Item) string {
+			return i.String
+		},
+		"floats": func(ctx context.Context, i Item) float64 {
+			return i.Float
+		},
 	})
-	inner.PaginateFieldFunc("innerConnectionWithCtxAndError", func(ctx context.Context, args Args) ([]Item, error) {
-		retList := make([]Item, 5)
-		retList[0] = Item{Id: 1}
-		retList[1] = Item{Id: 2}
-		retList[2] = Item{Id: 3}
-		retList[3] = Item{Id: 4}
-		retList[4] = Item{Id: 5}
-		return retList, nil
-	})
-	inner.PaginateFieldFunc("innerConnectionWithError", func(ctx context.Context, args Args) ([]*Item, error) {
+	inner.FieldFunc("innerConnectionNilArg", func() []Item {
+		return []Item{{Id: 1}, {Id: 2}, {Id: 3}, {Id: 4}, {Id: 5}}
+	}, schemabuilder.Paginated)
+	inner.FieldFunc("innerConnectionWithCtxAndError", func(ctx context.Context, args Args) ([]Item, error) {
+		return []Item{{Id: 1}, {Id: 2}, {Id: 3}, {Id: 4}, {Id: 5}}, nil
+	}, schemabuilder.Paginated)
+	inner.FieldFunc("innerConnectionWithError", func(ctx context.Context, args Args) ([]*Item, error) {
 		return nil, graphql.NewSafeError("this is an error")
-	})
+	}, schemabuilder.Paginated)
 	builtSchema := schema.MustBuild()
 
-	// Test for the normal case with first and after.
-	q := graphql.MustParse(`
-		{
-			inner {
-				innerConnection(first: 1, after: "", additional: "jk") {
-					totalCount
-					edges {
-						node {
-							id
-						}
-						cursor
+	snap := testgraphql.NewSnapshotter(t, builtSchema)
+	defer snap.Verify()
+
+	snap.SnapshotQuery("Pagination, first + after", `{
+		inner {
+			innerConnection(first: 1, after: "", additional: "jk") {
+				totalCount
+				edges {
+					node {
+						id
 					}
-					pageInfo {
-						hasNextPage
-						hasPrevPage
-						startCursor
-						endCursor
-					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
 				}
 			}
-	    }`, nil)
+		}
+	}`)
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
-		t.Error(err)
-	}
-	e := graphql.Executor{}
-	val, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
-	assert.Nil(t, err)
-
-	assert.Equal(t, map[string]interface{}{
-		"inner": map[string]interface{}{
-			"innerConnection": map[string]interface{}{
-				"totalCount": int64(5),
-				"edges": []interface{}{map[string]interface{}{
-					"node": map[string]interface{}{
-						"__key": int64(1),
-						"id":    int64(1),
-					},
-					"cursor": "MQ==",
-				},
-				},
-				"pageInfo": map[string]interface{}{
-					"hasNextPage": true,
-					"hasPrevPage": false,
-					"startCursor": "MQ==",
-					"endCursor":   "MQ==",
-				},
-			},
-		},
-	}, val)
-
-	// Test for last and before with pages.
-	q = graphql.MustParse(`
-		{
-			inner {
-				innerConnection(last: 2, before: "", additional: "jk") {
-					totalCount
-					edges {
-						node {
-							id
-						}
-						cursor
+	snap.SnapshotQuery("Pagination, last + before", `{
+		inner {
+			innerConnection(last: 2, before: "", additional: "jk") {
+				totalCount
+				edges {
+					node {
+						id
 					}
-					pageInfo {
-						hasNextPage
-						hasPrevPage
-						startCursor
-						endCursor
-						pages
-					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+					pages
 				}
 			}
-	    }`, nil)
+		}
+	}`)
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
-		t.Error(err)
-	}
-	e = graphql.Executor{}
-	val, err = e.Execute(context.Background(), builtSchema.Query, nil, q)
-	assert.Nil(t, err)
-	assert.Equal(t, map[string]interface{}{
-		"inner": map[string]interface{}{
-			"innerConnection": map[string]interface{}{
-				"totalCount": int64(5),
-				"edges": []interface{}{
-					map[string]interface{}{
-						"node": map[string]interface{}{
-							"__key": int64(4),
-							"id":    int64(4),
-						},
-						"cursor": "NA==",
-					},
-					map[string]interface{}{
-						"node": map[string]interface{}{
-							"__key": int64(5),
-							"id":    int64(5),
-						},
-						"cursor": "NQ==",
-					},
-				},
-				"pageInfo": map[string]interface{}{
-					"hasNextPage": false,
-					"hasPrevPage": true,
-					"startCursor": "NA==",
-					"endCursor":   "NQ==",
-					"pages":       []interface{}{"", "Mg==", "NA=="},
-				},
-			},
-		},
-	}, val)
-
-	q = graphql.MustParse(`
-		{
-			inner {
-				innerConnection(additional: "jk") {
-					totalCount
-					edges {
-						node {
-							id
-						}
-						cursor
+	snap.SnapshotQuery("Pagination, no args given", `{
+		inner {
+			innerConnection(additional: "jk") {
+				totalCount
+				edges {
+					node {
+						id
 					}
-					pageInfo {
-						hasNextPage
-						hasPrevPage
-						startCursor
-						endCursor
-						pages
-					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+					pages
 				}
 			}
-	    }`, nil)
+		}
+	}`)
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
-		t.Error(err)
-	}
-	e = graphql.Executor{}
-	val, err = e.Execute(context.Background(), builtSchema.Query, nil, q)
-	assert.Nil(t, err)
-	assert.Equal(t, map[string]interface{}{
-		"inner": map[string]interface{}{
-			"innerConnection": map[string]interface{}{
-				"totalCount": int64(5),
-				"edges": []interface{}{
-					map[string]interface{}{
-						"node": map[string]interface{}{
-							"__key": int64(1),
-							"id":    int64(1),
-						},
-						"cursor": "MQ==",
-					},
-					map[string]interface{}{
-						"node": map[string]interface{}{
-							"__key": int64(2),
-							"id":    int64(2),
-						},
-						"cursor": "Mg==",
-					},
-					map[string]interface{}{
-						"node": map[string]interface{}{
-							"__key": int64(3),
-							"id":    int64(3),
-						},
-						"cursor": "Mw==",
-					},
-					map[string]interface{}{
-						"node": map[string]interface{}{
-							"__key": int64(4),
-							"id":    int64(4),
-						},
-						"cursor": "NA==",
-					},
-					map[string]interface{}{
-						"node": map[string]interface{}{
-							"__key": int64(5),
-							"id":    int64(5),
-						},
-						"cursor": "NQ==",
-					},
-				},
-				"pageInfo": map[string]interface{}{
-					"hasNextPage": false,
-					"hasPrevPage": false,
-					"startCursor": "MQ==",
-					"endCursor":   "NQ==",
-					"pages":       []interface{}{""},
-				},
-			},
-		},
-	}, val)
-
-	q = graphql.MustParse(`
-		{
-			inner {
-				innerConnectionNilArg(first: 1, after: "") {
-					totalCount
-					edges {
-						node {
-							id
-						}
-						cursor
+	snap.SnapshotQuery("Pagination, nil args", `{
+		inner {
+			innerConnectionNilArg(first: 1, after: "") {
+				totalCount
+				edges {
+					node {
+						id
 					}
-					pageInfo {
-						hasNextPage
-						hasPrevPage
-						startCursor
-						endCursor
-					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
 				}
 			}
-	    }`, nil)
+		}
+	}`)
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
-		t.Error(err)
-	}
-	e = graphql.Executor{}
-	val, err = e.Execute(context.Background(), builtSchema.Query, nil, q)
-	assert.Nil(t, err)
-
-	q = graphql.MustParse(`
-		{
-			inner {
-				innerConnectionWithCtxAndError(first: 1, after: "", additional: "jk") {
-					totalCount
-					edges {
-						node {
-							id
-						}
-						cursor
+	snap.SnapshotQuery("Pagination, with ctx and error", `{
+		inner {
+			innerConnectionWithCtxAndError(first: 1, after: "", additional: "jk") {
+				totalCount
+				edges {
+					node {
+						id
 					}
-					pageInfo {
-						hasNextPage
-						hasPrevPage
-						startCursor
-						endCursor
-					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
 				}
 			}
-	    }`, nil)
+		}
+	}`)
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
-		t.Error(err)
-	}
-	e = graphql.Executor{}
-	val, err = e.Execute(context.Background(), builtSchema.Query, nil, q)
-	assert.Nil(t, err)
-	assert.Equal(t, map[string]interface{}{
-		"inner": map[string]interface{}{
-			"innerConnectionWithCtxAndError": map[string]interface{}{
-				"totalCount": int64(5),
-				"edges": []interface{}{map[string]interface{}{
-					"node": map[string]interface{}{
-						"__key": int64(1),
-						"id":    int64(1),
-					},
-					"cursor": "MQ==",
-				},
-				},
-				"pageInfo": map[string]interface{}{
-					"hasNextPage": true,
-					"hasPrevPage": false,
-					"startCursor": "MQ==",
-					"endCursor":   "MQ==",
-				},
-			},
-		},
-	}, val)
-
-	q = graphql.MustParse(`
-		{
-			inner {
-				innerConnectionWithError(first: 1, after: "", additional: "jk") {
-					totalCount
-					edges {
-						node {
-							id
-						}
-						cursor
+	snap.SnapshotQuery("Pagination, with ctx and error", `{
+		inner {
+			innerConnectionWithError(first: 1, after: "", additional: "jk") {
+				totalCount
+				edges {
+					node {
+						id
 					}
-					pageInfo {
-						hasNextPage
-						hasPrevPage
-						startCursor
-						endCursor
-					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
 				}
 			}
-	    }`, nil)
+		}
+	}`, testgraphql.RecordError)
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
-		t.Error(err)
-	}
-
-	e = graphql.Executor{}
-	_, err = e.Execute(context.Background(), builtSchema.Query, nil, q)
-	if err == nil || err.Error() != "this is an error" {
-		t.Errorf("bad error: %v", err)
-	}
-
-	q = graphql.MustParse(`
-		{
-			inner {
-				innerConnection(last: -2, before: "", additional: "jk") {
-					totalCount
-					edges {
-						node {
-							id
-						}
-						cursor
+	snap.SnapshotQuery("Pagination, with error", `{
+		inner {
+			innerConnectionWithError(first: 1, after: "", additional: "jk") {
+				totalCount
+				edges {
+					node {
+						id
 					}
-					pageInfo {
-						hasNextPage
-						hasPrevPage
-						startCursor
-						endCursor
-						pages
-					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
 				}
 			}
-	    }`, nil)
+		}
+	}`, testgraphql.RecordError)
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
-		t.Error(err)
-	}
-	e = graphql.Executor{}
-	val, err = e.Execute(context.Background(), builtSchema.Query, nil, q)
-	if err == nil || err.Error() != "last should be a non-negative integer" {
-		t.Errorf("bad error: %v", err)
-	}
+	snap.SnapshotQuery("Pagination, with error", `{
+		inner {
+			innerConnection(last: -2, before: "", additional: "jk") {
+				totalCount
+				edges {
+					node {
+						id
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+					pages
+				}
+			}
+		}
+	}`, testgraphql.RecordError)
 
+	snap.SnapshotQuery("Pagination, filter", `{
+		inner {
+			filterByCan: innerConnectionWithFilter(filterText: "can", first: 5, after: "") {
+				totalCount
+				edges {
+					node {
+						id
+						filterText
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+					pages
+				}
+			}
+			filterByBan: innerConnectionWithFilter(filterText: "ban", first: 5, after: "") {
+				totalCount
+				edges {
+					node {
+						id
+						filterText
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+					pages
+				}
+			}
+		}
+	}`)
+
+	snap.SnapshotQuery("Pagination, sorts", `{
+		inner {
+			numbersAsc: innerConnectionWithSort(sortBy: "numbers", sortOrder: "asc", first: 5, after: "") {
+				totalCount
+				edges {
+					node {
+						id
+						number
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+					pages
+				}
+			}
+			numbersDesc: innerConnectionWithSort(sortBy: "numbers", sortOrder: "desc", first: 5, after: "") {
+				totalCount
+				edges {
+					node {
+						id
+						number
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+					pages
+				}
+			}
+			stringsAsc: innerConnectionWithSort(sortBy: "strings", sortOrder: "asc", first: 5, after: "") {
+				totalCount
+				edges {
+					node {
+						id
+						string
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+					pages
+				}
+			}
+			stringsDesc: innerConnectionWithSort(sortBy: "strings", sortOrder: "desc", first: 5, after: "") {
+				totalCount
+				edges {
+					node {
+						id
+						string
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+					pages
+				}
+			}
+			floatsAsc: innerConnectionWithSort(sortBy: "floats", sortOrder: "asc", first: 5, after: "") {
+				totalCount
+				edges {
+					node {
+						id
+						float
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+					pages
+				}
+			}
+			floatsDesc: innerConnectionWithSort(sortBy: "floats", sortOrder: "desc", first: 5, after: "") {
+				totalCount
+				edges {
+					node {
+						id
+						float
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+					pages
+				}
+			}
+		}
+	}`)
 }
 
 func TestPaginateBuildFailure(t *testing.T) {
-	badMethodStr := "bad method inner on type schemabuilder.query:"
+	type Inner struct{}
 
-	schema := schemabuilder.NewSchema()
-	type Inner struct {
-	}
+	t.Run("slice type return error", func(t *testing.T) {
+		schema := schemabuilder.NewSchema()
 
-	query := schema.Query()
-	query.FieldFunc("inner", func() Inner {
-		return Inner{}
+		query := schema.Query()
+		query.FieldFunc("inner", func() Inner {
+			return Inner{}
+		})
+
+		inner := schema.Object("inner", Inner{})
+		item := schema.Object("item", Item{})
+		item.Key("id")
+
+		inner.FieldFunc("innerConnectionWithCtxAndError", func(ctx context.Context, args Args) (*Item, error) {
+			return nil, nil
+		}, schemabuilder.Paginated)
+		_, err := schema.Build()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "paginated field func must return a slice type")
 	})
 
-	inner := schema.Object("inner", Inner{})
-	item := schema.Object("item", Item{})
-	item.Key("id")
+	t.Run("key field error", func(t *testing.T) {
+		schema := schemabuilder.NewSchema()
+		query := schema.Query()
+		query.FieldFunc("inner", func() Inner {
+			return Inner{}
+		})
 
-	inner.PaginateFieldFunc("innerConnectionWithCtxAndError", func(ctx context.Context, args Args) (*Item, error) {
-		return nil, nil
-	})
-	_, err := schema.Build()
-	if err == nil || err.Error() != fmt.Sprintf("%v paginated field func must return a slice type", badMethodStr) {
-		t.Errorf("bad error: %v", err)
-	}
+		inner := schema.Object("inner", Inner{})
+		_ = schema.Object("item", Item{})
 
-	schema = schemabuilder.NewSchema()
-	query = schema.Query()
-	query.FieldFunc("inner", func() Inner {
-		return Inner{}
-	})
-
-	inner = schema.Object("inner", Inner{})
-	item = schema.Object("item", Item{})
-
-	inner.PaginateFieldFunc("innerConnectionWithCtxAndError", func(ctx context.Context, args Args) ([]Item, error) {
-		return nil, nil
-	})
-	_, err = schema.Build()
-	if err == nil || err.Error() != fmt.Sprintf("%v a key field must be registered for paginated objects", badMethodStr) {
-		t.Errorf("bad error: %v", err)
-	}
-
-	schema = schemabuilder.NewSchema()
-	type StructWithKey struct {
-		Id int64
-	}
-	query = schema.Query()
-	query.FieldFunc("inner", func() Inner {
-		return Inner{}
+		inner.FieldFunc("innerConnectionWithCtxAndError", func(ctx context.Context, args Args) ([]Item, error) {
+			return nil, nil
+		}, schemabuilder.Paginated)
+		_, err := schema.Build()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "a key field must be registered for paginated objects")
 	})
 
-	inner = schema.Object("inner", Inner{})
-	object := schema.Object("structWithKey", StructWithKey{})
-	object.Key("wrongField")
-	inner.PaginateFieldFunc("innerConnectionWithWrongKey", func(ctx context.Context, args Args) ([]StructWithKey, error) {
-		return nil, nil
-	})
-	_, err = schema.Build()
-	if err == nil || err.Error() != fmt.Sprintf("%v key field doesn't exist on object", badMethodStr) {
-		t.Errorf("bad error: %v", err)
-	}
+	t.Run("key field doesn't exist error", func(t *testing.T) {
+		schema := schemabuilder.NewSchema()
+		type StructWithKey struct {
+			Id int64
+		}
+		query := schema.Query()
+		query.FieldFunc("inner", func() Inner {
+			return Inner{}
+		})
 
-	schema = schemabuilder.NewSchema()
-	query = schema.Query()
-	query.FieldFunc("inner", func() Inner {
-		return Inner{}
+		inner := schema.Object("inner", Inner{})
+		object := schema.Object("structWithKey", StructWithKey{})
+		object.Key("wrongField")
+		inner.FieldFunc("innerConnectionWithWrongKey", func(ctx context.Context, args Args) ([]StructWithKey, error) {
+			return nil, nil
+		}, schemabuilder.Paginated)
+		_, err := schema.Build()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "key field doesn't exist on object")
 	})
 
+	t.Run("empty filterText return", func(t *testing.T) {
+		schema := schemabuilder.NewSchema()
+		type StructWithKey struct {
+			Id int64
+		}
+		query := schema.Query()
+		query.FieldFunc("inner", func() Inner {
+			return Inner{}
+		})
+
+		inner := schema.Object("inner", Inner{})
+		object := schema.Object("structWithKey", StructWithKey{})
+		object.Key("id")
+		inner.FieldFunc("connection", func(ctx context.Context, args Args) ([]StructWithKey, error) {
+			return nil, nil
+		}, schemabuilder.Paginated, schemabuilder.TextFilterFields{
+			"noargs": func() {},
+		})
+
+		_, err := schema.Build()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "unsupported return type <nil>")
+	})
+
+	t.Run("non-string filterText return", func(t *testing.T) {
+		schema := schemabuilder.NewSchema()
+		type StructWithKey struct {
+			Id int64
+		}
+		query := schema.Query()
+		query.FieldFunc("inner", func() Inner {
+			return Inner{}
+		})
+
+		inner := schema.Object("inner", Inner{})
+		object := schema.Object("structWithKey", StructWithKey{})
+		object.Key("id")
+		inner.FieldFunc("connection", func(ctx context.Context, args Args) ([]StructWithKey, error) {
+			return nil, nil
+		}, schemabuilder.Paginated, schemabuilder.TextFilterFields{
+			"intReturn": func() int64 { return 0 },
+		})
+
+		_, err := schema.Build()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "unsupported return type int64")
+	})
+
+	t.Run("filterText with args", func(t *testing.T) {
+		schema := schemabuilder.NewSchema()
+		type StructWithKey struct {
+			Id int64
+		}
+		query := schema.Query()
+		query.FieldFunc("inner", func() Inner { return Inner{} })
+
+		inner := schema.Object("inner", Inner{})
+		object := schema.Object("structWithKey", StructWithKey{})
+		object.Key("id")
+		inner.FieldFunc("connection", func(ctx context.Context, i *Inner, args Args) ([]StructWithKey, error) {
+			return nil, nil
+		}, schemabuilder.Paginated, schemabuilder.TextFilterFields{
+			"someArgs": func(ctx context.Context, i *StructWithKey, args Args) string {
+				return ""
+			},
+		})
+
+		_, err := schema.Build()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "text filter fields can't take arguments")
+	})
+
+	t.Run("non-string sort return", func(t *testing.T) {
+		schema := schemabuilder.NewSchema()
+		type StructWithKey struct {
+			Id int64
+		}
+		query := schema.Query()
+		query.FieldFunc("inner", func() Inner {
+			return Inner{}
+		})
+
+		inner := schema.Object("inner", Inner{})
+		object := schema.Object("structWithKey", StructWithKey{})
+		object.Key("id")
+		inner.FieldFunc("connection", func(ctx context.Context, args Args) ([]StructWithKey, error) {
+			return nil, nil
+		}, schemabuilder.Paginated, schemabuilder.SortFields{
+			"badReturn": func() struct{} { return struct{}{} },
+		})
+
+		_, err := schema.Build()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "unsupported return type struct {}")
+	})
+
+	t.Run("sort with args", func(t *testing.T) {
+		schema := schemabuilder.NewSchema()
+		type StructWithKey struct {
+			Id int64
+		}
+		query := schema.Query()
+		query.FieldFunc("inner", func() Inner { return Inner{} })
+
+		inner := schema.Object("inner", Inner{})
+		object := schema.Object("structWithKey", StructWithKey{})
+		object.Key("id")
+		inner.FieldFunc("connection", func(ctx context.Context, i *Inner, args Args) ([]StructWithKey, error) {
+			return nil, nil
+		}, schemabuilder.Paginated, schemabuilder.SortFields{
+			"someArgs": func(ctx context.Context, i *StructWithKey, args Args) string {
+				return ""
+			},
+		})
+
+		_, err := schema.Build()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "sort fields can't take arguments")
+	})
 }
 
 func TestPaginateNodeTypeFailure(t *testing.T) {
@@ -545,16 +663,16 @@ func TestEmbeddedArgs(t *testing.T) {
 		retList[4] = Item{Id: 5}
 		return retList,
 			schemabuilder.PaginationInfo{
-				HasNextPage: true,
-				HasPrevPage: false,
-				TotalCount:  func() int64 { return int64(5) },
+				HasNextPage:    true,
+				HasPrevPage:    false,
+				TotalCountFunc: func() int64 { return int64(5) },
 			}, nil
 	})
 	builtSchema := schema.MustBuild()
 	q := graphql.MustParse(`
 		{
 			inner {
-				innerConnection(first: 1, after: "", additional: "jk") {
+				innerConnection(first: 5, after: "", additional: "jk") {
 					totalCount
 					edges {
 						node {
@@ -583,19 +701,48 @@ func TestEmbeddedArgs(t *testing.T) {
 		"inner": map[string]interface{}{
 			"innerConnection": map[string]interface{}{
 				"totalCount": int64(5),
-				"edges": []interface{}{map[string]interface{}{
-					"node": map[string]interface{}{
-						"__key": int64(1),
-						"id":    int64(1),
+				"edges": []interface{}{
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": int64(1),
+							"id":    int64(1),
+						},
+						"cursor": "MQ==",
 					},
-					"cursor": "MQ==",
-				},
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": int64(2),
+							"id":    int64(2),
+						},
+						"cursor": "Mg==",
+					},
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": int64(3),
+							"id":    int64(3),
+						},
+						"cursor": "Mw==",
+					},
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": int64(4),
+							"id":    int64(4),
+						},
+						"cursor": "NA==",
+					},
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": int64(5),
+							"id":    int64(5),
+						},
+						"cursor": "NQ==",
+					},
 				},
 				"pageInfo": map[string]interface{}{
 					"hasNextPage": true,
 					"hasPrevPage": false,
 					"startCursor": "MQ==",
-					"endCursor":   "MQ==",
+					"endCursor":   "NQ==",
 				},
 			},
 		},
@@ -654,9 +801,9 @@ func TestEmbeddedFail(t *testing.T) {
 		retList[4] = Item{Id: 5}
 		return retList,
 			schemabuilder.PaginationInfo{
-				HasNextPage: true,
-				HasPrevPage: false,
-				TotalCount:  func() int64 { return int64(5) },
+				HasNextPage:    true,
+				HasPrevPage:    false,
+				TotalCountFunc: func() int64 { return int64(5) },
 			}, nil
 	})
 

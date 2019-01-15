@@ -63,7 +63,7 @@ func (s *Server) registerQuery(schema *schemabuilder.Schema) {
 
 	object.FieldFunc("users", userListRet)
 
-	object.PaginateFieldFunc("usersConnection", userListRet)
+	object.FieldFunc("usersConnection", userListRet, schemabuilder.Paginated)
 
 }
 

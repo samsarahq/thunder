@@ -1,0 +1,606 @@
+[
+  {
+    "Name": "Pagination, first + after",
+    "Values": [
+      {
+        "inner": {
+          "innerConnection": {
+            "edges": [
+              {
+                "cursor": "MQ==",
+                "node": {
+                  "__key": 1,
+                  "id": 1
+                }
+              }
+            ],
+            "pageInfo": {
+              "endCursor": "MQ==",
+              "hasNextPage": true,
+              "hasPrevPage": false,
+              "startCursor": "MQ=="
+            },
+            "totalCount": 5
+          }
+        }
+      }
+    ]
+  },
+  {
+    "Name": "Pagination, last + before",
+    "Values": [
+      {
+        "inner": {
+          "innerConnection": {
+            "edges": [
+              {
+                "cursor": "NA==",
+                "node": {
+                  "__key": 4,
+                  "id": 4
+                }
+              },
+              {
+                "cursor": "NQ==",
+                "node": {
+                  "__key": 5,
+                  "id": 5
+                }
+              }
+            ],
+            "pageInfo": {
+              "endCursor": "NQ==",
+              "hasNextPage": false,
+              "hasPrevPage": true,
+              "pages": [
+                "",
+                "Mg==",
+                "NA=="
+              ],
+              "startCursor": "NA=="
+            },
+            "totalCount": 5
+          }
+        }
+      }
+    ]
+  },
+  {
+    "Name": "Pagination, no args given",
+    "Values": [
+      {
+        "inner": {
+          "innerConnection": {
+            "edges": [
+              {
+                "cursor": "MQ==",
+                "node": {
+                  "__key": 1,
+                  "id": 1
+                }
+              },
+              {
+                "cursor": "Mg==",
+                "node": {
+                  "__key": 2,
+                  "id": 2
+                }
+              },
+              {
+                "cursor": "Mw==",
+                "node": {
+                  "__key": 3,
+                  "id": 3
+                }
+              },
+              {
+                "cursor": "NA==",
+                "node": {
+                  "__key": 4,
+                  "id": 4
+                }
+              },
+              {
+                "cursor": "NQ==",
+                "node": {
+                  "__key": 5,
+                  "id": 5
+                }
+              }
+            ],
+            "pageInfo": {
+              "endCursor": "NQ==",
+              "hasNextPage": false,
+              "hasPrevPage": false,
+              "pages": [
+                ""
+              ],
+              "startCursor": "MQ=="
+            },
+            "totalCount": 5
+          }
+        }
+      }
+    ]
+  },
+  {
+    "Name": "Pagination, nil args",
+    "Values": [
+      {
+        "inner": {
+          "innerConnectionNilArg": {
+            "edges": [
+              {
+                "cursor": "MQ==",
+                "node": {
+                  "__key": 1,
+                  "id": 1
+                }
+              }
+            ],
+            "pageInfo": {
+              "endCursor": "MQ==",
+              "hasNextPage": true,
+              "hasPrevPage": false,
+              "startCursor": "MQ=="
+            },
+            "totalCount": 5
+          }
+        }
+      }
+    ]
+  },
+  {
+    "Name": "Pagination, with ctx and error",
+    "Values": [
+      {
+        "inner": {
+          "innerConnectionWithCtxAndError": {
+            "edges": [
+              {
+                "cursor": "MQ==",
+                "node": {
+                  "__key": 1,
+                  "id": 1
+                }
+              }
+            ],
+            "pageInfo": {
+              "endCursor": "MQ==",
+              "hasNextPage": true,
+              "hasPrevPage": false,
+              "startCursor": "MQ=="
+            },
+            "totalCount": 5
+          }
+        }
+      }
+    ]
+  },
+  {
+    "Name": "Pagination, with ctx and error",
+    "Values": [
+      {
+        "Error": "this is an error"
+      }
+    ]
+  },
+  {
+    "Name": "Pagination, with error",
+    "Values": [
+      {
+        "Error": "this is an error"
+      }
+    ]
+  },
+  {
+    "Name": "Pagination, with error",
+    "Values": [
+      {
+        "Error": "first/last cannot be a negative integer"
+      }
+    ]
+  },
+  {
+    "Name": "Pagination, filter",
+    "Values": [
+      {
+        "inner": {
+          "filterByBan": {
+            "edges": [
+              {
+                "cursor": "NA==",
+                "node": {
+                  "__key": 4,
+                  "filterText": "soban",
+                  "id": 4
+                }
+              }
+            ],
+            "pageInfo": {
+              "endCursor": "NA==",
+              "hasNextPage": false,
+              "hasPrevPage": false,
+              "pages": [
+                ""
+              ],
+              "startCursor": "NA=="
+            },
+            "totalCount": 1
+          },
+          "filterByCan": {
+            "edges": [
+              {
+                "cursor": "MQ==",
+                "node": {
+                  "__key": 1,
+                  "filterText": "can",
+                  "id": 1
+                }
+              },
+              {
+                "cursor": "Mw==",
+                "node": {
+                  "__key": 3,
+                  "filterText": "cannot",
+                  "id": 3
+                }
+              },
+              {
+                "cursor": "NQ==",
+                "node": {
+                  "__key": 5,
+                  "filterText": "socan",
+                  "id": 5
+                }
+              }
+            ],
+            "pageInfo": {
+              "endCursor": "NQ==",
+              "hasNextPage": false,
+              "hasPrevPage": false,
+              "pages": [
+                ""
+              ],
+              "startCursor": "MQ=="
+            },
+            "totalCount": 3
+          }
+        }
+      }
+    ]
+  },
+  {
+    "Name": "Pagination, sorts",
+    "Values": [
+      {
+        "inner": {
+          "floatsAsc": {
+            "edges": [
+              {
+                "cursor": "MQ==",
+                "node": {
+                  "__key": 1,
+                  "float": 1,
+                  "id": 1
+                }
+              },
+              {
+                "cursor": "NA==",
+                "node": {
+                  "__key": 4,
+                  "float": 2,
+                  "id": 4
+                }
+              },
+              {
+                "cursor": "Mg==",
+                "node": {
+                  "__key": 2,
+                  "float": 3,
+                  "id": 2
+                }
+              },
+              {
+                "cursor": "NQ==",
+                "node": {
+                  "__key": 5,
+                  "float": 4,
+                  "id": 5
+                }
+              },
+              {
+                "cursor": "Mw==",
+                "node": {
+                  "__key": 3,
+                  "float": 5,
+                  "id": 3
+                }
+              }
+            ],
+            "pageInfo": {
+              "endCursor": "Mw==",
+              "hasNextPage": false,
+              "hasPrevPage": false,
+              "pages": [
+                ""
+              ],
+              "startCursor": "MQ=="
+            },
+            "totalCount": 5
+          },
+          "floatsDesc": {
+            "edges": [
+              {
+                "cursor": "Mw==",
+                "node": {
+                  "__key": 3,
+                  "float": 5,
+                  "id": 3
+                }
+              },
+              {
+                "cursor": "NQ==",
+                "node": {
+                  "__key": 5,
+                  "float": 4,
+                  "id": 5
+                }
+              },
+              {
+                "cursor": "Mg==",
+                "node": {
+                  "__key": 2,
+                  "float": 3,
+                  "id": 2
+                }
+              },
+              {
+                "cursor": "NA==",
+                "node": {
+                  "__key": 4,
+                  "float": 2,
+                  "id": 4
+                }
+              },
+              {
+                "cursor": "MQ==",
+                "node": {
+                  "__key": 1,
+                  "float": 1,
+                  "id": 1
+                }
+              }
+            ],
+            "pageInfo": {
+              "endCursor": "MQ==",
+              "hasNextPage": false,
+              "hasPrevPage": false,
+              "pages": [
+                ""
+              ],
+              "startCursor": "Mw=="
+            },
+            "totalCount": 5
+          },
+          "numbersAsc": {
+            "edges": [
+              {
+                "cursor": "MQ==",
+                "node": {
+                  "__key": 1,
+                  "id": 1,
+                  "number": 1
+                }
+              },
+              {
+                "cursor": "NA==",
+                "node": {
+                  "__key": 4,
+                  "id": 4,
+                  "number": 2
+                }
+              },
+              {
+                "cursor": "Mg==",
+                "node": {
+                  "__key": 2,
+                  "id": 2,
+                  "number": 3
+                }
+              },
+              {
+                "cursor": "NQ==",
+                "node": {
+                  "__key": 5,
+                  "id": 5,
+                  "number": 4
+                }
+              },
+              {
+                "cursor": "Mw==",
+                "node": {
+                  "__key": 3,
+                  "id": 3,
+                  "number": 5
+                }
+              }
+            ],
+            "pageInfo": {
+              "endCursor": "Mw==",
+              "hasNextPage": false,
+              "hasPrevPage": false,
+              "pages": [
+                ""
+              ],
+              "startCursor": "MQ=="
+            },
+            "totalCount": 5
+          },
+          "numbersDesc": {
+            "edges": [
+              {
+                "cursor": "Mw==",
+                "node": {
+                  "__key": 3,
+                  "id": 3,
+                  "number": 5
+                }
+              },
+              {
+                "cursor": "NQ==",
+                "node": {
+                  "__key": 5,
+                  "id": 5,
+                  "number": 4
+                }
+              },
+              {
+                "cursor": "Mg==",
+                "node": {
+                  "__key": 2,
+                  "id": 2,
+                  "number": 3
+                }
+              },
+              {
+                "cursor": "NA==",
+                "node": {
+                  "__key": 4,
+                  "id": 4,
+                  "number": 2
+                }
+              },
+              {
+                "cursor": "MQ==",
+                "node": {
+                  "__key": 1,
+                  "id": 1,
+                  "number": 1
+                }
+              }
+            ],
+            "pageInfo": {
+              "endCursor": "MQ==",
+              "hasNextPage": false,
+              "hasPrevPage": false,
+              "pages": [
+                ""
+              ],
+              "startCursor": "Mw=="
+            },
+            "totalCount": 5
+          },
+          "stringsAsc": {
+            "edges": [
+              {
+                "cursor": "MQ==",
+                "node": {
+                  "__key": 1,
+                  "id": 1,
+                  "string": "1"
+                }
+              },
+              {
+                "cursor": "NA==",
+                "node": {
+                  "__key": 4,
+                  "id": 4,
+                  "string": "2"
+                }
+              },
+              {
+                "cursor": "Mg==",
+                "node": {
+                  "__key": 2,
+                  "id": 2,
+                  "string": "3"
+                }
+              },
+              {
+                "cursor": "NQ==",
+                "node": {
+                  "__key": 5,
+                  "id": 5,
+                  "string": "4"
+                }
+              },
+              {
+                "cursor": "Mw==",
+                "node": {
+                  "__key": 3,
+                  "id": 3,
+                  "string": "5"
+                }
+              }
+            ],
+            "pageInfo": {
+              "endCursor": "Mw==",
+              "hasNextPage": false,
+              "hasPrevPage": false,
+              "pages": [
+                ""
+              ],
+              "startCursor": "MQ=="
+            },
+            "totalCount": 5
+          },
+          "stringsDesc": {
+            "edges": [
+              {
+                "cursor": "Mw==",
+                "node": {
+                  "__key": 3,
+                  "id": 3,
+                  "string": "5"
+                }
+              },
+              {
+                "cursor": "NQ==",
+                "node": {
+                  "__key": 5,
+                  "id": 5,
+                  "string": "4"
+                }
+              },
+              {
+                "cursor": "Mg==",
+                "node": {
+                  "__key": 2,
+                  "id": 2,
+                  "string": "3"
+                }
+              },
+              {
+                "cursor": "NA==",
+                "node": {
+                  "__key": 4,
+                  "id": 4,
+                  "string": "2"
+                }
+              },
+              {
+                "cursor": "MQ==",
+                "node": {
+                  "__key": 1,
+                  "id": 1,
+                  "string": "1"
+                }
+              }
+            ],
+            "pageInfo": {
+              "endCursor": "MQ==",
+              "hasNextPage": false,
+              "hasPrevPage": false,
+              "pages": [
+                ""
+              ],
+              "startCursor": "Mw=="
+            },
+            "totalCount": 5
+          }
+        }
+      }
+    ]
+  }
+]

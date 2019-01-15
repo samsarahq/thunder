@@ -231,7 +231,7 @@ func (c *conn) handleSubscribe(in *inEnvelope) error {
 			Extensions:           in.Extensions,
 		}
 
-		output := runMiddlewares(middlewares, computationInput)
+		output := RunMiddlewares(middlewares, computationInput)
 		current, err := output.Current, output.Error
 
 		c.logger.FinishExecution(ctx, tags, time.Since(start))
@@ -358,7 +358,7 @@ func (c *conn) handleMutate(in *inEnvelope) error {
 			Extensions:           in.Extensions,
 		}
 
-		output := runMiddlewares(middlewares, computationInput)
+		output := RunMiddlewares(middlewares, computationInput)
 		current, err := output.Current, output.Error
 
 		c.logger.FinishExecution(ctx, tags, time.Since(start))

@@ -99,7 +99,7 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return output
 		})
 
-		output := runMiddlewares(middlewares, &ComputationInput{
+		output := RunMiddlewares(middlewares, &ComputationInput{
 			Ctx:         ctx,
 			ParsedQuery: query,
 			Query:       params.Query,
