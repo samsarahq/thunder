@@ -87,6 +87,7 @@ func makeSchema() *schemabuilder.Schema {
 		Other     string
 		Include   *User
 		Enumfield enumType
+		Optional  string `graphql:",optional"`
 	}) string {
 		return ""
 	})
