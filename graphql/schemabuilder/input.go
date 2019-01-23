@@ -132,7 +132,7 @@ func (sb *schemaBuilder) getStructObjectFields(typ reflect.Type) (*graphql.Input
 			return nil, nil, err
 		}
 		if fieldInfo.OptionalInputField {
-			parser = wrapWithZeroValue(parser)
+			parser, fieldArgTyp = wrapWithZeroValue(parser, fieldArgTyp)
 		}
 
 		fields[fieldInfo.Name] = argField{
@@ -219,7 +219,11 @@ func wrapPtrParser(inner *argParser) *argParser {
 
 // wrapWithZeroValue wraps an ArgParser with a helper that will convert non-
 // provided parameters into the argParser's zero value (basically do nothing).
-func wrapWithZeroValue(inner *argParser) *argParser {
+func wrapWithZeroValue(inner *argParser, fieldArgTyp graphql.Type) (*argParser, graphql.Type) {
+	// Make sure the "fieldArgType" we expose in graphQL is a Nullable field.
+	if f, ok := fieldArgTyp.(*graphql.NonNull); ok {
+		fieldArgTyp = f.Type
+	}
 	return &argParser{
 		FromJSON: func(value interface{}, dest reflect.Value) error {
 			if value == nil {
@@ -230,7 +234,7 @@ func wrapWithZeroValue(inner *argParser) *argParser {
 			return inner.FromJSON(value, dest)
 		},
 		Type: inner.Type,
-	}
+	}, fieldArgTyp
 }
 
 // getEnumArgParser creates an arg parser for an Enum type.
