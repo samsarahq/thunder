@@ -123,6 +123,7 @@ type Resolver func(ctx context.Context, source, args interface{}, selectionSet *
 type Field struct {
 	Resolve        Resolver
 	Type           Type
+	Description    string
 	Args           map[string]Type
 	ParseArguments func(json interface{}) (interface{}, error)
 

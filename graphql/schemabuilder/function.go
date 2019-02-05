@@ -69,6 +69,7 @@ func (sb *schemaBuilder) buildFunction(typ reflect.Type, m *method) (*graphql.Fi
 		},
 		Args:           args,
 		Type:           retType,
+		Description:    m.Description,
 		ParseArguments: argParser.Parse,
 		Expensive:      funcCtx.hasContext,
 	}, nil
