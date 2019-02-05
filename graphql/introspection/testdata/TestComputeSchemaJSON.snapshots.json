@@ -982,6 +982,16 @@
                     {
                       "defaultValue": null,
                       "description": "",
+                      "name": "optional",
+                      "type": {
+                        "kind": "SCALAR",
+                        "name": "string",
+                        "ofType": null
+                      }
+                    },
+                    {
+                      "defaultValue": null,
+                      "description": "",
                       "name": "other",
                       "type": {
                         "kind": "NON_NULL",
