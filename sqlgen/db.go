@@ -243,15 +243,17 @@ type txKey struct {
 // caller to manipulate (e.g., Commit).
 // It is an error to invoke this method on a Context that already contains
 // a transaction for this DB.
+// On error WithTx returns a non-nil Context, so that the caller can
+// still easily use its Context (e.g., to log the error).
 func (db *DB) WithTx(ctx context.Context) (context.Context, *sql.Tx, error) {
 	maybeTx := ctx.Value(txKey{db: db})
 	if maybeTx != nil {
-		return nil, nil, errors.New("already in a tx")
+		return ctx, nil, errors.New("already in a tx")
 	}
 
 	tx, err := db.Conn.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, nil, err
+		return ctx, nil, err
 	}
 	return context.WithValue(ctx, txKey{db: db}, tx), tx, nil
 }
@@ -259,10 +261,12 @@ func (db *DB) WithTx(ctx context.Context) (context.Context, *sql.Tx, error) {
 // WithExistingTx returns a derived Context that contains the provided Tx.
 // It is an error to invoke this method on a Context that already contains
 // a transaction for this DB.
+// On error WithExistingTx returns a non-nil Context, so that the caller can
+// still easily use its Context (e.g., to log the error).
 func (db *DB) WithExistingTx(ctx context.Context, tx *sql.Tx) (context.Context, error) {
 	maybeTx := ctx.Value(txKey{db: db})
 	if maybeTx != nil {
-		return nil, errors.New("already in a tx")
+		return ctx, errors.New("already in a tx")
 	}
 
 	return context.WithValue(ctx, txKey{db: db}, tx), nil
