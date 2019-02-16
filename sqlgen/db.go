@@ -238,6 +238,11 @@ type txKey struct {
 	db *DB
 }
 
+// WithTx begins a transaction and returns a derived Context that contains
+// that transaction. It also returns the transaction value itself, for the
+// caller to manipulate (e.g., Commit).
+// It is an error to invoke this method on a Context that already contains
+// a transaction for this DB.
 func (db *DB) WithTx(ctx context.Context) (context.Context, *sql.Tx, error) {
 	maybeTx := ctx.Value(txKey{db: db})
 	if maybeTx != nil {
@@ -251,6 +256,9 @@ func (db *DB) WithTx(ctx context.Context) (context.Context, *sql.Tx, error) {
 	return context.WithValue(ctx, txKey{db: db}, tx), tx, nil
 }
 
+// WithExistingTx returns a derived Context that contains the provided Tx.
+// It is an error to invoke this method on a Context that already contains
+// a transaction for this DB.
 func (db *DB) WithExistingTx(ctx context.Context, tx *sql.Tx) (context.Context, error) {
 	maybeTx := ctx.Value(txKey{db: db})
 	if maybeTx != nil {
@@ -260,6 +268,8 @@ func (db *DB) WithExistingTx(ctx context.Context, tx *sql.Tx) (context.Context, 
 	return context.WithValue(ctx, txKey{db: db}, tx), nil
 }
 
+// HasTx returns whether the provided Context contains a transaction for
+// this DB.
 func (db *DB) HasTx(ctx context.Context) bool {
 	return ctx.Value(txKey{db: db}) != nil
 }
