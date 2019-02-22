@@ -41,7 +41,7 @@ func TestHTTPMustPost(t *testing.T) {
 		t.Errorf("expected 200, but received %d", rr.Code)
 	}
 
-	if diff := pretty.Compare(rr.Body.String(), "{\"data\":null,\"errors\":[\"request must be a POST\"]}\n"); diff != "" {
+	if diff := pretty.Compare(rr.Body.String(), "{\"data\":null,\"errors\":[\"request must be a POST\"]}"); diff != "" {
 		t.Errorf("expected response to match, but received %s", diff)
 	}
 }
@@ -58,7 +58,7 @@ func TestHTTPParseQuery(t *testing.T) {
 		t.Errorf("expected 200, but received %d", rr.Code)
 	}
 
-	if diff := pretty.Compare(rr.Body.String(), "{\"data\":null,\"errors\":[\"request must include a query\"]}\n"); diff != "" {
+	if diff := pretty.Compare(rr.Body.String(), "{\"data\":null,\"errors\":[\"request must include a query\"]}"); diff != "" {
 		t.Errorf("expected response to match, but received %s", diff)
 	}
 }
@@ -75,7 +75,7 @@ func TestHTTPMustHaveQuery(t *testing.T) {
 		t.Errorf("expected 200, but received %d", rr.Code)
 	}
 
-	if diff := pretty.Compare(rr.Body.String(), "{\"data\":null,\"errors\":[\"must have a single query\"]}\n"); diff != "" {
+	if diff := pretty.Compare(rr.Body.String(), "{\"data\":null,\"errors\":[\"must have a single query\"]}"); diff != "" {
 		t.Errorf("expected response to match, but received %s", diff)
 	}
 }
@@ -92,7 +92,24 @@ func TestHTTPSuccess(t *testing.T) {
 		t.Errorf("expected 200, but received %d", rr.Code)
 	}
 
-	if diff := pretty.Compare(rr.Body.String(), "{\"data\":{\"mirror\":-1},\"errors\":null}\n"); diff != "" {
+	if diff := pretty.Compare(rr.Body.String(), "{\"data\":{\"mirror\":-1},\"errors\":null}"); diff != "" {
+		t.Errorf("expected response to match, but received %s", diff)
+	}
+}
+
+func TestHTTPContentType(t *testing.T) {
+	req, err := http.NewRequest("POST", "/graphql", strings.NewReader(`{"query": "query TestQuery($value: int64) { mirror(value: $value) }", "variables": { "value": 1 }}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rr := testHTTPRequest(req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200, but received %d", rr.Code)
+	}
+
+	if diff := pretty.Compare(rr.HeaderMap.Get("Content-Type"), "application/json"); diff != "" {
 		t.Errorf("expected response to match, but received %s", diff)
 	}
 }
