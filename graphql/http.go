@@ -47,8 +47,10 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
-		http.Error(w, string(responseJSON), http.StatusOK)
+		if w.Header().Get("Content-Type") == "" {
+			w.Header().Set("Content-Type", "application/json")
+		}
+		w.Write(responseJSON)
 	}
 
 	if r.Method != "POST" {
