@@ -64,8 +64,8 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var params httpPostBody
-	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
-		writeResponse(nil, err)
+	if json.NewDecoder(r.Body).Decode(&params) != nil {
+		writeResponse(nil, errors.New("request must has a body with valid JSON structure"))
 		return
 	}
 

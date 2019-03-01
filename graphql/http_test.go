@@ -113,3 +113,74 @@ func TestHTTPContentType(t *testing.T) {
 		t.Errorf("expected response to match, but received %s", diff)
 	}
 }
+
+func TestHTTPWrongJSONStructure(t *testing.T) {
+	testcases := []struct {
+		Title        string
+		Request      string
+		ExpectedBody string
+	}{
+		{
+			Title:        "Missing 'query' field",
+			Request:      `{"variables": { "value": 1 }}`,
+			ExpectedBody: `{"data":null,"errors":["must have a single query"]}`,
+		},
+		{
+			Title:        "Incorrect JSON structure: double 'query'",
+			Request:      `{"query": { "foo": 1 }, "query": "query TestQuery($value: int64) { mirror(value: $value) }", "variables": { "value": 3 }}`,
+			ExpectedBody: `{"data":null,"errors":["request must has a body with valid JSON structure"]}`,
+		},
+		{
+			Title:        "Missing 'query' field",
+			Request:      `{"query": { "foo": 1 }, "query": "query TestQuery($value: int64) { mirror(value: $value) }"}`,
+			ExpectedBody: `{"data":null,"errors":["request must has a body with valid JSON structure"]}`,
+		},
+		{
+			Title:        "Missing 'variables' field",
+			Request:      `{"query": "query TestQuery($value: int64) { mirror(value: $value) }", "var": { "value": 1 }}`,
+			ExpectedBody: `{"data":null,"errors":["error parsing args for \"mirror\": value: not a number"]}`,
+		},
+		{
+			Title:        "Missing 'query' and 'variables' fields",
+			Request:      `{"foo": { "bar": 1 }}`,
+			ExpectedBody: `{"data":null,"errors":["must have a single query"]}`,
+		},
+		{
+			Title:        "Missing everything",
+			Request:      `{}`,
+			ExpectedBody: `{"data":null,"errors":["must have a single query"]}`,
+		},
+		{
+			Title:        "Missing everything, even curly brackets",
+			Request:      ``,
+			ExpectedBody: `{"data":null,"errors":["request must has a body with valid JSON structure"]}`,
+		},
+		{
+			Title:        "Field 'query' has wrong structure",
+			Request:      `{"query": { "query": "query TestQuery($value: int64) { mirror(value: $value) }" }, "variables": { "value": 1 }}`,
+			ExpectedBody: `{"data":null,"errors":["request must has a body with valid JSON structure"]}`,
+		},
+		{
+			Title:        "Field 'variables' is not an object",
+			Request:      `{"query": "query TestQuery($value: int64) { mirror(value: $value) }", "variables": "{ "value": 1 }"}`,
+			ExpectedBody: `{"data":null,"errors":["request must has a body with valid JSON structure"]}`,
+		},
+		{
+			Title:        "Everything is fine",
+			Request:      `{"query": "query TestQuery($value: int64) { mirror(value: $value) }", "variables": { "value": 1 }}`,
+			ExpectedBody: `{"data":{"mirror":-1},"errors":null}`,
+		},
+	}
+
+	for _, testcase := range testcases {
+		req, err := http.NewRequest("POST", "/graphql", strings.NewReader(testcase.Request))
+		if err != nil {
+			t.Errorf("%s clause: cannot start request, got an error '%s'", testcase.Title, err)
+		}
+		rr := testHTTPRequest(req)
+		body := rr.Body.String()
+		if diff := pretty.Compare(body, testcase.ExpectedBody); diff != "" {
+			t.Errorf("%s clause: got '%s', when it expected as '%s'", testcase.Title, body, testcase.ExpectedBody)
+		}
+	}
+}
