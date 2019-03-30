@@ -170,6 +170,47 @@ func TestMakeWhere(t *testing.T) {
 	}
 }
 
+func TestMakeCount(t *testing.T) {
+	s := NewSchema()
+	if err := s.RegisterType("users", AutoIncrement, user{}); err != nil {
+		t.Fatal(err)
+	}
+
+	var usr user
+	query, err := s.makeCount(&usr, Filter{"id": 10})
+	if err != nil {
+		t.Error(err)
+	}
+	if !reflect.DeepEqual(query, &baseCountQuery{
+		Table:  s.ByName["users"],
+		Filter: Filter{"id": 10},
+	}) {
+		t.Error("bad count")
+	}
+
+	query, err = s.makeCount(&usr, Filter{})
+	if err != nil {
+		t.Error(err)
+	}
+	if !reflect.DeepEqual(query, &baseCountQuery{
+		Table:  s.ByName["users"],
+		Filter: Filter{},
+	}) {
+		t.Error("bad count")
+	}
+
+	query, err = s.makeCount(&usr, Filter{"name": "bob", "age": 10})
+	if err != nil {
+		t.Error(err)
+	}
+	if !reflect.DeepEqual(query, &baseCountQuery{
+		Table:  s.ByName["users"],
+		Filter: Filter{"name": "bob", "age": 10},
+	}) {
+		t.Error("bad count")
+	}
+}
+
 func TestMakeSelect(t *testing.T) {
 	s := NewSchema()
 	if err := s.RegisterType("users", AutoIncrement, user{}); err != nil {

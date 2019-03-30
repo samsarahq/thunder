@@ -369,6 +369,54 @@ func makeWhere(table *Table, filter Filter) (*SimpleWhere, error) {
 	}, nil
 }
 
+type baseCountQuery struct {
+	Table  *Table
+	Filter Filter
+}
+
+func (b *baseCountQuery) makeCountQuery() (*countQuery, error) {
+	where, err := makeWhere(b.Table, b.Filter)
+	if err != nil {
+		return nil, err
+	}
+
+	return &countQuery{
+		Table:   b.Table.Name,
+		Where:   where,
+	}, nil
+}
+
+var errBadCountModelType = errors.New("count model value should be a pointer to a struct")
+
+func checkCountModelTypeShape(typ reflect.Type) (reflect.Type, error) {
+	if typ.Kind() != reflect.Ptr {
+		return nil, errBadCountModelType
+	}
+	typ = typ.Elem()
+	if typ.Kind() != reflect.Struct {
+		return nil, errBadCountModelType
+	}
+	return typ, nil
+}
+
+func (s *Schema) makeCount(model interface{}, filter Filter) (*baseCountQuery, error) {
+	ptr := reflect.ValueOf(model)
+	typ, err := checkCountModelTypeShape(ptr.Type())
+	if err != nil {
+		return nil, err
+	}
+
+	table, err := s.get(typ)
+	if err != nil {
+		return nil, err
+	}
+
+	return &baseCountQuery{
+		Table:  table,
+		Filter: filter,
+	}, nil
+}
+
 type BaseSelectQuery struct {
 	Table   *Table
 	Filter  Filter
