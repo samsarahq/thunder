@@ -92,6 +92,23 @@ func NewDB(conn *sql.DB, schema *Schema) *DB {
 	return db
 }
 
+func (db *DB) baseCount(ctx context.Context, query *baseCountQuery) (int64, error) {
+	countQuery, err := query.makeCountQuery()
+	if err != nil {
+		return 0, err
+	}
+
+	clause, args := countQuery.ToSQL()
+
+	var count int64
+	err = db.QueryExecer(ctx).QueryRowContext(ctx, clause, args...).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+
+	return count, err
+}
+
 func (db *DB) BaseQuery(ctx context.Context, query *BaseSelectQuery) ([]interface{}, error) {
 	if query.Options == nil && !db.HasTx(ctx) && batch.HasBatching(ctx) {
 		rows, err := db.batchFetch.Invoke(ctx, query)
@@ -121,6 +138,27 @@ func (db *DB) execWithTrace(ctx context.Context, query SQLQuery, operationName s
 	clause, args := query.ToSQL()
 
 	return db.QueryExecer(ctx).ExecContext(ctx, clause, args...)
+}
+
+// Count counts the number of relevant rows in a database, matching options in filter
+//
+// model should be a pointer to a struct, for example:
+//
+//   count, err := db.Count(ctx, &User{}, &res, Filter{})
+//   if err != nil { ... }
+//
+func (db *DB) Count(ctx context.Context, model interface{}, filter Filter) (int64, error) {
+	query, err := db.Schema.makeCount(model, filter)
+	if err != nil {
+		return 0, err
+	}
+
+	count, err := db.baseCount(ctx, query)
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
 }
 
 // Query fetches a collection of rows from the database
