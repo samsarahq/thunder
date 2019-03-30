@@ -101,6 +101,10 @@ func TestIntegrationBasic(t *testing.T) {
 			Mood: &mood,
 		},
 	}, users)
+
+	numBobs, err := db.Count(context.Background(), &User{}, Filter{"name": "Bob"})
+	assert.NoError(t, err)
+	assert.Equal(t, int64(1), numBobs)
 }
 
 // TestContextCancelBeforeRowsScan demonstrates we don't
