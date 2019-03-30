@@ -32,6 +32,28 @@ type SQLQuery interface {
 	ToSQL() (string, []interface{})
 }
 
+type countQuery struct {
+	Table string
+	Where *SimpleWhere
+}
+
+// ToSQL builds a parameterized SELECT COUNT(*) FROM x ... statement
+func (q *countQuery) ToSQL() (string, []interface{}) {
+	var buffer bytes.Buffer
+
+	buffer.WriteString("SELECT COUNT(*)")
+	buffer.WriteString(" FROM ")
+	buffer.WriteString(q.Table)
+
+	where, whereValues := q.Where.ToSQL()
+	if where != "" {
+		buffer.WriteString(" WHERE ")
+		buffer.WriteString(where)
+	}
+
+	return buffer.String(), whereValues
+}
+
 // SelectQuery represents a SELECT query
 type SelectQuery struct {
 	Table   string
