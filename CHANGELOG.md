@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Changed
+
+#### `sqlgen`
+- Implemented a basic `(*sqlgen.DB).Count` receiver that wraps `SELECT COUNT(*)` functionality in SQL databases. ([#230](https://github.com/samsarahq/thunder/pull/230))
+
+
 ## [0.5.0] 2019-01-10
 
 ### Changed
