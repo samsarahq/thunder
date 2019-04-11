@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/samsarahq/thunder/batch"
+	"github.com/samsarahq/thunder/diff"
 	"github.com/samsarahq/thunder/reactive"
 )
 
@@ -29,17 +30,17 @@ type httpPostBody struct {
 }
 
 type httpResponse struct {
-	Data   interface{} `json:"data"`
-	Errors []string    `json:"errors"`
+	Data   interface{}   `json:"data"`
+	Errors []interface{} `json:"errors"`
 }
 
 func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	writeResponse := func(value interface{}, err error) {
 		response := httpResponse{}
 		if err != nil {
-			response.Errors = []string{err.Error()}
+			response.Errors = []interface{}{err.Error()}
 		} else {
-			response.Data = value
+			response.Data = diff.StripKey(value)
 		}
 
 		responseJSON, err := json.Marshal(response)
@@ -84,44 +85,102 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var wg sync.WaitGroup
-	e := Executor{}
+	var queries []*Query
+	for _, s := range query.SelectionSet.Selections {
+		q := &Query{
+			Name:         s.Name,
+			Kind:         query.Kind,
+			SelectionSet: &SelectionSet{Selections: []*Selection{s}},
+		}
+		queries = append(queries, q)
+	}
 
-	wg.Add(1)
-	runner := reactive.NewRerunner(r.Context(), func(ctx context.Context) (interface{}, error) {
-		defer wg.Done()
+	response := NewSyncResponse()
 
-		ctx = batch.WithBatching(ctx)
-
-		var middlewares []MiddlewareFunc
-		middlewares = append(middlewares, h.middlewares...)
-		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
-			output := next(input)
-			output.Current, output.Error = e.Execute(input.Ctx, schema, nil, input.ParsedQuery)
-			return output
-		})
-
-		output := RunMiddlewares(middlewares, &ComputationInput{
-			Ctx:         ctx,
-			ParsedQuery: query,
-			Query:       params.Query,
-			Variables:   params.Variables,
-		})
-		current, err := output.Current, output.Error
+	collectResponse := func(selection string, data interface{}, err error) {
 
 		if err != nil {
-			if ErrorCause(err) == context.Canceled {
+			response.StoreErr(selection, err)
+			return
+		}
+
+		if d, ok := data.(map[string]interface{}); ok {
+			for key, val := range d {
+				response.Store(key, val)
+			}
+			return
+		}
+
+		response.Store(selection, data)
+	}
+
+	finalizeResponse := func(value *syncMap, errors *syncMap) {
+		response := httpResponse{
+			Errors: errors.Errors(),
+			Data:   diff.StripKey(value.internal),
+		}
+
+		responseJSON, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		http.Error(w, string(responseJSON), http.StatusOK)
+	}
+
+	var wg sync.WaitGroup
+
+	runners := make([]*reactive.Rerunner, len(queries))
+	for i, q := range queries {
+		qry := q
+
+		e := Executor{}
+
+		wg.Add(1)
+		runner := reactive.NewRerunner(r.Context(), func(ctx context.Context) (interface{}, error) {
+			defer wg.Done()
+
+			ctx = batch.WithBatching(ctx)
+
+			var middlewares []MiddlewareFunc
+			middlewares = append(middlewares, h.middlewares...)
+			middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
+				output := next(input)
+				output.Current, output.Error = e.Execute(input.Ctx, schema, nil, input.ParsedQuery)
+				return output
+			})
+
+			output := RunMiddlewares(middlewares, &ComputationInput{
+				Ctx:         ctx,
+				ParsedQuery: qry,
+				Query:       params.Query,
+				Variables:   params.Variables,
+			})
+			current, err := output.Current, output.Error
+
+			if err != nil {
+				if ErrorCause(err) == context.Canceled {
+					return nil, err
+				}
+
+				collectResponse(qry.Name, nil, err)
 				return nil, err
 			}
 
-			writeResponse(nil, err)
-			return nil, err
-		}
+			collectResponse(qry.Name, current, nil)
+			return nil, nil
+		}, DefaultMinRerunInterval)
 
-		writeResponse(current, nil)
-		return nil, nil
-	}, DefaultMinRerunInterval)
+		runners[i] = runner
+	}
 
 	wg.Wait()
-	runner.Stop()
+
+	for _, runner := range runners {
+		runner.Stop()
+	}
+
+	finalizeResponse(response.Data, response.Errors)
+
 }
