@@ -87,6 +87,22 @@ func (s *Object) FieldFunc(name string, f interface{}, options ...FieldFuncOptio
 	s.Methods[name] = m
 }
 
+func (s *Object) BatchFieldFunc(name string, f interface{}, options ...FieldFuncOption) {
+	if s.Methods == nil {
+		s.Methods = make(Methods)
+	}
+
+	m := &method{Fn: f, Batch: true}
+	for _, opt := range options {
+		opt.apply(m)
+	}
+
+	if _, ok := s.Methods[name]; ok {
+		panic("duplicate method")
+	}
+	s.Methods[name] = m
+}
+
 // Key registers the key field on an object. The field should be specified by the name of the
 // graphql field.
 // For example, for an object User:
@@ -102,6 +118,9 @@ func (s *Object) Key(f string) {
 type method struct {
 	MarkedNonNullable bool
 	Fn                interface{}
+
+	// Whether or not the FieldFunc is Batch.
+	Batch bool
 
 	// Whether or not the FieldFunc is paginated.
 	Paginated bool
