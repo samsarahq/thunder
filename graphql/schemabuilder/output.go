@@ -90,6 +90,15 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 	for _, name := range names {
 		method := methods[name]
 
+		if method.Batch {
+			typedField, err := sb.buildBatchFunction(typ, method)
+			if err != nil {
+				return err
+			}
+			object.Fields[name] = typedField
+			continue
+		}
+
 		if method.Paginated {
 			typedField, err := sb.buildPaginatedField(typ, method)
 			if err != nil {
