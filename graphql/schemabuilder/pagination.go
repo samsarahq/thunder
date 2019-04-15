@@ -895,7 +895,7 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 				}
 			}
 
-			in := c.prepareResolveArgs(source, argsVal, ctx)
+			in := c.prepareResolveArgs(source, argsVal, ctx, selectionSet)
 
 			// Call the function.
 			out := fun.Call(in)
