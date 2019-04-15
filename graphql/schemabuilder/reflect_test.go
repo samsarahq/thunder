@@ -677,3 +677,122 @@ func TestObjectKeyMustBeScalar(t *testing.T) {
 	})
 
 }
+
+func TestBatchFieldFuncValidation(t *testing.T) {
+	type Object struct {
+		Key *string
+	}
+	tests := []struct {
+		Name      string
+		GiveFunc  interface{}
+		WantError bool
+	}{
+		{
+			Name:      "nothing",
+			GiveFunc:  func() {},
+			WantError: true,
+		},
+		{
+			Name:      "no source",
+			GiveFunc:  func(ctx context.Context) {},
+			WantError: true,
+		},
+		{
+			Name:      "non-batch source",
+			GiveFunc:  func(ctx context.Context, o *Object) {},
+			WantError: true,
+		},
+		{
+			Name:      "batch source",
+			GiveFunc:  func(ctx context.Context, o map[int]*Object) {},
+			WantError: false,
+		},
+		{
+			Name:      "batch non-pointer source",
+			GiveFunc:  func(ctx context.Context, o map[int]Object) {},
+			WantError: false,
+		},
+		{
+			Name:      "batch invalid map key source",
+			GiveFunc:  func(ctx context.Context, o map[int64]Object) {},
+			WantError: true,
+		},
+		{
+			Name:      "batch with args",
+			GiveFunc:  func(ctx context.Context, o map[int]Object, args struct{ Test string }) {},
+			WantError: false,
+		},
+		{
+			Name:      "batch with selection set",
+			GiveFunc:  func(ctx context.Context, o map[int]Object, s *graphql.SelectionSet) {},
+			WantError: false,
+		},
+		{
+			Name:      "batch with all parameters",
+			GiveFunc:  func(ctx context.Context, o map[int]Object, args struct{ Test string }, s *graphql.SelectionSet) {},
+			WantError: false,
+		},
+		{
+			Name: "batch with all extra parameters",
+			GiveFunc: func(ctx context.Context, o map[int]Object, args struct{ Test string }, s *graphql.SelectionSet, bad string) {
+			},
+			WantError: true,
+		},
+		{
+			Name:      "batch without context",
+			GiveFunc:  func(o map[int]Object, args struct{ Test string }, s *graphql.SelectionSet) {},
+			WantError: false,
+		},
+		{
+			Name:      "batch invalid response type",
+			GiveFunc:  func(ctx context.Context, o map[int]Object) *string { return nil },
+			WantError: true,
+		},
+		{
+			Name:      "batch only error",
+			GiveFunc:  func(ctx context.Context, o map[int]Object) error { return nil },
+			WantError: false,
+		},
+		{
+			Name:      "batch invalid response map error",
+			GiveFunc:  func(ctx context.Context, o map[int]Object) (map[string]string, error) { return nil, nil },
+			WantError: true,
+		},
+		{
+			Name:      "batch invalid response map error",
+			GiveFunc:  func(ctx context.Context, o map[int]Object) (map[string]string, error) { return nil, nil },
+			WantError: true,
+		},
+		{
+			Name:      "batch valid resp and error",
+			GiveFunc:  func(ctx context.Context, o map[int]Object) (map[int]string, error) { return nil, nil },
+			WantError: false,
+		},
+		{
+			Name:      "batch valid resp",
+			GiveFunc:  func(ctx context.Context, o map[int]Object) map[int]string { return nil },
+			WantError: false,
+		},
+		{
+			Name:      "batch to many response fields",
+			GiveFunc:  func(ctx context.Context, o map[int]Object) (map[int]string, error, bool) { return nil, nil, false },
+			WantError: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.Name, func(t *testing.T) {
+			builder := NewSchema()
+			builder.Query().FieldFunc("objects", func(ctx context.Context) []*Object { return []*Object(nil) })
+
+			obj := builder.Object("object", Object{})
+			obj.Key("key")
+			obj.BatchFieldFunc("keys", tt.GiveFunc)
+			_, err := builder.Build()
+			if tt.WantError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
