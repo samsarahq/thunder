@@ -19,6 +19,29 @@ const (
 	GatewayType_Asset
 )
 
+func TestBadUnionType(t *testing.T) {
+	type BadUnion struct {
+		schemabuilder.Union
+		*int64
+		*string
+	}
+	schema := schemabuilder.NewSchema()
+	query := schema.Query()
+	query.FieldFunc("getInt", func (args struct {IntVal *int64}) (BadUnion, error) {
+		return BadUnion{int64: args.IntVal}, nil
+	})
+
+	_, err := schema.Build()
+	if err == nil {
+		t.Fatalf("expected error, received nil")
+	}
+
+	if !strings.Contains(err.Error(), "bad type BadUnion: union type member must be a pointer to a struct, received int64") {
+		t.Errorf("expected error, received %s", err.Error())
+	}
+
+}
+
 func TestUnionType(t *testing.T) {
 	type Vehicle struct {
 		Name  string
