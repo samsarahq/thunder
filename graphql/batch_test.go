@@ -3,9 +3,11 @@ package graphql_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 
+	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 	"github.com/samsarahq/thunder/internal"
@@ -204,6 +206,54 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 			]}
 			`,
 		},
+		{
+			Name: "run with lots of objects",
+			GiveObjectFunc: func(ctx context.Context) []*Object {
+				return []*Object{
+					{Key: "key1"},
+					{Key: "key2"},
+					{Key: "key3"},
+					{Key: "key4"},
+					{Key: "key5"},
+					{Key: "key6"},
+					{Key: "key7"},
+					{Key: "key8"},
+				}
+			},
+			GiveValueFunc: func(ctx context.Context, o map[int]*Object, args struct{ Prefix string }, set *graphql.SelectionSet) (map[int]*Object, error) {
+				fmt.Println("RUN WITH N: ", len(o))
+				if set == nil {
+					return nil, errors.New("Expected to have selectionSet")
+				}
+				myMap := make(map[int]*Object, len(o))
+				for idx, val := range o {
+					val.Key = args.Prefix + val.Key
+					myMap[idx] = val
+				}
+				return myMap, nil
+			},
+			GiveQuery: `
+			{
+				objects {
+					key
+					value(prefix: "test") {
+						key
+					}
+				}
+			}`,
+			WantResultJSON: `
+			{"objects": [
+			{"key": "key1", "value": {"key": "testkey1"}},
+			{"key": "key2", "value": {"key": "testkey2"}},
+			{"key": "key3", "value": {"key": "testkey3"}},
+			{"key": "key4", "value": {"key": "testkey4"}},
+			{"key": "key5", "value": {"key": "testkey5"}},
+			{"key": "key6", "value": {"key": "testkey6"}},
+			{"key": "key7", "value": {"key": "testkey7"}},
+			{"key": "key8", "value": {"key": "testkey8"}}
+			]}
+			`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.Name, func(t *testing.T) {
@@ -221,7 +271,8 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 				t.Error(err)
 			}
 			e := graphql.Executor{}
-			res, err := e.Execute(context.Background(), schema.Query, nil, q)
+			ctx := batch.WithBatching(context.Background())
+			res, err := e.Execute(ctx, schema.Query, nil, q)
 			if tt.WantError != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.WantError)
