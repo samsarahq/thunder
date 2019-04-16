@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"time"
 
+	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/graphql"
 )
 
@@ -52,27 +54,55 @@ func (sb *schemaBuilder) buildBatchFunction(typ reflect.Type, m *method) (*graph
 		return nil, fmt.Errorf("%s return should be [map[int]<Type>][,error]", funcCtx.funcType)
 	}
 
+	batchExecFunc := func(ctx context.Context, sources []interface{}, funcRawArgs interface{}, selectionSet *graphql.SelectionSet) ([]interface{}, error) {
+		// Set up function arguments.
+		funcInputArgs := funcCtx.prepareResolveArgs(sources, funcRawArgs, ctx, selectionSet)
+
+		// Call the function.
+		funcOutputArgs := callableFunc.Call(funcInputArgs)
+
+		return funcCtx.extractResultsAndErr(len(sources), funcOutputArgs, retType)
+	}
+
+	batchFunc := batch.Func{
+		Many: func(ctx context.Context, args []interface{}) ([]interface{}, error) {
+			if len(args) == 0 {
+				return nil, nil
+			}
+			funcRawArgs := args[0].(batchTypeHolder).funcRawArgs
+			set := args[0].(batchTypeHolder).selectionSet
+
+			sources := make([]interface{}, 0, len(args))
+			for _, arg := range args {
+				sources = append(sources, arg.(batchTypeHolder).source)
+			}
+
+			return batchExecFunc(ctx, sources, funcRawArgs, set)
+		},
+		MaxSize:      100,
+		WaitInterval: time.Millisecond * 20,
+	}
+
 	return &graphql.Field{
 		Resolve: func(ctx context.Context, source, funcRawArgs interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
-			// TODO use real batching.
-			sources := []interface{}{source}
-			// Set up function arguments.
-			funcInputArgs := funcCtx.prepareResolveArgs(sources, funcRawArgs, ctx, selectionSet)
-
-			// Call the function.
-			funcOutputArgs := callableFunc.Call(funcInputArgs)
-
-			results, err := funcCtx.extractResultsAndErr(len(sources), funcOutputArgs, retType)
-			if err != nil {
-				return nil, err
-			}
-			return results[0], nil
+			// TODO do real batching
+			return batchFunc.Invoke(ctx, batchTypeHolder{
+				source:       source,
+				funcRawArgs:  funcRawArgs,
+				selectionSet: selectionSet,
+			})
 		},
 		Args:           args,
 		Type:           retType,
 		ParseArguments: argParser.Parse,
 		Expensive:      funcCtx.hasContext,
 	}, nil
+}
+
+type batchTypeHolder struct {
+	source       interface{}
+	funcRawArgs  interface{}
+	selectionSet *graphql.SelectionSet
 }
 
 // funcContext is used to parse the function signature in buildFunction.
