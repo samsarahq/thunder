@@ -2,6 +2,7 @@ package schemabuilder
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -56,16 +57,36 @@ func (sb *schemaBuilder) buildFunction(typ reflect.Type, m *method) (*graphql.Fi
 		return nil, err
 	}
 
+	resolveFunc := func(ctx context.Context, source, funcRawArgs interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
+		// Set up function arguments.
+		funcInputArgs := funcCtx.prepareResolveArgs(source, funcRawArgs, ctx, selectionSet)
+
+		// Call the function.
+		funcOutputArgs := callableFunc.Call(funcInputArgs)
+
+		return funcCtx.extractResultAndErr(funcOutputArgs, retType)
+
+	}
 	return &graphql.Field{
-		Resolve: func(ctx context.Context, source, funcRawArgs interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
-			// Set up function arguments.
-			funcInputArgs := funcCtx.prepareResolveArgs(source, funcRawArgs, ctx, selectionSet)
-
-			// Call the function.
-			funcOutputArgs := callableFunc.Call(funcInputArgs)
-
-			return funcCtx.extractResultAndErr(funcOutputArgs, retType)
-
+		Resolve: resolveFunc,
+		BatchResolve: func(unit *graphql.ExecutionUnit) []*graphql.ExecutionUnit {
+			if len(unit.Destinations) != 1 {
+				// WHAT IF NO DESTINATION?
+				unit.Destinations[0].Fail(errors.New("NOOOOOO"))
+			}
+			source := unit.Sources[0]
+			subSource, err := resolveFunc(unit.Ctx, source, unit.Selection.Args, unit.Selection.SelectionSet)
+			if err != nil {
+				unit.Destinations[0].Fail(err)
+				return nil
+			}
+			unitChildren, err := graphql.UnwrapBatchResult(unit.Ctx, []interface{}{subSource}, retType, unit.Selection.SelectionSet, []graphql.OutputWriter{unit.Destinations[0]})
+			if err != nil {
+				unit.Destinations[0].Fail(err)
+				return nil
+			}
+			//unit.Destinations[0].Fill(result)
+			return unitChildren
 		},
 		Args:           args,
 		Type:           retType,

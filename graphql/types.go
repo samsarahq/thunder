@@ -122,6 +122,7 @@ type Resolver func(ctx context.Context, source, args interface{}, selectionSet *
 // Fields are responsible for computing their value themselves.
 type Field struct {
 	Resolve        Resolver
+	BatchResolve   BatchResolver
 	Type           Type
 	Args           map[string]Type
 	ParseArguments func(json interface{}) (interface{}, error)
