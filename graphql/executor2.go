@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strconv"
 	"sync"
 
 	"go.uber.org/atomic"
@@ -69,14 +70,14 @@ func (e *BatchExecutor) Execute(ctx context.Context, typ Type, source interface{
 	queryObject := typ.(*Object)
 	selections := Flatten(query.SelectionSet)
 	queue := make([]*ExecutionUnit, 0, 0)
-	parent := NewObjectWriter(nil)
+	parent := NewObjectWriter(nil, "")
 	writers := make(map[string]OutputWriter)
 	for _, selection := range selections {
 		field, ok := queryObject.Fields[selection.Name]
 		if !ok {
 			return nil, fmt.Errorf("Invalid selection %q", selection.Name)
 		}
-		outputWriter := NewObjectWriter(parent)
+		outputWriter := NewObjectWriter(parent, selection.Alias)
 		writers[selection.Alias] = outputWriter
 		// TODO VALIDATE?
 		queue = append(
@@ -95,7 +96,7 @@ func (e *BatchExecutor) Execute(ctx context.Context, typ Type, source interface{
 
 	execQueue.Enqueue(queue...)
 
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < 1; i++ {
 		// Lazy allocate goroutines (FF configurable?)
 		go func() {
 			for {
@@ -158,8 +159,8 @@ func UnwrapBatchResult(ctx context.Context, sources []interface{}, typ Type, sel
 			}
 		}
 		return nil, nil
-	//case *Union:
-	//	return e.executeUnion(ctx, typ, source, selectionSet)
+	case *Union:
+		return UnwrapBatchUnionResult(ctx, sources, typ, selectionSet, destinations)
 	case *Object:
 		return UnwrapBatchObjectResult(ctx, sources, typ, selectionSet, destinations)
 	case *List:
@@ -169,7 +170,7 @@ func UnwrapBatchResult(ctx context.Context, sources []interface{}, typ Type, sel
 			slice := reflect.ValueOf(source)
 			respList := make([]interface{}, slice.Len())
 			for i := 0; i < slice.Len(); i++ {
-				writer := NewObjectWriter(destinations[idx]) // TODO Parent?
+				writer := NewObjectWriter(destinations[idx], strconv.Itoa(idx)) // TODO Parent?
 				respList[i] = writer
 				flattenedResps = append(flattenedResps, writer)
 				flattenedSources = append(flattenedSources, slice.Index(i).Interface())
@@ -184,9 +185,55 @@ func UnwrapBatchResult(ctx context.Context, sources []interface{}, typ Type, sel
 	}
 }
 
-//func UnwrapBatchUnionResult(ctx context.Context, sources []interface{}, typ *Union, selectionSet *SelectionSet, destinations []OutputWriter) ([]*ExecutionUnit, error) {
-//
-//}
+func UnwrapBatchUnionResult(ctx context.Context, sources []interface{}, typ *Union, selectionSet *SelectionSet, destinations []OutputWriter) ([]*ExecutionUnit, error) {
+	// TODO if any slice returns nil in the slice, fail everything.
+	sourcesByType := make(map[string][]interface{}, len(typ.Types))
+	destinationsByType := make(map[string][]OutputWriter, len(typ.Types))
+	for idx, src := range sources {
+		union := reflect.ValueOf(src)
+		if union.Kind() == reflect.Ptr && union.IsNil() {
+			destinations[idx].Fill(nil) // Don't create a destination for anything nil in the first place.
+			continue
+		}
+
+		srcType := ""
+		// TODO unwrap?
+		//inner := reflect.ValueOf(src)
+		if union.Kind() == reflect.Ptr && union.Elem().Kind() == reflect.Struct {
+			union = union.Elem()
+		}
+		for typString := range typ.Types {
+			inner := union.FieldByName(typString)
+			if inner.IsNil() {
+				continue
+			}
+			if srcType != "" {
+				return nil, fmt.Errorf("union type field should only return one value, but received: %s %s", srcType, typString)
+			}
+			srcType = typString
+			sourcesByType[srcType] = append(sourcesByType[srcType], inner.Interface())
+			destinationsByType[srcType] = append(destinationsByType[srcType], destinations[idx])
+		}
+	}
+
+	var execUnits []*ExecutionUnit
+	for srcType, sources := range sourcesByType {
+		gqlType := typ.Types[srcType]
+		for _, fragment := range selectionSet.Fragments {
+			if fragment.On != srcType {
+				continue
+			}
+			// NEED TO PASS IN __typename selectionSet? (only if asked for)
+			units, err := UnwrapBatchObjectResult(ctx, sources, gqlType, fragment.SelectionSet, destinationsByType[srcType])
+			if err != nil {
+				return nil, err //nestPathError(typString, err)
+			}
+			execUnits = append(execUnits, units...)
+		}
+
+	}
+	return execUnits, nil
+}
 
 func UnwrapBatchObjectResult(ctx context.Context, sources []interface{}, typ *Object, selectionSet *SelectionSet, destinations []OutputWriter) ([]*ExecutionUnit, error) {
 	selections := Flatten(selectionSet)
@@ -231,7 +278,7 @@ func UnwrapBatchObjectResult(ctx context.Context, sources []interface{}, typ *Ob
 
 		destForSelection := make([]OutputWriter, 0, len(nonNilDestinations))
 		for idx, destMap := range nonNilDestinations {
-			filler := NewObjectWriter(originDestinations[idx])
+			filler := NewObjectWriter(originDestinations[idx], selection.Alias)
 			destForSelection = append(destForSelection, filler)
 			destMap[selection.Alias] = filler
 		}
@@ -286,7 +333,7 @@ func UnwrapBatchObjectResult(ctx context.Context, sources []interface{}, typ *Ob
 	if typ.Key != nil {
 		destForSelection := make([]OutputWriter, 0, len(nonNilDestinations))
 		for idx, destMap := range nonNilDestinations {
-			filler := NewObjectWriter(originDestinations[idx])
+			filler := NewObjectWriter(originDestinations[idx], "__key")
 			destForSelection = append(destForSelection, filler)
 			destMap["__key"] = filler
 		}

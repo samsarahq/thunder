@@ -284,7 +284,7 @@ func TestUnionStruct(t *testing.T) {
 		t.Error(err)
 	}
 
-	e := graphql.Executor{}
+	e := graphql.BatchExecutor{}
 	result, err := e.Execute(ctx, builtSchema.Query, nil, q)
 	if err != nil {
 		t.Errorf("expected no error, received %s", err.Error())

@@ -94,6 +94,7 @@ func (sb *schemaBuilder) buildBatchFunction(typ reflect.Type, m *method) (*graph
 		},
 		BatchResolveFunc: func(unit *graphql.ExecutionUnit) []*graphql.ExecutionUnit {
 			results, err := batchExecFunc(unit.Ctx, unit.Sources, unit.Selection.Args, unit.Selection.SelectionSet)
+			// TODO: FILTER OUT NIL RESPONSES
 			if err != nil {
 				for _, dest := range unit.Destinations {
 					dest.Fail(err)

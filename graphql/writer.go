@@ -5,14 +5,16 @@ import (
 	"encoding/json"
 )
 
-func NewObjectWriter(parent OutputWriter) *ObjectWriter {
+func NewObjectWriter(parent OutputWriter, path string) *ObjectWriter {
 	return &ObjectWriter{
 		parent: parent,
+		path:   path,
 	}
 }
 
 type ObjectWriter struct {
 	parent OutputWriter
+	path   string
 	res    interface{}
 	err    error
 }
@@ -27,7 +29,7 @@ func (o *ObjectWriter) Fill(res interface{}) {
 
 func (o *ObjectWriter) Fail(err error) {
 	if o.parent != nil {
-		o.parent.Fail(err)
+		o.parent.Fail(nestPathError(o.path, err))
 		return
 	}
 	o.err = err
