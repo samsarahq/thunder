@@ -167,6 +167,12 @@ func run(ctx context.Context, f ComputeFunc) (*computation, error) {
 	return c, nil
 }
 
+type BatchMap interface{} // map[int]Something
+type BatchComputeFunc func(context.Context, BatchMap) (BatchMap, error)
+
+func BatchCache(ctx context.Context, keyFunc func(interface{}) interface{}, f BatchComputeFunc, batch BatchMap) (BatchMap, error) {
+}
+
 func Cache(ctx context.Context, key interface{}, f ComputeFunc) (interface{}, error) {
 	if !HasRerunner(ctx) {
 		val, err := f(ctx)
