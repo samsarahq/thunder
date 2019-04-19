@@ -50,6 +50,7 @@ type Object struct {
 	Name        string
 	Description string
 	Key         Resolver
+	KeyField    *Field
 	Fields      map[string]*Field
 }
 
@@ -122,13 +123,36 @@ type Resolver func(ctx context.Context, source, args interface{}, selectionSet *
 // Fields are responsible for computing their value themselves.
 type Field struct {
 	Resolve        Resolver
-	BatchResolve   BatchResolver
+	BatchResolveFunc   BatchResolver
 	Type           Type
+	RetType        Type
 	Args           map[string]Type
 	ParseArguments func(json interface{}) (interface{}, error)
 
-	Expensive bool
+	Unboundable bool
+	Expensive   bool
+	Batch       bool
 }
+
+func (f *Field) BatchResolve(unit *ExecutionUnit) []*ExecutionUnit {
+	var units []*ExecutionUnit
+	for idx, src := range unit.Sources {
+		dest := unit.Destinations[idx]
+
+		subSource, err := f.Resolve(unit.Ctx, src, unit.Selection.Args, unit.Selection.SelectionSet)
+		if err != nil {
+			dest.Fail(err)
+			continue
+		}
+		unitChildren, err := UnwrapBatchResult(unit.Ctx, []interface{}{subSource}, f.RetType, unit.Selection.SelectionSet, []OutputWriter{dest})
+		if err != nil {
+			dest.Fail(err)
+			continue
+		}
+		units = append(units, unitChildren...)
+	}
+	return units
+},
 
 type Schema struct {
 	Query    Type
