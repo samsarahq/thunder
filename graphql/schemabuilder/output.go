@@ -219,26 +219,7 @@ func (sb *schemaBuilder) buildField(field reflect.StructField) (*graphql.Field, 
 		return value.FieldByIndex(field.Index).Interface(), nil
 	}
 	return &graphql.Field{
-		Resolve: resolveFunc,
-		BatchResolve: func(unit *graphql.ExecutionUnit) []*graphql.ExecutionUnit {
-			var units []*graphql.ExecutionUnit
-			for idx, src := range unit.Sources {
-				dest := unit.Destinations[idx]
-
-				subSource, err := resolveFunc(unit.Ctx, src, unit.Selection.Args, unit.Selection.SelectionSet)
-				if err != nil {
-					dest.Fail(err)
-					continue
-				}
-				unitChildren, err := graphql.UnwrapBatchResult(unit.Ctx, []interface{}{subSource}, retType, unit.Selection.SelectionSet, []graphql.OutputWriter{dest})
-				if err != nil {
-					dest.Fail(err)
-					continue
-				}
-				units = append(units, unitChildren...)
-			}
-			return units
-		},
+		Resolve:        resolveFunc,
 		Type:           retType,
 		ParseArguments: nilParseArguments,
 	}, nil

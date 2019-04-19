@@ -122,12 +122,11 @@ type Resolver func(ctx context.Context, source, args interface{}, selectionSet *
 //
 // Fields are responsible for computing their value themselves.
 type Field struct {
-	Resolve        Resolver
-	BatchResolveFunc   BatchResolver
-	Type           Type
-	RetType        Type
-	Args           map[string]Type
-	ParseArguments func(json interface{}) (interface{}, error)
+	Resolve          Resolver
+	BatchResolveFunc BatchResolver
+	Type             Type
+	Args             map[string]Type
+	ParseArguments   func(json interface{}) (interface{}, error)
 
 	Unboundable bool
 	Expensive   bool
@@ -135,6 +134,9 @@ type Field struct {
 }
 
 func (f *Field) BatchResolve(unit *ExecutionUnit) []*ExecutionUnit {
+	if f.Batch {
+		return f.BatchResolveFunc(unit)
+	}
 	var units []*ExecutionUnit
 	for idx, src := range unit.Sources {
 		dest := unit.Destinations[idx]
@@ -144,7 +146,7 @@ func (f *Field) BatchResolve(unit *ExecutionUnit) []*ExecutionUnit {
 			dest.Fail(err)
 			continue
 		}
-		unitChildren, err := UnwrapBatchResult(unit.Ctx, []interface{}{subSource}, f.RetType, unit.Selection.SelectionSet, []OutputWriter{dest})
+		unitChildren, err := UnwrapBatchResult(unit.Ctx, []interface{}{subSource}, f.Type, unit.Selection.SelectionSet, []OutputWriter{dest})
 		if err != nil {
 			dest.Fail(err)
 			continue
@@ -152,7 +154,7 @@ func (f *Field) BatchResolve(unit *ExecutionUnit) []*ExecutionUnit {
 		units = append(units, unitChildren...)
 	}
 	return units
-},
+}
 
 type Schema struct {
 	Query    Type

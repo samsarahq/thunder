@@ -67,26 +67,7 @@ func (sb *schemaBuilder) buildFunction(typ reflect.Type, m *method) (*graphql.Fi
 
 	}
 	return &graphql.Field{
-		Resolve: resolveFunc,
-		BatchResolve: func(unit *graphql.ExecutionUnit) []*graphql.ExecutionUnit {
-			var units []*graphql.ExecutionUnit
-			for idx, src := range unit.Sources {
-				dest := unit.Destinations[idx]
-
-				subSource, err := resolveFunc(unit.Ctx, src, unit.Selection.Args, unit.Selection.SelectionSet)
-				if err != nil {
-					dest.Fail(err)
-					continue
-				}
-				unitChildren, err := graphql.UnwrapBatchResult(unit.Ctx, []interface{}{subSource}, retType, unit.Selection.SelectionSet, []graphql.OutputWriter{dest})
-				if err != nil {
-					dest.Fail(err)
-					continue
-				}
-				units = append(units, unitChildren...)
-			}
-			return units
-		},
+		Resolve:        resolveFunc,
 		Args:           args,
 		Type:           retType,
 		ParseArguments: argParser.Parse,
