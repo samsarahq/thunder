@@ -211,13 +211,33 @@ func (sb *schemaBuilder) buildField(field reflect.StructField) (*graphql.Field, 
 		return nil, err
 	}
 
+	resolveFunc := func(ctx context.Context, source, args interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
+		value := reflect.ValueOf(source)
+		if value.Kind() == reflect.Ptr {
+			value = value.Elem()
+		}
+		return value.FieldByIndex(field.Index).Interface(), nil
+	}
 	return &graphql.Field{
-		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
-			value := reflect.ValueOf(source)
-			if value.Kind() == reflect.Ptr {
-				value = value.Elem()
+		Resolve: resolveFunc,
+		BatchResolve: func(unit *graphql.ExecutionUnit) []*graphql.ExecutionUnit {
+			var units []*graphql.ExecutionUnit
+			for idx, src := range unit.Sources {
+				dest := unit.Destinations[idx]
+
+				subSource, err := resolveFunc(unit.Ctx, src, unit.Selection.Args, unit.Selection.SelectionSet)
+				if err != nil {
+					dest.Fail(err)
+					continue
+				}
+				unitChildren, err := graphql.UnwrapBatchResult(unit.Ctx, []interface{}{subSource}, retType, unit.Selection.SelectionSet, []graphql.OutputWriter{dest})
+				if err != nil {
+					dest.Fail(err)
+					continue
+				}
+				units = append(units, unitChildren...)
 			}
-			return value.FieldByIndex(field.Index).Interface(), nil
+			return units
 		},
 		Type:           retType,
 		ParseArguments: nilParseArguments,

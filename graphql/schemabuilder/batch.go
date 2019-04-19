@@ -92,6 +92,9 @@ func (sb *schemaBuilder) buildBatchFunction(typ reflect.Type, m *method) (*graph
 				selectionSet: selectionSet,
 			})
 		},
+		BatchResolveFunc: func(unit *graphql.ExecutionUnit) []*graphql.ExecutionUnit {
+			panic("unimplemented")
+		},
 		Args:           args,
 		Type:           retType,
 		ParseArguments: argParser.Parse,

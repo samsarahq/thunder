@@ -1,22 +1,28 @@
 package graphql_test
 
-import "testing"
+import (
+	"context"
+	"testing"
+
+	"github.com/samsarahq/thunder/graphql"
+	"github.com/samsarahq/thunder/graphql/schemabuilder"
+)
 
 func TestSimple(t *testing.T) {
 	type foo struct {
-		Name string
+		Name   string
 		Filter string
 	}
 
 	builder := schemabuilder.NewSchema()
 	builder.Query().FieldFunc("foo", func(ctx context.Context, args struct {
 		Filter string
-	} []foo {
+	}) []foo {
 		return []foo{
-			{Name: "foo1", Fitler: filter},
-			{Name: "foo2", Fitler: filter},
+			{Name: "foo1", Filter: args.Filter},
+			{Name: "foo2", Filter: args.Filter},
 		}
-	}))
+	})
 
 	schema := builder.MustBuild()
 

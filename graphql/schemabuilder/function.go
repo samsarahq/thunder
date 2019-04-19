@@ -2,7 +2,6 @@ package schemabuilder
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"reflect"
 
@@ -70,28 +69,29 @@ func (sb *schemaBuilder) buildFunction(typ reflect.Type, m *method) (*graphql.Fi
 	return &graphql.Field{
 		Resolve: resolveFunc,
 		BatchResolve: func(unit *graphql.ExecutionUnit) []*graphql.ExecutionUnit {
-			if len(unit.Destinations) != 1 {
-				// WHAT IF NO DESTINATION?
-				unit.Destinations[0].Fail(errors.New("NOOOOOO"))
+			var units []*graphql.ExecutionUnit
+			for idx, src := range unit.Sources {
+				dest := unit.Destinations[idx]
+
+				subSource, err := resolveFunc(unit.Ctx, src, unit.Selection.Args, unit.Selection.SelectionSet)
+				if err != nil {
+					dest.Fail(err)
+					continue
+				}
+				unitChildren, err := graphql.UnwrapBatchResult(unit.Ctx, []interface{}{subSource}, retType, unit.Selection.SelectionSet, []graphql.OutputWriter{dest})
+				if err != nil {
+					dest.Fail(err)
+					continue
+				}
+				units = append(units, unitChildren...)
 			}
-			source := unit.Sources[0]
-			subSource, err := resolveFunc(unit.Ctx, source, unit.Selection.Args, unit.Selection.SelectionSet)
-			if err != nil {
-				unit.Destinations[0].Fail(err)
-				return nil
-			}
-			unitChildren, err := graphql.UnwrapBatchResult(unit.Ctx, []interface{}{subSource}, retType, unit.Selection.SelectionSet, []graphql.OutputWriter{unit.Destinations[0]})
-			if err != nil {
-				unit.Destinations[0].Fail(err)
-				return nil
-			}
-			//unit.Destinations[0].Fill(result)
-			return unitChildren
+			return units
 		},
 		Args:           args,
 		Type:           retType,
 		ParseArguments: argParser.Parse,
 		Expensive:      funcCtx.hasContext,
+		Unboundable:    true, // We are a provided func
 	}, nil
 }
 

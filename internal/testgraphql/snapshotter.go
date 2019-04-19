@@ -12,7 +12,7 @@ import (
 type Snapshotter struct {
 	*snapshotter.Snapshotter
 	t        *testing.T
-	executor graphql.Executor
+	executor graphql.BatchExecutor
 	schema   *graphql.Schema
 }
 
