@@ -69,13 +69,14 @@ func (e *BatchExecutor) Execute(ctx context.Context, typ Type, source interface{
 	queryObject := typ.(*Object)
 	selections := Flatten(query.SelectionSet)
 	queue := make([]*ExecutionUnit, 0, 0)
+	parent := NewObjectWriter(nil)
 	writers := make(map[string]OutputWriter)
 	for _, selection := range selections {
 		field, ok := queryObject.Fields[selection.Name]
 		if !ok {
 			return nil, fmt.Errorf("Invalid selection %q", selection.Name)
 		}
-		outputWriter := &ObjectWriter{}
+		outputWriter := NewObjectWriter(parent)
 		writers[selection.Alias] = outputWriter
 		// TODO VALIDATE?
 		queue = append(
@@ -111,6 +112,9 @@ func (e *BatchExecutor) Execute(ctx context.Context, typ Type, source interface{
 
 	<-execQueue.ClosedChan()
 	// FIND ERROR?
+	if parent.err != nil {
+		return nil, parent.err
+	}
 	return writers, nil
 }
 
