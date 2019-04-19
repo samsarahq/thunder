@@ -78,6 +78,7 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 				return fmt.Errorf("bad type %s: key type must be scalar, got %T", typ, built.Type)
 			}
 			object.Key = built.Resolve
+			object.KeyField = built
 		}
 	}
 
@@ -125,6 +126,7 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 			return fmt.Errorf("bad type %s: key type must be scalar, got %s", typ, keyPtr.Type.String())
 		}
 		object.Key = keyPtr.Resolve
+		object.KeyField = keyPtr
 	}
 
 	return nil

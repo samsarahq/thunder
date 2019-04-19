@@ -270,7 +270,7 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 			if err := graphql.PrepareQuery(schema.Query, q.SelectionSet); err != nil {
 				t.Error(err)
 			}
-			e := graphql.Executor{}
+			e := graphql.BatchExecutor{}
 			ctx := batch.WithBatching(context.Background())
 			res, err := e.Execute(ctx, schema.Query, nil, q)
 			if tt.WantError != "" {
