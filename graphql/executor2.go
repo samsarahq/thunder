@@ -121,8 +121,6 @@ func runEnqueue(execQueue *Queue) bool {
 		return ok
 	}
 	defer done()
-	fmt.Println(unit, unit.Field, unit.Field.BatchResolve)
-	fmt.Println(unit.Field.Type.String())
 	units := unit.Field.BatchResolve(unit)
 	execQueue.Enqueue(units...)
 	return true

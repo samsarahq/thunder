@@ -209,9 +209,6 @@ func (sb *schemaBuilder) constructEdgeType(typ reflect.Type) (graphql.Type, erro
 			return nil, fmt.Errorf("error resolving node in edge")
 
 		},
-		BatchResolve: func(unit *graphql.ExecutionUnit) []*graphql.ExecutionUnit {
-			panic("paginate unimplemented")
-		},
 		Type:           &graphql.NonNull{Type: nodeType},
 		ParseArguments: nilParseArguments,
 	}
@@ -228,9 +225,6 @@ func (sb *schemaBuilder) constructEdgeType(typ reflect.Type) (graphql.Type, erro
 				return value.Cursor, nil
 			}
 			return nil, fmt.Errorf("error resolving cursor in edge")
-		},
-		BatchResolve: func(unit *graphql.ExecutionUnit) []*graphql.ExecutionUnit {
-			panic("paginate unimplemented")
 		},
 		Type:           cursorType,
 		ParseArguments: nilParseArguments,
@@ -272,9 +266,6 @@ func (c *connectionContext) constructConnectionType(sb *schemaBuilder, typ refle
 				return value.Edges, nil
 			}
 			return nil, fmt.Errorf("error resolving edges in connection")
-		},
-		BatchResolve: func(unit *graphql.ExecutionUnit) []*graphql.ExecutionUnit {
-			panic("paginate unimplemented")
 		},
 		Type:           edgesSliceType,
 		ParseArguments: nilParseArguments,
@@ -891,9 +882,6 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 	args, err := c.argsTypeMap(argType)
 
 	ret := &graphql.Field{
-		BatchResolve: func(unit *graphql.ExecutionUnit) []*graphql.ExecutionUnit {
-			panic("paginate unimplemented")
-		},
 		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
 			argsVal := args
 			if !c.IsExternallyManaged() {
