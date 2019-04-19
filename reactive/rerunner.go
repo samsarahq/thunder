@@ -17,88 +17,37 @@ var (
 	WriteThenReadDelay = 200 * time.Millisecond
 )
 
-// locker is a collection of mutexes indexed by arbitrary keys
-type locker struct {
-	mu sync.Mutex
-	m  map[interface{}]*lock
-}
-
-// newLocker creates a new locker instance.
-func newLocker() *locker {
-	return &locker{
-		m: make(map[interface{}]*lock),
-	}
-}
-
-// lock is a single mutex in a locker
-type lock struct {
-	ref int
-	mu  sync.Mutex
-}
-
-// Lock locks a locker by (optionally) allocating, increasing the ref count,
-// and locking
-func (l *locker) Lock(k interface{}) {
-	l.mu.Lock()
-	m, ok := l.m[k]
-	if !ok {
-		m = new(lock)
-		l.m[k] = m
-	}
-	m.ref++
-	l.mu.Unlock()
-	m.mu.Lock()
-}
-
-// Unlock unlocks a locker by unlocking, decreasing the ref count, and
-// (optionally) deleting
-func (l *locker) Unlock(k interface{}) {
-	l.mu.Lock()
-	m := l.m[k]
-	m.mu.Unlock()
-	m.ref--
-	if m.ref == 0 {
-		delete(l.m, k)
-	}
-	l.mu.Unlock()
-}
-
 type computation struct {
 	node  node
 	value interface{}
 }
 
+type cacheEntry struct {
+	done        chan struct{}
+	err         error
+	computation *computation
+}
+
 // cache caches computations
 type cache struct {
-	mu           sync.Mutex
-	locker       *locker
-	computations map[interface{}]*computation
-}
-
-func (c *cache) get(key interface{}) *computation {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	return c.computations[key]
-}
-
-// set adds a computation to the cache for the given key
-func (c *cache) set(key interface{}, computation *computation) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.computations[key] == nil {
-		c.computations[key] = computation
-	}
+	mu      sync.Mutex
+	entries map[interface{}]*cacheEntry
 }
 
 func (c *cache) cleanInvalidated() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	for key, computation := range c.computations {
-		if computation.node.Invalidated() {
-			delete(c.computations, key)
+	for key, entry := range c.entries {
+		select {
+		case <-entry.done:
+			if entry.computation.node.Invalidated() {
+				delete(c.entries, key)
+			}
+		default:
+			// orphaned computation still running?
+			delete(c.entries, key)
+			continue
 		}
 	}
 }
@@ -225,24 +174,46 @@ func Cache(ctx context.Context, key interface{}, f ComputeFunc) (interface{}, er
 	}
 
 	cache := ctx.Value(cacheKey{}).(*cache)
-	computation := ctx.Value(computationKey{}).(*computation)
+	parent := ctx.Value(computationKey{}).(*computation)
 
-	cache.locker.Lock(key)
-	defer cache.locker.Unlock(key)
+	cache.mu.Lock()
+	entry, ok := cache.entries[key]
+	if !ok {
+		// First cache call for this key.
+		entry = &cacheEntry{
+			done: make(chan struct{}),
+		}
+		cache.entries[key] = entry
+	}
+	cache.mu.Unlock()
 
-	if child := cache.get(key); child != nil {
-		child.node.addOut(&computation.node)
-		return child.value, nil
+	if ok {
+		// The computation for key is running or has finished.
+		select {
+		case <-entry.done:
+			if entry.computation == nil {
+				// If previous f() panics, computation and err are not set.
+				return nil, errors.New("previous computation failed")
+			}
+			if entry.err != nil {
+				return nil, entry.err
+			}
+			entry.computation.node.addOut(&parent.node)
+			return entry.computation.value, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 	}
 
-	child, err := run(ctx, f)
-	if err != nil {
-		return nil, err
-	}
-	cache.set(key, child)
+	defer close(entry.done)
 
-	child.node.addOut(&computation.node)
-	return child.value, nil
+	entry.computation, entry.err = run(ctx, f)
+	if entry.err != nil {
+		return nil, entry.err
+	}
+
+	entry.computation.node.addOut(&parent.node)
+	return entry.computation.value, nil
 }
 
 // Rerunner automatically reruns a computation whenever its dependencies
@@ -284,8 +255,7 @@ func NewRerunner(ctx context.Context, f ComputeFunc, minRerunInterval time.Durat
 
 		f: f,
 		cache: &cache{
-			computations: make(map[interface{}]*computation),
-			locker:       newLocker(),
+			entries: make(map[interface{}]*cacheEntry),
 		},
 		minRerunInterval: minRerunInterval,
 		retryDelay:       minRerunInterval,
