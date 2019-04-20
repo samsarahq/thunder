@@ -7,6 +7,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // Expect is a utility for verifying that goroutines make progress.
@@ -100,11 +102,12 @@ func TestRerunCache(t *testing.T) {
 	run := NewExpect()
 
 	NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
-		Cache(ctx, 0, func(ctx context.Context) (interface{}, error) {
+		_, err := Cache(ctx, 0, func(ctx context.Context) (interface{}, error) {
 			AddDependency(ctx, dep, nil)
 			run.Trigger()
 			return nil, nil
 		})
+		require.NoError(t, err)
 		return nil, nil
 	}, 0)
 

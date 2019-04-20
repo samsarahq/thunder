@@ -3,6 +3,8 @@ package reactive
 import (
 	"context"
 	"errors"
+	"fmt"
+	"reflect"
 	"sync"
 	"time"
 )
@@ -18,13 +20,13 @@ var (
 )
 
 type computation struct {
-	node  node
-	value interface{}
+	node node
 }
 
 type cacheEntry struct {
 	done        chan struct{}
 	err         error
+	value       interface{}
 	computation *computation
 }
 
@@ -145,7 +147,27 @@ func Dependencies(ctx context.Context) []Dependency {
 
 type ComputeFunc func(context.Context) (interface{}, error)
 
-func run(ctx context.Context, f ComputeFunc) (*computation, error) {
+func runBatch(ctx context.Context, f BatchComputeFunc, batchMap BatchMap) (*computation, BatchMap, error) {
+	// build result computation and local computation Ctx
+	c := &computation{
+		// this node will be freed either when the computation fails, or by our
+		// caller
+		node: node{},
+	}
+
+	childCtx := context.WithValue(ctx, computationKey{}, c)
+
+	// Compute f and write the results to the c
+	results, err := f(childCtx, batchMap)
+	if err != nil {
+		go c.node.release()
+		return c, nil, err
+	}
+
+	return c, results, nil
+}
+
+func run(ctx context.Context, f ComputeFunc) (*computation, interface{}, error) {
 	// build result computation and local computation Ctx
 	c := &computation{
 		// this node will be freed either when the computation fails, or by our
@@ -159,18 +181,115 @@ func run(ctx context.Context, f ComputeFunc) (*computation, error) {
 	value, err := f(childCtx)
 	if err != nil {
 		go c.node.release()
-		return nil, err
+		return nil, nil, err
 	}
 
-	c.value = value
-
-	return c, nil
+	return c, value, nil
 }
 
 type BatchMap interface{} // map[int]Something
 type BatchComputeFunc func(context.Context, BatchMap) (BatchMap, error)
 
-func BatchCache(ctx context.Context, keyFunc func(interface{}) interface{}, f BatchComputeFunc, batch BatchMap) (BatchMap, error) {
+// TODO switch to
+// func(context.Context, interface{}, interface{}, batch interface{}) (interface{}, error)
+// so we can call with
+// res, err := BatchFunc(
+// 	ctx,
+// 	func(d *Device) cacheKey { return cacheKey{GroupId: d.GroupId} },
+//  func(ctx context.Context, batch map[int]*Device) (map[int]string, error) { ... },
+// )
+// resBatch := res.(map[int]string)
+// Long term TODO generate these.
+func BatchCache(ctx context.Context, keyFunc func(interface{}) interface{}, f BatchComputeFunc, batch BatchMap, respMapType BatchMap) (BatchMap, error) {
+	batchVal := reflect.ValueOf(batch)
+	if batchVal.Kind() != reflect.Map || batchVal.Type().Key().Kind() != reflect.Int {
+		return nil, fmt.Errorf("invalid batch type, expected map[int]<Type> got %s", batchVal.Type().String())
+	}
+	mapKeys := batchVal.MapKeys()
+	mapValues := make([]reflect.Value, len(mapKeys))
+	cacheKeys := make([]interface{}, len(mapKeys))
+	for idx, mapKey := range mapKeys {
+		mapVal := batchVal.MapIndex(mapKey)
+		mapValues[idx] = mapVal
+		cacheKeys[idx] = keyFunc(mapVal.Interface())
+	}
+
+	cache := ctx.Value(cacheKey{}).(*cache)
+	parent := ctx.Value(computationKey{}).(*computation)
+
+	allEntries := make([]*cacheEntry, 0, len(mapKeys))
+	entriesToCalculateIndexes := make([]int, 0, len(mapKeys))
+	entriesToCalculate := make([]*cacheEntry, 0, len(mapKeys))
+	cachedEntries := make([]*cacheEntry, 0, len(mapKeys)) // Allocate maps to the "max" size (reduce allocations in lock)
+	cache.mu.Lock()
+	for idx, cacheKey := range cacheKeys {
+		entry, ok := cache.entries[cacheKey]
+		if !ok {
+			// First cache call for this key.
+			entry = &cacheEntry{
+				done: make(chan struct{}),
+			}
+			cache.entries[cacheKey] = entry
+			entriesToCalculateIndexes = append(entriesToCalculateIndexes, idx)
+			entriesToCalculate = append(entriesToCalculate, entry)
+		} else {
+			cachedEntries = append(cachedEntries, entry)
+		}
+		allEntries = append(allEntries, entry)
+	}
+	cache.mu.Unlock()
+
+	if len(entriesToCalculate) > 0 {
+		fillEntries(
+			ctx,
+			f,
+			parent,
+			batchVal,
+			mapKeys,
+			mapValues,
+			entriesToCalculate,
+			entriesToCalculateIndexes,
+		)
+	}
+	resultMap := reflect.MakeMap(reflect.TypeOf(respMapType))
+	for idx, entry := range allEntries {
+		select {
+		case <-entry.done:
+			if entry.err != nil {
+				return nil, entry.err
+			}
+			resultMap.SetMapIndex(mapKeys[idx], reflect.ValueOf(entry.value))
+			entry.computation.node.addOut(&parent.node)
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	return resultMap.Interface(), nil
+}
+
+func fillEntries(ctx context.Context, f BatchComputeFunc, parent *computation, batchVal reflect.Value, mapKeys, mapValues []reflect.Value, entriesToCalculate []*cacheEntry, entriesToCalculateIndexes []int) {
+	newBatch := reflect.MakeMap(batchVal.Type())
+	for _, entryIndex := range entriesToCalculateIndexes {
+		newBatch.SetMapIndex(mapKeys[entryIndex], mapValues[entryIndex])
+	}
+	for _, entry := range entriesToCalculate {
+		defer close(entry.done)
+	}
+	computation, results, err := runBatch(ctx, f, BatchMap(newBatch.Interface()))
+	for _, entry := range entriesToCalculate {
+		entry.computation = computation
+	}
+	if err != nil {
+		for _, entry := range entriesToCalculate {
+			entry.err = err
+		}
+		return
+	}
+	resultVal := reflect.ValueOf(results)
+	for idx, entry := range entriesToCalculate {
+		entry.value = resultVal.MapIndex(mapKeys[entriesToCalculateIndexes[idx]]).Interface() // Will this panic if it's not set?
+	}
+	computation.node.addOut(&parent.node)
 }
 
 func Cache(ctx context.Context, key interface{}, f ComputeFunc) (interface{}, error) {
@@ -178,6 +297,20 @@ func Cache(ctx context.Context, key interface{}, f ComputeFunc) (interface{}, er
 		val, err := f(ctx)
 		return val, err
 	}
+
+	resMap, err := BatchCache(ctx, func(i interface{}) interface{} {
+		return key
+	}, func(ctx2 context.Context, batchMap2 BatchMap) (batchMap BatchMap, e error) {
+		res, err := f(ctx2)
+		if err != nil {
+			return nil, err
+		}
+		return map[int]interface{}{0: res}, nil
+	}, map[int]interface{}{0: key}, map[int]interface{}{})
+	if err != nil {
+		return nil, err
+	}
+	return reflect.ValueOf(resMap).MapIndex(reflect.ValueOf(0)), nil
 
 	cache := ctx.Value(cacheKey{}).(*cache)
 	parent := ctx.Value(computationKey{}).(*computation)
@@ -205,7 +338,7 @@ func Cache(ctx context.Context, key interface{}, f ComputeFunc) (interface{}, er
 				return nil, entry.err
 			}
 			entry.computation.node.addOut(&parent.node)
-			return entry.computation.value, nil
+			return entry.value, nil
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
@@ -213,13 +346,13 @@ func Cache(ctx context.Context, key interface{}, f ComputeFunc) (interface{}, er
 
 	defer close(entry.done)
 
-	entry.computation, entry.err = run(ctx, f)
+	entry.computation, entry.value, entry.err = run(ctx, f)
 	if entry.err != nil {
 		return nil, entry.err
 	}
 
 	entry.computation.node.addOut(&parent.node)
-	return entry.computation.value, nil
+	return entry.value, nil
 }
 
 // Rerunner automatically reruns a computation whenever its dependencies
@@ -322,7 +455,7 @@ func (r *Rerunner) run() {
 	ctx := context.WithValue(r.ctx, cacheKey{}, r.cache)
 	ctx = context.WithValue(ctx, dependencySetKey{}, &dependencySet{})
 
-	computation, err := run(ctx, r.f)
+	computation, _, err := run(ctx, r.f)
 	r.lastRun = time.Now()
 	if err != nil {
 		if err == RetrySentinelError {
