@@ -33,12 +33,12 @@ func newLocker() *locker {
 // lock is a single mutex in a locker
 type lock struct {
 	ref int
-	mu  sync.Mutex
+	mu  ctxMutex
 }
 
 // Lock locks a locker by (optionally) allocating, increasing the ref count,
 // and locking
-func (l *locker) Lock(k interface{}) {
+func (l *locker) Lock(ctx context.Context, k interface{}) error {
 	l.mu.Lock()
 	m, ok := l.m[k]
 	if !ok {
@@ -47,7 +47,7 @@ func (l *locker) Lock(k interface{}) {
 	}
 	m.ref++
 	l.mu.Unlock()
-	m.mu.Lock()
+	return m.mu.Lock(ctx)
 }
 
 // Unlock unlocks a locker by unlocking, decreasing the ref count, and
@@ -227,7 +227,9 @@ func Cache(ctx context.Context, key interface{}, f ComputeFunc) (interface{}, er
 	cache := ctx.Value(cacheKey{}).(*cache)
 	computation := ctx.Value(computationKey{}).(*computation)
 
-	cache.locker.Lock(key)
+	if err := cache.locker.Lock(ctx, key); err != nil {
+		return nil, err
+	}
 	defer cache.locker.Unlock(key)
 
 	if child := cache.get(key); child != nil {
