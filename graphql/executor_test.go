@@ -23,8 +23,11 @@ func makeQuery(onArgParse *func()) *Object {
 
 	a := &Object{
 		Name: "A",
-		Key: func(ctx context.Context, source, args interface{}, selectionSet *SelectionSet) (interface{}, error) {
-			return source, nil
+		KeyField: &Field{
+			Resolve: func(ctx context.Context, source, args interface{}, selectionSet *SelectionSet) (interface{}, error) {
+				return source, nil
+			},
+			Type: &Scalar{Type: "string"},
 		},
 		Fields: make(map[string]*Field),
 	}

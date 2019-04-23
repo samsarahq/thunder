@@ -71,13 +71,13 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 		}
 		object.Fields[fieldInfo.Name] = built
 		if fieldInfo.KeyField {
-			if object.Key != nil {
+			if object.KeyField != nil {
 				return fmt.Errorf("bad type %s: multiple key fields", typ)
 			}
 			if !isScalarType(built.Type) {
 				return fmt.Errorf("bad type %s: key type must be scalar, got %T", typ, built.Type)
 			}
-			object.Key = built.Resolve
+			object.KeyField = built
 		}
 	}
 
@@ -115,7 +115,7 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 		if !isScalarType(keyPtr.Type) {
 			return fmt.Errorf("bad type %s: key type must be scalar, got %s", typ, keyPtr.Type.String())
 		}
-		object.Key = keyPtr.Resolve
+		object.KeyField = keyPtr
 	}
 
 	return nil
