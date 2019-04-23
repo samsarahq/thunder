@@ -907,6 +907,7 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 		Type:           retType,
 		ParseArguments: argParser.Parse,
 		Expensive:      c.hasContext,
+		External:       true,
 	}
 
 	return ret, nil
