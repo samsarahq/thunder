@@ -45,6 +45,10 @@ func ErrorCause(err error) error {
 	return err
 }
 
+func (pe *pathError) Unwrap() error {
+	return pe.inner
+}
+
 func (pe *pathError) Error() string {
 	var buffer bytes.Buffer
 	for i := len(pe.path) - 1; i >= 0; i-- {
