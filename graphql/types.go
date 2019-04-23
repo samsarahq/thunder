@@ -49,7 +49,7 @@ func (e *Enum) enumValues() []string {
 type Object struct {
 	Name        string
 	Description string
-	Key         Resolver
+	KeyField    *Field
 	Fields      map[string]*Field
 }
 

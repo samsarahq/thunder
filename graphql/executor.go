@@ -323,8 +323,8 @@ func (e *Executor) executeObject(ctx context.Context, typ *Object, source interf
 		fields[selection.Alias] = resolved
 	}
 
-	if typ.Key != nil {
-		value, err := e.resolveAndExecute(ctx, &Field{Type: &Scalar{Type: "string"}, Resolve: typ.Key}, source, &Selection{})
+	if typ.KeyField != nil {
+		value, err := e.resolveAndExecute(ctx, typ.KeyField, source, &Selection{})
 		if err != nil {
 			return nil, nestPathError("__key", err)
 		}
