@@ -126,6 +126,7 @@ type Field struct {
 	Args           map[string]Type
 	ParseArguments func(json interface{}) (interface{}, error)
 
+	External  bool
 	Expensive bool
 }
 
