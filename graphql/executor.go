@@ -19,6 +19,25 @@ type pathError struct {
 	path  []string
 }
 
+func nestPathErrorMulti(path []string, err error) error {
+	// Don't nest SanitzedError's, as they are intended for human consumption.
+	if se, ok := err.(SanitizedError); ok {
+		return se
+	}
+
+	if pe, ok := err.(*pathError); ok {
+		return &pathError{
+			inner: pe.inner,
+			path:  append(pe.path, path...),
+		}
+	}
+
+	return &pathError{
+		inner: err,
+		path:  path,
+	}
+}
+
 func nestPathError(key string, err error) error {
 	// Don't nest SanitzedError's, as they are intended for human consumption.
 	if se, ok := err.(SanitizedError); ok {
