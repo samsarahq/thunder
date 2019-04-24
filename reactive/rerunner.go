@@ -103,6 +103,16 @@ func (c *cache) cleanInvalidated() {
 	}
 }
 
+func (c *cache) cleanAll() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for key, computation := range c.computations {
+		computation.node.release()
+		delete(c.computations, key)
+	}
+}
+
 // Resource represents a leaf-level dependency in a computation
 type Resource struct {
 	node
@@ -353,7 +363,10 @@ func (r *Rerunner) run() {
 	computation, err := run(ctx, r.f)
 	r.lastRun = time.Now()
 	if err != nil {
+		// We've hit an error, make sure we clear all existing computations immediately.
+		r.cache.cleanAll()
 		if err == RetrySentinelError {
+
 			r.retryDelay = r.retryDelay * 2
 
 			// Max out the retry delay to at 1 minute.
