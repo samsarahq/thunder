@@ -884,18 +884,18 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 	ret := &graphql.Field{
 		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
 			argsVal := args
+			hasArgs := true
 			if !c.IsExternallyManaged() {
 				val, ok := args.(ConnectionArgs)
 				if !ok {
 					return nil, fmt.Errorf("arguments should implement ConnectionArgs")
 				}
-				c.hasArgs = val.Args != nil
-				if c.hasArgs {
+				hasArgs = val.Args != nil
+				if hasArgs {
 					argsVal = reflect.ValueOf(val.Args).Elem().Interface()
 				}
 			}
-
-			in := c.prepareResolveArgs(source, argsVal, ctx, selectionSet)
+			in := c.prepareResolveArgs(source, hasArgs, argsVal, ctx, selectionSet)
 
 			// Call the function.
 			out := fun.Call(in)
