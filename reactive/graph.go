@@ -71,7 +71,7 @@ func (n *node) strobe() {
 	}
 }
 
-// invalidate invalidates noode if it has not yet been invalidated
+// invalidate invalidates node if it has not yet been invalidated
 func (n *node) invalidate() {
 	// check if we should invalidate, and figure out who we should invalidate
 	n.mu.Lock()
