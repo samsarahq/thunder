@@ -113,6 +113,9 @@ func PrepareQuery(typ Type, selectionSet *SelectionSet) error {
 				if selection.SelectionSet != nil {
 					return NewClientError(`scalar field "__typename" must have no selection`)
 				}
+				for _, fragment := range selectionSet.Fragments {
+					fragment.SelectionSet.Selections = append(fragment.SelectionSet.Selections, selection)
+				}
 				continue
 			}
 			return NewClientError(`unknown field "%s"`, selection.Name)

@@ -62,7 +62,7 @@ func TestUnionType(t *testing.T) {
 	q := graphql.MustParse(`
 		{
 			asset: gateway(type: "asset") { __typename ... on Asset { name batteryLevel } ... on Vehicle { name speed } }
-			vehicle: gateway(type: "vehicle") { ... on Asset { name batteryLevel } ... on Vehicle { name speed } }
+			vehicle: gateway(type: "vehicle") { __typename ... on Asset { name batteryLevel } ... on Vehicle { name speed } }
 		}
 	`, map[string]interface{}{"var": float64(3)})
 
@@ -78,7 +78,7 @@ func TestUnionType(t *testing.T) {
 	}
 
 	if d := pretty.Compare(internal.AsJSON(result), internal.ParseJSON(`
-		{"vehicle": { "name": "a", "speed": 50 }, "asset": { "name": "b", "batteryLevel": 5, "__typename": "Gateway" }}`)); d != "" {
+		{"vehicle": { "name": "a", "speed": 50, "__typename": "Vehicle" }, "asset": { "name": "b", "batteryLevel": 5, "__typename": "Asset" }}`)); d != "" {
 		t.Errorf("expected did not match result: %s", d)
 	}
 }
