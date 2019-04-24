@@ -150,7 +150,7 @@ func TestEnum(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, map[string]interface{}{
 		"inner": "firstField",
-	}, val)
+	}, internal.AsJSON(val))
 
 	q = graphql.MustParse(`
 		{
@@ -166,7 +166,7 @@ func TestEnum(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, map[string]interface{}{
 		"inner2": "this",
-	}, val)
+	}, internal.AsJSON(val))
 
 	q = graphql.MustParse(`
 		{
@@ -191,7 +191,7 @@ func TestEnum(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, map[string]interface{}{
 		"optional": "firstField",
-	}, val)
+	}, internal.AsJSON(val))
 
 	q = graphql.MustParse(`
 		{
@@ -206,8 +206,8 @@ func TestEnum(t *testing.T) {
 	val, err = e.Execute(context.Background(), builtSchema.Query, nil, q)
 	assert.Nil(t, err)
 	assert.Equal(t, map[string]interface{}{
-		"pointerret": enumType(1),
-	}, val)
+		"pointerret": float64(1),
+	}, internal.AsJSON(val))
 
 }
 
