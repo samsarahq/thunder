@@ -59,7 +59,7 @@ func (sb *schemaBuilder) buildFunction(typ reflect.Type, m *method) (*graphql.Fi
 	return &graphql.Field{
 		Resolve: func(ctx context.Context, source, funcRawArgs interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
 			// Set up function arguments.
-			funcInputArgs := funcCtx.prepareResolveArgs(source, funcRawArgs, ctx, selectionSet)
+			funcInputArgs := funcCtx.prepareResolveArgs(source, funcCtx.hasArgs, funcRawArgs, ctx, selectionSet)
 
 			// Call the function.
 			funcOutputArgs := callableFunc.Call(funcInputArgs)
@@ -238,7 +238,7 @@ func (funcCtx *funcContext) argsTypeMap(argType graphql.Type) (map[string]graphq
 
 // prepareResolveArgs converts the provided source, args and context into the
 // required list of reflect.Value types that the function needs to be called.
-func (funcCtx *funcContext) prepareResolveArgs(source interface{}, args interface{}, ctx context.Context, selectionSet *graphql.SelectionSet) []reflect.Value {
+func (funcCtx *funcContext) prepareResolveArgs(source interface{}, hasArgs bool, args interface{}, ctx context.Context, selectionSet *graphql.SelectionSet) []reflect.Value {
 	in := make([]reflect.Value, 0, funcCtx.funcType.NumIn())
 	if funcCtx.hasContext {
 		in = append(in, reflect.ValueOf(ctx))
@@ -261,7 +261,7 @@ func (funcCtx *funcContext) prepareResolveArgs(source interface{}, args interfac
 	}
 
 	// Set up other arguments.
-	if funcCtx.hasArgs {
+	if hasArgs {
 		in = append(in, reflect.ValueOf(args))
 	}
 	if funcCtx.hasSelectionSet {
