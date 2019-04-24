@@ -7,6 +7,7 @@ import (
 
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
+	"github.com/samsarahq/thunder/internal"
 	"github.com/samsarahq/thunder/internal/testgraphql"
 	"github.com/samsarahq/thunder/reactive"
 	"github.com/stretchr/testify/assert"
@@ -700,40 +701,40 @@ func TestEmbeddedArgs(t *testing.T) {
 	assert.Equal(t, map[string]interface{}{
 		"inner": map[string]interface{}{
 			"innerConnection": map[string]interface{}{
-				"totalCount": int64(5),
+				"totalCount": float64(5),
 				"edges": []interface{}{
 					map[string]interface{}{
 						"node": map[string]interface{}{
-							"__key": int64(1),
-							"id":    int64(1),
+							"__key": float64(1),
+							"id":    float64(1),
 						},
 						"cursor": "MQ==",
 					},
 					map[string]interface{}{
 						"node": map[string]interface{}{
-							"__key": int64(2),
-							"id":    int64(2),
+							"__key": float64(2),
+							"id":    float64(2),
 						},
 						"cursor": "Mg==",
 					},
 					map[string]interface{}{
 						"node": map[string]interface{}{
-							"__key": int64(3),
-							"id":    int64(3),
+							"__key": float64(3),
+							"id":    float64(3),
 						},
 						"cursor": "Mw==",
 					},
 					map[string]interface{}{
 						"node": map[string]interface{}{
-							"__key": int64(4),
-							"id":    int64(4),
+							"__key": float64(4),
+							"id":    float64(4),
 						},
 						"cursor": "NA==",
 					},
 					map[string]interface{}{
 						"node": map[string]interface{}{
-							"__key": int64(5),
-							"id":    int64(5),
+							"__key": float64(5),
+							"id":    float64(5),
 						},
 						"cursor": "NQ==",
 					},
@@ -746,7 +747,7 @@ func TestEmbeddedArgs(t *testing.T) {
 				},
 			},
 		},
-	}, val)
+	}, internal.AsJSON(val))
 
 	schema = schemabuilder.NewSchema()
 

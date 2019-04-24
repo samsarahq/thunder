@@ -135,10 +135,10 @@ func TestBasic(t *testing.T) {
 	}
 
 	// assert that result["as"][1]["valuePtr"] == 1 (and not a pointer to 1)
-	root, _ := result.(map[string]interface{})
+	root, _ := internal.AsJSON(result).(map[string]interface{})
 	as, _ := root["as"].([]interface{})
 	asObject, _ := as[1].(map[string]interface{})
-	if asObject["valuePtr"] != 1 {
+	if int(asObject["valuePtr"].(float64)) != 1 {
 		t.Error("Expected valuePtr to be 1, was", asObject["valuePtr"])
 	}
 
