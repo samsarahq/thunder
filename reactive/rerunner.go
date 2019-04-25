@@ -257,10 +257,11 @@ type Rerunner struct {
 	ctx       context.Context
 	cancelCtx context.CancelFunc
 
-	f                ComputeFunc
-	cache            *cache
-	minRerunInterval time.Duration
-	retryDelay       time.Duration
+	f                    ComputeFunc
+	cache                *cache
+	minRerunInterval     time.Duration
+	retryDelay           time.Duration
+	alwaysSpawnGoroutine bool
 
 	// flushed tracks if the next computation should run without delay. It is set
 	// to false as soon as the next computation starts. flushCh is closed when
@@ -277,7 +278,7 @@ type Rerunner struct {
 }
 
 // NewRerunner runs f continuously
-func NewRerunner(ctx context.Context, f ComputeFunc, minRerunInterval time.Duration) *Rerunner {
+func NewRerunner(ctx context.Context, f ComputeFunc, minRerunInterval time.Duration, alwaysSpawnGoroutine bool) *Rerunner {
 	ctx, cancelCtx := context.WithCancel(ctx)
 
 	r := &Rerunner{
@@ -289,8 +290,9 @@ func NewRerunner(ctx context.Context, f ComputeFunc, minRerunInterval time.Durat
 			computations: make(map[interface{}]*computation),
 			locker:       newLocker(),
 		},
-		minRerunInterval: minRerunInterval,
-		retryDelay:       minRerunInterval,
+		minRerunInterval:     minRerunInterval,
+		retryDelay:           minRerunInterval,
+		alwaysSpawnGoroutine: alwaysSpawnGoroutine,
 
 		flushCh: make(chan struct{}, 0),
 	}
@@ -377,7 +379,13 @@ func (r *Rerunner) run() {
 
 		// Schedule a rerun whenever our node becomes invalidated (which might already
 		// have happened!)
-		computation.node.handleInvalidate(r.run)
+		computation.node.handleInvalidate(func() {
+			if r.alwaysSpawnGoroutine {
+				go r.run()
+			} else {
+				r.run()
+			}
+		})
 	}
 }
 

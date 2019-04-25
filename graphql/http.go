@@ -120,7 +120,7 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		writeResponse(current, nil)
 		return nil, nil
-	}, DefaultMinRerunInterval)
+	}, DefaultMinRerunInterval, false)
 
 	wg.Wait()
 	runner.Stop()

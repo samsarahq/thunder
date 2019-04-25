@@ -74,7 +74,7 @@ func TestIntegrationBasic(t *testing.T) {
 		}
 		users <- *user
 		return nil, nil
-	}, 50*time.Millisecond)
+	}, 50*time.Millisecond, false)
 	defer rerunner.Stop()
 
 	// Initial rerunner query matches initial insert.
@@ -160,7 +160,7 @@ func TestIntegrationFilterCustomType(t *testing.T) {
 		}
 		users <- user
 		return nil, nil
-	}, 50*time.Millisecond)
+	}, 50*time.Millisecond, false)
 	defer rerunner.Stop()
 
 	// Initial rerunner query matches initial insert.

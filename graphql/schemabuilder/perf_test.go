@@ -55,7 +55,7 @@ func BenchmarkSimpleExecute(b *testing.B) {
 			close(done)
 
 			return nil, errors.New("stop")
-		}, 0)
+		}, 0, false)
 		<-done
 	}
 }
