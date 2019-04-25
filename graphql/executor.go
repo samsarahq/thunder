@@ -411,6 +411,10 @@ func (e *Executor) execute(ctx context.Context, typ Type, source interface{}, se
 	}
 }
 
+type ExecutorRunner interface {
+	Execute(ctx context.Context, typ Type, source interface{}, query *Query) (interface{}, error)
+}
+
 type Executor struct {
 	mu sync.Mutex
 }
