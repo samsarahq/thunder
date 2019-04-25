@@ -278,7 +278,7 @@ func TestEndToEndAwaitAndCache(t *testing.T) {
 
 		results <- internal.AsJSON(result)
 		return nil, nil
-	}, 0)
+	}, 0, false)
 	defer rerunner.Stop()
 
 	result := <-results
@@ -441,7 +441,7 @@ func TestConcurrencyLimiterDeadlock(t *testing.T) {
 
 		assert.Equal(t, 2*200, calls)
 		return nil, nil
-	}, 0)
+	}, 0, false)
 
 	wg.Wait()
 	defer rerunner.Stop()

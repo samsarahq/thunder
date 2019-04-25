@@ -6,10 +6,10 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/samsarahq/thunder/internal/testfixtures"
 	"github.com/samsarahq/thunder/livesql"
 	"github.com/samsarahq/thunder/reactive"
 	"github.com/samsarahq/thunder/sqlgen"
-	"github.com/samsarahq/thunder/internal/testfixtures"
 )
 
 type Cat struct {
@@ -60,7 +60,7 @@ func Example() {
 		fmt.Println(user.Name)
 		ch <- struct{}{}
 		return nil, nil
-	}, 200*time.Millisecond)
+	}, 200*time.Millisecond, false)
 	defer rerunner.Stop()
 
 	<-ch

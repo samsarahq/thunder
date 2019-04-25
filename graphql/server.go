@@ -30,6 +30,7 @@ type JSONSocket interface {
 
 type MakeCtxFunc func(context.Context) context.Context
 
+type AlwaysSpawnGoroutineFunc func(context.Context, *Query) bool
 type RerunIntervalFunc func(context.Context, *Query) time.Duration
 
 type GraphqlLogger interface {
@@ -69,8 +70,9 @@ type conn struct {
 	mu            sync.Mutex
 	subscriptions map[string]*reactive.Rerunner
 
-	minRerunIntervalFunc RerunIntervalFunc
-	maxSubscriptions     int
+	alwaysSpawnGoroutineFunc AlwaysSpawnGoroutineFunc
+	minRerunIntervalFunc     RerunIntervalFunc
+	maxSubscriptions         int
 }
 
 type inEnvelope struct {
@@ -294,7 +296,7 @@ func (c *conn) handleSubscribe(in *inEnvelope) error {
 
 		initial = false
 		return nil, nil
-	}, c.minRerunIntervalFunc(c.ctx, query))
+	}, c.minRerunIntervalFunc(c.ctx, query), c.alwaysSpawnGoroutineFunc(c.ctx, query))
 
 	return nil
 }
@@ -394,7 +396,7 @@ func (c *conn) handleMutate(in *inEnvelope) error {
 
 		initial = false
 		return nil, errors.New("stop")
-	}, c.minRerunIntervalFunc(c.ctx, query))
+	}, c.minRerunIntervalFunc(c.ctx, query), c.alwaysSpawnGoroutineFunc(c.ctx, query))
 
 	return nil
 }
@@ -546,8 +548,9 @@ func CreateConnection(ctx context.Context, socket JSONSocket, schema *Schema, op
 		makeCtx: func(ctx context.Context) context.Context {
 			return ctx
 		},
-		maxSubscriptions:     DefaultMaxSubscriptions,
-		minRerunIntervalFunc: func(context.Context, *Query) time.Duration { return DefaultMinRerunInterval },
+		maxSubscriptions:         DefaultMaxSubscriptions,
+		minRerunIntervalFunc:     func(context.Context, *Query) time.Duration { return DefaultMinRerunInterval },
+		alwaysSpawnGoroutineFunc: func(context.Context, *Query) bool { return false },
 	}
 	for _, opt := range opts {
 		opt(c)
@@ -565,6 +568,12 @@ func WithExecutionLogger(logger GraphqlLogger) ConnectionOption {
 func WithMinRerunInterval(d time.Duration) ConnectionOption {
 	return func(c *conn) {
 		c.minRerunIntervalFunc = func(context.Context, *Query) time.Duration { return d }
+	}
+}
+
+func WithAlwaysSpawnGoroutineFunc(fn AlwaysSpawnGoroutineFunc) ConnectionOption {
+	return func(c *conn) {
+		c.alwaysSpawnGoroutineFunc = fn
 	}
 }
 
