@@ -66,6 +66,9 @@ func TestMutexLockTimeout(t *testing.T) {
 
 func TestMutexLockCanceled(t *testing.T) {
 	var m ctxMutex
+	_ = m.Lock(context.Background()) // Grab the lock
+	defer m.Unlock()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	require.Equal(t, m.Lock(ctx), context.Canceled)
