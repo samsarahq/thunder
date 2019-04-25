@@ -11,6 +11,17 @@
     ]
   },
   {
+    "Name": "batchExecutor:happy path all provided",
+    "Values": [
+      {
+        "inner": {
+          "optionalValue": "teeeeeeeest",
+          "requiredValue": "requiredInput!"
+        }
+      }
+    ]
+  },
+  {
     "Name": "missing required parameter",
     "Values": [
       {
@@ -20,6 +31,17 @@
   },
   {
     "Name": "missing optional parameter does not error",
+    "Values": [
+      {
+        "inner": {
+          "optionalValue": "",
+          "requiredValue": "teeeeeeeest"
+        }
+      }
+    ]
+  },
+  {
+    "Name": "batchExecutor:missing optional parameter does not error",
     "Values": [
       {
         "inner": {

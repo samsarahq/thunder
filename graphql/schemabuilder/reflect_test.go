@@ -10,6 +10,7 @@ import (
 
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/internal"
+	"github.com/samsarahq/thunder/internal/testgraphql"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -166,7 +167,7 @@ func TestExecuteGood(t *testing.T) {
 		t.Error(err)
 	}
 
-	e := graphql.Executor{}
+	e := testgraphql.NewExecutorWrapper(t)
 
 	result, err := e.Execute(ctx, builtSchema.Query, nil, q)
 	if err != nil {
@@ -305,7 +306,7 @@ func TestExecuteErrorNullReturn(t *testing.T) {
 		t.Error(err)
 	}
 
-	e := graphql.Executor{}
+	e := testgraphql.NewExecutorWrapper(t)
 	_, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
 	if err == nil {
 		t.Error("expected error, but received nil")
@@ -335,7 +336,7 @@ func TestExecuteErrorBasic(t *testing.T) {
 		t.Error(err)
 	}
 
-	e := graphql.Executor{}
+	e := testgraphql.NewExecutorWrapper(t)
 	_, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
 	if err == nil {
 		t.Error("expected error, but received nil")

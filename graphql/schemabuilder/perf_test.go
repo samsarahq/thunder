@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/samsarahq/thunder/graphql"
+	"github.com/samsarahq/thunder/internal/testgraphql"
 	"github.com/samsarahq/thunder/reactive"
 )
 
@@ -43,19 +44,23 @@ func BenchmarkSimpleExecute(b *testing.B) {
 		b.Error(err)
 	}
 
-	for i := 0; i < b.N; i++ {
-		done := make(chan struct{}, 0)
-		reactive.NewRerunner(ctx, func(ctx context.Context) (interface{}, error) {
-			e := graphql.Executor{}
+	for _, executorAndName := range testgraphql.GetExecutors() {
+		b.Run(executorAndName.Name, func(b *testing.B) {
+			e := executorAndName.Executor
+			for i := 0; i < b.N; i++ {
+				done := make(chan struct{}, 0)
+				reactive.NewRerunner(ctx, func(ctx context.Context) (interface{}, error) {
 
-			_, err := e.Execute(ctx, builtSchema.Query, nil, q)
-			if err != nil {
-				b.Error(err)
+					_, err := e.Execute(ctx, builtSchema.Query, nil, q)
+					if err != nil {
+						b.Error(err)
+					}
+					close(done)
+
+					return nil, errors.New("stop")
+				}, 0, false)
+				<-done
 			}
-			close(done)
-
-			return nil, errors.New("stop")
-		}, 0, false)
-		<-done
+		})
 	}
 }
