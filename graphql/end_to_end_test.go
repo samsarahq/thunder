@@ -12,6 +12,7 @@ import (
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 	"github.com/samsarahq/thunder/internal"
+	"github.com/samsarahq/thunder/internal/testgraphql"
 	"github.com/samsarahq/thunder/reactive"
 	"github.com/stretchr/testify/assert"
 )
@@ -62,7 +63,7 @@ func TestPathError(t *testing.T) {
 		t.Error(err)
 	}
 
-	e := graphql.Executor{}
+	e := testgraphql.NewExecutorWrapper(t)
 	_, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
 	if err == nil || err.Error() != "inner.inners.0.expensive.expensives.0.err: no good, bad" {
 		t.Errorf("bad error: %v", err)
@@ -77,7 +78,7 @@ func TestPathError(t *testing.T) {
 		t.Error(err)
 	}
 
-	e = graphql.Executor{}
+	e = testgraphql.NewExecutorWrapper(t)
 	_, err = e.Execute(context.Background(), builtSchema.Query, nil, q)
 	if err == nil || err.Error() != "safe safe" {
 		t.Errorf("bad error: %v", err)
@@ -145,7 +146,7 @@ func TestEnum(t *testing.T) {
 		t.Error(err)
 	}
 
-	e := graphql.Executor{}
+	e := testgraphql.NewExecutorWrapper(t)
 	val, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
 	assert.Nil(t, err)
 	assert.Equal(t, map[string]interface{}{
@@ -161,7 +162,7 @@ func TestEnum(t *testing.T) {
 		t.Error(err)
 	}
 
-	e = graphql.Executor{}
+	e = testgraphql.NewExecutorWrapper(t)
 	val, err = e.Execute(context.Background(), builtSchema.Query, nil, q)
 	assert.Nil(t, err)
 	assert.Equal(t, map[string]interface{}{
@@ -186,7 +187,7 @@ func TestEnum(t *testing.T) {
 		t.Error(err)
 	}
 
-	e = graphql.Executor{}
+	e = testgraphql.NewExecutorWrapper(t)
 	val, err = e.Execute(context.Background(), builtSchema.Query, nil, q)
 	assert.Nil(t, err)
 	assert.Equal(t, map[string]interface{}{
@@ -202,7 +203,7 @@ func TestEnum(t *testing.T) {
 		t.Error(err)
 	}
 
-	e = graphql.Executor{}
+	e = testgraphql.NewExecutorWrapper(t)
 	val, err = e.Execute(context.Background(), builtSchema.Query, nil, q)
 	assert.Nil(t, err)
 	assert.Equal(t, map[string]interface{}{
@@ -270,7 +271,7 @@ func TestEndToEndAwaitAndCache(t *testing.T) {
 
 	start := time.Now()
 	rerunner := reactive.NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
-		e := graphql.Executor{}
+		e := testgraphql.NewExecutorWrapper(t)
 		result, err := e.Execute(ctx, builtSchema.Query, nil, q)
 		if err != nil {
 			t.Error(err)
@@ -325,7 +326,7 @@ func verifyArgumentOption(t *testing.T, query graphql.Type, queryString string, 
 		t.Error(err)
 	}
 
-	e := graphql.Executor{}
+	e := testgraphql.NewExecutorWrapper(t)
 	result, err := e.Execute(context.Background(), query, nil, q)
 	if err != nil {
 		t.Error(err)
@@ -431,7 +432,7 @@ func TestConcurrencyLimiterDeadlock(t *testing.T) {
 	wg.Add(1)
 	rerunner := reactive.NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
 		defer wg.Done()
-		e := graphql.Executor{}
+		e := testgraphql.NewExecutorWrapper(t)
 		ctx = concurrencylimiter.With(ctx, 100)
 
 		_, err := e.Execute(ctx, builtSchema.Query, nil, q)

@@ -10,6 +10,7 @@ import (
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 	"github.com/samsarahq/thunder/internal"
+	"github.com/samsarahq/thunder/internal/testgraphql"
 )
 
 type GatewayType int
@@ -70,7 +71,7 @@ func TestUnionType(t *testing.T) {
 		t.Error(err)
 	}
 
-	e := graphql.Executor{}
+	e := testgraphql.NewExecutorWrapper(t)
 
 	result, err := e.Execute(ctx, builtSchema.Query, nil, q)
 	if err != nil {
@@ -204,14 +205,18 @@ func TestBadUnionNonOneHot(t *testing.T) {
 		t.Error(err)
 	}
 
-	e := graphql.Executor{}
-	_, err := e.Execute(ctx, builtSchema.Query, nil, q)
-	if err == nil {
-		t.Error("expected err, received nil")
-	}
+	for _, execWithName := range testgraphql.GetExecutors() {
+		t.Run(execWithName.Name, func(t *testing.T) {
+			e := execWithName.Executor
+			_, err := e.Execute(ctx, builtSchema.Query, nil, q)
+			if err == nil {
+				t.Error("expected err, received nil")
+			}
 
-	if !strings.Contains(err.Error(), "union type field should only return one value") {
-		t.Errorf("expected err, received %s", err.Error())
+			if !strings.Contains(err.Error(), "union type field should only return one value") {
+				t.Errorf("expected err, received %s", err.Error())
+			}
+		})
 	}
 }
 
@@ -241,7 +246,7 @@ func TestUnionList(t *testing.T) {
 		t.Error(err)
 	}
 
-	e := graphql.Executor{}
+	e := testgraphql.NewExecutorWrapper(t)
 	result, err := e.Execute(ctx, builtSchema.Query, nil, q)
 	if err != nil {
 		t.Errorf("expected no error, received %s", err.Error())
@@ -284,7 +289,7 @@ func TestUnionStruct(t *testing.T) {
 		t.Error(err)
 	}
 
-	e := graphql.Executor{}
+	e := testgraphql.NewExecutorWrapper(t)
 	result, err := e.Execute(ctx, builtSchema.Query, nil, q)
 	if err != nil {
 		t.Errorf("expected no error, received %s", err.Error())

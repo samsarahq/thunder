@@ -694,7 +694,7 @@ func TestEmbeddedArgs(t *testing.T) {
 	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
 		t.Error(err)
 	}
-	e := graphql.Executor{}
+	e := testgraphql.NewExecutorWrapper(t)
 	val, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
 	assert.Nil(t, err)
 
