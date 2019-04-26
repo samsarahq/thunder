@@ -174,6 +174,10 @@ func PrepareQuery(typ Type, selectionSet *SelectionSet) error {
 				selection.parsed = true
 			}
 
+			if field.Batch && field.UseBatchFunc() {
+				selection.UseBatch = true
+			}
+
 			if err := PrepareQuery(field.Type, selection.SelectionSet); err != nil {
 				return err
 			}
@@ -196,12 +200,16 @@ func PrepareQuery(typ Type, selectionSet *SelectionSet) error {
 	}
 }
 
-type panicError struct {
-	message string
-}
-
-func (p panicError) Error() string {
-	return p.message
+func safeResolveBatch(ctx context.Context, field *Field, sources []interface{}, args interface{}, selectionSet *SelectionSet) (results []interface{}, err error) {
+	defer func() {
+		if panicErr := recover(); panicErr != nil {
+			const size = 64 << 10
+			buf := make([]byte, size)
+			buf = buf[:runtime.Stack(buf, false)]
+			results, err = nil, fmt.Errorf("graphql: panic: %v\n%s", panicErr, buf)
+		}
+	}()
+	return field.BatchResolver(ctx, sources, args, selectionSet)
 }
 
 func safeResolve(ctx context.Context, field *Field, source, args interface{}, selectionSet *SelectionSet) (result interface{}, err error) {
