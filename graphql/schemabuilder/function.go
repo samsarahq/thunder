@@ -12,15 +12,20 @@ import (
 // that object to build a GraphQL Field that can be resolved in the GraphQL
 // graph.
 func (sb *schemaBuilder) buildFunction(typ reflect.Type, m *method) (*graphql.Field, error) {
+	field, _, err := sb.buildFunctionAndFuncCtx(typ, m)
+	return field, err
+}
+
+func (sb *schemaBuilder) buildFunctionAndFuncCtx(typ reflect.Type, m *method) (*graphql.Field, *funcContext, error) {
 	funcCtx := &funcContext{typ: typ}
 
 	if typ.Kind() == reflect.Ptr {
-		return nil, fmt.Errorf("source-type of buildFunction cannot be a pointer (got: %v)", typ)
+		return nil, nil, fmt.Errorf("source-type of buildFunction cannot be a pointer (got: %v)", typ)
 	}
 
 	callableFunc, err := funcCtx.getFuncVal(m)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	in := funcCtx.getFuncInputTypes()
@@ -28,7 +33,7 @@ func (sb *schemaBuilder) buildFunction(typ reflect.Type, m *method) (*graphql.Fi
 
 	argParser, argType, in, err := funcCtx.getArgParserAndTyp(sb, in)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	funcCtx.hasArgs = argParser != nil
 
@@ -36,24 +41,24 @@ func (sb *schemaBuilder) buildFunction(typ reflect.Type, m *method) (*graphql.Fi
 
 	// We have succeeded if no arguments remain.
 	if len(in) != 0 {
-		return nil, fmt.Errorf("%s arguments should be [context][, [*]%s][, args][, selectionSet]", funcCtx.funcType, typ)
+		return nil, nil, fmt.Errorf("%s arguments should be [context][, [*]%s][, args][, selectionSet]", funcCtx.funcType, typ)
 	}
 
 	// Parse return values. The first return value must be the actual value, and
 	// the second value can optionally be an error.
 	err = funcCtx.parseReturnSignature(m)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	retType, err := funcCtx.getReturnType(sb, m)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	args, err := funcCtx.argsTypeMap(argType)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	return &graphql.Field{
@@ -72,7 +77,7 @@ func (sb *schemaBuilder) buildFunction(typ reflect.Type, m *method) (*graphql.Fi
 		ParseArguments: argParser.Parse,
 		Expensive:      funcCtx.hasContext,
 		External:       true,
-	}, nil
+	}, funcCtx, nil
 }
 
 // funcContext is used to parse the function signature in buildFunction.
