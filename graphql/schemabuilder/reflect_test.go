@@ -847,7 +847,7 @@ func TestBatchFieldFuncValidation(t *testing.T) {
 
 			obj := builder.Object("object", Object{})
 			obj.Key("key")
-			obj.BatchFieldFunc("keys", tt.GiveFunc, tt.GiveFallbackFunc, func() bool { return true })
+			obj.BatchFieldFunc("keys", tt.GiveFunc, tt.GiveFallbackFunc, func(ctx context.Context) bool { return true })
 			_, err := builder.Build()
 			if tt.WantError {
 				assert.Error(t, err)

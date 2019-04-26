@@ -325,7 +325,7 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 				builder.Query().FieldFunc("objects", tt.GiveObjectFunc)
 
 				obj := builder.Object("object", Object{})
-				obj.BatchFieldFunc("value", tt.GiveValueFunc, tt.GiveValueFallbackFunc, func() bool {
+				obj.BatchFieldFunc("value", tt.GiveValueFunc, tt.GiveValueFallbackFunc, func(ctx context.Context) bool {
 					return cond == NewExecutorNoBatching
 				})
 				schema, err := builder.Build()

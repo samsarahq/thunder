@@ -170,7 +170,7 @@ func PrepareQuery(ctx context.Context, typ Type, selectionSet *SelectionSet) err
 				selection.parsed = true
 			}
 
-			if field.Batch && field.UseBatchFunc() {
+			if field.Batch && field.UseBatchFunc(ctx) {
 				selection.UseBatch = true
 			}
 
