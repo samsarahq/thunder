@@ -67,7 +67,7 @@ func TestUnionType(t *testing.T) {
 		}
 	`, map[string]interface{}{"var": float64(3)})
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
+	if err := graphql.PrepareQuery(ctx, builtSchema.Query, q.SelectionSet); err != nil {
 		t.Error(err)
 	}
 
@@ -201,7 +201,7 @@ func TestBadUnionNonOneHot(t *testing.T) {
 
 	q := graphql.MustParse(`{ union { __typename } }`, map[string]interface{}{"var": float64(3)})
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
+	if err := graphql.PrepareQuery(ctx, builtSchema.Query, q.SelectionSet); err != nil {
 		t.Error(err)
 	}
 
@@ -242,7 +242,7 @@ func TestUnionList(t *testing.T) {
 
 	q := graphql.MustParse(`{ list { ... on UnionPart1 { otherThing } ... on UnionPart2 { thing } } }`, map[string]interface{}{"var": float64(3)})
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
+	if err := graphql.PrepareQuery(ctx, builtSchema.Query, q.SelectionSet); err != nil {
 		t.Error(err)
 	}
 
@@ -285,7 +285,7 @@ func TestUnionStruct(t *testing.T) {
 
 	q := graphql.MustParse(`{ wrapper { x {... on UnionPart1 { otherThing } ... on UnionPart2 { thing } } } }`, map[string]interface{}{"var": float64(3)})
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
+	if err := graphql.PrepareQuery(ctx, builtSchema.Query, q.SelectionSet); err != nil {
 		t.Error(err)
 	}
 

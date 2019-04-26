@@ -162,7 +162,7 @@ func TestExecuteGood(t *testing.T) {
 		}
 	`, map[string]interface{}{"var": float64(3)})
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
+	if err := graphql.PrepareQuery(ctx, builtSchema.Query, q.SelectionSet); err != nil {
 		t.Error(err)
 	}
 
@@ -301,7 +301,7 @@ func TestExecuteErrorNullReturn(t *testing.T) {
 		}
 	`, map[string]interface{}{"var": float64(3)})
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
+	if err := graphql.PrepareQuery(context.Background(), builtSchema.Query, q.SelectionSet); err != nil {
 		t.Error(err)
 	}
 
@@ -331,7 +331,7 @@ func TestExecuteErrorBasic(t *testing.T) {
 		}
 	`, map[string]interface{}{"var": float64(3)})
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
+	if err := graphql.PrepareQuery(context.Background(), builtSchema.Query, q.SelectionSet); err != nil {
 		t.Error(err)
 	}
 

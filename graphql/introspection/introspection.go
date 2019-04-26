@@ -376,7 +376,7 @@ func ComputeSchemaJSON(schemaBuilderSchema schemabuilder.Schema) ([]byte, error)
 		return nil, err
 	}
 
-	if err := graphql.PrepareQuery(schema.Query, query.SelectionSet); err != nil {
+	if err := graphql.PrepareQuery(context.Background(), schema.Query, query.SelectionSet); err != nil {
 		return nil, err
 	}
 

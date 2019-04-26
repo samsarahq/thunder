@@ -97,7 +97,7 @@ func unwrap(v interface{}) interface{} {
 
 // PrepareQuery checks that the given selectionSet matches the schema typ, and
 // parses the args in selectionSet
-func PrepareQuery(typ Type, selectionSet *SelectionSet) error {
+func PrepareQuery(ctx context.Context, typ Type, selectionSet *SelectionSet) error {
 	switch typ := typ.(type) {
 	case *Scalar:
 		if selectionSet != nil {
@@ -119,7 +119,7 @@ func PrepareQuery(typ Type, selectionSet *SelectionSet) error {
 				if fragment.On != typString {
 					continue
 				}
-				if err := PrepareQuery(graphqlTyp, fragment.SelectionSet); err != nil {
+				if err := PrepareQuery(ctx, graphqlTyp, fragment.SelectionSet); err != nil {
 					return err
 				}
 			}
@@ -174,22 +174,22 @@ func PrepareQuery(typ Type, selectionSet *SelectionSet) error {
 				selection.UseBatch = true
 			}
 
-			if err := PrepareQuery(field.Type, selection.SelectionSet); err != nil {
+			if err := PrepareQuery(ctx, field.Type, selection.SelectionSet); err != nil {
 				return err
 			}
 		}
 		for _, fragment := range selectionSet.Fragments {
-			if err := PrepareQuery(typ, fragment.SelectionSet); err != nil {
+			if err := PrepareQuery(ctx, typ, fragment.SelectionSet); err != nil {
 				return err
 			}
 		}
 		return nil
 
 	case *List:
-		return PrepareQuery(typ.Type, selectionSet)
+		return PrepareQuery(ctx, typ.Type, selectionSet)
 
 	case *NonNull:
-		return PrepareQuery(typ.Type, selectionSet)
+		return PrepareQuery(ctx, typ.Type, selectionSet)
 
 	default:
 		panic("unknown type kind")

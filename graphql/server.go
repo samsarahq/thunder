@@ -195,7 +195,7 @@ func (c *conn) handleSubscribe(in *inEnvelope) error {
 		c.logger.Error(c.ctx, err, tags)
 		return err
 	}
-	if err := PrepareQuery(c.schema.Query, query.SelectionSet); err != nil {
+	if err := PrepareQuery(context.Background(), c.schema.Query, query.SelectionSet); err != nil {
 		c.logger.Error(c.ctx, err, tags)
 		return err
 	}
@@ -323,7 +323,7 @@ func (c *conn) handleMutate(in *inEnvelope) error {
 		c.logger.Error(c.ctx, err, tags)
 		return err
 	}
-	if err := PrepareQuery(c.mutationSchema.Mutation, query.SelectionSet); err != nil {
+	if err := PrepareQuery(c.ctx, c.mutationSchema.Mutation, query.SelectionSet); err != nil {
 		c.logger.Error(c.ctx, err, tags)
 		return err
 	}
