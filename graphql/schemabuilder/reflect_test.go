@@ -10,7 +10,6 @@ import (
 
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/internal"
-	"github.com/samsarahq/thunder/internal/testgraphql"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -167,7 +166,7 @@ func TestExecuteGood(t *testing.T) {
 		t.Error(err)
 	}
 
-	e := testgraphql.NewExecutorWrapper(t)
+	e := graphql.Executor{}
 
 	result, err := e.Execute(ctx, builtSchema.Query, nil, q)
 	if err != nil {
@@ -306,7 +305,7 @@ func TestExecuteErrorNullReturn(t *testing.T) {
 		t.Error(err)
 	}
 
-	e := testgraphql.NewExecutorWrapper(t)
+	e := graphql.Executor{}
 	_, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
 	if err == nil {
 		t.Error("expected error, but received nil")
@@ -336,7 +335,7 @@ func TestExecuteErrorBasic(t *testing.T) {
 		t.Error(err)
 	}
 
-	e := testgraphql.NewExecutorWrapper(t)
+	e := graphql.Executor{}
 	_, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
 	if err == nil {
 		t.Error("expected error, but received nil")
@@ -677,4 +676,184 @@ func TestObjectKeyMustBeScalar(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
+}
+
+func TestBatchFieldFuncValidation(t *testing.T) {
+	type Object struct {
+		Key *string
+	}
+	tests := []struct {
+		Name             string
+		GiveFunc         interface{}
+		GiveFallbackFunc interface{}
+		WantError        bool
+	}{
+		{
+			Name:             "nothing",
+			GiveFunc:         func() {},
+			GiveFallbackFunc: func() {},
+			WantError:        true,
+		},
+		{
+			Name:             "no source",
+			GiveFunc:         func(ctx context.Context) {},
+			GiveFallbackFunc: func(ctx context.Context) {},
+			WantError:        true,
+		},
+		{
+			Name:             "non-batch source",
+			GiveFunc:         func(ctx context.Context, o *Object) {},
+			GiveFallbackFunc: func(ctx context.Context, o *Object) {},
+			WantError:        true,
+		},
+		{
+			Name:             "batch source",
+			GiveFunc:         func(ctx context.Context, o map[int]*Object) {},
+			GiveFallbackFunc: func(ctx context.Context, o *Object) {},
+			WantError:        false,
+		},
+		{
+			Name:             "batch & fallback funcs inverted",
+			GiveFallbackFunc: func(ctx context.Context, o map[int]*Object) {},
+			GiveFunc:         func(ctx context.Context, o *Object) {},
+			WantError:        true,
+		},
+		{
+			Name:             "batch source with different fallback",
+			GiveFunc:         func(ctx context.Context, o map[int]*Object) {},
+			GiveFallbackFunc: func(ctx context.Context) {},
+			WantError:        true,
+		},
+		{
+			Name:             "batch non-pointer source",
+			GiveFunc:         func(ctx context.Context, o map[int]Object) {},
+			GiveFallbackFunc: func(ctx context.Context, o Object) {},
+			WantError:        false,
+		},
+		{
+			Name:             "batch invalid map key source",
+			GiveFunc:         func(ctx context.Context, o map[int64]Object) {},
+			GiveFallbackFunc: func(ctx context.Context, o Object) {},
+			WantError:        true,
+		},
+		{
+			Name:             "batch with args",
+			GiveFunc:         func(ctx context.Context, o map[int]Object, args struct{ Test string }) {},
+			GiveFallbackFunc: func(ctx context.Context, o Object, args struct{ Test string }) {},
+			WantError:        false,
+		},
+		{
+			Name:             "batch with different fallback args",
+			GiveFunc:         func(ctx context.Context, o map[int]Object, args struct{ Test string }) {},
+			GiveFallbackFunc: func(ctx context.Context, o Object, args struct{ Test2 string }) {},
+			WantError:        true,
+		},
+		{
+			Name:             "batch with no fallback args",
+			GiveFunc:         func(ctx context.Context, o map[int]Object, args struct{ Test string }) {},
+			GiveFallbackFunc: func(ctx context.Context, o Object) {},
+			WantError:        true,
+		},
+		{
+			Name:             "batch with no args, fallback has args",
+			GiveFunc:         func(ctx context.Context, o map[int]Object) {},
+			GiveFallbackFunc: func(ctx context.Context, o Object, args struct{ Test string }) {},
+			WantError:        true,
+		},
+		{
+			Name:             "batch with selection set",
+			GiveFunc:         func(ctx context.Context, o map[int]Object, s *graphql.SelectionSet) {},
+			GiveFallbackFunc: func(ctx context.Context, o Object, s *graphql.SelectionSet) {},
+			WantError:        false,
+		},
+		{
+			Name:             "batch with selection set, fallback without Set",
+			GiveFunc:         func(ctx context.Context, o map[int]Object, s *graphql.SelectionSet) {},
+			GiveFallbackFunc: func(ctx context.Context, o Object) {},
+			WantError:        true,
+		},
+		{
+			Name:             "batch with all parameters",
+			GiveFunc:         func(ctx context.Context, o map[int]Object, args struct{ Test string }, s *graphql.SelectionSet) {},
+			GiveFallbackFunc: func(ctx context.Context, o Object, args struct{ Test string }, s *graphql.SelectionSet) {},
+			WantError:        false,
+		},
+		{
+			Name: "batch with all extra parameters",
+			GiveFunc: func(ctx context.Context, o map[int]Object, args struct{ Test string }, s *graphql.SelectionSet, bad string) {
+			},
+			GiveFallbackFunc: func(ctx context.Context, o Object, args struct{ Test string }, s *graphql.SelectionSet) {},
+			WantError:        true,
+		},
+		{
+			Name:             "batch without context",
+			GiveFunc:         func(o map[int]Object, args struct{ Test string }, s *graphql.SelectionSet) {},
+			GiveFallbackFunc: func(o Object, args struct{ Test string }, s *graphql.SelectionSet) {},
+			WantError:        false,
+		},
+		{
+			Name:             "batch without context, fallback with context",
+			GiveFunc:         func(o map[int]Object, args struct{ Test string }, s *graphql.SelectionSet) {},
+			GiveFallbackFunc: func(ctx context.Context, o Object, args struct{ Test string }, s *graphql.SelectionSet) {},
+			WantError:        true,
+		},
+		{
+			Name:             "batch invalid response type",
+			GiveFunc:         func(ctx context.Context, o map[int]Object) *string { return nil },
+			GiveFallbackFunc: func(ctx context.Context, o Object) *string { return nil },
+			WantError:        true,
+		},
+		{
+			Name:             "batch only error",
+			GiveFunc:         func(ctx context.Context, o map[int]Object) error { return nil },
+			GiveFallbackFunc: func(ctx context.Context, o Object) error { return nil },
+			WantError:        false,
+		},
+		{
+			Name:             "batch invalid response map error",
+			GiveFunc:         func(ctx context.Context, o map[int]Object) (map[string]string, error) { return nil, nil },
+			GiveFallbackFunc: func(ctx context.Context, o Object) (string, error) { return "", nil },
+			WantError:        true,
+		},
+		{
+			Name:             "batch valid resp and error",
+			GiveFunc:         func(ctx context.Context, o map[int]Object) (map[int]string, error) { return nil, nil },
+			GiveFallbackFunc: func(ctx context.Context, o Object) (*string, error) { return nil, nil },
+			WantError:        false,
+		},
+		{
+			Name:             "batch resp different from fallback",
+			GiveFunc:         func(ctx context.Context, o map[int]Object) (map[int]string, error) { return nil, nil },
+			GiveFallbackFunc: func(ctx context.Context, o Object) (int, error) { return 1, nil },
+			WantError:        true,
+		},
+		{
+			Name:             "batch valid resp",
+			GiveFunc:         func(ctx context.Context, o map[int]Object) map[int]string { return nil },
+			GiveFallbackFunc: func(ctx context.Context, o Object) *string { return nil },
+			WantError:        false,
+		},
+		{
+			Name:             "batch to many response fields",
+			GiveFunc:         func(ctx context.Context, o map[int]Object) (map[int]string, error, bool) { return nil, nil, false },
+			GiveFallbackFunc: func(ctx context.Context, o Object) (string, error) { return "", nil },
+			WantError:        true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.Name, func(t *testing.T) {
+			builder := NewSchema()
+			builder.Query().FieldFunc("objects", func(ctx context.Context) []*Object { return []*Object(nil) })
+
+			obj := builder.Object("object", Object{})
+			obj.Key("key")
+			obj.BatchFieldFunc("keys", tt.GiveFunc, tt.GiveFallbackFunc, func() bool { return true })
+			_, err := builder.Build()
+			if tt.WantError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }
