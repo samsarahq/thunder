@@ -130,7 +130,7 @@ type Field struct {
 	Args           map[string]Type
 	ParseArguments func(json interface{}) (interface{}, error)
 
-	UseBatchFunc func() bool
+	UseBatchFunc func(context.Context) bool
 	Batch        bool
 	External     bool
 	Expensive    bool
