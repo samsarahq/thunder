@@ -60,6 +60,8 @@ type conn struct {
 	makeCtx        MakeCtxFunc
 	middlewares    []MiddlewareFunc
 
+	executor ExecutorRunner
+
 	logger             GraphqlLogger
 	subscriptionLogger SubscriptionLogger
 
@@ -202,7 +204,7 @@ func (c *conn) handleSubscribe(in *inEnvelope) error {
 
 	var previous interface{}
 
-	e := Executor{}
+	e := c.executor
 
 	initial := true
 	c.subscriptionLogger.Subscribe(c.ctx, id, tags)
@@ -542,6 +544,7 @@ func CreateConnection(ctx context.Context, socket JSONSocket, schema *Schema, op
 		ctx:                ctx,
 		schema:             schema,
 		mutationSchema:     schema,
+		executor:           &Executor{},
 		subscriptions:      make(map[string]*reactive.Rerunner),
 		subscriptionLogger: &nopSubscriptionLogger{},
 		logger:             &nopGraphqlLogger{},
@@ -557,6 +560,12 @@ func CreateConnection(ctx context.Context, socket JSONSocket, schema *Schema, op
 	}
 
 	return c
+}
+
+func WithExecutor(executor ExecutorRunner) ConnectionOption {
+	return func(c *conn) {
+		c.executor = executor
+	}
 }
 
 func WithExecutionLogger(logger GraphqlLogger) ConnectionOption {
