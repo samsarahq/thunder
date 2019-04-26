@@ -87,6 +87,26 @@ func (s *Object) FieldFunc(name string, f interface{}, options ...FieldFuncOptio
 	s.Methods[name] = m
 }
 
+func (s *Object) BatchFieldFunc(name string, batchFunc interface{}, fallbackFunc interface{}, flag UseFallbackFlag) {
+	if s.Methods == nil {
+		s.Methods = make(Methods)
+	}
+
+	m := &method{
+		Fn: batchFunc,
+		BatchArgs: batchArgs{
+			FallbackFunc:          fallbackFunc,
+			ShouldUseFallbackFunc: flag,
+		},
+		Batch: true,
+	}
+
+	if _, ok := s.Methods[name]; ok {
+		panic("duplicate method")
+	}
+	s.Methods[name] = m
+}
+
 // Key registers the key field on an object. The field should be specified by the name of the
 // graphql field.
 // For example, for an object User:
@@ -109,6 +129,18 @@ type method struct {
 	TextFilterFuncs map[string]interface{}
 	// Sort methods
 	SortFuncs map[string]interface{}
+
+	// Whether the FieldFunc is a batchField
+	Batch bool
+
+	BatchArgs batchArgs
+}
+
+type UseFallbackFlag func() bool
+
+type batchArgs struct {
+	FallbackFunc          interface{}
+	ShouldUseFallbackFunc UseFallbackFlag
 }
 
 // A Methods map represents the set of methods exposed on a Object.
