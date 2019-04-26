@@ -691,7 +691,7 @@ func TestEmbeddedArgs(t *testing.T) {
 			}
 	    }`, nil)
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
+	if err := graphql.PrepareQuery(context.Background(), builtSchema.Query, q.SelectionSet); err != nil {
 		t.Error(err)
 	}
 	e := testgraphql.NewExecutorWrapper(t)
