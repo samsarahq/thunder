@@ -1,6 +1,9 @@
 package schemabuilder
 
-import "reflect"
+import (
+	"context"
+	"reflect"
+)
 
 // A Object represents a Go type and set of methods to be converted into an
 // Object in a GraphQL schema.
@@ -136,7 +139,7 @@ type method struct {
 	BatchArgs batchArgs
 }
 
-type UseFallbackFlag func() bool
+type UseFallbackFlag func(context.Context) bool
 
 type batchArgs struct {
 	FallbackFunc          interface{}
