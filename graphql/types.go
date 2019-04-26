@@ -117,17 +117,23 @@ var _ Type = &Union{}
 // A Resolver calculates the value of a field of an object
 type Resolver func(ctx context.Context, source, args interface{}, selectionSet *SelectionSet) (interface{}, error)
 
+// A BatchResolver calculates the value of a field for a slice of objects.
+type BatchResolver func(ctx context.Context, sources []interface{}, args interface{}, selectionSet *SelectionSet) ([]interface{}, error)
+
 // Field knows how to compute field values of an Object
 //
 // Fields are responsible for computing their value themselves.
 type Field struct {
 	Resolve        Resolver
+	BatchResolver  BatchResolver
 	Type           Type
 	Args           map[string]Type
 	ParseArguments func(json interface{}) (interface{}, error)
 
-	External  bool
-	Expensive bool
+	UseBatchFunc func() bool
+	Batch        bool
+	External     bool
+	Expensive    bool
 }
 
 type Schema struct {
@@ -174,6 +180,8 @@ type Selection struct {
 	Alias        string
 	Args         interface{}
 	SelectionSet *SelectionSet
+
+	UseBatch bool
 
 	// The parsed flag is used to make sure the args for this Selection are only
 	// parsed once.

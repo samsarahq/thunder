@@ -93,7 +93,9 @@ func (e *BatchExecutor) Execute(ctx context.Context, typ Type, source interface{
 // selections of the unit to determine if it needs to schedule more work (which
 // will be returned as new work units that will need to get scheduled.
 func resolveWorkUnit(unit *WorkUnit) []*WorkUnit {
-	// TODO Insert Batching code execution here if field is "Batch"
+	if unit.field.Batch && unit.selection.UseBatch {
+		return resolveBatchUnit(unit)
+	}
 
 	var units []*WorkUnit
 	for idx, src := range unit.sources {
@@ -104,6 +106,24 @@ func resolveWorkUnit(unit *WorkUnit) []*WorkUnit {
 		units = append(units, resolveNonBatchUnitWithCaching(src, unit.destinations[idx], unit)...)
 	}
 	return units
+}
+
+func resolveBatchUnit(unit *WorkUnit) []*WorkUnit {
+	results, err := safeResolveBatch(unit.ctx, unit.field, unit.sources, unit.selection.Args, unit.selection.SelectionSet)
+	if err != nil {
+		for _, dest := range unit.destinations {
+			dest.Fail(err)
+		}
+		return nil
+	}
+	unitChildren, err := resolveBatch(unit.ctx, results, unit.field.Type, unit.selection.SelectionSet, unit.destinations)
+	if err != nil {
+		for _, dest := range unit.destinations {
+			dest.Fail(err)
+		}
+		return nil
+	}
+	return unitChildren
 }
 
 // resolveNonBatchUnitWithCaching wraps a resolve request in a reactive cache
@@ -335,6 +355,16 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 		}
 
 		field := typ.Fields[selection.Name]
+		if field.Batch && selection.UseBatch {
+			workUnits = append(workUnits, &WorkUnit{
+				ctx:          ctx,
+				field:        field,
+				sources:      nonNilSources,
+				destinations: destForSelection,
+				selection:    selection,
+			})
+			continue
+		}
 		if field.Expensive {
 			// Expensive fields should be executed as multiple "Units".  The scheduler
 			// controls how the units are executed
