@@ -12,15 +12,21 @@ import (
 )
 
 func HTTPHandler(schema *Schema, middlewares ...MiddlewareFunc) http.Handler {
+	return HTTPHandlerWithExecutor(schema, &Executor{}, middlewares...)
+}
+
+func HTTPHandlerWithExecutor(schema *Schema, executor ExecutorRunner, middlewares ...MiddlewareFunc) http.Handler {
 	return &httpHandler{
 		schema:      schema,
 		middlewares: middlewares,
+		executor:    executor,
 	}
 }
 
 type httpHandler struct {
 	schema      *Schema
 	middlewares []MiddlewareFunc
+	executor    ExecutorRunner
 }
 
 type httpPostBody struct {
@@ -85,7 +91,7 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var wg sync.WaitGroup
-	e := Executor{}
+	e := h.executor
 
 	wg.Add(1)
 	runner := reactive.NewRerunner(r.Context(), func(ctx context.Context) (interface{}, error) {
