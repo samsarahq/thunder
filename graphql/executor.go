@@ -200,7 +200,7 @@ func PrepareQuery(ctx context.Context, typ Type, selectionSet *SelectionSet) err
 	}
 }
 
-func safeResolveBatch(ctx context.Context, field *Field, sources []interface{}, args interface{}, selectionSet *SelectionSet) (results []interface{}, err error) {
+func safeExecuteBatchResolver(ctx context.Context, field *Field, sources []interface{}, args interface{}, selectionSet *SelectionSet) (results []interface{}, err error) {
 	defer func() {
 		if panicErr := recover(); panicErr != nil {
 			const size = 64 << 10
@@ -212,7 +212,7 @@ func safeResolveBatch(ctx context.Context, field *Field, sources []interface{}, 
 	return field.BatchResolver(ctx, sources, args, selectionSet)
 }
 
-func safeResolve(ctx context.Context, field *Field, source, args interface{}, selectionSet *SelectionSet) (result interface{}, err error) {
+func safeExecuteResolver(ctx context.Context, field *Field, source, args interface{}, selectionSet *SelectionSet) (result interface{}, err error) {
 	defer func() {
 		if panicErr := recover(); panicErr != nil {
 			const size = 64 << 10
@@ -251,7 +251,7 @@ func (e *Executor) resolveAndExecute(ctx context.Context, field *Field, source i
 
 			// TODO: Consider cacheing resolve and execute independently
 			resolvedValue, err := reactive.Cache(ctx, key, func(ctx context.Context) (interface{}, error) {
-				value, err := safeResolve(ctx, field, source, selection.Args, selection.SelectionSet)
+				value, err := safeExecuteResolver(ctx, field, source, selection.Args, selection.SelectionSet)
 				if err != nil {
 					return nil, err
 				}
@@ -274,7 +274,7 @@ func (e *Executor) resolveAndExecute(ctx context.Context, field *Field, source i
 		}), nil
 	}
 
-	value, err := safeResolve(ctx, field, source, selection.Args, selection.SelectionSet)
+	value, err := safeExecuteResolver(ctx, field, source, selection.Args, selection.SelectionSet)
 	if err != nil {
 		return nil, err
 	}
