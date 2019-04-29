@@ -81,7 +81,7 @@ func (e *BatchExecutor) Execute(ctx context.Context, typ Type, source interface{
 		)
 	}
 
-	e.scheduler.Run(resolveWorkUnit, initialSelectionWorkUnits...)
+	e.scheduler.Run(executeWorkUnit, initialSelectionWorkUnits...)
 
 	if topLevelRespWriter.errRecorder.err != nil {
 		return nil, topLevelRespWriter.errRecorder.err
@@ -89,27 +89,27 @@ func (e *BatchExecutor) Execute(ctx context.Context, typ Type, source interface{
 	return writers, nil
 }
 
-// resolveWorkUnit executes/resolves a work unit and checks the
+// executeWorkUnit executes/resolves a work unit and checks the
 // selections of the unit to determine if it needs to schedule more work (which
 // will be returned as new work units that will need to get scheduled.
-func resolveWorkUnit(unit *WorkUnit) []*WorkUnit {
+func executeWorkUnit(unit *WorkUnit) []*WorkUnit {
 	if unit.field.Batch && unit.selection.UseBatch {
-		return resolveBatchUnit(unit)
+		return executeBatchWorkUnit(unit)
 	}
 
 	var units []*WorkUnit
 	for idx, src := range unit.sources {
 		if !unit.field.Expensive {
-			units = append(units, resolveNonBatchUnit(unit.ctx, src, unit.destinations[idx], unit)...)
+			units = append(units, executeNonBatchWorkUnit(unit.ctx, src, unit.destinations[idx], unit)...)
 			continue
 		}
-		units = append(units, resolveNonBatchUnitWithCaching(src, unit.destinations[idx], unit)...)
+		units = append(units, executeNonBatchWorkUnitWithCaching(src, unit.destinations[idx], unit)...)
 	}
 	return units
 }
 
-func resolveBatchUnit(unit *WorkUnit) []*WorkUnit {
-	results, err := safeResolveBatch(unit.ctx, unit.field, unit.sources, unit.selection.Args, unit.selection.SelectionSet)
+func executeBatchWorkUnit(unit *WorkUnit) []*WorkUnit {
+	results, err := safeExecuteBatchResolver(unit.ctx, unit.field, unit.sources, unit.selection.Args, unit.selection.SelectionSet)
 	if err != nil {
 		for _, dest := range unit.destinations {
 			dest.Fail(err)
@@ -126,17 +126,17 @@ func resolveBatchUnit(unit *WorkUnit) []*WorkUnit {
 	return unitChildren
 }
 
-// resolveNonBatchUnitWithCaching wraps a resolve request in a reactive cache
+// executeNonBatchWorkUnitWithCaching wraps a resolve request in a reactive cache
 // call.
 // This function makes two assumptions:
 // - We assume that all the reactive cache will get cleared if there is an error.
 // - We assume that there is no "error-catching" mechanism that will stop an
 //   error from propagating all the way to the top of the request stack.
-func resolveNonBatchUnitWithCaching(src interface{}, dest *outputNode, unit *WorkUnit) []*WorkUnit {
+func executeNonBatchWorkUnitWithCaching(src interface{}, dest *outputNode, unit *WorkUnit) []*WorkUnit {
 	var workUnits []*WorkUnit
 	subDestRes, err := reactive.Cache(unit.ctx, getWorkCacheKey(src, unit.field, unit.selection), func(ctx context.Context) (interface{}, error) {
 		subDest := newOutputNode(dest, "")
-		workUnits = resolveNonBatchUnit(ctx, src, subDest, unit)
+		workUnits = executeNonBatchWorkUnit(ctx, src, subDest, unit)
 		return subDest.res, nil
 	})
 	if err != nil {
@@ -161,9 +161,9 @@ func getWorkCacheKey(src interface{}, field *Field, selection *Selection) resolv
 	return key
 }
 
-// resolveNonBatchUnit resolves a non-batch field in our graphql response graph.
-func resolveNonBatchUnit(ctx context.Context, src interface{}, dest *outputNode, unit *WorkUnit) []*WorkUnit {
-	fieldResult, err := safeResolve(ctx, unit.field, src, unit.selection.Args, unit.selection.SelectionSet)
+// executeNonBatchWorkUnit resolves a non-batch field in our graphql response graph.
+func executeNonBatchWorkUnit(ctx context.Context, src interface{}, dest *outputNode, unit *WorkUnit) []*WorkUnit {
+	fieldResult, err := safeExecuteResolver(ctx, unit.field, src, unit.selection.Args, unit.selection.SelectionSet)
 	if err != nil {
 		dest.Fail(err)
 		return nil
@@ -399,7 +399,7 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 		// bounded, so we can resolve them immediately.
 		workUnits = append(
 			workUnits,
-			resolveWorkUnit(unit)...,
+			executeWorkUnit(unit)...,
 		)
 	}
 
@@ -412,7 +412,7 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 		}
 		workUnits = append(
 			workUnits,
-			resolveWorkUnit(&WorkUnit{
+			executeWorkUnit(&WorkUnit{
 				ctx:          ctx,
 				field:        typ.KeyField,
 				sources:      nonNilSources,
