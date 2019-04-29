@@ -22,6 +22,21 @@ type WorkUnit struct {
 	destinations []*outputNode
 }
 
+// Splits the work unit to a series of work units (one for every source/dest pair).
+func splitWorkUnit(unit *WorkUnit) []*WorkUnit {
+	workUnits := make([]*WorkUnit, 0, len(unit.sources))
+	for idx, source := range unit.sources {
+		workUnits = append(workUnits, &WorkUnit{
+			ctx:          unit.ctx,
+			field:        unit.field,
+			sources:      []interface{}{source},
+			destinations: []*outputNode{unit.destinations[idx]},
+			selection:    unit.selection,
+		})
+	}
+	return workUnits
+}
+
 // UnitResolver is a function that executes a function and returns a set of
 // new work units that need to be run.
 type UnitResolver func(*WorkUnit) []*WorkUnit
@@ -93,7 +108,7 @@ func (e *BatchExecutor) Execute(ctx context.Context, typ Type, source interface{
 // selections of the unit to determine if it needs to schedule more work (which
 // will be returned as new work units that will need to get scheduled.
 func executeWorkUnit(unit *WorkUnit) []*WorkUnit {
-	if unit.field.Batch && unit.selection.UseBatch {
+	if shouldUseBatch(unit.selection, unit.field) {
 		return executeBatchWorkUnit(unit)
 	}
 
@@ -310,10 +325,21 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 	numExpensive := 0
 	numNonExpensive := 0
 	for _, selection := range selections {
-		if field, ok := typ.Fields[selection.Name]; ok && field.Expensive {
-			numExpensive++
-		} else if ok && field.External {
+		field, ok := typ.Fields[selection.Name]
+		if !ok {
+			continue
+		}
+		if shouldUseBatch(selection, field) {
 			numNonExpensive++
+			continue
+		}
+		if field.Expensive {
+			numExpensive++
+			continue
+		}
+		if field.External {
+			numNonExpensive++
+			continue
 		}
 	}
 
@@ -355,30 +381,6 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 		}
 
 		field := typ.Fields[selection.Name]
-		if field.Batch && selection.UseBatch {
-			workUnits = append(workUnits, &WorkUnit{
-				ctx:          ctx,
-				field:        field,
-				sources:      nonNilSources,
-				destinations: destForSelection,
-				selection:    selection,
-			})
-			continue
-		}
-		if field.Expensive {
-			// Expensive fields should be executed as multiple "Units".  The scheduler
-			// controls how the units are executed
-			for idx, source := range nonNilSources {
-				workUnits = append(workUnits, &WorkUnit{
-					ctx:          ctx,
-					field:        field,
-					sources:      []interface{}{source},
-					destinations: []*outputNode{destForSelection[idx]},
-					selection:    selection,
-				})
-			}
-			continue
-		}
 		unit := &WorkUnit{
 			ctx:          ctx,
 			field:        field,
@@ -386,21 +388,29 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 			destinations: destForSelection,
 			selection:    selection,
 		}
-		if field.External {
+
+		switch {
+		case shouldUseBatch(selection, field):
+			workUnits = append(workUnits, unit)
+		case field.Expensive:
+			// Expensive fields should be executed as multiple "Units".  The scheduler
+			// controls how the units are executed
+			workUnits = append(workUnits, splitWorkUnit(unit)...)
+		case field.External:
 			// External non-Expensive fields should be fast (so we can run them at the
 			// same time), but, since they are still external functions we don't want
 			// to run them where they could potentially block.
 			// So we create an work unit with all the fields to execute
 			// asynchronously.
 			workUnits = append(workUnits, unit)
-			continue
+		default:
+			// If the fields are not expensive or external the work time should be
+			// bounded, so we can resolve them immediately.
+			workUnits = append(
+				workUnits,
+				executeWorkUnit(unit)...,
+			)
 		}
-		// If the fields are not expensive or external the work time should be
-		// bounded, so we can resolve them immediately.
-		workUnits = append(
-			workUnits,
-			executeWorkUnit(unit)...,
-		)
 	}
 
 	if typ.KeyField != nil {
@@ -423,4 +433,11 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 	}
 
 	return workUnits, nil
+}
+
+// shouldUseBatch determines whether we will execute this field as a batch
+// based on the selection and field information.  The selection "UseBatch" value
+// will get set when preparing the query.
+func shouldUseBatch(selection *Selection, field *Field) bool {
+	return selection.UseBatch && field.Batch
 }
