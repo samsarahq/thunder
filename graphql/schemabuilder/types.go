@@ -90,7 +90,7 @@ func (s *Object) FieldFunc(name string, f interface{}, options ...FieldFuncOptio
 	s.Methods[name] = m
 }
 
-func (s *Object) BatchFieldFunc(name string, batchFunc interface{}, fallbackFunc interface{}, flag UseFallbackFlag) {
+func (s *Object) BatchFieldFuncWithFallback(name string, batchFunc interface{}, fallbackFunc interface{}, flag UseFallbackFlag) {
 	if s.Methods == nil {
 		s.Methods = make(Methods)
 	}
