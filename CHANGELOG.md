@@ -7,6 +7,7 @@
 #### `graphql`
 
 - Introduced new executor for running GraphQL queries.  Includes WorkScheduler interface to control how work is scheduled/executed.
+- Introduced BatchFieldFuncWithFallback method for the new GraphQL executor (must have fallback until we've deleted the old executor)
 
 ### Changed
 
