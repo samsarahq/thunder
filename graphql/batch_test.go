@@ -15,6 +15,7 @@ import (
 func TestBatchFieldFuncExecution(t *testing.T) {
 	type Object struct {
 		Key string
+		Num int
 	}
 	tests := []struct {
 		name                 string
@@ -306,6 +307,96 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 			{"key": "key6", "value": {"key": "testkey6"}},
 			{"key": "key7", "value": {"key": "testkey7"}},
 			{"key": "key8", "value": {"key": "testkey8"}}
+			]}
+			`,
+		},
+		{
+			name: "run with lots of objects being filtered",
+			objectFunc: func(ctx context.Context) []*Object {
+				return []*Object{
+					{Key: "key1", Num: 1},
+					{Key: "key2", Num: 2},
+					{Key: "key3", Num: 3},
+					{Key: "key4", Num: 4},
+				}
+			},
+			resolverFunc: func(ctx context.Context, o map[int]*Object, args struct{ Prefix string }) (map[int]*Object, error) {
+				myMap := make(map[int]*Object, len(o))
+				for idx, val := range o {
+					if val.Num%2 == 0 {
+						continue
+					}
+					val.Key = args.Prefix + val.Key
+					myMap[idx] = val
+				}
+				return myMap, nil
+			},
+			resolverFallbackFunc: func(ctx context.Context, o Object, args struct{ Prefix string }) (*Object, error) {
+				if o.Num%2 == 0 {
+					return nil, nil
+				}
+				o.Key = args.Prefix + o.Key
+				return &o, nil
+			},
+			query: `
+			{
+				objects {
+					key
+					value(prefix: "test") {
+						key
+					}
+				}
+			}`,
+			wantResultJSON: `
+			{"objects": [
+			{"key": "key1", "value": {"key": "testkey1"}},
+			{"key": "key2", "value":null},
+			{"key": "key3", "value": {"key": "testkey3"}},
+			{"key": "key4", "value":null}
+			]}
+			`,
+		},
+		{
+			name: "run with lots of string results being filtered",
+			objectFunc: func(ctx context.Context) []*Object {
+				return []*Object{
+					{Key: "key1", Num: 1},
+					{Key: "key2", Num: 2},
+					{Key: "key3", Num: 3},
+					{Key: "key4", Num: 4},
+				}
+			},
+			resolverFunc: func(ctx context.Context, o map[int]*Object, args struct{ Prefix string }) (map[int]*string, error) {
+				myMap := make(map[int]*string, len(o))
+				for idx, val := range o {
+					if val.Num%2 == 0 {
+						continue
+					}
+					val.Key = args.Prefix + val.Key
+					myMap[idx] = &val.Key
+				}
+				return myMap, nil
+			},
+			resolverFallbackFunc: func(ctx context.Context, o Object, args struct{ Prefix string }) (*string, error) {
+				if o.Num%2 == 0 {
+					return nil, nil
+				}
+				o.Key = args.Prefix + o.Key
+				return &o.Key, nil
+			},
+			query: `
+			{
+				objects {
+					key
+					value(prefix: "test")
+				}
+			}`,
+			wantResultJSON: `
+			{"objects": [
+			{"key": "key1", "value": "testkey1"},
+			{"key": "key2", "value":null},
+			{"key": "key3", "value": "testkey3"},
+			{"key": "key4", "value":null}
 			]}
 			`,
 		},

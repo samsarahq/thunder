@@ -350,7 +350,7 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 	originDestinations := make([]*outputNode, 0, len(destinations))
 	for idx, source := range sources {
 		value := reflect.ValueOf(source)
-		if value.Kind() == reflect.Ptr && value.IsNil() {
+		if !value.IsValid() || (value.Kind() == reflect.Ptr && value.IsNil()) {
 			destinations[idx].Fill(nil)
 			continue
 		}
