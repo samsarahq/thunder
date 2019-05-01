@@ -259,7 +259,7 @@ func resolveListBatch(ctx context.Context, sources []interface{}, typ *List, sel
 	for idx, slice := range reflectedSources {
 		respList := make([]interface{}, slice.Len())
 		for i := 0; i < slice.Len(); i++ {
-			writer := newOutputNode(destinations[idx], strconv.Itoa(idx))
+			writer := newOutputNode(destinations[idx], strconv.Itoa(i))
 			respList[i] = writer
 			flattenedResps = append(flattenedResps, writer)
 			flattenedSources = append(flattenedSources, slice.Index(i).Interface())
