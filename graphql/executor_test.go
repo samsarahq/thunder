@@ -9,8 +9,10 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/samsarahq/thunder/graphql"
+	"github.com/samsarahq/thunder/graphql/schemabuilder"
 	"github.com/samsarahq/thunder/internal"
 	"github.com/samsarahq/thunder/internal/testgraphql"
+	"github.com/stretchr/testify/require"
 )
 
 func makeQuery(onArgParse *func()) *graphql.Object {
@@ -293,3 +295,83 @@ func TestPanic(t *testing.T) {
 }
 
 // TODO: Verify caching and concurrency
+
+func TestExecutorRuns(t *testing.T) {
+	type Object struct {
+		Key string
+	}
+	tests := []struct {
+		name           string
+		objectFunc     interface{}
+		resolverFunc   interface{}
+		query          string
+		wantResultJSON string
+		wantError      string
+	}{
+		{
+			name: "fail on 3rd value",
+			objectFunc: func(ctx context.Context) []*Object {
+				return []*Object{
+					&Object{Key: "key1"},
+					&Object{Key: "key2"},
+					&Object{Key: "key3"},
+				}
+			},
+			resolverFunc: func(ctx context.Context, o Object) (string, error) {
+				if o.Key == "key3" {
+					return "", errors.New("failing on third key")
+				}
+				return o.Key, nil
+			},
+			query: `
+			{
+				objects {
+					key
+					value
+				}
+			}`,
+			wantError: "objects.2.value: failing on third key",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			builder := schemabuilder.NewSchema()
+			builder.Query().FieldFunc("objects", tt.objectFunc)
+
+			obj := builder.Object("object", Object{})
+			obj.FieldFunc("value", tt.resolverFunc)
+			schema, err := builder.Build()
+			require.NoError(t, err)
+
+			q := graphql.MustParse(tt.query, nil)
+
+			if err := graphql.PrepareQuery(context.Background(), schema.Query, q.SelectionSet); err != nil {
+				t.Error(err)
+			}
+
+			e := testgraphql.NewExecutorWrapper(t)
+
+			ctx := context.Background()
+			res, err := e.Execute(ctx, schema.Query, nil, q)
+			if tt.wantError != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.wantError)
+				return
+			}
+			require.NoError(t, err)
+
+			wantParsedJSON := internal.ParseJSON(tt.wantResultJSON)
+			gotJSON := internal.AsJSON(res)
+
+			require.Equal(
+				t,
+				wantParsedJSON,
+				gotJSON,
+				"Mismatch for expected vs actual response.  Want:\n%s\nGot:\n%s",
+				internal.MarshalJSON(wantParsedJSON),
+				internal.MarshalJSON(gotJSON),
+			)
+		})
+	}
+}
