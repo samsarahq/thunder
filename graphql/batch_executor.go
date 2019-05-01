@@ -101,7 +101,7 @@ func (e *BatchExecutor) Execute(ctx context.Context, typ Type, source interface{
 	if topLevelRespWriter.errRecorder.err != nil {
 		return nil, topLevelRespWriter.errRecorder.err
 	}
-	return writers, nil
+	return outputNodeToJSON(writers), nil
 }
 
 // executeWorkUnit executes/resolves a work unit and checks the
