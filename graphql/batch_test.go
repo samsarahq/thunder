@@ -17,6 +17,17 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 		Key string
 		Num int
 	}
+	type Object2 struct {
+		Key2 string
+		Num2 int
+	}
+	type UnionType struct {
+		schemabuilder.Union
+
+		*Object
+		*Object2
+	}
+
 	tests := []struct {
 		name                 string
 		objectFunc           interface{}
@@ -400,6 +411,153 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 			]}
 			`,
 		},
+		{
+			name: "run with lots of string results being filtered, batch is not pointer",
+			objectFunc: func(ctx context.Context) []*Object {
+				return []*Object{
+					{Key: "key1", Num: 1},
+					{Key: "key2", Num: 2},
+					{Key: "key3", Num: 3},
+					{Key: "key4", Num: 4},
+				}
+			},
+			resolverFunc: func(ctx context.Context, o map[int]*Object, args struct{ Prefix string }) (map[int]string, error) {
+				myMap := make(map[int]string, len(o))
+				for idx, val := range o {
+					if val.Num%2 == 0 {
+						continue
+					}
+					val.Key = args.Prefix + val.Key
+					myMap[idx] = val.Key
+				}
+				return myMap, nil
+			},
+			resolverFallbackFunc: func(ctx context.Context, o Object, args struct{ Prefix string }) (*string, error) {
+				if o.Num%2 == 0 {
+					return nil, nil
+				}
+				o.Key = args.Prefix + o.Key
+				return &o.Key, nil
+			},
+			query: `
+			{
+				objects {
+					key
+					value(prefix: "test")
+				}
+			}`,
+			wantResultJSON: `
+			{"objects": [
+			{"key": "key1", "value": "testkey1"},
+			{"key": "key2", "value":null},
+			{"key": "key3", "value": "testkey3"},
+			{"key": "key4", "value":null}
+			]}
+			`,
+		},
+		{
+			name: "run with lots of list results being filtered",
+			objectFunc: func(ctx context.Context) []*Object {
+				return []*Object{
+					{Key: "key1", Num: 1},
+					{Key: "key2", Num: 2},
+					{Key: "key3", Num: 3},
+					{Key: "key4", Num: 4},
+				}
+			},
+			resolverFunc: func(ctx context.Context, o map[int]*Object, args struct{ Prefix string }) (map[int][]Object, error) {
+				myMap := make(map[int][]Object, len(o))
+				for idx, val := range o {
+					if val.Num%2 == 0 {
+						continue
+					}
+					val.Key = args.Prefix + val.Key
+					list := []Object{*val}
+					myMap[idx] = list
+				}
+				return myMap, nil
+			},
+			resolverFallbackFunc: func(ctx context.Context, o Object, args struct{ Prefix string }) ([]Object, error) {
+				if o.Num%2 == 0 {
+					return nil, nil
+				}
+				o.Key = args.Prefix + o.Key
+				list := []Object{o}
+				return list, nil
+			},
+			query: `
+			{
+				objects {
+					key
+					value(prefix: "test") {
+						key
+					}
+				}
+			}`,
+			wantResultJSON: `
+			{"objects": [
+			{"key": "key1", "value": [{"key": "testkey1"}]},
+			{"key": "key2", "value":[]},
+			{"key": "key3", "value": [{"key": "testkey3"}]},
+			{"key": "key4", "value":[]}
+			]}
+			`,
+		},
+		{
+			name: "run with union type responses",
+			objectFunc: func(ctx context.Context) []*Object {
+				return []*Object{
+					{Key: "key0", Num: 0},
+					{Key: "key1", Num: 1},
+					{Key: "key2", Num: 2},
+					{Key: "key3", Num: 3},
+					{Key: "key4", Num: 4},
+				}
+			},
+			resolverFunc: func(ctx context.Context, o map[int]*Object) (map[int]UnionType, error) {
+				myMap := make(map[int]UnionType, len(o))
+				for idx, val := range o {
+					if val.Num == 0 {
+						continue
+					}
+					if val.Num%2 != 0 {
+						myMap[idx] = UnionType{Object: val}
+						continue
+					}
+					myMap[idx] = UnionType{Object2: &Object2{Key2: val.Key}}
+				}
+				return myMap, nil
+			},
+			resolverFallbackFunc: func(ctx context.Context, o Object) (*UnionType, error) {
+				if o.Num == 0 {
+					return nil, nil
+				}
+				if o.Num%2 != 0 {
+					return &UnionType{Object: &o}, nil
+				}
+				return &UnionType{Object2: &Object2{Key2: o.Key}}, nil
+			},
+			query: `
+			{
+				objects {
+					key
+					value {
+						__typename
+						... on Object {key}
+						... on Object2 {key2}
+					}
+				}
+			}`,
+			wantResultJSON: `
+			{"objects": [
+			{"key": "key0", "value": null},
+			{"key": "key1", "value": {"__typename": "Object", "key": "key1"}},
+			{"key": "key2", "value": {"__typename": "Object2", "key2": "key2"}},
+			{"key": "key3", "value": {"__typename": "Object", "key": "key3"}},
+			{"key": "key4", "value": {"__typename": "Object2", "key2": "key4"}}
+			]}
+			`,
+		},
 	}
 
 	const (
@@ -414,7 +572,9 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 				builder := schemabuilder.NewSchema()
 				builder.Query().FieldFunc("objects", tt.objectFunc)
 
-				obj := builder.Object("object", Object{})
+				_ = builder.Object("UnionType", UnionType{})
+				_ = builder.Object("Object2", Object2{})
+				obj := builder.Object("Object", Object{})
 				obj.BatchFieldFuncWithFallback("value", tt.resolverFunc, tt.resolverFallbackFunc, func(ctx context.Context) bool {
 					return cond == NewExecutorNoBatching
 				})
