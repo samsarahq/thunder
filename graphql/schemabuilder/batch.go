@@ -259,8 +259,11 @@ func (funcCtx *batchFuncContext) consumeReturnValue(m *method, sb *schemaBuilder
 		return nil, nil, err
 	}
 	if nonNull, ok := retType.(*graphql.NonNull); ok {
-		// Batch functions don't support NonNull responses by default
-		retType = nonNull.Type
+		if _, isList := nonNull.Type.(*graphql.List); !isList {
+			// Batch functions don't support NonNull responses by default unless they
+			// are lists we can fill with zero length values.
+			retType = nonNull.Type
+		}
 	}
 	funcCtx.hasRet = true
 	return retType, out, nil

@@ -251,12 +251,18 @@ func resolveListBatch(ctx context.Context, sources []interface{}, typ *List, sel
 	numFlattenedSources := 0
 	for idx, source := range sources {
 		reflectedSources[idx] = reflect.ValueOf(source)
-		numFlattenedSources += reflectedSources[idx].Len()
+		if reflectedSources[idx].IsValid() {
+			numFlattenedSources += reflectedSources[idx].Len()
+		}
 	}
 
 	flattenedResps := make([]*outputNode, 0, numFlattenedSources)
 	flattenedSources := make([]interface{}, 0, numFlattenedSources)
 	for idx, slice := range reflectedSources {
+		if !slice.IsValid() {
+			destinations[idx].Fill(make([]interface{}, 0))
+			continue
+		}
 		respList := make([]interface{}, slice.Len())
 		for i := 0; i < slice.Len(); i++ {
 			writer := newOutputNode(destinations[idx], strconv.Itoa(i))
@@ -276,7 +282,7 @@ func resolveUnionBatch(ctx context.Context, sources []interface{}, typ *Union, s
 	destinationsByType := make(map[string][]*outputNode, len(typ.Types))
 	for idx, src := range sources {
 		union := reflect.ValueOf(src)
-		if union.Kind() == reflect.Ptr && union.IsNil() {
+		if !union.IsValid() || (union.Kind() == reflect.Ptr && union.IsNil()) {
 			// Don't create a destination for any nil Unions types
 			destinations[idx].Fill(nil)
 			continue
