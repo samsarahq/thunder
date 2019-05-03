@@ -90,7 +90,7 @@ func (s *Object) FieldFunc(name string, f interface{}, options ...FieldFuncOptio
 	s.Methods[name] = m
 }
 
-func (s *Object) BatchFieldFuncWithFallback(name string, batchFunc interface{}, fallbackFunc interface{}, flag UseFallbackFlag) {
+func (s *Object) BatchFieldFuncWithFallback(name string, batchFunc interface{}, fallbackFunc interface{}, flag UseFallbackFlag, options ...FieldFuncOption) {
 	if s.Methods == nil {
 		s.Methods = make(Methods)
 	}
@@ -102,6 +102,9 @@ func (s *Object) BatchFieldFuncWithFallback(name string, batchFunc interface{}, 
 			ShouldUseFallbackFunc: flag,
 		},
 		Batch: true,
+	}
+	for _, opt := range options {
+		opt.apply(m)
 	}
 
 	if _, ok := s.Methods[name]; ok {
