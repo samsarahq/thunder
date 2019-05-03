@@ -10,7 +10,7 @@ import (
 
 // buildBatchFunction corresponds to buildFunction for a batchFieldFunc
 func (sb *schemaBuilder) buildBatchFunctionWithFallback(typ reflect.Type, m *method) (*graphql.Field, error) {
-	fallbackField, fallbackFuncCtx, err := sb.buildFunctionAndFuncCtx(typ, &method{Fn: m.BatchArgs.FallbackFunc})
+	fallbackField, fallbackFuncCtx, err := sb.buildFunctionAndFuncCtx(typ, &method{Fn: m.BatchArgs.FallbackFunc, MarkedNonNullable: m.MarkedNonNullable})
 	if err != nil {
 		return nil, err
 	}
@@ -96,12 +96,12 @@ func (sb *schemaBuilder) buildBatchFunctionAndFuncCtx(typ reflect.Type, m *metho
 
 	batchExecFunc := func(ctx context.Context, sources []interface{}, funcRawArgs interface{}, selectionSet *graphql.SelectionSet) ([]interface{}, error) {
 		// Set up function arguments.
-		funcInputArgs := funcCtx.prepareResolveArgs(sources, funcRawArgs, ctx, selectionSet)
+		funcInputArgs, idxValues := funcCtx.prepareResolveArgs(sources, funcRawArgs, ctx, selectionSet)
 
 		// Call the function.
 		funcOutputArgs := callableFunc.Call(funcInputArgs)
 
-		return funcCtx.extractResultsAndErr(len(sources), funcOutputArgs, retType)
+		return funcCtx.extractResultsAndErr(funcOutputArgs, idxValues, retType)
 	}
 
 	return &graphql.Field{
@@ -122,6 +122,8 @@ type batchFuncContext struct {
 	hasSelectionSet bool
 	hasRet          bool
 	hasError        bool
+
+	enforceNoNilResps bool
 
 	funcType     reflect.Type
 	batchMapType reflect.Type
@@ -235,9 +237,6 @@ func (funcCtx *batchFuncContext) getFuncOutputTypes() []reflect.Type {
 // consumeReturnValue consumes the function output's response value if it exists
 // and validates that the response is a proper batch type.
 func (funcCtx *batchFuncContext) consumeReturnValue(m *method, sb *schemaBuilder, out []reflect.Type) (graphql.Type, []reflect.Type, error) {
-	if m.MarkedNonNullable {
-		return nil, nil, fmt.Errorf("%s is marked non-nullable, but batch functions must be able to handle nil responses", funcCtx.funcType)
-	}
 	if len(out) == 0 || out[0] == errType {
 		retType, err := sb.getType(reflect.TypeOf(true))
 		if err != nil {
@@ -265,6 +264,12 @@ func (funcCtx *batchFuncContext) consumeReturnValue(m *method, sb *schemaBuilder
 			retType = nonNull.Type
 		}
 	}
+	if m.MarkedNonNullable {
+		funcCtx.enforceNoNilResps = true
+		if _, ok := retType.(*graphql.NonNull); !ok {
+			retType = &graphql.NonNull{Type: retType}
+		}
+	}
 	funcCtx.hasRet = true
 	return retType, out, nil
 }
@@ -280,26 +285,28 @@ func (funcCtx *batchFuncContext) consumeReturnError(out []reflect.Type) []reflec
 
 // prepareResolveArgs converts the provided source, args and context into the
 // required list of reflect.Value types that the function needs to be called.
-func (funcCtx *batchFuncContext) prepareResolveArgs(sources []interface{}, args interface{}, ctx context.Context, selectionSet *graphql.SelectionSet) []reflect.Value {
-	in := make([]reflect.Value, 0, funcCtx.funcType.NumIn())
+func (funcCtx *batchFuncContext) prepareResolveArgs(sources []interface{}, args interface{}, ctx context.Context, selectionSet *graphql.SelectionSet) (in []reflect.Value, idxValues []reflect.Value) {
+	in = make([]reflect.Value, 0, funcCtx.funcType.NumIn())
 	if funcCtx.hasContext {
 		in = append(in, reflect.ValueOf(ctx))
 	}
 
 	batchMap := reflect.MakeMapWithSize(funcCtx.batchMapType, len(sources))
+	idxValues = make([]reflect.Value, len(sources))
 	for idx, source := range sources {
 		idxVal := idx
 		sourceValue := reflect.ValueOf(source)
 		ptrSource := sourceValue.Kind() == reflect.Ptr
+		idxValues[idxVal] = reflect.ValueOf(idxVal)
 		switch {
 		case ptrSource && !funcCtx.isPtrFunc:
-			batchMap.SetMapIndex(reflect.ValueOf(idxVal), sourceValue.Elem())
+			batchMap.SetMapIndex(idxValues[idxVal], sourceValue.Elem())
 		case !ptrSource && funcCtx.isPtrFunc:
 			copyPtr := reflect.New(funcCtx.parentTyp)
 			copyPtr.Elem().Set(sourceValue)
-			batchMap.SetMapIndex(reflect.ValueOf(idxVal), copyPtr)
+			batchMap.SetMapIndex(idxValues[idxVal], copyPtr)
 		default:
-			batchMap.SetMapIndex(reflect.ValueOf(idxVal), sourceValue)
+			batchMap.SetMapIndex(idxValues[idxVal], sourceValue)
 		}
 	}
 	in = append(in, batchMap)
@@ -312,30 +319,37 @@ func (funcCtx *batchFuncContext) prepareResolveArgs(sources []interface{}, args 
 		in = append(in, reflect.ValueOf(selectionSet))
 	}
 
-	return in
+	return in, idxValues
 }
 
 // extractResultsAndErr converts the response from calling the function into
 // the expected type for the response object (as opposed to a reflect.Value).
 // It also handles reading whether the function ended with errors.
-func (funcCtx *batchFuncContext) extractResultsAndErr(numResps int, out []reflect.Value, retType graphql.Type) ([]interface{}, error) {
+func (funcCtx *batchFuncContext) extractResultsAndErr(out []reflect.Value, idxValues []reflect.Value, retType graphql.Type) ([]interface{}, error) {
 	if funcCtx.hasError {
 		if err := out[len(out)-1]; !err.IsNil() {
 			return nil, err.Interface().(error)
 		}
 	}
 	if !funcCtx.hasRet {
-		res := make([]interface{}, numResps)
-		for i := 0; i < numResps; i++ {
+		res := make([]interface{}, len(idxValues))
+		for i := 0; i < len(idxValues); i++ {
 			res[i] = true
 		}
 		return res, nil
 	}
 	resBatch := out[0]
 
-	res := make([]interface{}, numResps)
-	for _, mapKey := range resBatch.MapKeys() {
-		res[mapKey.Int()] = resBatch.MapIndex(mapKey).Interface()
+	resList := make([]interface{}, len(idxValues))
+	for _, idxVal := range idxValues {
+		res := resBatch.MapIndex(idxVal)
+		if !res.IsValid() || (res.Kind() == reflect.Ptr && res.IsNil()) {
+			if funcCtx.enforceNoNilResps {
+				return nil, fmt.Errorf("%s is marked non-nullable but returned a null value", funcCtx.funcType)
+			}
+			continue
+		}
+		resList[idxVal.Int()] = res.Interface()
 	}
-	return res, nil
+	return resList, nil
 }

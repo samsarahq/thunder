@@ -28,12 +28,15 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 		*Object2
 	}
 
+	type enumType int32
+
 	tests := []struct {
 		name                 string
 		objectFunc           interface{}
 		resolverFunc         interface{}
 		resolverFallbackFunc interface{}
 		query                string
+		markNonNullable      bool
 		wantResultJSON       string
 		wantError            string
 	}{
@@ -558,6 +561,121 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 			]}
 			`,
 		},
+		{
+			name: "run with enum non-nil resps",
+			objectFunc: func(ctx context.Context) []*Object {
+				return []*Object{
+					{Key: "key1", Num: 1},
+					{Key: "key2", Num: 2},
+					{Key: "key3", Num: 3},
+					{Key: "key4", Num: 4},
+				}
+			},
+			markNonNullable: true,
+			resolverFunc: func(ctx context.Context, o map[int]*Object) (map[int]enumType, error) {
+				myMap := make(map[int]enumType, len(o))
+				for idx, val := range o {
+					if val.Num%2 != 0 {
+						myMap[idx] = enumType(1)
+						continue
+					}
+					myMap[idx] = enumType(2)
+				}
+				return myMap, nil
+			},
+			resolverFallbackFunc: func(ctx context.Context, o Object) (enumType, error) {
+				if o.Num%2 != 0 {
+					return enumType(1), nil
+				}
+				return enumType(2), nil
+			},
+			query: `
+			{
+				objects {
+					key
+					value
+				}
+			}`,
+			wantResultJSON: `
+			{"objects": [
+			{"key": "key1", "value": "first"},
+			{"key": "key2", "value": "second"},
+			{"key": "key3", "value": "first"},
+			{"key": "key4", "value": "second"}
+			]}
+			`,
+		},
+		{
+			name: "run with string non-nil resps",
+			objectFunc: func(ctx context.Context) []*Object {
+				return []*Object{
+					{Key: "key1", Num: 1},
+					{Key: "key2", Num: 2},
+					{Key: "key3", Num: 3},
+					{Key: "key4", Num: 4},
+				}
+			},
+			markNonNullable: true,
+			resolverFunc: func(ctx context.Context, o map[int]*Object) (map[int]string, error) {
+				myMap := make(map[int]string, len(o))
+				for idx, val := range o {
+					myMap[idx] = val.Key
+				}
+				return myMap, nil
+			},
+			resolverFallbackFunc: func(ctx context.Context, o Object) (string, error) {
+				return o.Key, nil
+			},
+			query: `
+			{
+				objects {
+					key
+					value
+				}
+			}`,
+			wantResultJSON: `
+			{"objects": [
+			{"key": "key1", "value": "key1"},
+			{"key": "key2", "value": "key2"},
+			{"key": "key3", "value": "key3"},
+			{"key": "key4", "value": "key4"}
+			]}
+			`,
+		},
+		{
+			name: "run with nil resp for non-nil endpoint",
+			objectFunc: func(ctx context.Context) []*Object {
+				return []*Object{
+					{Key: "key1", Num: 1},
+					{Key: "key2", Num: 2},
+				}
+			},
+			markNonNullable: true,
+			resolverFunc: func(ctx context.Context, o map[int]*Object) (map[int]string, error) {
+				myMap := make(map[int]string, len(o))
+				for idx, val := range o {
+					if val.Num%2 != 0 {
+						continue
+					}
+					myMap[idx] = val.Key
+				}
+				return myMap, nil
+			},
+			resolverFallbackFunc: func(ctx context.Context, o Object) (*string, error) {
+				if o.Num%2 != 0 {
+					return nil, nil
+				}
+				return &o.Key, nil
+			},
+			query: `
+			{
+				objects {
+					key
+					value
+				}
+			}`,
+			wantError: "is marked non-nullable but returned a null value",
+		},
 	}
 
 	const (
@@ -572,12 +690,23 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 				builder := schemabuilder.NewSchema()
 				builder.Query().FieldFunc("objects", tt.objectFunc)
 
+				builder.Enum(enumType(0), map[string]enumType{
+					"first":  enumType(1),
+					"second": enumType(2),
+					"third":  enumType(3),
+				})
+
 				_ = builder.Object("UnionType", UnionType{})
 				_ = builder.Object("Object2", Object2{})
 				obj := builder.Object("Object", Object{})
+
+				options := make([]schemabuilder.FieldFuncOption, 0, 0)
+				if tt.markNonNullable {
+					options = append(options, schemabuilder.NonNullable)
+				}
 				obj.BatchFieldFuncWithFallback("value", tt.resolverFunc, tt.resolverFallbackFunc, func(ctx context.Context) bool {
 					return cond == NewExecutorNoBatching
-				})
+				}, options...)
 				schema, err := builder.Build()
 				require.NoError(t, err)
 
