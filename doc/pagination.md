@@ -164,7 +164,7 @@ schemabuilder.SortFields{
 ### Filtering
 
 You can define text filters for one or multiple fields in Thunder.
-The return value of a sort field must be a `string`.
+The return value of a filter field must be a `string`.
 
 As you can see below, a filter field does not need to be on the paginated object.
 
@@ -192,7 +192,7 @@ schemabuilder.TextFilterFields{
 ```graphql
 {
   user(id: 5) {
-    addresses(filter: "on") {
+    addresses(filterText: "on") {
       totalCount
       edges {
         node {
