@@ -207,8 +207,8 @@ func TestErrorRetry(t *testing.T) {
 
 	shouldSentinel = false
 	run.Expect(t, "expected rerun after sentinel")
-	if innerRuns != 2 {
-		t.Errorf("expected 2 runs (first run and one after failed run), but got %d", innerRuns)
+	if innerRuns != 1 {
+		t.Errorf("expected 1 runs (first run), but got %d", innerRuns)
 	}
 }
 
