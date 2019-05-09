@@ -10,23 +10,26 @@ func NewImmediateGoroutineScheduler() WorkScheduler {
 	return &immediateGoroutineScheduler{}
 }
 
-type immediateGoroutineScheduler struct {
+type immediateGoroutineScheduler struct{}
+
+func (q *immediateGoroutineScheduler) Run(resolver UnitResolver, initialUnits ...*WorkUnit) {
+	r := &immediateGoroutineSchedulerRunner{}
+	r.runEnqueue(resolver, initialUnits...)
+
+	r.wg.Wait()
+}
+
+type immediateGoroutineSchedulerRunner struct {
 	wg sync.WaitGroup
 }
 
-func (q *immediateGoroutineScheduler) Run(resolver UnitResolver, initialUnits ...*WorkUnit) {
-	q.runEnqueue(resolver, initialUnits...)
-
-	q.wg.Wait()
-}
-
-func (q *immediateGoroutineScheduler) runEnqueue(resolver UnitResolver, units ...*WorkUnit) {
+func (r *immediateGoroutineSchedulerRunner) runEnqueue(resolver UnitResolver, units ...*WorkUnit) {
 	for _, unit := range units {
-		q.wg.Add(1)
+		r.wg.Add(1)
 		go func(u *WorkUnit) {
-			defer q.wg.Done()
+			defer r.wg.Done()
 			units := resolver(u)
-			q.runEnqueue(resolver, units...)
+			r.runEnqueue(resolver, units...)
 		}(unit)
 	}
 }
