@@ -350,23 +350,27 @@ func (r *Rerunner) run() {
 	ctx := context.WithValue(r.ctx, cacheKey{}, r.cache)
 	ctx = context.WithValue(ctx, dependencySetKey{}, &dependencySet{})
 
-	computation, err := run(ctx, r.f)
+	currentComputation, err := run(ctx, r.f)
 	r.lastRun = time.Now()
 	if err != nil {
-		if err == RetrySentinelError {
-
-			r.retryDelay = r.retryDelay * 2
-
-			// Max out the retry delay to at 1 minute.
-			if r.retryDelay > time.Minute {
-				r.retryDelay = time.Minute
-			}
-			go r.run()
-		} else {
+		if err != RetrySentinelError {
 			// If we encountered an error that is not the retry sentinel,
 			// we should stop the rerunner.
 			return
 		}
+		// Reset the cache for sentinel errors so we get a clean slate.
+		r.cache = &cache{
+			computations: make(map[interface{}]*computation),
+			locker:       newLocker(),
+		}
+
+		r.retryDelay = r.retryDelay * 2
+
+		// Max out the retry delay to at 1 minute.
+		if r.retryDelay > time.Minute {
+			r.retryDelay = time.Minute
+		}
+		go r.run()
 	} else {
 		// If we succeeded in the computation, we can release the old computation
 		// and reset the retry delay.
@@ -375,12 +379,12 @@ func (r *Rerunner) run() {
 			r.computation = nil
 		}
 
-		r.computation = computation
+		r.computation = currentComputation
 		r.retryDelay = r.minRerunInterval
 
 		// Schedule a rerun whenever our node becomes invalidated (which might already
 		// have happened!)
-		computation.node.handleInvalidate(func() {
+		currentComputation.node.handleInvalidate(func() {
 			if r.alwaysSpawnGoroutine {
 				go r.run()
 			} else {
