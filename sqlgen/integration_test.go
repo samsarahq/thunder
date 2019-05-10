@@ -3,6 +3,8 @@ package sqlgen
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -31,8 +33,17 @@ func setup() (*testfixtures.TestDatabase, *DB, error) {
 	`); err != nil {
 		return nil, nil, err
 	}
+	if _, err = testDb.Exec(`
+		CREATE TABLE just_ids (
+			id            BIGINT NOT NULL PRIMARY KEY
+		)
+	`); err != nil {
+		return nil, nil, err
+	}
+
 	schema := NewSchema()
 	schema.MustRegisterType("users", AutoIncrement, User{})
+	schema.MustRegisterType("just_ids", UniqueId, JustId{})
 
 	return testDb, NewDB(testDb.DB, schema), nil
 }
@@ -44,6 +55,10 @@ type User struct {
 	Mood         *testfixtures.CustomType
 	Proto        proto.ExampleEvent `sql:",binary"`
 	ImplicitNull string             `sql:",implicitnull"`
+}
+
+type JustId struct {
+	Id int64 `sql:",primary"`
 }
 
 type Complex struct {
@@ -251,6 +266,130 @@ func Benchmark(b *testing.B) {
 				}
 			}
 		})
+	}
+}
+
+func TestLimit(t *testing.T) {
+	tdb, db, err := setup()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tdb.Close()
+
+	ctx := context.Background()
+
+	aliceDb, err := db.WithShardLimit(Filter{
+		"name": "Alice",
+	})
+	if err != nil {
+		t.Error(err)
+	}
+
+	if _, err := aliceDb.WithShardLimit(nil); err == nil || err.Error() != "already limited" {
+		t.Error("could double limit")
+	}
+
+	alice := &User{Name: "Alice"}
+	bob := &User{Name: "Bob"}
+
+	// Check aliceDb can insert alice.
+	res, err := aliceDb.InsertRow(ctx, alice)
+	if err != nil {
+		t.Error(err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		t.Error(err)
+	}
+	alice.Id = id
+
+	// Check aliceDb can't insert bob.
+	if _, err := aliceDb.InsertRow(ctx, bob); err == nil || !strings.Contains(err.Error(), "name = Alice") {
+		t.Error("could insert bob on aliceDb")
+	}
+
+	// Check db can still insert bob.
+	if _, err := db.InsertRow(ctx, bob); err != nil {
+		t.Error(err)
+	}
+
+	// Check aliceDb can query alice.
+	var user *User
+	if err := aliceDb.QueryRow(ctx, &user, Filter{"name": "Alice"}, nil); err != nil {
+		t.Error(err)
+	}
+
+	// Check aliceDb can't query bob.
+	if err := aliceDb.QueryRow(ctx, &user, Filter{"name": "Bob"}, nil); err == nil || !strings.Contains(err.Error(), "name = Alice") {
+		t.Error("could query bob on aliceDb")
+	}
+
+	// Check aliceDb can count alice.
+	if _, err := aliceDb.Count(ctx, &User{}, Filter{"name": "Alice"}); err != nil {
+		t.Error(err)
+	}
+
+	// Check aliceDb can't count bob.
+	if _, err := aliceDb.Count(ctx, &User{}, Filter{"name": "Bob"}); err == nil || !strings.Contains(err.Error(), "name = Alice") {
+		t.Error(err)
+	}
+
+	// Check aliceDb can't count everything.
+	if _, err := aliceDb.Count(ctx, &User{}, nil); err == nil || !strings.Contains(err.Error(), "name = Alice") {
+		t.Error("can count everything")
+	}
+
+	// Check aliceDb can update alice.
+	if err := aliceDb.UpdateRow(ctx, alice); err != nil {
+		t.Error(err)
+	}
+
+	// Check aliceDb can't update bob.
+	if err := aliceDb.UpdateRow(ctx, bob); err == nil || !strings.Contains(err.Error(), "name = Alice") {
+		t.Error("could update bob on aliceDb")
+	}
+
+	// Deletes only include the primary key in the filter. This means
+	// we need to limit to the exact ID to do deletes. Check that.
+	aliceIdDb, err := db.WithShardLimit(Filter{
+		"id": alice.Id,
+	})
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Check aliceDb can't delete alice.
+	if err := aliceDb.DeleteRow(ctx, alice); err == nil || !strings.Contains(err.Error(), "name = Alice") {
+		t.Error("could delete alice on aliceDb")
+	}
+
+	// Check aliceIdDb can delete alice.
+	if err := aliceIdDb.DeleteRow(ctx, alice); err != nil {
+		t.Error(err)
+	}
+
+	// Check aliceIdDb can't delete bob.
+	if err := aliceIdDb.DeleteRow(ctx, bob); err == nil || !strings.Contains(err.Error(), fmt.Sprintf("id = %d", alice.Id)) {
+		t.Error("could delete bob on aliceDb")
+	}
+
+	// To test upsert we must have a unique primary key.
+	id1 := &JustId{Id: 1}
+	id2 := &JustId{Id: 2}
+
+	just1Db, err := db.WithShardLimit(Filter{"id": int64(1)})
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Check just1Db can upsert id1.
+	if _, err := just1Db.UpsertRow(ctx, id1); err != nil {
+		t.Error(err)
+	}
+
+	// Check just1Db can't upsert id2.
+	if _, err := just1Db.UpsertRow(ctx, id2); err == nil || !strings.Contains(err.Error(), "id = 1") {
+		t.Error("could upsert id2 on id1Db")
 	}
 }
 
