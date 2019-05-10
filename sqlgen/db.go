@@ -92,23 +92,6 @@ func NewDB(conn *sql.DB, schema *Schema) *DB {
 	return db
 }
 
-func (db *DB) baseCount(ctx context.Context, query *baseCountQuery) (int64, error) {
-	countQuery, err := query.makeCountQuery()
-	if err != nil {
-		return 0, err
-	}
-
-	clause, args := countQuery.ToSQL()
-
-	var count int64
-	err = db.QueryExecer(ctx).QueryRowContext(ctx, clause, args...).Scan(&count)
-	if err != nil {
-		return 0, err
-	}
-
-	return count, err
-}
-
 func (db *DB) BaseQuery(ctx context.Context, query *BaseSelectQuery) ([]interface{}, error) {
 	if query.Options == nil && !db.HasTx(ctx) && batch.HasBatching(ctx) {
 		rows, err := db.batchFetch.Invoke(ctx, query)
@@ -153,7 +136,15 @@ func (db *DB) Count(ctx context.Context, model interface{}, filter Filter) (int6
 		return 0, err
 	}
 
-	count, err := db.baseCount(ctx, query)
+	countQuery, err := query.makeCountQuery()
+	if err != nil {
+		return 0, err
+	}
+
+	clause, args := countQuery.ToSQL()
+
+	var count int64
+	err = db.QueryExecer(ctx).QueryRowContext(ctx, clause, args...).Scan(&count)
 	if err != nil {
 		return 0, err
 	}
