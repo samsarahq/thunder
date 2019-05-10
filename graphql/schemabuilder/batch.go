@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/graphql"
 )
 
@@ -123,6 +124,8 @@ type batchFuncContext struct {
 	hasRet          bool
 	hasError        bool
 
+	usesBatchIndex bool
+
 	enforceNoNilResps bool
 
 	funcType     reflect.Type
@@ -184,6 +187,7 @@ func (funcCtx *batchFuncContext) consumeRequiredSourceBatch(in []reflect.Type) (
 			inType.String(),
 		)
 	}
+	funcCtx.usesBatchIndex = isBatchIndexType(inType.Key())
 
 	funcCtx.isPtrFunc = inType.Elem() == parentPtrType
 	funcCtx.batchMapType = inType
@@ -253,6 +257,18 @@ func (funcCtx *batchFuncContext) consumeReturnValue(m *method, sb *schemaBuilder
 			outType.String(),
 		)
 	}
+	if funcCtx.usesBatchIndex && !isBatchIndexType(outType.Key()) {
+		return nil, nil, fmt.Errorf(
+			"invalid response batch type, expected map[batch.Index]<Type>, but got %s",
+			outType.String(),
+		)
+	}
+	if !funcCtx.usesBatchIndex && isBatchIndexType(outType.Key()) {
+		return nil, nil, fmt.Errorf(
+			"invalid response batch type, expected map[int]<Type>, but got %s",
+			outType.String(),
+		)
+	}
 	retType, err := sb.getType(outType.Elem())
 	if err != nil {
 		return nil, nil, err
@@ -272,6 +288,17 @@ func (funcCtx *batchFuncContext) consumeReturnValue(m *method, sb *schemaBuilder
 	}
 	funcCtx.hasRet = true
 	return retType, out, nil
+}
+
+var batchIndexTyp reflect.Type
+
+func init() {
+	var batchIndexPointer *batch.Index
+	batchIndexTyp = reflect.TypeOf(batchIndexPointer).Elem()
+}
+
+func isBatchIndexType(t reflect.Type) bool {
+	return t == batchIndexTyp
 }
 
 // consumeReturnValue consumes the function output's error type if it exists.
@@ -297,7 +324,11 @@ func (funcCtx *batchFuncContext) prepareResolveArgs(sources []interface{}, args 
 		idxVal := idx
 		sourceValue := reflect.ValueOf(source)
 		ptrSource := sourceValue.Kind() == reflect.Ptr
-		idxValues[idxVal] = reflect.ValueOf(idxVal)
+		if funcCtx.usesBatchIndex {
+			idxValues[idxVal] = reflect.ValueOf(batch.Index(idxVal))
+		} else {
+			idxValues[idxVal] = reflect.ValueOf(idxVal)
+		}
 		switch {
 		case ptrSource && !funcCtx.isPtrFunc:
 			batchMap.SetMapIndex(idxValues[idxVal], sourceValue.Elem())

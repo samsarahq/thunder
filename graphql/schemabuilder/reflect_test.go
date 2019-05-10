@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/internal"
 	"github.com/stretchr/testify/assert"
@@ -836,7 +837,25 @@ func TestBatchFieldFuncValidation(t *testing.T) {
 		{
 			name:                 "batch to many response fields",
 			resolverFunc:         func(ctx context.Context, o map[int]Object) (map[int]string, error, bool) { return nil, nil, false },
-			resolverFallbackFunc: func(ctx context.Context, o Object) (string, error) { return "", nil },
+			resolverFallbackFunc: func(ctx context.Context, o Object) (*string, error) { return nil, nil },
+			wantError:            true,
+		},
+		{
+			name:                 "batch.Index usage",
+			resolverFunc:         func(ctx context.Context, o map[batch.Index]Object) (map[batch.Index]string, error) { return nil, nil },
+			resolverFallbackFunc: func(ctx context.Context, o Object) (*string, error) { return nil, nil },
+			wantError:            false,
+		},
+		{
+			name:                 "batch.Index only on params",
+			resolverFunc:         func(ctx context.Context, o map[batch.Index]Object) (map[int]*string, error) { return nil, nil },
+			resolverFallbackFunc: func(ctx context.Context, o Object) (*string, error) { return nil, nil },
+			wantError:            true,
+		},
+		{
+			name:                 "batch.Index only on response",
+			resolverFunc:         func(ctx context.Context, o map[int]Object) (map[batch.Index]*string, error) { return nil, nil },
+			resolverFallbackFunc: func(ctx context.Context, o Object) (*string, error) { return nil, nil },
 			wantError:            true,
 		},
 	}

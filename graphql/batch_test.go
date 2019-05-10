@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 	"github.com/samsarahq/thunder/internal"
@@ -675,6 +676,43 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 				}
 			}`,
 			wantError: "is marked non-nullable but returned a null value",
+		},
+		{
+			name: "run with batch.Index",
+			objectFunc: func(ctx context.Context) []*Object {
+				return []*Object{
+					{Key: "key1", Num: 1},
+					{Key: "key2", Num: 2},
+					{Key: "key3", Num: 3},
+					{Key: "key4", Num: 4},
+				}
+			},
+			markNonNullable: true,
+			resolverFunc: func(ctx context.Context, o map[batch.Index]*Object) (map[batch.Index]string, error) {
+				myMap := make(map[batch.Index]string, len(o))
+				for idx, val := range o {
+					myMap[idx] = val.Key
+				}
+				return myMap, nil
+			},
+			resolverFallbackFunc: func(ctx context.Context, o Object) (string, error) {
+				return o.Key, nil
+			},
+			query: `
+			{
+				objects {
+					key
+					value
+				}
+			}`,
+			wantResultJSON: `
+			{"objects": [
+			{"key": "key1", "value": "key1"},
+			{"key": "key2", "value": "key2"},
+			{"key": "key3", "value": "key3"},
+			{"key": "key4", "value": "key4"}
+			]}
+			`,
 		},
 	}
 
