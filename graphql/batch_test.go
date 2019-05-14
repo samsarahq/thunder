@@ -714,6 +714,28 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 			]}
 			`,
 		},
+		{
+			name:       "zero len list does not execute BatchFieldFunc",
+			objectFunc: func(ctx context.Context) []Object { return []Object{} },
+			resolverFunc: func(o map[int]Object) (map[int]string, error) {
+				require.Fail(t, "fieldFunc should not have been called")
+				return nil, nil
+			},
+			resolverFallbackFunc: func(o Object) (*string, error) {
+				require.Fail(t, "fieldFunc should not have been called")
+				return nil, nil
+			},
+			query: `
+			{
+				objects {
+					key
+					value
+				}
+			}`,
+			wantResultJSON: `
+			{"objects": []}
+			`,
+		},
 	}
 
 	const (
