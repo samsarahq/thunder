@@ -195,6 +195,9 @@ func executeNonBatchWorkUnit(ctx context.Context, src interface{}, dest *outputN
 // returns new work units that are required to resolve the rest of the
 // query result.
 func resolveBatch(ctx context.Context, sources []interface{}, typ Type, selectionSet *SelectionSet, destinations []*outputNode) ([]*WorkUnit, error) {
+	if len(sources) == 0 {
+		return nil, nil
+	}
 	switch typ := typ.(type) {
 	case *Scalar:
 		return nil, resolveScalarBatch(sources, typ, destinations)
