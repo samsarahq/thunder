@@ -35,15 +35,34 @@ type httpPostBody struct {
 }
 
 type httpResponse struct {
-	Data   interface{} `json:"data"`
-	Errors []string    `json:"errors"`
+	Data   interface{}   `json:"data"`
+	Errors []interface{} `json:"errors"`
 }
 
 func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	writeResponse := func(value interface{}, err error) {
 		response := httpResponse{}
 		if err != nil {
-			response.Errors = []string{err.Error()}
+			if ge, ok := err.(GQLError); ok {
+				gqlError := map[string]interface{}{
+					"message": ge.Error(),
+				}
+
+				if ge.locations != nil {
+					gqlError["locations"] = ge.locations
+				}
+				if ge.path != nil {
+					gqlError["path"] = ge.path
+				}
+				if ge.extensions != nil {
+					gqlError["extensions"] = ge.extensions
+				}
+
+				response.Errors = []interface{}{gqlError}
+			} else {
+				response.Errors = []interface{}{err.Error()}
+			}
+
 		} else {
 			response.Data = value
 		}

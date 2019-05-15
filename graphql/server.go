@@ -106,6 +106,13 @@ type SanitizedError interface {
 	SanitizedError() string
 }
 
+type GQLError struct {
+	message    string
+	locations  *[]map[string]interface{}
+	path       *[]interface{}
+	extensions *map[string]interface{}
+}
+
 type SafeError struct {
 	message string
 }
@@ -128,12 +135,29 @@ func (e SafeError) SanitizedError() string {
 	return e.message
 }
 
+func (e GQLError) SanitizedError() string {
+	return e.message
+}
+
+func (e GQLError) Error() string {
+	return e.message
+}
+
 func NewClientError(format string, a ...interface{}) error {
 	return ClientError{message: fmt.Sprintf(format, a...)}
 }
 
 func NewSafeError(format string, a ...interface{}) error {
 	return SafeError{message: fmt.Sprintf(format, a...)}
+}
+
+func NewGQLError(message string, locations *[]map[string]interface{}, path *[]interface{}, extensions *map[string]interface{}) error {
+	return GQLError{
+		message:    message,
+		locations:  locations,
+		path:       path,
+		extensions: extensions,
+	}
 }
 
 func sanitizeError(err error) string {
