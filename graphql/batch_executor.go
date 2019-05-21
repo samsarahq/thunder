@@ -112,12 +112,12 @@ func executeWorkUnit(unit *WorkUnit) []*WorkUnit {
 		return executeBatchWorkUnit(unit)
 	}
 
+	if !unit.field.Expensive {
+		return executeNonExpensiveWorkUnit(unit)
+	}
+
 	var units []*WorkUnit
 	for idx, src := range unit.sources {
-		if !unit.field.Expensive {
-			units = append(units, executeNonBatchWorkUnit(unit.ctx, src, unit.destinations[idx], unit)...)
-			continue
-		}
 		units = append(units, executeNonBatchWorkUnitWithCaching(src, unit.destinations[idx], unit)...)
 	}
 	return units
@@ -130,6 +130,27 @@ func executeBatchWorkUnit(unit *WorkUnit) []*WorkUnit {
 			dest.Fail(err)
 		}
 		return nil
+	}
+	unitChildren, err := resolveBatch(unit.ctx, results, unit.field.Type, unit.selection.SelectionSet, unit.destinations)
+	if err != nil {
+		for _, dest := range unit.destinations {
+			dest.Fail(err)
+		}
+		return nil
+	}
+	return unitChildren
+}
+
+func executeNonExpensiveWorkUnit(unit *WorkUnit) []*WorkUnit {
+	results := make([]interface{}, 0, len(unit.sources))
+	for idx, src := range unit.sources {
+		fieldResult, err := safeExecuteResolver(unit.ctx, unit.field, src, unit.selection.Args, unit.selection.SelectionSet)
+		if err != nil {
+			// Fail the unit and exit.
+			unit.destinations[idx].Fail(err)
+			return nil
+		}
+		results = append(results, fieldResult)
 	}
 	unitChildren, err := resolveBatch(unit.ctx, results, unit.field.Type, unit.selection.SelectionSet, unit.destinations)
 	if err != nil {
