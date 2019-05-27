@@ -12,6 +12,7 @@ type SanitizedError interface {
 }
 
 type SafeError struct {
+	inner   error
 	message string
 }
 
@@ -33,12 +34,23 @@ func (e SafeError) SanitizedError() string {
 	return e.message
 }
 
+// Unwrap returns the wrapped error, implementing go's 1.13 error wrapping proposal.
+func (e SafeError) Unwrap() error {
+	return e.inner
+}
+
 func NewClientError(format string, a ...interface{}) error {
 	return ClientError{message: fmt.Sprintf(format, a...)}
 }
 
 func NewSafeError(format string, a ...interface{}) error {
 	return SafeError{message: fmt.Sprintf(format, a...)}
+}
+
+// WrapAsSafeError wraps an error into a "SafeError", and takes in a message.
+// This message can be used like fmt.Sprintf to take in formatting and arguments.
+func WrapAsSafeError(err error, format string, a ...interface{}) error {
+	return SafeError{inner: err, message: fmt.Sprintf(format, a...)}
 }
 
 func sanitizeError(err error) string {
