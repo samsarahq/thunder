@@ -93,6 +93,32 @@ func TestCache(t *testing.T) {
 	// inner run is expected cache; if it runs, it will panic in calling Trigger
 }
 
+// TestCachePurge tests that a cached computation is rerun when the cache is purged
+func TestCachePurge(t *testing.T) {
+	dep := NewResource()
+
+	run := NewExpect()
+
+	NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
+		AddDependency(ctx, dep, nil)
+
+		Cache(ctx, 0, func(ctx context.Context) (interface{}, error) {
+			run.Trigger()
+			return nil, nil
+		})
+
+		PurgeCache(ctx)
+		return nil, nil
+	}, 0, false)
+
+	run.Expect(t, "expected run")
+
+	run = NewExpect()
+	dep.Strobe()
+
+	run.Expect(t, "expected rerun")
+}
+
 // TestRerunCache tests that a cached computation is rerun after it is invalidated.
 func TestRerunCache(t *testing.T) {
 	dep := NewResource()
