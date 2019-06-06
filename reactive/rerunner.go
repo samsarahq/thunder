@@ -103,6 +103,28 @@ func (c *cache) cleanInvalidated() {
 	}
 }
 
+// PurgeCache is meant to be use as a transition off of using the reactive cache.
+// It allows slowly removing caching whenever the user wants, ideally between
+// cache execution runs.
+func PurgeCache(ctx context.Context) {
+	cVal := ctx.Value(cacheKey{})
+	if cVal == nil {
+		return
+	}
+	c, ok := cVal.(*cache)
+	if !ok {
+		return
+	}
+	c.purgeCache()
+}
+
+func (c *cache) purgeCache() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.computations = make(map[interface{}]*computation)
+}
+
 // Resource represents a leaf-level dependency in a computation
 type Resource struct {
 	node
@@ -359,10 +381,7 @@ func (r *Rerunner) run() {
 			return
 		}
 		// Reset the cache for sentinel errors so we get a clean slate.
-		r.cache = &cache{
-			computations: make(map[interface{}]*computation),
-			locker:       newLocker(),
-		}
+		r.cache.purgeCache()
 
 		r.retryDelay = r.retryDelay * 2
 
