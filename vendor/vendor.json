@@ -49,6 +49,12 @@
 			"revisionTime": "2018-09-14T05:40:05Z"
 		},
 		{
+			"checksumSHA1": "1DnYZKxFcCPweeKsIPjIiF2p28Q=",
+			"path": "github.com/gorilla/websocket",
+			"revision": "8003df83eef3a5d5301beb970356755128810563",
+			"revisionTime": "2016-10-18T00:39:55Z"
+		},
+		{
 			"checksumSHA1": "yVe7CpN40HbYMohj9M4HFHfnJCk=",
 			"path": "github.com/samsarahq/go/oops",
 			"revision": "c046b0801eb2cce61be49fa8ee8b38eda4a9fc54",
