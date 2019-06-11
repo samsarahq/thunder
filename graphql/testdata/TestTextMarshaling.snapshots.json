@@ -67,7 +67,7 @@
     "Name": "invalid ptr uuid input",
     "Values": [
       {
-        "Error": "error parsing args for \"inner\": inputPtrUuid: uuid: incorrect UUID length: invaliduuid"
+        "Error": "error parsing args for \"inner\": inputPtrUuid: uuid: invalid UUID string: invaliduuid"
       }
     ]
   },
@@ -75,7 +75,7 @@
     "Name": "invalid uuid input",
     "Values": [
       {
-        "Error": "error parsing args for \"inner\": inputUuid: uuid: incorrect UUID length: invaliduuid"
+        "Error": "error parsing args for \"inner\": inputUuid: uuid: invalid UUID string: invaliduuid"
       }
     ]
   },
@@ -83,7 +83,7 @@
     "Name": "invalid uuid slice input",
     "Values": [
       {
-        "Error": "error parsing args for \"inner\": inputUuidSlice: uuid: incorrect UUID length: invaliduuid"
+        "Error": "error parsing args for \"inner\": inputUuidSlice: uuid: invalid UUID string: invaliduuid"
       }
     ]
   },
