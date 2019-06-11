@@ -22,6 +22,10 @@ type WorkUnit struct {
 	destinations []*outputNode
 }
 
+func (w *WorkUnit) Selection() *Selection {
+	return w.selection
+}
+
 // Splits the work unit to a series of work units (one for every source/dest pair).
 func splitWorkUnit(unit *WorkUnit) []*WorkUnit {
 	workUnits := make([]*WorkUnit, 0, len(unit.sources))
