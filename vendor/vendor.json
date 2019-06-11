@@ -115,6 +115,12 @@
 			"revisionTime": "2017-02-24T01:00:52Z"
 		},
 		{
+			"checksumSHA1": "tWNGH8azWW7HgGgly/osBga6a74=",
+			"path": "github.com/ngaut/log",
+			"revision": "cec23d3e10b016363780d894a0eb732a12c06e02",
+			"revisionTime": "2016-08-10T02:30:11Z"
+		},
+		{
 			"checksumSHA1": "yVe7CpN40HbYMohj9M4HFHfnJCk=",
 			"path": "github.com/samsarahq/go/oops",
 			"revision": "c046b0801eb2cce61be49fa8ee8b38eda4a9fc54",
