@@ -3,6 +3,12 @@
 	"ignore": "test",
 	"package": [
 		{
+			"checksumSHA1": "mrz/kicZiUaHxkyfvC/DyQcr8Do=",
+			"path": "github.com/davecgh/go-spew/spew",
+			"revision": "a476722483882dd40b8111f0eb64e1d7f43f56e4",
+			"revisionTime": "2017-08-29T19:49:58Z"
+		},
+		{
 			"checksumSHA1": "FhEC1RwKSm/8jvTI2MKlzDVz+Vs=",
 			"path": "github.com/gogo/protobuf/gogoproto",
 			"revision": "e14cafb6a2c249986e51c4b65c3206bf18578715",
