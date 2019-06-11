@@ -1,6 +1,6 @@
 {
 	"comment": "",
-	"ignore": "test",
+	"ignore": "appengine appenginevm test",
 	"package": [
 		{
 			"path": "appengine/cloudsql",
