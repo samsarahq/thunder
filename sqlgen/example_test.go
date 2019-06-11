@@ -56,7 +56,7 @@ func Example_tagOverride() {
 	schema.MustRegisterType("users", sqlgen.UniqueId, User{})
 
 	db := sqlgen.NewDB(testDb.DB, schema)
-	uuid, _ := uuid.NewV4()
+	uuid := uuid.NewV4()
 
 	initialUser := &User{
 		UUID: UUID(uuid),             // => BINARY (via uuid.MarshalBinary())
