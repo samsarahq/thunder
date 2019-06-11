@@ -121,6 +121,12 @@
 			"revisionTime": "2016-08-10T02:30:11Z"
 		},
 		{
+			"checksumSHA1": "Pps01vZwszFzmTQixlqFizN/w14=",
+			"path": "github.com/rakyll/statik/fs",
+			"revision": "1355192d24db2566a83c3914e187e2a7e7679832",
+			"revisionTime": "2018-09-21T16:35:09Z"
+		},
+		{
 			"checksumSHA1": "yVe7CpN40HbYMohj9M4HFHfnJCk=",
 			"path": "github.com/samsarahq/go/oops",
 			"revision": "c046b0801eb2cce61be49fa8ee8b38eda4a9fc54",
