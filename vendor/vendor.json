@@ -121,6 +121,12 @@
 			"revisionTime": "2016-08-10T02:30:11Z"
 		},
 		{
+			"checksumSHA1": "LuFv4/jlrmFNnDb/5SCSEPAM9vU=",
+			"path": "github.com/pmezard/go-difflib/difflib",
+			"revision": "5d4384ee4fb2527b0a1256a821ebfc92f91efefc",
+			"revisionTime": "2018-12-26T10:54:42Z"
+		},
+		{
 			"checksumSHA1": "Pps01vZwszFzmTQixlqFizN/w14=",
 			"path": "github.com/rakyll/statik/fs",
 			"revision": "1355192d24db2566a83c3914e187e2a7e7679832",
@@ -131,6 +137,12 @@
 			"path": "github.com/samsarahq/go/oops",
 			"revision": "c046b0801eb2cce61be49fa8ee8b38eda4a9fc54",
 			"revisionTime": "2018-07-10T17:52:00Z"
+		},
+		{
+			"checksumSHA1": "W73YudqZfUE8YYRynuhoL97d6B8=",
+			"path": "github.com/samsarahq/go/snapshotter",
+			"revision": "13570df44b46ea943b9e7e2b16fd1993542e01e3",
+			"revisionTime": "2018-10-26T17:47:56Z"
 		},
 		{
 			"checksumSHA1": "k7K1XgcDxQczOrIhHJAhDW4LkwI=",
