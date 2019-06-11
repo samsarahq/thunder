@@ -185,6 +185,12 @@
 			"path": "github.com/siddontang/go/hack",
 			"revision": "1e9ce2a5ac4092fdf61e293634e40bfb49595105",
 			"revisionTime": "2016-10-05T11:08:31Z"
+		},
+		{
+			"checksumSHA1": "v3LEmqP4Cb6qGCIP7mJk7l2ZXw8=",
+			"path": "github.com/stretchr/testify/assert",
+			"revision": "04af85275a5c7ac09d16bb3b9b2e751ed45154e5",
+			"revisionTime": "2018-10-09T18:43:15Z"
 		}
 	],
 	"rootPath": "github.com/samsarahq/thunder"
