@@ -97,6 +97,12 @@
 			"revisionTime": "2016-09-28T14:17:09Z"
 		},
 		{
+			"checksumSHA1": "KIX/3RadQkfl4ZxCmOQ01vAGLEI=",
+			"path": "github.com/juju/errors",
+			"revision": "6f54ff6318409d31ff16261533ce2c8381a4fd5d",
+			"revisionTime": "2016-08-09T03:08:48Z"
+		},
+		{
 			"checksumSHA1": "yVe7CpN40HbYMohj9M4HFHfnJCk=",
 			"path": "github.com/samsarahq/go/oops",
 			"revision": "c046b0801eb2cce61be49fa8ee8b38eda4a9fc54",
