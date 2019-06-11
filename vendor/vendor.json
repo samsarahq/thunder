@@ -103,6 +103,18 @@
 			"revisionTime": "2016-08-09T03:08:48Z"
 		},
 		{
+			"checksumSHA1": "0xjvz/KGzXhAFsnDRvzofE0xNzI=",
+			"path": "github.com/kylelemons/godebug/diff",
+			"revision": "9ff306d4fbead574800b66369df5b6144732d58e",
+			"revisionTime": "2019-05-05T01:16:37Z"
+		},
+		{
+			"checksumSHA1": "ED154c1vFO2UMbFwdOZZ9KdfAzw=",
+			"path": "github.com/kylelemons/godebug/pretty",
+			"revision": "a616ab194758ae0a11290d87ca46ee8c440117b0",
+			"revisionTime": "2017-02-24T01:00:52Z"
+		},
+		{
 			"checksumSHA1": "yVe7CpN40HbYMohj9M4HFHfnJCk=",
 			"path": "github.com/samsarahq/go/oops",
 			"revision": "c046b0801eb2cce61be49fa8ee8b38eda4a9fc54",
