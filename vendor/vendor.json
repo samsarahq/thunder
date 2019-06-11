@@ -191,6 +191,12 @@
 			"path": "github.com/stretchr/testify/assert",
 			"revision": "04af85275a5c7ac09d16bb3b9b2e751ed45154e5",
 			"revisionTime": "2018-10-09T18:43:15Z"
+		},
+		{
+			"checksumSHA1": "3DvkGtpbJW8oXepRr3wYSs72LmQ=",
+			"path": "github.com/stretchr/testify/require",
+			"revision": "04af85275a5c7ac09d16bb3b9b2e751ed45154e5",
+			"revisionTime": "2018-10-09T18:43:15Z"
 		}
 	],
 	"rootPath": "github.com/samsarahq/thunder"
