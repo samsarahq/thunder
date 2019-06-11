@@ -197,6 +197,12 @@
 			"path": "github.com/stretchr/testify/require",
 			"revision": "04af85275a5c7ac09d16bb3b9b2e751ed45154e5",
 			"revisionTime": "2018-10-09T18:43:15Z"
+		},
+		{
+			"checksumSHA1": "dr5+PfIRzXeN+l1VG+s0lea9qz8=",
+			"path": "golang.org/x/net/context",
+			"revision": "66aacef3dd8a676686c7ae3716979581e8b03c47",
+			"revisionTime": "2016-09-14T00:11:54Z"
 		}
 	],
 	"rootPath": "github.com/samsarahq/thunder"
