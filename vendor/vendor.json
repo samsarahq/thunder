@@ -145,6 +145,12 @@
 			"revisionTime": "2018-10-26T17:47:56Z"
 		},
 		{
+			"checksumSHA1": "7Ck3I7G0hgz+1WD5ohzUMFJsvGg=",
+			"path": "github.com/satori/go.uuid",
+			"revision": "e673fdd4dea8a7334adbbe7f57b7e4b00bdc5502",
+			"revisionTime": "2016-02-18T23:57:46Z"
+		},
+		{
 			"checksumSHA1": "k7K1XgcDxQczOrIhHJAhDW4LkwI=",
 			"path": "github.com/siddontang/go-mysql/client",
 			"revision": "d8e777f00cdbb2bc200ebeb80364b0bcc098362e",
