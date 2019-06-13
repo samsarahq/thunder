@@ -12,7 +12,7 @@ import (
 )
 
 func HTTPHandler(schema *Schema, middlewares ...MiddlewareFunc) http.Handler {
-	return HTTPHandlerWithExecutor(schema, &Executor{}, middlewares...)
+	return HTTPHandlerWithExecutor(schema, (NewExecutor(NewImmediateGoroutineScheduler())), middlewares...)
 }
 
 func HTTPHandlerWithExecutor(schema *Schema, executor ExecutorRunner, middlewares ...MiddlewareFunc) http.Handler {

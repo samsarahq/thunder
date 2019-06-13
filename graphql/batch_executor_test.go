@@ -247,7 +247,7 @@ func TestNonExpensiveExecution(t *testing.T) {
 			}
 
 			c := &counterGoroutineScheduler{}
-			e := graphql.NewBatchExecutor(c)
+			e := graphql.NewExecutor(c)
 
 			ctx := context.Background()
 			res, err := e.Execute(ctx, schema.Query, nil, q)

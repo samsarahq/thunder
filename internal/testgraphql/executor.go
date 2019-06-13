@@ -18,12 +18,8 @@ type ExecutorAndName struct {
 func GetExecutors() []ExecutorAndName {
 	return []ExecutorAndName{
 		{
-			Name:     "",
-			Executor: &graphql.Executor{},
-		},
-		{
 			Name:     "batchExecutor:",
-			Executor: graphql.NewBatchExecutor(graphql.NewImmediateGoroutineScheduler()),
+			Executor: graphql.NewExecutor(graphql.NewImmediateGoroutineScheduler()),
 		},
 	}
 }
