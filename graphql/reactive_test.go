@@ -72,7 +72,7 @@ func TestReactiveCacheResetsOnError(t *testing.T) {
 		if !runGrabber.Dec() {
 			return nil, nil
 		}
-		e := graphql.NewBatchExecutor(graphql.NewImmediateGoroutineScheduler())
+		e := graphql.NewExecutor(graphql.NewImmediateGoroutineScheduler())
 		_, err := e.Execute(ctx, builtSchema.Query, nil, q)
 		require.Error(t, err)
 

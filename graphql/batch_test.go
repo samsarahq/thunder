@@ -781,7 +781,7 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 				}
 
 				var e graphql.ExecutorRunner
-				e = graphql.NewBatchExecutor(graphql.NewImmediateGoroutineScheduler())
+				e = graphql.NewExecutor(graphql.NewImmediateGoroutineScheduler())
 
 				ctx := context.Background()
 				res, err := e.Execute(ctx, schema.Query, nil, q)

@@ -283,7 +283,7 @@ func (c *conn) handleMutate(in *inEnvelope) error {
 	}
 
 	initial := true
-	e := Executor{}
+	e := NewExecutor(NewImmediateGoroutineScheduler())
 	c.subscriptions[id] = reactive.NewRerunner(c.ctx, func(ctx context.Context) (interface{}, error) {
 		// Serialize all mutates for a given connection.
 		c.mutateMu.Lock()
@@ -496,7 +496,7 @@ func CreateConnection(ctx context.Context, socket JSONSocket, schema *Schema, op
 		ctx:                ctx,
 		schema:             schema,
 		mutationSchema:     schema,
-		executor:           &Executor{},
+		executor:           NewExecutor(NewImmediateGoroutineScheduler()),
 		subscriptions:      make(map[string]*reactive.Rerunner),
 		subscriptionLogger: &nopSubscriptionLogger{},
 		logger:             &nopGraphqlLogger{},

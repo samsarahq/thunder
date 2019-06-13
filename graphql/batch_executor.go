@@ -53,15 +53,15 @@ type WorkScheduler interface {
 	Run(resolver UnitResolver, startingUnits ...*WorkUnit)
 }
 
-func NewBatchExecutor(scheduler WorkScheduler) *BatchExecutor {
-	return &BatchExecutor{
+func NewExecutor(scheduler WorkScheduler) ExecutorRunner {
+	return &Executor{
 		scheduler: scheduler,
 	}
 }
 
 // BatchExecutor is a GraphQL executor.  Given a query it can run through the
 // execution of the request.
-type BatchExecutor struct {
+type Executor struct {
 	scheduler WorkScheduler
 }
 
@@ -69,7 +69,7 @@ type BatchExecutor struct {
 // or executing fields.  Any work that needs to be done is passed off to the
 // scheduler to handle managing concurrency of the request.
 // It must return a JSON marshallable response (or an error).
-func (e *BatchExecutor) Execute(ctx context.Context, typ Type, source interface{}, query *Query) (interface{}, error) {
+func (e *Executor) Execute(ctx context.Context, typ Type, source interface{}, query *Query) (interface{}, error) {
 	queryObject, ok := typ.(*Object)
 	if !ok {
 		return nil, fmt.Errorf("expected query or mutation object for execution, got: %s", typ.String())
