@@ -739,11 +739,11 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 	}
 
 	const (
-		OldExecutor           = "OldExecutor"
-		NewExecutorNoBatching = "NewExecutorNoBatching"
-		NewExecutorBatching   = "NewExecutorBatching"
+		NewExecutorNoBatching   = "NewExecutorNoBatching"
+		NewExecutorBatching     = "NewExecutorBatching"
+		NewExecutorBatchingOnly = "NewExecutorBatchingOnly"
 	)
-	conditions := []string{OldExecutor, NewExecutorNoBatching, NewExecutorBatching}
+	conditions := []string{NewExecutorNoBatching, NewExecutorBatching, NewExecutorBatchingOnly}
 	for _, tt := range tests {
 		for _, cond := range conditions {
 			t.Run(fmt.Sprintf("%s %s", tt.name, cond), func(t *testing.T) {
@@ -764,9 +764,13 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 				if tt.markNonNullable {
 					options = append(options, schemabuilder.NonNullable)
 				}
-				obj.BatchFieldFuncWithFallback("value", tt.resolverFunc, tt.resolverFallbackFunc, func(ctx context.Context) bool {
-					return cond == NewExecutorNoBatching
-				}, options...)
+				if cond == NewExecutorBatchingOnly {
+					obj.BatchFieldFunc("value", tt.resolverFunc, options...)
+				} else {
+					obj.BatchFieldFuncWithFallback("value", tt.resolverFunc, tt.resolverFallbackFunc, func(ctx context.Context) bool {
+						return cond == NewExecutorNoBatching
+					}, options...)
+				}
 				schema, err := builder.Build()
 				require.NoError(t, err)
 
@@ -778,9 +782,6 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 
 				var e graphql.ExecutorRunner
 				e = graphql.NewBatchExecutor(graphql.NewImmediateGoroutineScheduler())
-				if cond == OldExecutor {
-					e = &graphql.Executor{}
-				}
 
 				ctx := context.Background()
 				res, err := e.Execute(ctx, schema.Query, nil, q)

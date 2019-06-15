@@ -51,6 +51,17 @@ func (sb *schemaBuilder) buildBatchFunctionWithFallback(typ reflect.Type, m *met
 	return batchField, nil
 }
 
+func (sb *schemaBuilder) buildBatchFunction(typ reflect.Type, m *method) (*graphql.Field, error) {
+	batchField, _, err := sb.buildBatchFunctionAndFuncCtx(typ, m)
+	if err != nil {
+		return nil, err
+	}
+	batchField.UseBatchFunc = func(context.Context) bool {
+		return true
+	}
+	return batchField, nil
+}
+
 // buildBatchFunction corresponds to buildFunction for a batchFieldFunc
 func (sb *schemaBuilder) buildBatchFunctionAndFuncCtx(typ reflect.Type, m *method) (*graphql.Field, *batchFuncContext, error) {
 	funcCtx := &batchFuncContext{parentTyp: typ}
