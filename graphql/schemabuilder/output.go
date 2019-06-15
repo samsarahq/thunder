@@ -91,7 +91,15 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 		method := methods[name]
 
 		if method.Batch {
-			batchField, err := sb.buildBatchFunctionWithFallback(typ, method)
+			if method.BatchArgs.FallbackFunc != nil {
+				batchField, err := sb.buildBatchFunctionWithFallback(typ, method)
+				if err != nil {
+					return err
+				}
+				object.Fields[name] = batchField
+				continue
+			}
+			batchField, err := sb.buildBatchFunction(typ, method)
 			if err != nil {
 				return err
 			}
