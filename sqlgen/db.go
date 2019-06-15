@@ -311,7 +311,9 @@ func (db *DB) UpdateRow(ctx context.Context, row interface{}) error {
 		return err
 	}
 
-	if err := db.checkColumnValuesAgainstShardLimit(query.Columns, query.Values); err != nil {
+	if err := db.checkColumnValuesAgainstShardLimit(
+		append(query.Where.Columns, query.Columns...),
+		append(query.Where.Values, query.Values...)); err != nil {
 		return err
 	}
 

@@ -344,6 +344,20 @@ func TestLimit(t *testing.T) {
 		t.Error(err)
 	}
 
+	// Check aliceDb can update alice if pk is part of the shard limit clause
+	aliceDb, err = db.WithShardLimit(Filter{
+		"name": alice.Name,
+		"id":   alice.Id, // Shard part of PK
+	})
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Check aliceDb can update alice.
+	if err := aliceDb.UpdateRow(ctx, alice); err != nil {
+		t.Error(err)
+	}
+
 	// Check aliceDb can't update bob.
 	if err := aliceDb.UpdateRow(ctx, bob); err == nil || !strings.Contains(err.Error(), "name = Alice") {
 		t.Error("could update bob on aliceDb")
