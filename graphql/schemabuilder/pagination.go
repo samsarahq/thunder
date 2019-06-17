@@ -401,34 +401,55 @@ func (c *connectionContext) applyTextFilter(ctx context.Context, nodes []interfa
 	nodesToKeep := make([]bool, len(nodes))
 
 	g, ctx := errgroup.WithContext(ctx)
-	for unscopedI, unscopedNode := range nodes {
-		i, node := unscopedI, unscopedNode
-		g.Go(func() error {
-			keep := false
-			for name, filterField := range c.FilterTextFields {
-				// Resolve the graphql.Field made for sorting.
-				text, err := filterField.Resolve(ctx, node, nil, nil)
+
+	g.Go(func() error {
+
+		for name, filterField := range c.FilterTextFields {
+			// Resolve the graphql.Field made for sorting.
+
+			if filterField.Batch {
+				texts, err := filterField.BatchResolver(ctx, nodes, nil, nil)
 				if err != nil {
 					return err
 				}
 
-				// Only strings are allowed for FilterText fields.
-				textString, ok := text.(string)
-				if !ok {
-					return fmt.Errorf("filter %s returned %T, must be a string", name, text)
+				for i, text := range texts {
+					// Only strings are allowed for FilterText fields.
+					textString, ok := text.(string)
+					if !ok {
+						return fmt.Errorf("filter %s returned %T, must be a string", name, text)
+					}
+
+					if filter.Match(textString, *args.FilterText) {
+						nodesToKeep[i] = true
+					}
+				}
+			} else {
+
+				for unscopedI, unscopedNode := range nodes {
+					i, node := unscopedI, unscopedNode
+					text, err := filterField.Resolve(ctx, node, nil, nil)
+					if err != nil {
+						return err
+					}
+
+					// Only strings are allowed for FilterText fields.
+					textString, ok := text.(string)
+					if !ok {
+						return fmt.Errorf("filter %s returned %T, must be a string", name, text)
+					}
+
+					if filter.Match(textString, *args.FilterText) {
+						nodesToKeep[i] = true
+					}
+
 				}
 
-				if filter.Match(textString, *args.FilterText) {
-					keep = true
-					break
-				}
 			}
 
-			nodesToKeep[i] = keep
-
-			return nil
-		})
-	}
+		}
+		return nil
+	})
 
 	if err := g.Wait(); err != nil {
 		return nil, err
@@ -702,6 +723,8 @@ func (c *connectionContext) consumeTextFilters(sb *schemaBuilder, m *method, typ
 	c.FilterTextFields = make(map[string]*graphql.Field)
 
 	for name, fn := range m.TextFilterFuncs {
+		// fmt.Println("HIII")
+		fmt.Println(name)
 		funcTyp := getFuncReturnType(fn)
 
 		if funcTyp != typeOfString {
@@ -710,6 +733,11 @@ func (c *connectionContext) consumeTextFilters(sb *schemaBuilder, m *method, typ
 
 		// Build a GraphQL field for the function.
 		field, err := sb.buildFunction(typ, &method{Fn: fn})
+		// fmt.Println(field.Args)
+		fmt.Println(field.Batch)
+		if field.Batch {
+			//TODO: Am a batch functiopn
+		}
 		if err != nil {
 			return err
 		}
