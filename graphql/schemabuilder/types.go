@@ -44,10 +44,64 @@ var Paginated fieldFuncOptionFunc = func(m *method) {
 	m.Paginated = true
 }
 
-type TextFilterFields map[string]interface{}
+type Filter struct {
+	Name            string
+	FilterFunc      interface{}
+	BatchFilterFunc interface{}
+	FallbackFlag    func(context.Context) bool
+}
 
-func (s TextFilterFields) apply(m *method) {
-	m.TextFilterFuncs = s
+func FilterField(name string, filter interface{}) FieldFuncOption {
+	var filterStruct = Filter{
+		Name:       name,
+		FilterFunc: filter,
+	}
+	var fieldFuncTextFilterFields fieldFuncOptionFunc = func(m *method) {
+		if m.TextFilterFuncs == nil {
+			m.TextFilterFuncs = map[string]Filter{}
+		}
+		if filter, ok := m.TextFilterFuncs[name]; ok {
+			panic("Batch Field Filters have the same name: " + filter.Name)
+		}
+		m.TextFilterFuncs[name] = filterStruct
+	}
+	return fieldFuncTextFilterFields
+}
+
+func BatchFilterField(name string, batchFilter interface{}) FieldFuncOption {
+	var filterStruct = Filter{
+		Name:            name,
+		BatchFilterFunc: batchFilter,
+	}
+	var fieldFuncTextFilterFields fieldFuncOptionFunc = func(m *method) {
+		if m.TextFilterFuncs == nil {
+			m.TextFilterFuncs = map[string]Filter{}
+		}
+		if filter, ok := m.TextFilterFuncs[name]; ok {
+			panic("Batch Field Filters have the same name: " + filter.Name)
+		}
+		m.TextFilterFuncs[name] = filterStruct
+	}
+	return fieldFuncTextFilterFields
+}
+
+func BatchFilterFieldWithFallback(name string, batchFilter interface{}, filter interface{}, flag func(context.Context) bool) FieldFuncOption {
+	var filterStruct = Filter{
+		Name:            name,
+		FilterFunc:      filter,
+		BatchFilterFunc: batchFilter,
+		FallbackFlag:    flag,
+	}
+	var fieldFuncTextFilterFields fieldFuncOptionFunc = func(m *method) {
+		if m.TextFilterFuncs == nil {
+			m.TextFilterFuncs = map[string]Filter{}
+		}
+		if filter, ok := m.TextFilterFuncs[name]; ok {
+			panic("Batch Field Filters have the same name: " + filter.Name)
+		}
+		m.TextFilterFuncs[name] = filterStruct
+	}
+	return fieldFuncTextFilterFields
 }
 
 type SortFields map[string]interface{}
@@ -150,8 +204,10 @@ type method struct {
 
 	// Whether or not the FieldFunc is paginated.
 	Paginated bool
+
 	// Text filter methods
-	TextFilterFuncs map[string]interface{}
+	TextFilterFuncs map[string]Filter
+
 	// Sort methods
 	SortFuncs map[string]interface{}
 

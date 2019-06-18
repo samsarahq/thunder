@@ -7,30 +7,35 @@ import (
 
 var matchGroups = regexp.MustCompile(`(?:([^\s"]+)|"([^"]*)"?)+`)
 
-// Split terms by spaces, except for spaces within quotes.
-// Like http://stackoverflow.com/questions/16261635/javascript-split-string-by-space-but-ignore-space-in-quotes-notice-not-to-spli
-// except:
-// - Treat the query ["san fran] as having the single term ["san fran"] instead of ["san", "fran"]
-// - Removes the delimiting quotes.
-func Match(str, query string) bool {
+func GetMatchStrings(query string) []string {
 	if query == "" {
-		return true
+		return nil
 	}
-
 	matches := matchGroups.FindAllStringSubmatch(query, -1)
+	matchStrings := make([]string, 0, len(matches))
 	for _, match := range matches {
 		// Empty quotes can count as a match, ignore them.
 		if match[1] == "" && match[2] == "" {
+			matchStrings = append(matchStrings, "")
 			continue
 		}
-		// Get relevant match (one of these has to be a non-empty string, otherwise this wouldn't be
-		// a match).
+		// Get relevant match (one of these has to be a non-empty string, otherwise this wouldn't be a match).
 		matchString := match[1]
 		if matchString == "" {
 			matchString = match[2]
 		}
+		// matchStrings[i] = matchString
+		matchStrings = append(matchStrings, matchString)
+	}
+	return matchStrings
+}
 
-		if strings.Contains(strings.ToLower(str), strings.ToLower(matchString)) {
+func MatchText(str string, matchStrings []string) bool {
+	if len(matchStrings) == 0 {
+		return true
+	}
+	for _, matchString := range matchStrings {
+		if strings.Contains(strings.ToLower(str), strings.ToLower(matchString)) && matchString != "" {
 			return true
 		}
 	}

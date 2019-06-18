@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"sync"
 
+	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/internal/filter"
 	"golang.org/x/sync/errgroup"
@@ -21,6 +23,7 @@ type Connection struct {
 }
 
 var typeOfString = reflect.TypeOf("")
+var typeofMap = reflect.TypeOf(map[batch.Index]string{})
 
 // paginateManually applies the pagination arguments to the edges in memory and sets hasNextPage +
 // hasPrevPage. The behavior is expected to conform to the Relay Cursor spec:
@@ -393,39 +396,33 @@ func (c *connectionContext) pagesFromEdges(edges []Edge, limit int) (pages []str
 	return pages
 }
 
-func (c *connectionContext) applyTextFilter(ctx context.Context, nodes []interface{}, args PaginationArgs) ([]interface{}, error) {
-	if args.FilterText == nil || *args.FilterText == "" {
-		return nodes, nil
-	}
+type SafeBatchNodesToKeep struct {
+	nodesToKeep []bool
+	mux         sync.Mutex
+}
 
-	nodesToKeep := make([]bool, len(nodes))
-
+func (c *connectionContext) applyBatchTextFilter(ctx context.Context, nodes []interface{}, matchStrings []string, batchedFields map[string]*graphql.Field) ([]bool, error) {
 	g, ctx := errgroup.WithContext(ctx)
-	for unscopedI, unscopedNode := range nodes {
-		i, node := unscopedI, unscopedNode
+	nodesToKeep := make([]bool, len(nodes))
+	m := &sync.Mutex{}
+	for unscopeName, unscopedFilterField := range batchedFields {
+		name, filterField := unscopeName, unscopedFilterField
 		g.Go(func() error {
-			keep := false
-			for name, filterField := range c.FilterTextFields {
-				// Resolve the graphql.Field made for sorting.
-				text, err := filterField.Resolve(ctx, node, nil, nil)
-				if err != nil {
-					return err
-				}
-
-				// Only strings are allowed for FilterText fields.
+			texts, err := filterField.BatchResolver(ctx, nodes, nil, nil)
+			if err != nil {
+				return err
+			}
+			for i, text := range texts {
 				textString, ok := text.(string)
 				if !ok {
 					return fmt.Errorf("filter %s returned %T, must be a string", name, text)
 				}
-
-				if filter.Match(textString, *args.FilterText) {
-					keep = true
-					break
+				if filter.MatchText(textString, matchStrings) {
+					m.Lock()
+					nodesToKeep[i] = true
+					m.Unlock()
 				}
 			}
-
-			nodesToKeep[i] = keep
-
 			return nil
 		})
 	}
@@ -433,15 +430,71 @@ func (c *connectionContext) applyTextFilter(ctx context.Context, nodes []interfa
 	if err := g.Wait(); err != nil {
 		return nil, err
 	}
+	return nodesToKeep, nil
+}
 
-	var filteredNodes []interface{}
+func (c *connectionContext) applyTextFilter(ctx context.Context, nodes []interface{}, args PaginationArgs) ([]interface{}, error) {
+	if args.FilterText == nil || *args.FilterText == "" {
+		return nodes, nil
+	}
 
-	for i, keep := range nodesToKeep {
-		if keep {
-			filteredNodes = append(filteredNodes, nodes[i])
+	nodesToKeep := make([]bool, len(nodes))
+
+	filterTextFieldsNotBatched := make(map[string]*graphql.Field)
+	filterTextFieldsBatched := make(map[string]*graphql.Field)
+
+	for name, filterField := range c.FilterTextFields {
+		if filterField.Batch && filterField.UseBatchFunc(ctx) {
+			filterTextFieldsBatched[name] = filterField
+		} else {
+			filterTextFieldsNotBatched[name] = filterField
 		}
 	}
 
+	g, ctx := errgroup.WithContext(ctx)
+	matchStrings := filter.GetMatchStrings(*args.FilterText)
+	if len(filterTextFieldsNotBatched) > 0 {
+		for unscopedI, unscopedNode := range nodes {
+			i, node := unscopedI, unscopedNode
+			g.Go(func() error {
+				keep := false
+				for name, filterField := range filterTextFieldsNotBatched {
+					// Resolve the graphql.Field made for sorting.
+					text, err := filterField.Resolve(ctx, node, nil, nil)
+					if err != nil {
+						return err
+					}
+					// Only strings are allowed for FilterText fields.
+					textString, ok := text.(string)
+					if !ok {
+						return fmt.Errorf("filter %s returned %T, must be a string", name, text)
+					}
+					if filter.MatchText(textString, matchStrings) {
+						keep = true
+						break
+					}
+				}
+				nodesToKeep[i] = keep
+				return nil
+			})
+		}
+
+	}
+
+	batchedNodesToKeep, err := c.applyBatchTextFilter(ctx, nodes, matchStrings, filterTextFieldsBatched)
+
+	if err != nil {
+		return nil, err
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	var filteredNodes []interface{}
+	for i := range nodesToKeep {
+		if nodesToKeep[i] || batchedNodesToKeep[i] {
+			filteredNodes = append(filteredNodes, nodes[i])
+		}
+	}
 	return filteredNodes, nil
 }
 
@@ -702,14 +755,36 @@ func (c *connectionContext) consumeTextFilters(sb *schemaBuilder, m *method, typ
 	c.FilterTextFields = make(map[string]*graphql.Field)
 
 	for name, fn := range m.TextFilterFuncs {
-		funcTyp := getFuncReturnType(fn)
-
-		if funcTyp != typeOfString {
-			return fmt.Errorf("invalid text filter field %s: unsupported return type %v, must be a string", name, funcTyp)
+		if fn.BatchFilterFunc != nil {
+			batchFuncTyp := getFuncReturnType(fn.BatchFilterFunc)
+			if batchFuncTyp != typeofMap {
+				return fmt.Errorf("invalid text filter field %s: unsupported return type %v, must be a map[batch.Index]string", name, batchFuncTyp)
+			}
+		}
+		if fn.FilterFunc != nil {
+			funcTyp := getFuncReturnType(fn.FilterFunc)
+			if funcTyp != typeOfString {
+				return fmt.Errorf("invalid text filter field %s: unsupported return type %v, must be a string", name, funcTyp)
+			}
 		}
 
-		// Build a GraphQL field for the function.
-		field, err := sb.buildFunction(typ, &method{Fn: fn})
+		var field *graphql.Field = nil
+		var err error = nil
+
+		if fn.BatchFilterFunc != nil && fn.FilterFunc != nil {
+			field, err = sb.buildBatchFunction(typ,
+				&method{
+					Fn: fn.BatchFilterFunc,
+					BatchArgs: batchArgs{
+						FallbackFunc:          fn.FilterFunc,
+						ShouldUseFallbackFunc: fn.FallbackFlag,
+					}, Batch: true})
+		} else if fn.BatchFilterFunc != nil {
+			field, err = sb.buildBatchFunction(typ, &method{Fn: fn.BatchFilterFunc, Batch: true})
+		} else {
+			field, err = sb.buildFunction(typ, &method{Fn: fn.FilterFunc, Batch: false})
+		}
+
 		if err != nil {
 			return err
 		}
@@ -718,7 +793,6 @@ func (c *connectionContext) consumeTextFilters(sb *schemaBuilder, m *method, typ
 		}
 		c.FilterTextFields[name] = field
 	}
-
 	return nil
 }
 
