@@ -24,9 +24,10 @@ func TestMatch(t *testing.T) {
 	}
 
 	for _, tc := range testcases {
+		matchStrings := filter.GetMatchStrings(tc.Query)
 		assert.Equal(t,
 			tc.Matches,
-			filter.Match(tc.String, tc.Query),
+			filter.MatchText(tc.String, matchStrings),
 			"expected Match(`%s`, `%s`) to be %v", tc.String, tc.Query, tc.Matches,
 		)
 	}

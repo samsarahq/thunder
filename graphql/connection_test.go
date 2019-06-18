@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 	"github.com/samsarahq/thunder/internal"
@@ -59,14 +60,28 @@ func TestConnection(t *testing.T) {
 			{Id: 4, FilterText: "soban"},
 			{Id: 5, FilterText: "socan"},
 		}
-	}, schemabuilder.Paginated, schemabuilder.TextFilterFields{
-		"foo": func(ctx context.Context, i Item) string {
-			return i.FilterText
-		},
-		"bar": func(ctx context.Context, i *Item) string {
-			return ""
-		},
-	})
+
+	}, schemabuilder.Paginated,
+		schemabuilder.BatchFilterField("foo",
+			func(ctx context.Context, i map[batch.Index]Item) (map[batch.Index]string, error) {
+				myMap := make(map[batch.Index]string, len(i))
+				for i, item := range i {
+					myMap[i] = item.FilterText
+				}
+				return myMap, nil
+			},
+		),
+		schemabuilder.BatchFilterField("bar",
+			func(ctx context.Context, i map[batch.Index]Item) (map[batch.Index]string, error) {
+				myMap := make(map[batch.Index]string, len(i))
+				for i := range i {
+					myMap[i] = ""
+				}
+				return myMap, nil
+			},
+		),
+	)
+
 	inner.FieldFunc("innerConnectionWithSort", func() []Item {
 		return []Item{
 			{Id: 1, Number: 1, String: "1", Float: 1.0},
@@ -487,9 +502,12 @@ func TestPaginateBuildFailure(t *testing.T) {
 		object.Key("id")
 		inner.FieldFunc("connection", func(ctx context.Context, args Args) ([]StructWithKey, error) {
 			return nil, nil
-		}, schemabuilder.Paginated, schemabuilder.TextFilterFields{
-			"noargs": func() {},
-		})
+		},
+			schemabuilder.Paginated,
+			schemabuilder.BatchFilterField(
+				"noargs",
+				func() {},
+			))
 
 		_, err := schema.Build()
 		require.Error(t, err)
@@ -511,9 +529,9 @@ func TestPaginateBuildFailure(t *testing.T) {
 		object.Key("id")
 		inner.FieldFunc("connection", func(ctx context.Context, args Args) ([]StructWithKey, error) {
 			return nil, nil
-		}, schemabuilder.Paginated, schemabuilder.TextFilterFields{
-			"intReturn": func() int64 { return 0 },
-		})
+		}, schemabuilder.Paginated, schemabuilder.BatchFilterField(
+			"intReturn", func() int64 { return 0 },
+		))
 
 		_, err := schema.Build()
 		require.Error(t, err)
@@ -533,11 +551,15 @@ func TestPaginateBuildFailure(t *testing.T) {
 		object.Key("id")
 		inner.FieldFunc("connection", func(ctx context.Context, i *Inner, args Args) ([]StructWithKey, error) {
 			return nil, nil
-		}, schemabuilder.Paginated, schemabuilder.TextFilterFields{
-			"someArgs": func(ctx context.Context, i *StructWithKey, args Args) string {
-				return ""
+		}, schemabuilder.Paginated, schemabuilder.BatchFilterField(
+			"someArgs", func(ctx context.Context, i map[batch.Index]*StructWithKey, args Args) (map[batch.Index]string, error) {
+				myMap := make(map[batch.Index]string, len(i))
+				for i := range i {
+					myMap[i] = ""
+				}
+				return myMap, nil
 			},
-		})
+		))
 
 		_, err := schema.Build()
 		require.Error(t, err)
