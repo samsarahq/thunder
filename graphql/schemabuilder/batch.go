@@ -135,8 +135,6 @@ type batchFuncContext struct {
 	hasRet          bool
 	hasError        bool
 
-	usesBatchIndex bool
-
 	enforceNoNilResps bool
 
 	funcType     reflect.Type
@@ -189,16 +187,15 @@ func (funcCtx *batchFuncContext) consumeRequiredSourceBatch(in []reflect.Type) (
 
 	parentPtrType := reflect.PtrTo(funcCtx.parentTyp)
 	if inType.Kind() != reflect.Map ||
-		inType.Key().Kind() != reflect.Int ||
+		!isBatchIndexType(inType.Key()) ||
 		(inType.Elem() != parentPtrType && inType.Elem() != funcCtx.parentTyp) {
 		return nil, fmt.Errorf(
-			"invalid source batch type, expected one of map[int]*%s or map[int]%s, but got %s",
+			"invalid source batch type, expected one of map[batch.Index]*%s or map[batch.Index]%s, but got %s",
 			funcCtx.parentTyp.String(),
 			funcCtx.parentTyp.String(),
 			inType.String(),
 		)
 	}
-	funcCtx.usesBatchIndex = isBatchIndexType(inType.Key())
 
 	funcCtx.isPtrFunc = inType.Elem() == parentPtrType
 	funcCtx.batchMapType = inType
@@ -262,21 +259,9 @@ func (funcCtx *batchFuncContext) consumeReturnValue(m *method, sb *schemaBuilder
 	outType := out[0]
 	out = out[1:]
 	if outType.Kind() != reflect.Map ||
-		outType.Key().Kind() != reflect.Int {
-		return nil, nil, fmt.Errorf(
-			"invalid response batch type, expected map[int]<Type>, but got %s",
-			outType.String(),
-		)
-	}
-	if funcCtx.usesBatchIndex && !isBatchIndexType(outType.Key()) {
+		!isBatchIndexType(outType.Key()) {
 		return nil, nil, fmt.Errorf(
 			"invalid response batch type, expected map[batch.Index]<Type>, but got %s",
-			outType.String(),
-		)
-	}
-	if !funcCtx.usesBatchIndex && isBatchIndexType(outType.Key()) {
-		return nil, nil, fmt.Errorf(
-			"invalid response batch type, expected map[int]<Type>, but got %s",
 			outType.String(),
 		)
 	}
@@ -335,11 +320,7 @@ func (funcCtx *batchFuncContext) prepareResolveArgs(sources []interface{}, args 
 		idxVal := idx
 		sourceValue := reflect.ValueOf(source)
 		ptrSource := sourceValue.Kind() == reflect.Ptr
-		if funcCtx.usesBatchIndex {
-			idxValues[idxVal] = reflect.ValueOf(batch.Index(idxVal))
-		} else {
-			idxValues[idxVal] = reflect.ValueOf(idxVal)
-		}
+		idxValues[idxVal] = reflect.ValueOf(batch.NewIndex(idxVal))
 		switch {
 		case ptrSource && !funcCtx.isPtrFunc:
 			batchMap.SetMapIndex(idxValues[idxVal], sourceValue.Elem())
@@ -383,7 +364,7 @@ func (funcCtx *batchFuncContext) extractResultsAndErr(out []reflect.Value, idxVa
 	resBatch := out[0]
 
 	resList := make([]interface{}, len(idxValues))
-	for _, idxVal := range idxValues {
+	for idx, idxVal := range idxValues {
 		res := resBatch.MapIndex(idxVal)
 		if !res.IsValid() || (res.Kind() == reflect.Ptr && res.IsNil()) {
 			if funcCtx.enforceNoNilResps {
@@ -391,7 +372,7 @@ func (funcCtx *batchFuncContext) extractResultsAndErr(out []reflect.Value, idxVa
 			}
 			continue
 		}
-		resList[idxVal.Int()] = res.Interface()
+		resList[idx] = res.Interface()
 	}
 	return resList, nil
 }
