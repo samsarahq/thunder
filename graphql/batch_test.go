@@ -44,7 +44,7 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 		{
 			name:                 "good run with no value",
 			objectFunc:           func(ctx context.Context) []*Object { return []*Object{&Object{Key: "key1"}} },
-			resolverFunc:         func(ctx context.Context, o map[int]Object) (map[int]string, error) { return nil, nil },
+			resolverFunc:         func(ctx context.Context, o map[batch.Index]Object) (map[batch.Index]string, error) { return nil, nil },
 			resolverFallbackFunc: func(ctx context.Context, o Object) (*string, error) { return nil, nil },
 			query: `
 			{
@@ -62,8 +62,8 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 		{
 			name:       "good run with response",
 			objectFunc: func(ctx context.Context) []*Object { return []*Object{&Object{Key: "key1"}} },
-			resolverFunc: func(ctx context.Context, o map[int]Object) (map[int]string, error) {
-				myMap := make(map[int]string, len(o))
+			resolverFunc: func(ctx context.Context, o map[batch.Index]Object) (map[batch.Index]string, error) {
+				myMap := make(map[batch.Index]string, len(o))
 				for idx, val := range o {
 					myMap[idx] = "valfor" + val.Key
 				}
@@ -89,7 +89,7 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 		{
 			name:       "panic run with response",
 			objectFunc: func(ctx context.Context) []*Object { return []*Object{&Object{Key: "key1"}} },
-			resolverFunc: func(ctx context.Context, o map[int]Object) (map[int]string, error) {
+			resolverFunc: func(ctx context.Context, o map[batch.Index]Object) (map[batch.Index]string, error) {
 				panic("bad times")
 				return nil, errors.New("my error here")
 			},
@@ -109,7 +109,7 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 		{
 			name:       "error run with response",
 			objectFunc: func(ctx context.Context) []*Object { return []*Object{&Object{Key: "key1"}} },
-			resolverFunc: func(ctx context.Context, o map[int]Object) (map[int]string, error) {
+			resolverFunc: func(ctx context.Context, o map[batch.Index]Object) (map[batch.Index]string, error) {
 				return nil, errors.New("my error here")
 			},
 			resolverFallbackFunc: func(ctx context.Context, o Object) (*string, error) {
@@ -127,8 +127,8 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 		{
 			name:       "good run with pointer args",
 			objectFunc: func(ctx context.Context) []*Object { return []*Object{&Object{Key: "key1"}} },
-			resolverFunc: func(ctx context.Context, o map[int]*Object) (map[int]string, error) {
-				myMap := make(map[int]string, len(o))
+			resolverFunc: func(ctx context.Context, o map[batch.Index]*Object) (map[batch.Index]string, error) {
+				myMap := make(map[batch.Index]string, len(o))
 				for idx, val := range o {
 					myMap[idx] = "valfor" + val.Key
 				}
@@ -154,8 +154,8 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 		{
 			name:       "good run with pointer response type",
 			objectFunc: func(ctx context.Context) []*Object { return []*Object{&Object{Key: "key1"}} },
-			resolverFunc: func(ctx context.Context, o map[int]*Object) (map[int]*string, error) {
-				myMap := make(map[int]*string, len(o))
+			resolverFunc: func(ctx context.Context, o map[batch.Index]*Object) (map[batch.Index]*string, error) {
+				myMap := make(map[batch.Index]*string, len(o))
 				for idx, val := range o {
 					p := "valfor" + val.Key
 					myMap[idx] = &p
@@ -182,8 +182,8 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 		{
 			name:       "good run with pointer nil response type",
 			objectFunc: func(ctx context.Context) []*Object { return []*Object{&Object{Key: "key1"}} },
-			resolverFunc: func(ctx context.Context, o map[int]*Object) (map[int]*string, error) {
-				myMap := make(map[int]*string, len(o))
+			resolverFunc: func(ctx context.Context, o map[batch.Index]*Object) (map[batch.Index]*string, error) {
+				myMap := make(map[batch.Index]*string, len(o))
 				for idx, _ := range o {
 					myMap[idx] = nil
 				}
@@ -208,8 +208,8 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 		{
 			name:       "run with all sub-object and args",
 			objectFunc: func(ctx context.Context) []*Object { return []*Object{&Object{Key: "key1"}} },
-			resolverFunc: func(ctx context.Context, o map[int]*Object, args struct{ Prefix string }) (map[int]*Object, error) {
-				myMap := make(map[int]*Object, len(o))
+			resolverFunc: func(ctx context.Context, o map[batch.Index]*Object, args struct{ Prefix string }) (map[batch.Index]*Object, error) {
+				myMap := make(map[batch.Index]*Object, len(o))
 				for idx, val := range o {
 					val.Key = args.Prefix + val.Key
 					myMap[idx] = val
@@ -238,11 +238,11 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 		{
 			name:       "run with all possible parameters",
 			objectFunc: func(ctx context.Context) []*Object { return []*Object{&Object{Key: "key1"}} },
-			resolverFunc: func(ctx context.Context, o map[int]*Object, args struct{ Prefix string }, set *graphql.SelectionSet) (map[int]*Object, error) {
+			resolverFunc: func(ctx context.Context, o map[batch.Index]*Object, args struct{ Prefix string }, set *graphql.SelectionSet) (map[batch.Index]*Object, error) {
 				if set == nil {
 					return nil, errors.New("Expected to have selectionSet")
 				}
-				myMap := make(map[int]*Object, len(o))
+				myMap := make(map[batch.Index]*Object, len(o))
 				for idx, val := range o {
 					val.Key = args.Prefix + val.Key
 					myMap[idx] = val
@@ -285,11 +285,11 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 					{Key: "key8"},
 				}
 			},
-			resolverFunc: func(ctx context.Context, o map[int]*Object, args struct{ Prefix string }, set *graphql.SelectionSet) (map[int]*Object, error) {
+			resolverFunc: func(ctx context.Context, o map[batch.Index]*Object, args struct{ Prefix string }, set *graphql.SelectionSet) (map[batch.Index]*Object, error) {
 				if set == nil {
 					return nil, errors.New("Expected to have selectionSet")
 				}
-				myMap := make(map[int]*Object, len(o))
+				myMap := make(map[batch.Index]*Object, len(o))
 				for idx, val := range o {
 					val.Key = args.Prefix + val.Key
 					myMap[idx] = val
@@ -335,8 +335,8 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 					{Key: "key4", Num: 4},
 				}
 			},
-			resolverFunc: func(ctx context.Context, o map[int]*Object, args struct{ Prefix string }) (map[int]*Object, error) {
-				myMap := make(map[int]*Object, len(o))
+			resolverFunc: func(ctx context.Context, o map[batch.Index]*Object, args struct{ Prefix string }) (map[batch.Index]*Object, error) {
+				myMap := make(map[batch.Index]*Object, len(o))
 				for idx, val := range o {
 					if val.Num%2 == 0 {
 						continue
@@ -381,8 +381,8 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 					{Key: "key4", Num: 4},
 				}
 			},
-			resolverFunc: func(ctx context.Context, o map[int]*Object, args struct{ Prefix string }) (map[int]*string, error) {
-				myMap := make(map[int]*string, len(o))
+			resolverFunc: func(ctx context.Context, o map[batch.Index]*Object, args struct{ Prefix string }) (map[batch.Index]*string, error) {
+				myMap := make(map[batch.Index]*string, len(o))
 				for idx, val := range o {
 					if val.Num%2 == 0 {
 						continue
@@ -425,8 +425,8 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 					{Key: "key4", Num: 4},
 				}
 			},
-			resolverFunc: func(ctx context.Context, o map[int]*Object, args struct{ Prefix string }) (map[int]string, error) {
-				myMap := make(map[int]string, len(o))
+			resolverFunc: func(ctx context.Context, o map[batch.Index]*Object, args struct{ Prefix string }) (map[batch.Index]string, error) {
+				myMap := make(map[batch.Index]string, len(o))
 				for idx, val := range o {
 					if val.Num%2 == 0 {
 						continue
@@ -469,8 +469,8 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 					{Key: "key4", Num: 4},
 				}
 			},
-			resolverFunc: func(ctx context.Context, o map[int]*Object, args struct{ Prefix string }) (map[int][]Object, error) {
-				myMap := make(map[int][]Object, len(o))
+			resolverFunc: func(ctx context.Context, o map[batch.Index]*Object, args struct{ Prefix string }) (map[batch.Index][]Object, error) {
+				myMap := make(map[batch.Index][]Object, len(o))
 				for idx, val := range o {
 					if val.Num%2 == 0 {
 						continue
@@ -518,8 +518,8 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 					{Key: "key4", Num: 4},
 				}
 			},
-			resolverFunc: func(ctx context.Context, o map[int]*Object) (map[int]UnionType, error) {
-				myMap := make(map[int]UnionType, len(o))
+			resolverFunc: func(ctx context.Context, o map[batch.Index]*Object) (map[batch.Index]UnionType, error) {
+				myMap := make(map[batch.Index]UnionType, len(o))
 				for idx, val := range o {
 					if val.Num == 0 {
 						continue
@@ -573,8 +573,8 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 				}
 			},
 			markNonNullable: true,
-			resolverFunc: func(ctx context.Context, o map[int]*Object) (map[int]enumType, error) {
-				myMap := make(map[int]enumType, len(o))
+			resolverFunc: func(ctx context.Context, o map[batch.Index]*Object) (map[batch.Index]enumType, error) {
+				myMap := make(map[batch.Index]enumType, len(o))
 				for idx, val := range o {
 					if val.Num%2 != 0 {
 						myMap[idx] = enumType(1)
@@ -617,8 +617,8 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 				}
 			},
 			markNonNullable: true,
-			resolverFunc: func(ctx context.Context, o map[int]*Object) (map[int]string, error) {
-				myMap := make(map[int]string, len(o))
+			resolverFunc: func(ctx context.Context, o map[batch.Index]*Object) (map[batch.Index]string, error) {
+				myMap := make(map[batch.Index]string, len(o))
 				for idx, val := range o {
 					myMap[idx] = val.Key
 				}
@@ -652,8 +652,8 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 				}
 			},
 			markNonNullable: true,
-			resolverFunc: func(ctx context.Context, o map[int]*Object) (map[int]string, error) {
-				myMap := make(map[int]string, len(o))
+			resolverFunc: func(ctx context.Context, o map[batch.Index]*Object) (map[batch.Index]string, error) {
+				myMap := make(map[batch.Index]string, len(o))
 				for idx, val := range o {
 					if val.Num%2 != 0 {
 						continue
@@ -717,7 +717,7 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 		{
 			name:       "zero len list does not execute BatchFieldFunc",
 			objectFunc: func(ctx context.Context) []Object { return []Object{} },
-			resolverFunc: func(o map[int]Object) (map[int]string, error) {
+			resolverFunc: func(o map[batch.Index]Object) (map[batch.Index]string, error) {
 				require.Fail(t, "fieldFunc should not have been called")
 				return nil, nil
 			},
