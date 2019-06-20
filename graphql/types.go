@@ -181,8 +181,6 @@ type Selection struct {
 	Args         interface{}
 	SelectionSet *SelectionSet
 
-	UseBatch bool
-
 	// The parsed flag is used to make sure the args for this Selection are only
 	// parsed once.
 	parsed bool
