@@ -20,6 +20,7 @@ type WorkUnit struct {
 	selection    *Selection
 	sources      []interface{}
 	destinations []*outputNode
+	useBatch     bool
 }
 
 func (w *WorkUnit) Selection() *Selection {
@@ -112,7 +113,7 @@ func (e *Executor) Execute(ctx context.Context, typ Type, source interface{}, qu
 // selections of the unit to determine if it needs to schedule more work (which
 // will be returned as new work units that will need to get scheduled.
 func executeWorkUnit(unit *WorkUnit) []*WorkUnit {
-	if shouldUseBatch(unit.selection, unit.field) {
+	if unit.field.Batch && unit.useBatch {
 		return executeBatchWorkUnit(unit)
 	}
 
@@ -363,7 +364,7 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 		if !ok {
 			continue
 		}
-		if shouldUseBatch(selection, field) {
+		if shouldUseBatch(ctx, field) {
 			numNonExpensive++
 			continue
 		}
@@ -424,7 +425,8 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 		}
 
 		switch {
-		case shouldUseBatch(selection, field):
+		case shouldUseBatch(ctx, field):
+			unit.useBatch = true
 			workUnits = append(workUnits, unit)
 		case field.Expensive:
 			// Expensive fields should be executed as multiple "Units".  The scheduler
@@ -470,8 +472,7 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 }
 
 // shouldUseBatch determines whether we will execute this field as a batch
-// based on the selection and field information.  The selection "UseBatch" value
-// will get set when preparing the query.
-func shouldUseBatch(selection *Selection, field *Field) bool {
-	return selection.UseBatch && field.Batch
+// based on the field information.
+func shouldUseBatch(ctx context.Context, field *Field) bool {
+	return field.Batch && field.UseBatchFunc(ctx)
 }
