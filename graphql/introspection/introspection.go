@@ -191,9 +191,10 @@ func (s *introspection) registerType(schema *schemabuilder.Schema) {
 				sort.Slice(args, func(i, j int) bool { return args[i].Name < args[j].Name })
 
 				fields = append(fields, field{
-					Name: name,
-					Type: Type{Inner: f.Type},
-					Args: args,
+					Name:        name,
+					Type:        Type{Inner: f.Type},
+					Description: f.Description,
+					Args:        args,
 				})
 			}
 		}

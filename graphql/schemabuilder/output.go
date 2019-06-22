@@ -28,11 +28,13 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 
 	var name string
 	var description string
+	var fieldDescriptions map[string]string
 	var methods Methods
 	var objectKey string
 	if object, ok := sb.objects[typ]; ok {
 		name = object.Name
 		description = object.Description
+		fieldDescriptions = object.FieldDescriptions
 		methods = object.Methods
 		objectKey = object.key
 	}
@@ -66,6 +68,10 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 		}
 
 		built, err := sb.buildField(field)
+		if fieldDesc, ok := fieldDescriptions[fieldInfo.Name]; ok {
+			built.Description = fieldDesc
+		}
+
 		if err != nil {
 			return fmt.Errorf("bad field %s on type %s: %s", fieldInfo.Name, typ, err)
 		}
@@ -227,7 +233,8 @@ func (sb *schemaBuilder) buildField(field reflect.StructField) (*graphql.Field, 
 			}
 			return value.FieldByIndex(field.Index).Interface(), nil
 		},
-		Type:           retType,
+		Type: retType,
+
 		ParseArguments: nilParseArguments,
 	}, nil
 }
