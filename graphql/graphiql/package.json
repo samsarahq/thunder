@@ -15,8 +15,8 @@
     "lodash.isequal": "4.4.0",
     "react": "^15.4.1",
     "react-dom": "^15.4.1",
-    "thunder-react": "^0.0.2",
     "style-loader": "^0.13.1",
+    "thunder-react": "^0.0.2",
     "webpack": "^2.2.1"
   }
 }
