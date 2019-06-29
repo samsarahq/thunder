@@ -281,3 +281,36 @@ func TestKitchenSink(t *testing.T) {
 		t.Error("bad kitchen sink")
 	}
 }
+
+func TestDiffToNil(t *testing.T) {
+	d := diff.Diff(map[string]interface{}{
+		"__key": "a",
+		"users": []interface{}{
+			map[string]interface{}{
+				"__key": "alice",
+				"age":   30,
+				"address": map[string]interface{}{
+					"__key": "10",
+					"city":  "berkeley",
+				},
+			},
+		},
+	}, map[string]interface{}{
+		"__key": "a",
+		"users": []interface{}{
+			map[string]interface{}{
+				"__key":   "alice",
+				"age":     30,
+				"address": nil,
+			},
+		},
+	})
+
+	if !reflect.DeepEqual(internal.AsJSON(d), internal.ParseJSON(`
+		{"users": {
+			"0": {"address": [null]}
+		}}
+	`)) {
+		t.Error("bad diff")
+	}
+}
