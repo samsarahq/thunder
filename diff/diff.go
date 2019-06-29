@@ -138,7 +138,7 @@ func diffMap(old map[string]interface{}, newAny interface{}) interface{} {
 	// Verify the type of new.
 	new, ok := newAny.(map[string]interface{})
 	if !ok {
-		return markReplaced(new)
+		return markReplaced(newAny)
 	}
 
 	// Check if two map are identical by comparing their pointers, and
@@ -261,7 +261,7 @@ func diffArray(old []interface{}, newAny interface{}) interface{} {
 	// Verify the type of new.
 	new, ok := newAny.([]interface{})
 	if !ok {
-		return markReplaced(new)
+		return markReplaced(newAny)
 	}
 
 	// Check if two arrays are identical by comparing their pointers and length,
