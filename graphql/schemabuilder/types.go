@@ -44,6 +44,12 @@ var Paginated fieldFuncOptionFunc = func(m *method) {
 	m.Paginated = true
 }
 
+// Expensive is an option that can be passed to a FieldFunc to indicate that
+// the function is expensive to execute, so it should be parallelized.
+var Expensive fieldFuncOptionFunc = func(m *method) {
+	m.Expensive = true
+}
+
 type Filter struct {
 	Name            string
 	FilterFunc      interface{}
@@ -204,6 +210,9 @@ type method struct {
 
 	// Whether or not the FieldFunc is paginated.
 	Paginated bool
+
+	// Whether or not the FieldFunc has been marked as expensive.
+	Expensive bool
 
 	// Text filter methods
 	TextFilterFuncs map[string]Filter
