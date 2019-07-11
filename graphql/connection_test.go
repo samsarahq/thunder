@@ -287,7 +287,7 @@ func TestConnection(t *testing.T) {
 
 	snap.SnapshotQuery("Pagination, filter", `{
 		inner {
-			filterByCan: innerConnectionWithFilter(filterText: "can", first: 5, after: "") {
+			filterByCan: innerConnectionWithFilter(filterText: "can", filterTextFields: ["foo","wug"], first: 5, after: "") {
 				totalCount
 				edges {
 					node {

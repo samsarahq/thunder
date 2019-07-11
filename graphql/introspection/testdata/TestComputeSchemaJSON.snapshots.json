@@ -439,6 +439,24 @@
                     {
                       "defaultValue": null,
                       "description": "",
+                      "name": "filterTextFields",
+                      "type": {
+                        "kind": "LIST",
+                        "name": "",
+                        "ofType": {
+                          "kind": "NON_NULL",
+                          "name": "",
+                          "ofType": {
+                            "kind": "SCALAR",
+                            "name": "string",
+                            "ofType": null
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "defaultValue": null,
+                      "description": "",
                       "name": "first",
                       "type": {
                         "kind": "SCALAR",
@@ -521,6 +539,24 @@
                         "kind": "SCALAR",
                         "name": "string",
                         "ofType": null
+                      }
+                    },
+                    {
+                      "defaultValue": null,
+                      "description": "",
+                      "name": "filterTextFields",
+                      "type": {
+                        "kind": "LIST",
+                        "name": "",
+                        "ofType": {
+                          "kind": "NON_NULL",
+                          "name": "",
+                          "ofType": {
+                            "kind": "SCALAR",
+                            "name": "string",
+                            "ofType": null
+                          }
+                        }
                       }
                     },
                     {
