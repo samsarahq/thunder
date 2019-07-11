@@ -105,6 +105,8 @@ type ConnectionArgs struct {
 	Args interface{}
 	// filterText: "text search"
 	FilterText *string
+	// FilterTextFields: ["filter name"]
+	FilterTextFields *[]string
 	// sortBy: "fieldName"
 	SortBy *string
 	// sortOrder: "asc" | "desc"
@@ -119,9 +121,10 @@ type PaginationArgs struct {
 	After  *string
 	Before *string
 
-	FilterText *string
-	SortBy     *string
-	SortOrder  *SortOrder
+	FilterText       *string
+	FilterTextFields *[]string
+	SortBy           *string
+	SortOrder        *SortOrder
 }
 
 func (p PaginationArgs) limit() int {
@@ -489,11 +492,24 @@ func (c *connectionContext) applyTextFilter(ctx context.Context, nodes []interfa
 		return nodes, nil
 	}
 
+	filterFields := make(map[string]bool)
+	if args.FilterTextFields != nil {
+		for _, name := range *args.FilterTextFields {
+			filterFields[name] = true
+		}
+	} else {
+		for name, _ := range c.FilterTextFields {
+			filterFields[name] = true
+		}
+	}
+
 	filterTextFieldsNotBatched := make(map[string]*graphql.Field)
 	filterTextFieldsNotBatchedExpensive := make(map[string]*graphql.Field)
 	filterTextFieldsBatched := make(map[string]*graphql.Field)
-
 	for name, filterField := range c.FilterTextFields {
+		if _, ok := filterFields[name]; !ok {
+			continue
+		}
 		if filterField.Batch && filterField.UseBatchFunc(ctx) {
 			filterTextFieldsBatched[name] = filterField
 		} else {
@@ -1013,7 +1029,6 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 
 			// Call the function.
 			out := fun.Call(in)
-
 			return c.extractReturnAndErr(ctx, out, args, retType)
 
 		},
@@ -1034,14 +1049,16 @@ func (c *connectionContext) extractReturnAndErr(ctx context.Context, out []refle
 	// struct and setup for the slicing functions.
 	if !c.IsExternallyManaged() {
 		connectionArgs, _ := args.(ConnectionArgs)
+
 		paginationArgs = PaginationArgs{
-			First:      connectionArgs.First,
-			Last:       connectionArgs.Last,
-			After:      connectionArgs.After,
-			Before:     connectionArgs.Before,
-			FilterText: connectionArgs.FilterText,
-			SortBy:     connectionArgs.SortBy,
-			SortOrder:  connectionArgs.SortOrder,
+			First:            connectionArgs.First,
+			Last:             connectionArgs.Last,
+			After:            connectionArgs.After,
+			Before:           connectionArgs.Before,
+			FilterText:       connectionArgs.FilterText,
+			FilterTextFields: connectionArgs.FilterTextFields,
+			SortBy:           connectionArgs.SortBy,
+			SortOrder:        connectionArgs.SortOrder,
 		}
 	} else {
 		paginationArgs = reflect.ValueOf(args).Field(c.PaginationArgsIndex).Interface().(PaginationArgs)
