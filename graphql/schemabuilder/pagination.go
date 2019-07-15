@@ -454,6 +454,9 @@ func (c *connectionContext) checkFilters(ctx context.Context, node interface{}, 
 	return keep, nil
 }
 
+// We found that parallelizing non-expensive fields was slower due to the overhead of
+// spawning goroutines, so we execute non-expensive fields serially. We're also concerned
+// about the memory overhead of spawning many goroutines
 func (c *connectionContext) applyTextFilterNotBatchedExpensive(ctx context.Context, nodes []interface{}, matchStrings []string, filterFields map[string]*graphql.Field) ([]bool, error) {
 	g, ctx := errgroup.WithContext(ctx)
 	nodesToKeep := make([]bool, len(nodes))
@@ -478,7 +481,10 @@ func (c *connectionContext) applyTextFilterNotBatched(ctx context.Context, nodes
 	if len(filterFields) > 0 {
 		for unscopedI, unscopedNode := range nodes {
 			i, node := unscopedI, unscopedNode
-			keep, _ := c.checkFilters(ctx, node, matchStrings, filterFields)
+			keep, err := c.checkFilters(ctx, node, matchStrings, filterFields)
+			if err != nil {
+				return nil, err
+			}
 			nodesToKeep[i] = keep
 		}
 	}

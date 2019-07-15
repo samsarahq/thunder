@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func pagintedQueryWithFilterBenchmark(b *testing.B, n int, batchFunc bool) {
+func pagintedQueryWithFilterBenchmark(b *testing.B, n int, batchFunc bool, expensive bool) {
 	schema := schemabuilder.NewSchema()
 	type Inner struct {
 	}
@@ -27,20 +27,38 @@ func pagintedQueryWithFilterBenchmark(b *testing.B, n int, batchFunc bool) {
 		items[i] = Item{Id: int64(i), FilterText: filterTexts[i%5], String: "a"}
 	}
 	if !batchFunc {
-		inner.FieldFunc("innerConnectionWithFilter", func() []Item {
-			return items
-		}, schemabuilder.Paginated,
-			schemabuilder.FilterField("foo",
-				func(ctx context.Context, i Item) string {
-					return i.FilterText
-				},
-			),
-			schemabuilder.FilterField("bar",
-				func(ctx context.Context, i Item) string {
-					return i.String
-				},
-			),
-		)
+		if expensive {
+			inner.FieldFunc("innerConnectionWithFilter", func() []Item {
+				return items
+			}, schemabuilder.Paginated,
+				schemabuilder.FilterField("foo",
+					func(ctx context.Context, i Item) string {
+						return i.FilterText
+					},
+				),
+				schemabuilder.FilterField("bar",
+					func(ctx context.Context, i Item) string {
+						return i.String
+					},
+				),
+			)
+		} else {
+			inner.FieldFunc("innerConnectionWithFilter", func() []Item {
+				return items
+			}, schemabuilder.Paginated,
+				schemabuilder.FilterField("foo",
+					func(i Item) string {
+						return i.FilterText
+					},
+				),
+				schemabuilder.FilterField("bar",
+					func(i Item) string {
+						return i.String
+					},
+				),
+			)
+		}
+
 	} else {
 		inner.FieldFunc("innerConnectionWithFilter", func() []Item {
 			return items
@@ -91,25 +109,35 @@ func pagintedQueryWithFilterBenchmark(b *testing.B, n int, batchFunc bool) {
 }
 
 func BenchmarkFiltersBatched10Items(b *testing.B) {
-	pagintedQueryWithFilterBenchmark(b, 10, true)
+	pagintedQueryWithFilterBenchmark(b, 10, true, false)
 }
 
 func BenchmarkFiltersNotBatched10Items(b *testing.B) {
-	pagintedQueryWithFilterBenchmark(b, 10, false)
+	pagintedQueryWithFilterBenchmark(b, 10, false, false)
+}
+func BenchmarkFiltersNotBatched10ItemsExpensive(b *testing.B) {
+	pagintedQueryWithFilterBenchmark(b, 10, false, true)
 }
 
 func BenchmarkFiltersBatched100Items(b *testing.B) {
-	pagintedQueryWithFilterBenchmark(b, 100, true)
+	pagintedQueryWithFilterBenchmark(b, 100, true, false)
 }
 
 func BenchmarkFiltersNotBatched100Items(b *testing.B) {
-	pagintedQueryWithFilterBenchmark(b, 100, false)
+	pagintedQueryWithFilterBenchmark(b, 100, false, false)
 }
 
+func BenchmarkFiltersNotBatched100ItemsExpensive(b *testing.B) {
+	pagintedQueryWithFilterBenchmark(b, 100, false, true)
+}
 func BenchmarkFiltersBatched1000Items(b *testing.B) {
-	pagintedQueryWithFilterBenchmark(b, 1000, true)
+	pagintedQueryWithFilterBenchmark(b, 1000, true, false)
 }
 
 func BenchmarkFiltersNotBatched1000Items(b *testing.B) {
-	pagintedQueryWithFilterBenchmark(b, 1000, false)
+	pagintedQueryWithFilterBenchmark(b, 1000, false, false)
+}
+
+func BenchmarkFiltersNotBatched1000ItemsExpensive(b *testing.B) {
+	pagintedQueryWithFilterBenchmark(b, 1000, false, true)
 }
