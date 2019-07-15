@@ -433,65 +433,103 @@ func (c *connectionContext) applyBatchTextFilter(ctx context.Context, nodes []in
 	return nodesToKeep, nil
 }
 
+func (c *connectionContext) checkFilters(ctx context.Context, node interface{}, matchStrings []string, filterFields map[string]*graphql.Field) (bool, error) {
+	keep := false
+	for name, filterField := range filterFields {
+		// Resolve the graphql.Field made for sorting.
+		text, err := filterField.Resolve(ctx, node, nil, nil)
+		if err != nil {
+			return keep, err
+		}
+		// Only strings are allowed for FilterText fields.
+		textString, ok := text.(string)
+		if !ok {
+			return keep, fmt.Errorf("filter %s returned %T, must be a string", name, text)
+		}
+		if filter.MatchText(textString, matchStrings) {
+			keep = true
+			break
+		}
+	}
+	return keep, nil
+}
+
+func (c *connectionContext) applyTextFilterNotBatchedExpensive(ctx context.Context, nodes []interface{}, matchStrings []string, filterFields map[string]*graphql.Field) ([]bool, error) {
+	g, ctx := errgroup.WithContext(ctx)
+	nodesToKeep := make([]bool, len(nodes))
+	if len(filterFields) > 0 {
+		for unscopedI, unscopedNode := range nodes {
+			i, node := unscopedI, unscopedNode
+			g.Go(func() error {
+				keep, err := c.checkFilters(ctx, node, matchStrings, filterFields)
+				nodesToKeep[i] = keep
+				return err
+			})
+		}
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	return nodesToKeep, nil
+}
+
+func (c *connectionContext) applyTextFilterNotBatched(ctx context.Context, nodes []interface{}, matchStrings []string, filterFields map[string]*graphql.Field) ([]bool, error) {
+	nodesToKeep := make([]bool, len(nodes))
+	if len(filterFields) > 0 {
+		for unscopedI, unscopedNode := range nodes {
+			i, node := unscopedI, unscopedNode
+			keep, _ := c.checkFilters(ctx, node, matchStrings, filterFields)
+			nodesToKeep[i] = keep
+		}
+	}
+	return nodesToKeep, nil
+}
+
 func (c *connectionContext) applyTextFilter(ctx context.Context, nodes []interface{}, args PaginationArgs) ([]interface{}, error) {
 	if args.FilterText == nil || *args.FilterText == "" {
 		return nodes, nil
 	}
 
-	nodesToKeep := make([]bool, len(nodes))
-
 	filterTextFieldsNotBatched := make(map[string]*graphql.Field)
+	filterTextFieldsNotBatchedExpensive := make(map[string]*graphql.Field)
 	filterTextFieldsBatched := make(map[string]*graphql.Field)
 
 	for name, filterField := range c.FilterTextFields {
 		if filterField.Batch && filterField.UseBatchFunc(ctx) {
 			filterTextFieldsBatched[name] = filterField
 		} else {
-			filterTextFieldsNotBatched[name] = filterField
+			if filterField.Expensive {
+				filterTextFieldsNotBatchedExpensive[name] = filterField
+			} else {
+				filterTextFieldsNotBatched[name] = filterField
+			}
 		}
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
 	matchStrings := filter.GetMatchStrings(*args.FilterText)
-	if len(filterTextFieldsNotBatched) > 0 {
-		for unscopedI, unscopedNode := range nodes {
-			i, node := unscopedI, unscopedNode
-			g.Go(func() error {
-				keep := false
-				for name, filterField := range filterTextFieldsNotBatched {
-					// Resolve the graphql.Field made for sorting.
-					text, err := filterField.Resolve(ctx, node, nil, nil)
-					if err != nil {
-						return err
-					}
-					// Only strings are allowed for FilterText fields.
-					textString, ok := text.(string)
-					if !ok {
-						return fmt.Errorf("filter %s returned %T, must be a string", name, text)
-					}
-					if filter.MatchText(textString, matchStrings) {
-						keep = true
-						break
-					}
-				}
-				nodesToKeep[i] = keep
-				return nil
-			})
-		}
 
-	}
-
-	batchedNodesToKeep, err := c.applyBatchTextFilter(ctx, nodes, matchStrings, filterTextFieldsBatched)
-
+	expensiveNodesToKeep, err := c.applyTextFilterNotBatchedExpensive(ctx, nodes, matchStrings, filterTextFieldsNotBatchedExpensive)
 	if err != nil {
 		return nil, err
 	}
+
+	nodesToKeep, err := c.applyTextFilterNotBatched(ctx, nodes, matchStrings, filterTextFieldsNotBatched)
+	if err != nil {
+		return nil, err
+	}
+
+	batchedNodesToKeep, err := c.applyBatchTextFilter(ctx, nodes, matchStrings, filterTextFieldsBatched)
+	if err != nil {
+		return nil, err
+	}
+
 	if err := g.Wait(); err != nil {
 		return nil, err
 	}
 	var filteredNodes []interface{}
 	for i := range nodesToKeep {
-		if nodesToKeep[i] || batchedNodesToKeep[i] {
+		if nodesToKeep[i] || batchedNodesToKeep[i] || expensiveNodesToKeep[i] {
 			filteredNodes = append(filteredNodes, nodes[i])
 		}
 	}
