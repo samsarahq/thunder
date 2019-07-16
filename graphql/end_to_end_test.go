@@ -38,7 +38,7 @@ func TestPathError(t *testing.T) {
 	inner := schema.Object("inner", Inner{})
 	inner.FieldFunc("expensive", func(ctx context.Context) Expensive {
 		return Expensive{}
-	}, schemabuilder.Expensive)
+	})
 	inner.FieldFunc("inners", func(ctx context.Context) []Inner {
 		return []Inner{Inner{}}
 	})
@@ -234,7 +234,7 @@ func TestEndToEndAwaitAndCache(t *testing.T) {
 	query := schema.Query()
 	query.FieldFunc("users", func(ctx context.Context) []*User {
 		return users
-	}, schemabuilder.Expensive)
+	})
 
 	_ = schema.Mutation()
 
@@ -243,7 +243,7 @@ func TestEndToEndAwaitAndCache(t *testing.T) {
 		reactive.AddDependency(ctx, u.resource, nil)
 		time.Sleep(100 * time.Millisecond)
 		return new(Slow)
-	}, schemabuilder.Expensive)
+	})
 
 	slow := schema.Object("Slow", Slow{})
 	slow.FieldFunc("count", func() bool {
