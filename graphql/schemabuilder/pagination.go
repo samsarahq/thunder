@@ -460,15 +460,13 @@ func (c *connectionContext) checkFilters(ctx context.Context, node interface{}, 
 func (c *connectionContext) applyTextFilterNotBatchedExpensive(ctx context.Context, nodes []interface{}, matchStrings []string, filterFields map[string]*graphql.Field) ([]bool, error) {
 	g, ctx := errgroup.WithContext(ctx)
 	nodesToKeep := make([]bool, len(nodes))
-	if len(filterFields) > 0 {
-		for unscopedI, unscopedNode := range nodes {
-			i, node := unscopedI, unscopedNode
-			g.Go(func() error {
-				keep, err := c.checkFilters(ctx, node, matchStrings, filterFields)
-				nodesToKeep[i] = keep
-				return err
-			})
-		}
+	for unscopedI, unscopedNode := range nodes {
+		i, node := unscopedI, unscopedNode
+		g.Go(func() error {
+			keep, err := c.checkFilters(ctx, node, matchStrings, filterFields)
+			nodesToKeep[i] = keep
+			return err
+		})
 	}
 	if err := g.Wait(); err != nil {
 		return nil, err
@@ -478,15 +476,13 @@ func (c *connectionContext) applyTextFilterNotBatchedExpensive(ctx context.Conte
 
 func (c *connectionContext) applyTextFilterNotBatched(ctx context.Context, nodes []interface{}, matchStrings []string, filterFields map[string]*graphql.Field) ([]bool, error) {
 	nodesToKeep := make([]bool, len(nodes))
-	if len(filterFields) > 0 {
-		for unscopedI, unscopedNode := range nodes {
-			i, node := unscopedI, unscopedNode
-			keep, err := c.checkFilters(ctx, node, matchStrings, filterFields)
-			if err != nil {
-				return nil, err
-			}
-			nodesToKeep[i] = keep
+	for unscopedI, unscopedNode := range nodes {
+		i, node := unscopedI, unscopedNode
+		keep, err := c.checkFilters(ctx, node, matchStrings, filterFields)
+		if err != nil {
+			return nil, err
 		}
+		nodesToKeep[i] = keep
 	}
 	return nodesToKeep, nil
 }
@@ -514,22 +510,30 @@ func (c *connectionContext) applyTextFilter(ctx context.Context, nodes []interfa
 
 	g, ctx := errgroup.WithContext(ctx)
 	matchStrings := filter.GetMatchStrings(*args.FilterText)
-
-	expensiveNodesToKeep, err := c.applyTextFilterNotBatchedExpensive(ctx, nodes, matchStrings, filterTextFieldsNotBatchedExpensive)
-	if err != nil {
-		return nil, err
+	nodesToKeep := make([]bool, len(nodes))
+	expensiveNodesToKeep := make([]bool, len(nodes))
+	batchedNodesToKeep := make([]bool, len(nodes))
+	if len(filterTextFieldsNotBatched) > 0 {
+		g.Go(func() error {
+			var err error
+			nodesToKeep, err = c.applyTextFilterNotBatched(ctx, nodes, matchStrings, filterTextFieldsNotBatched)
+			return err
+		})
 	}
-
-	nodesToKeep, err := c.applyTextFilterNotBatched(ctx, nodes, matchStrings, filterTextFieldsNotBatched)
-	if err != nil {
-		return nil, err
+	if len(filterTextFieldsNotBatchedExpensive) > 0 {
+		g.Go(func() error {
+			var err error
+			expensiveNodesToKeep, err = c.applyTextFilterNotBatchedExpensive(ctx, nodes, matchStrings, filterTextFieldsNotBatchedExpensive)
+			return err
+		})
 	}
-
-	batchedNodesToKeep, err := c.applyBatchTextFilter(ctx, nodes, matchStrings, filterTextFieldsBatched)
-	if err != nil {
-		return nil, err
+	if len(filterTextFieldsBatched) > 0 {
+		g.Go(func() error {
+			var err error
+			batchedNodesToKeep, err = c.applyBatchTextFilter(ctx, nodes, matchStrings, filterTextFieldsBatched)
+			return err
+		})
 	}
-
 	if err := g.Wait(); err != nil {
 		return nil, err
 	}
