@@ -401,9 +401,8 @@ type SafeBatchNodesToKeep struct {
 	mux         sync.Mutex
 }
 
-func (c *connectionContext) applyBatchTextFilter(ctx context.Context, nodes []interface{}, matchStrings []string, batchedFields map[string]*graphql.Field) ([]bool, error) {
+func (c *connectionContext) applyBatchTextFilter(ctx context.Context, nodes []interface{}, matchStrings []string, batchedFields map[string]*graphql.Field, nodesToKeep []bool) error {
 	g, ctx := errgroup.WithContext(ctx)
-	nodesToKeep := make([]bool, len(nodes))
 	m := &sync.Mutex{}
 	for unscopeName, unscopedFilterField := range batchedFields {
 		name, filterField := unscopeName, unscopedFilterField
@@ -428,9 +427,9 @@ func (c *connectionContext) applyBatchTextFilter(ctx context.Context, nodes []in
 	}
 
 	if err := g.Wait(); err != nil {
-		return nil, err
+		return err
 	}
-	return nodesToKeep, nil
+	return nil
 }
 
 func (c *connectionContext) checkFilters(ctx context.Context, node interface{}, matchStrings []string, filterFields map[string]*graphql.Field) (bool, error) {
@@ -457,9 +456,8 @@ func (c *connectionContext) checkFilters(ctx context.Context, node interface{}, 
 // We found that parallelizing non-expensive fields was slower due to the overhead of
 // spawning goroutines, so we execute non-expensive fields serially. We're also concerned
 // about the memory overhead of spawning many goroutines
-func (c *connectionContext) applyTextFilterNotBatchedExpensive(ctx context.Context, nodes []interface{}, matchStrings []string, filterFields map[string]*graphql.Field) ([]bool, error) {
+func (c *connectionContext) applyTextFilterNotBatchedExpensive(ctx context.Context, nodes []interface{}, matchStrings []string, filterFields map[string]*graphql.Field, nodesToKeep []bool) error {
 	g, ctx := errgroup.WithContext(ctx)
-	nodesToKeep := make([]bool, len(nodes))
 	for unscopedI, unscopedNode := range nodes {
 		i, node := unscopedI, unscopedNode
 		g.Go(func() error {
@@ -469,22 +467,21 @@ func (c *connectionContext) applyTextFilterNotBatchedExpensive(ctx context.Conte
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return nil, err
+		return err
 	}
-	return nodesToKeep, nil
+	return nil
 }
 
-func (c *connectionContext) applyTextFilterNotBatched(ctx context.Context, nodes []interface{}, matchStrings []string, filterFields map[string]*graphql.Field) ([]bool, error) {
-	nodesToKeep := make([]bool, len(nodes))
+func (c *connectionContext) applyTextFilterNotBatched(ctx context.Context, nodes []interface{}, matchStrings []string, filterFields map[string]*graphql.Field, nodesToKeep []bool) error {
 	for unscopedI, unscopedNode := range nodes {
 		i, node := unscopedI, unscopedNode
 		keep, err := c.checkFilters(ctx, node, matchStrings, filterFields)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		nodesToKeep[i] = keep
 	}
-	return nodesToKeep, nil
+	return nil
 }
 
 func (c *connectionContext) applyTextFilter(ctx context.Context, nodes []interface{}, args PaginationArgs) ([]interface{}, error) {
@@ -513,25 +510,20 @@ func (c *connectionContext) applyTextFilter(ctx context.Context, nodes []interfa
 	nodesToKeep := make([]bool, len(nodes))
 	expensiveNodesToKeep := make([]bool, len(nodes))
 	batchedNodesToKeep := make([]bool, len(nodes))
+
 	if len(filterTextFieldsNotBatched) > 0 {
 		g.Go(func() error {
-			var err error
-			nodesToKeep, err = c.applyTextFilterNotBatched(ctx, nodes, matchStrings, filterTextFieldsNotBatched)
-			return err
+			return c.applyTextFilterNotBatched(ctx, nodes, matchStrings, filterTextFieldsNotBatched, nodesToKeep)
 		})
 	}
 	if len(filterTextFieldsNotBatchedExpensive) > 0 {
 		g.Go(func() error {
-			var err error
-			expensiveNodesToKeep, err = c.applyTextFilterNotBatchedExpensive(ctx, nodes, matchStrings, filterTextFieldsNotBatchedExpensive)
-			return err
+			return c.applyTextFilterNotBatchedExpensive(ctx, nodes, matchStrings, filterTextFieldsNotBatchedExpensive, expensiveNodesToKeep)
 		})
 	}
 	if len(filterTextFieldsBatched) > 0 {
 		g.Go(func() error {
-			var err error
-			batchedNodesToKeep, err = c.applyBatchTextFilter(ctx, nodes, matchStrings, filterTextFieldsBatched)
-			return err
+			return c.applyBatchTextFilter(ctx, nodes, matchStrings, filterTextFieldsBatched, batchedNodesToKeep)
 		})
 	}
 	if err := g.Wait(); err != nil {
