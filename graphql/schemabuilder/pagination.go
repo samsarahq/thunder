@@ -407,7 +407,7 @@ func (c *connectionContext) applyBatchTextFilter(ctx context.Context, nodes []in
 	for unscopeName, unscopedFilterField := range batchedFields {
 		name, filterField := unscopeName, unscopedFilterField
 		g.Go(func() error {
-			texts, err := filterField.BatchResolver(ctx, nodes, nil, nil)
+			texts, err := graphql.SafeExecuteBatchResolver(ctx, filterField, nodes, nil, nil)
 			if err != nil {
 				return err
 			}
@@ -436,7 +436,7 @@ func (c *connectionContext) checkFilters(ctx context.Context, node interface{}, 
 	keep := false
 	for name, filterField := range filterFields {
 		// Resolve the graphql.Field made for sorting.
-		text, err := filterField.Resolve(ctx, node, nil, nil)
+		text, err := graphql.SafeExecuteResolver(ctx, filterField, node, nil, nil)
 		if err != nil {
 			return keep, err
 		}
@@ -810,19 +810,35 @@ func (c *connectionContext) consumeTextFilters(sb *schemaBuilder, m *method, typ
 
 		var field *graphql.Field = nil
 		var err error = nil
+		var m *method = nil
 
-		if fn.BatchFilterFunc != nil && fn.FilterFunc != nil {
-			field, err = sb.buildBatchFunction(typ,
-				&method{
-					Fn: fn.BatchFilterFunc,
-					BatchArgs: batchArgs{
-						FallbackFunc:          fn.FilterFunc,
-						ShouldUseFallbackFunc: fn.FallbackFlag,
-					}, Batch: true})
+		// Create a method with the relevant function or batch function.
+		if fn.BatchFilterFunc != nil && fn.FilterFunc != nil && fn.FallbackFlag != nil {
+			m = &method{
+				Fn: fn.BatchFilterFunc,
+				BatchArgs: batchArgs{
+					FallbackFunc:          fn.FilterFunc,
+					ShouldUseFallbackFunc: fn.FallbackFlag,
+				}, Batch: true}
+		} else if fn.FilterFunc != nil {
+			m = &method{Fn: fn.FilterFunc, Batch: false}
 		} else if fn.BatchFilterFunc != nil {
-			field, err = sb.buildBatchFunction(typ, &method{Fn: fn.BatchFilterFunc, Batch: true})
-		} else {
-			field, err = sb.buildFunction(typ, &method{Fn: fn.FilterFunc, Batch: false})
+			m = &method{Fn: fn.BatchFilterFunc, Batch: true}
+		}
+
+		// Apply all options to the method that are passed in when the filter in instantiated.
+		for _, opt := range fn.Options {
+			opt.apply(m)
+		}
+		m.MarkedNonNullable = true
+
+		// Build the function from the method.
+		if fn.BatchFilterFunc != nil && fn.FilterFunc != nil && fn.FallbackFlag != nil {
+			field, err = sb.buildBatchFunctionWithFallback(typ, m)
+		} else if fn.FilterFunc != nil {
+			field, err = sb.buildFunction(typ, m)
+		} else if fn.BatchFilterFunc != nil {
+			field, err = sb.buildBatchFunction(typ, m)
 		}
 
 		if err != nil {

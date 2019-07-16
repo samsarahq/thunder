@@ -836,3 +836,133 @@ func TestEmbeddedFail(t *testing.T) {
 		t.Errorf("bad error: %v", err)
 	}
 }
+
+func TestPaginatedFilters(t *testing.T) {
+	schema := schemabuilder.NewSchema()
+	type Inner struct {
+	}
+
+	query := schema.Query()
+	query.FieldFunc("inner", func() Inner {
+		return Inner{}
+	})
+
+	inner := schema.Object("inner", Inner{})
+	item := schema.Object("item", Item{})
+	item.Key("id")
+	inner.FieldFunc("innerConnection", func(args Args) []Item {
+		return []Item{{Id: 1}, {Id: 2}, {Id: 3}, {Id: 4}, {Id: 5}}
+	}, schemabuilder.Paginated)
+	inner.FieldFunc("innerConnectionWithFilter", func() []Item {
+		return []Item{
+			{Id: 1, FilterText: "can", String: "a"},
+			{Id: 2, FilterText: "man", String: "a"},
+			{Id: 3, FilterText: "cannot", String: "a"},
+			{Id: 4, FilterText: "soban", String: "a"},
+			{Id: 5, FilterText: "socan", String: "a"},
+			{Id: 6, FilterText: "aan", String: "a"},
+			{Id: 7, FilterText: "jan", String: "a"},
+			{Id: 8, FilterText: "ban", String: "a"},
+			{Id: 9, FilterText: "dan", String: "a"},
+			{Id: 10, FilterText: "ean", String: "a"},
+			{Id: 11, FilterText: "fan", String: "a"},
+			{Id: 12, FilterText: "gan", String: "a"},
+		}
+
+	}, schemabuilder.Paginated,
+		schemabuilder.BatchFilterField("filterTextBatched",
+			func(items map[batch.Index]Item) (map[batch.Index]string, error) {
+				myMap := make(map[batch.Index]string, len(items))
+				for i, item := range items {
+					myMap[i] = item.FilterText
+				}
+				return myMap, nil
+			},
+		),
+		schemabuilder.FilterField("filterTextNotBatched",
+			func(item Item) string {
+				return item.FilterText
+			},
+		),
+		schemabuilder.BatchFilterFieldWithFallback("filterTextBatchWithFallbackTrue",
+			func(items map[batch.Index]Item) (map[batch.Index]string, error) {
+				myMap := make(map[batch.Index]string, len(items))
+				for i, item := range items {
+					myMap[i] = item.FilterText
+				}
+				return myMap, nil
+			},
+			func(item Item) (string, error) {
+				return item.FilterText, nil
+			},
+			func(context.Context) bool {
+				return true
+			}),
+		schemabuilder.BatchFilterFieldWithFallback("filterTextBatchWithFallbackFalse",
+			func(items map[batch.Index]Item) (map[batch.Index]string, error) {
+				myMap := make(map[batch.Index]string, len(items))
+				for i, item := range items {
+					myMap[i] = item.FilterText
+				}
+				return myMap, nil
+			},
+			func(item Item) (string, error) {
+				return item.FilterText, nil
+			},
+			func(context.Context) bool {
+				return false
+			}),
+	)
+	builtSchema := schema.MustBuild()
+
+	q := graphql.MustParse(`
+		{
+			inner {
+				innerConnectionWithFilter(filterText: "can", first: 4, after: "") {
+					totalCount
+					edges {
+						node {
+							id
+						}
+						cursor
+					}
+				}
+			}
+		}`, nil)
+	if err := graphql.PrepareQuery(context.Background(), builtSchema.Query, q.SelectionSet); err != nil {
+		t.Error(err)
+	}
+	e := testgraphql.NewExecutorWrapper(t)
+	val, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
+	assert.Nil(t, err)
+	assert.Equal(t, map[string]interface{}{
+		"inner": map[string]interface{}{
+			"innerConnectionWithFilter": map[string]interface{}{
+				"totalCount": float64(3),
+				"edges": []interface{}{
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": float64(1),
+							"id":    float64(1),
+						},
+						"cursor": "MQ==",
+					},
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": float64(3),
+							"id":    float64(3),
+						},
+						"cursor": "Mw==",
+					},
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": float64(5),
+							"id":    float64(5),
+						},
+						"cursor": "NQ==",
+					},
+				},
+			},
+		},
+	}, internal.AsJSON(val))
+}

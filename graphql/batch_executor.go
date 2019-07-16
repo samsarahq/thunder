@@ -129,7 +129,7 @@ func executeWorkUnit(unit *WorkUnit) []*WorkUnit {
 }
 
 func executeBatchWorkUnit(unit *WorkUnit) []*WorkUnit {
-	results, err := safeExecuteBatchResolver(unit.ctx, unit.field, unit.sources, unit.selection.Args, unit.selection.SelectionSet)
+	results, err := SafeExecuteBatchResolver(unit.ctx, unit.field, unit.sources, unit.selection.Args, unit.selection.SelectionSet)
 	if err != nil {
 		for _, dest := range unit.destinations {
 			dest.Fail(err)
@@ -149,7 +149,7 @@ func executeBatchWorkUnit(unit *WorkUnit) []*WorkUnit {
 func executeNonExpensiveWorkUnit(unit *WorkUnit) []*WorkUnit {
 	results := make([]interface{}, 0, len(unit.sources))
 	for idx, src := range unit.sources {
-		fieldResult, err := safeExecuteResolver(unit.ctx, unit.field, src, unit.selection.Args, unit.selection.SelectionSet)
+		fieldResult, err := SafeExecuteResolver(unit.ctx, unit.field, src, unit.selection.Args, unit.selection.SelectionSet)
 		if err != nil {
 			// Fail the unit and exit.
 			unit.destinations[idx].Fail(err)
@@ -204,7 +204,7 @@ func getWorkCacheKey(src interface{}, field *Field, selection *Selection) resolv
 
 // executeNonBatchWorkUnit resolves a non-batch field in our graphql response graph.
 func executeNonBatchWorkUnit(ctx context.Context, src interface{}, dest *outputNode, unit *WorkUnit) []*WorkUnit {
-	fieldResult, err := safeExecuteResolver(ctx, unit.field, src, unit.selection.Args, unit.selection.SelectionSet)
+	fieldResult, err := SafeExecuteResolver(ctx, unit.field, src, unit.selection.Args, unit.selection.SelectionSet)
 	if err != nil {
 		dest.Fail(err)
 		return nil

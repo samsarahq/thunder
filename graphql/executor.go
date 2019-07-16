@@ -190,7 +190,7 @@ func PrepareQuery(ctx context.Context, typ Type, selectionSet *SelectionSet) err
 	}
 }
 
-func safeExecuteBatchResolver(ctx context.Context, field *Field, sources []interface{}, args interface{}, selectionSet *SelectionSet) (results []interface{}, err error) {
+func SafeExecuteBatchResolver(ctx context.Context, field *Field, sources []interface{}, args interface{}, selectionSet *SelectionSet) (results []interface{}, err error) {
 	defer func() {
 		if panicErr := recover(); panicErr != nil {
 			const size = 64 << 10
@@ -202,7 +202,7 @@ func safeExecuteBatchResolver(ctx context.Context, field *Field, sources []inter
 	return field.BatchResolver(ctx, sources, args, selectionSet)
 }
 
-func safeExecuteResolver(ctx context.Context, field *Field, source, args interface{}, selectionSet *SelectionSet) (result interface{}, err error) {
+func SafeExecuteResolver(ctx context.Context, field *Field, source, args interface{}, selectionSet *SelectionSet) (result interface{}, err error) {
 	defer func() {
 		if panicErr := recover(); panicErr != nil {
 			const size = 64 << 10
