@@ -20,7 +20,6 @@ func (sb *schemaBuilder) buildBatchFunctionWithFallback(typ reflect.Type, m *met
 	if err != nil {
 		return nil, err
 	}
-
 	if fallbackFuncCtx.hasContext != batchFuncCtx.hasContext ||
 		!fallbackFuncCtx.hasSource || // Batch func always has a source.
 		fallbackFuncCtx.hasArgs != batchFuncCtx.hasArgs ||
@@ -29,6 +28,7 @@ func (sb *schemaBuilder) buildBatchFunctionWithFallback(typ reflect.Type, m *met
 		fallbackFuncCtx.hasRet != batchFuncCtx.hasRet {
 		return nil, fmt.Errorf("batch and fallback function signatures did not match")
 	}
+
 	if fallbackField.Type.String() != batchField.Type.String() {
 		return nil, fmt.Errorf("batch and fallback graphql return types did not match: Batch(%v) Fallback(%v)", batchField.Type, fallbackField.Type)
 	}

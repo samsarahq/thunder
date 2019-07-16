@@ -49,12 +49,14 @@ type Filter struct {
 	FilterFunc      interface{}
 	BatchFilterFunc interface{}
 	FallbackFlag    func(context.Context) bool
+	Options         []FieldFuncOption
 }
 
-func FilterField(name string, filter interface{}) FieldFuncOption {
+func FilterField(name string, filter interface{}, options ...FieldFuncOption) FieldFuncOption {
 	var filterStruct = Filter{
 		Name:       name,
 		FilterFunc: filter,
+		Options:    options,
 	}
 	var fieldFuncTextFilterFields fieldFuncOptionFunc = func(m *method) {
 		if m.TextFilterFuncs == nil {
@@ -68,10 +70,11 @@ func FilterField(name string, filter interface{}) FieldFuncOption {
 	return fieldFuncTextFilterFields
 }
 
-func BatchFilterField(name string, batchFilter interface{}) FieldFuncOption {
+func BatchFilterField(name string, batchFilter interface{}, options ...FieldFuncOption) FieldFuncOption {
 	var filterStruct = Filter{
 		Name:            name,
 		BatchFilterFunc: batchFilter,
+		Options:         options,
 	}
 	var fieldFuncTextFilterFields fieldFuncOptionFunc = func(m *method) {
 		if m.TextFilterFuncs == nil {
@@ -85,12 +88,13 @@ func BatchFilterField(name string, batchFilter interface{}) FieldFuncOption {
 	return fieldFuncTextFilterFields
 }
 
-func BatchFilterFieldWithFallback(name string, batchFilter interface{}, filter interface{}, flag func(context.Context) bool) FieldFuncOption {
+func BatchFilterFieldWithFallback(name string, batchFilter interface{}, filter interface{}, flag func(context.Context) bool, options ...FieldFuncOption) FieldFuncOption {
 	var filterStruct = Filter{
 		Name:            name,
 		FilterFunc:      filter,
 		BatchFilterFunc: batchFilter,
 		FallbackFlag:    flag,
+		Options:         options,
 	}
 	var fieldFuncTextFilterFields fieldFuncOptionFunc = func(m *method) {
 		if m.TextFilterFuncs == nil {
