@@ -99,7 +99,7 @@ func TestNonExpensiveExecution(t *testing.T) {
 				obj := schema.Object("Object", Object{})
 				obj.FieldFunc("value", func(ctx context.Context, object *Object) *Object {
 					return object
-				}, schemabuilder.Expensive)
+				})
 				return nil
 			},
 			query: `
@@ -157,7 +157,7 @@ func TestNonExpensiveExecution(t *testing.T) {
 				obj := schema.Object("Object", Object{})
 				obj.FieldFunc("value", func(ctx context.Context, object *Object) *Object {
 					return object
-				}, schemabuilder.Expensive)
+				})
 				return nil
 			},
 			query: `
