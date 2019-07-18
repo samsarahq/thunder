@@ -820,6 +820,7 @@ func (c *connectionContext) consumeTextFilters(sb *schemaBuilder, m *method, typ
 					FallbackFunc:          fn.FilterFunc,
 					ShouldUseFallbackFunc: fn.FallbackFlag,
 				}, Batch: true}
+			m.MarkedNonNullable = true
 		} else if fn.FilterFunc != nil {
 			m = &method{Fn: fn.FilterFunc, Batch: false}
 		} else if fn.BatchFilterFunc != nil {
@@ -830,7 +831,6 @@ func (c *connectionContext) consumeTextFilters(sb *schemaBuilder, m *method, typ
 		for _, opt := range fn.Options {
 			opt.apply(m)
 		}
-		m.MarkedNonNullable = true
 
 		// Build the function from the method.
 		if fn.BatchFilterFunc != nil && fn.FilterFunc != nil && fn.FallbackFlag != nil {
