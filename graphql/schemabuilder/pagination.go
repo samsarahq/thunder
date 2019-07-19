@@ -861,54 +861,47 @@ func (c *connectionContext) consumeSorts(sb *schemaBuilder, m *method, typ refle
 	return nil
 }
 
+func (c *connectionContext) checkFilterTextFunctionTypes(name string, filterMethod *method) error {
+	if filterMethod.BatchArgs.FallbackFunc != nil {
+		batchFuncTyp := getFuncReturnType(filterMethod.BatchArgs.FallbackFunc)
+		if batchFuncTyp != typeOfString {
+			return fmt.Errorf("invalid text filter field %s: unsupported return type %v, must be a map[batch.Index]string", name, batchFuncTyp)
+		}
+	}
+
+	if filterMethod.Batch == false {
+		batchFuncTyp := getFuncReturnType(filterMethod.Fn)
+		if batchFuncTyp != typeOfString {
+			return fmt.Errorf("invalid text filter field %s: unsupported return type %v, must be a map[batch.Index]string", name, batchFuncTyp)
+		}
+	}
+
+	if filterMethod.Batch == true {
+		batchFuncTyp := getFuncReturnType(filterMethod.Fn)
+		if batchFuncTyp != typeofFilterMap {
+			return fmt.Errorf("invalid text filter field %s: unsupported return type %v, must be a map[batch.Index]string", name, batchFuncTyp)
+		}
+	}
+	return nil
+}
+
 func (c *connectionContext) consumeTextFilters(sb *schemaBuilder, m *method, typ reflect.Type) error {
 	c.FilterTextFields = make(map[string]*graphql.Field)
 
-	for name, fn := range m.TextFilterFuncs {
-		if fn.BatchFilterFunc != nil {
-			batchFuncTyp := getFuncReturnType(fn.BatchFilterFunc)
-			if batchFuncTyp != typeofFilterMap {
-				return fmt.Errorf("invalid text filter field %s: unsupported return type %v, must be a map[batch.Index]string", name, batchFuncTyp)
-			}
-		}
-		if fn.FilterFunc != nil {
-			funcTyp := getFuncReturnType(fn.FilterFunc)
-			if funcTyp != typeOfString {
-				return fmt.Errorf("invalid text filter field %s: unsupported return type %v, must be a string", name, funcTyp)
-			}
+	for name, filterMethod := range m.TextFilterMethods {
+
+		err := c.checkFilterTextFunctionTypes(name, filterMethod)
+		if err != nil {
+			return err
 		}
 
 		var field *graphql.Field
-		var err error
-		var m *method
-
-		// Create a method with the relevant function or batch function.
-		if fn.BatchFilterFunc != nil && fn.FilterFunc != nil && fn.FallbackFlag != nil {
-			m = &method{
-				Fn: fn.BatchFilterFunc,
-				BatchArgs: batchArgs{
-					FallbackFunc:          fn.FilterFunc,
-					ShouldUseFallbackFunc: fn.FallbackFlag,
-				}, Batch: true}
-		} else if fn.FilterFunc != nil {
-			m = &method{Fn: fn.FilterFunc, Batch: false}
-		} else if fn.BatchFilterFunc != nil {
-			m = &method{Fn: fn.BatchFilterFunc, Batch: true}
-		}
-
-		// Apply all options to the method that are passed in when the filter in instantiated.
-		for _, opt := range fn.Options {
-			opt.apply(m)
-		}
-		m.MarkedNonNullable = true
-
-		// Build the function from the method.
-		if fn.BatchFilterFunc != nil && fn.FilterFunc != nil && fn.FallbackFlag != nil {
-			field, err = sb.buildBatchFunctionWithFallback(typ, m)
-		} else if fn.FilterFunc != nil {
-			field, err = sb.buildFunction(typ, m)
-		} else if fn.BatchFilterFunc != nil {
-			field, err = sb.buildBatchFunction(typ, m)
+		if filterMethod.Batch && filterMethod.BatchArgs.FallbackFunc != nil && filterMethod.BatchArgs.ShouldUseFallbackFunc != nil {
+			field, err = sb.buildBatchFunctionWithFallback(typ, filterMethod)
+		} else if filterMethod.Batch {
+			field, err = sb.buildBatchFunction(typ, filterMethod)
+		} else {
+			field, err = sb.buildFunction(typ, filterMethod)
 		}
 
 		if err != nil {
