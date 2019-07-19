@@ -44,66 +44,59 @@ var Paginated fieldFuncOptionFunc = func(m *method) {
 	m.Paginated = true
 }
 
-type Filter struct {
-	Name            string
-	FilterFunc      interface{}
-	BatchFilterFunc interface{}
-	FallbackFlag    func(context.Context) bool
-	Options         []FieldFuncOption
-}
-
 func FilterField(name string, filter interface{}, options ...FieldFuncOption) FieldFuncOption {
-	var filterStruct = Filter{
-		Name:       name,
-		FilterFunc: filter,
-		Options:    options,
+	textFilterMethod := &method{Fn: filter, Batch: false, MarkedNonNullable: true}
+	for _, opt := range options {
+		opt.apply(textFilterMethod)
 	}
 	var fieldFuncTextFilterFields fieldFuncOptionFunc = func(m *method) {
-		if m.TextFilterFuncs == nil {
-			m.TextFilterFuncs = map[string]Filter{}
+		if m.TextFilterMethods == nil {
+			m.TextFilterMethods = map[string]*method{}
 		}
-		if filter, ok := m.TextFilterFuncs[name]; ok {
-			panic("Batch Filters Fields have the same name: " + filter.Name)
+		if _, ok := m.TextFilterMethods[name]; ok {
+			panic("Field Filters have the same name: " + name)
 		}
-		m.TextFilterFuncs[name] = filterStruct
+		m.TextFilterMethods[name] = textFilterMethod
 	}
 	return fieldFuncTextFilterFields
 }
 
 func BatchFilterField(name string, batchFilter interface{}, options ...FieldFuncOption) FieldFuncOption {
-	var filterStruct = Filter{
-		Name:            name,
-		BatchFilterFunc: batchFilter,
-		Options:         options,
+	textFilterMethod := &method{Fn: batchFilter, Batch: true, MarkedNonNullable: true}
+	for _, opt := range options {
+		opt.apply(textFilterMethod)
 	}
 	var fieldFuncTextFilterFields fieldFuncOptionFunc = func(m *method) {
-		if m.TextFilterFuncs == nil {
-			m.TextFilterFuncs = map[string]Filter{}
+		if m.TextFilterMethods == nil {
+			m.TextFilterMethods = map[string]*method{}
 		}
-		if filter, ok := m.TextFilterFuncs[name]; ok {
-			panic("Filters Fields have the same name: " + filter.Name)
+		if _, ok := m.TextFilterMethods[name]; ok {
+			panic("Field Filters have the same name: " + name)
 		}
-		m.TextFilterFuncs[name] = filterStruct
+		m.TextFilterMethods[name] = textFilterMethod
 	}
 	return fieldFuncTextFilterFields
 }
 
 func BatchFilterFieldWithFallback(name string, batchFilter interface{}, filter interface{}, flag func(context.Context) bool, options ...FieldFuncOption) FieldFuncOption {
-	var filterStruct = Filter{
-		Name:            name,
-		FilterFunc:      filter,
-		BatchFilterFunc: batchFilter,
-		FallbackFlag:    flag,
-		Options:         options,
+	textFilterMethod := &method{
+		Fn: batchFilter,
+		BatchArgs: batchArgs{
+			FallbackFunc:          filter,
+			ShouldUseFallbackFunc: flag,
+		}, Batch: true,
+		MarkedNonNullable: true}
+	for _, opt := range options {
+		opt.apply(textFilterMethod)
 	}
 	var fieldFuncTextFilterFields fieldFuncOptionFunc = func(m *method) {
-		if m.TextFilterFuncs == nil {
-			m.TextFilterFuncs = map[string]Filter{}
+		if m.TextFilterMethods == nil {
+			m.TextFilterMethods = map[string]*method{}
 		}
-		if filter, ok := m.TextFilterFuncs[name]; ok {
-			panic("Filters Fields have the same name: " + filter.Name)
+		if _, ok := m.TextFilterMethods[name]; ok {
+			panic("Field Filters have the same name: " + name)
 		}
-		m.TextFilterFuncs[name] = filterStruct
+		m.TextFilterMethods[name] = textFilterMethod
 	}
 	return fieldFuncTextFilterFields
 }
@@ -253,7 +246,7 @@ type method struct {
 	Paginated bool
 
 	// Text filter methods
-	TextFilterFuncs map[string]Filter
+	TextFilterMethods map[string]*method
 
 	// Sort methods
 	SortMethods map[string]*method
