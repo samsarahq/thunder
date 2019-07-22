@@ -63,7 +63,7 @@ func FilterField(name string, filter interface{}, options ...FieldFuncOption) Fi
 			m.TextFilterFuncs = map[string]Filter{}
 		}
 		if filter, ok := m.TextFilterFuncs[name]; ok {
-			panic("Batch Field Filters have the same name: " + filter.Name)
+			panic("Batch Filters Fields have the same name: " + filter.Name)
 		}
 		m.TextFilterFuncs[name] = filterStruct
 	}
@@ -81,7 +81,7 @@ func BatchFilterField(name string, batchFilter interface{}, options ...FieldFunc
 			m.TextFilterFuncs = map[string]Filter{}
 		}
 		if filter, ok := m.TextFilterFuncs[name]; ok {
-			panic("Batch Field Filters have the same name: " + filter.Name)
+			panic("Filters Fields have the same name: " + filter.Name)
 		}
 		m.TextFilterFuncs[name] = filterStruct
 	}
@@ -101,17 +101,60 @@ func BatchFilterFieldWithFallback(name string, batchFilter interface{}, filter i
 			m.TextFilterFuncs = map[string]Filter{}
 		}
 		if filter, ok := m.TextFilterFuncs[name]; ok {
-			panic("Batch Field Filters have the same name: " + filter.Name)
+			panic("Filters Fields have the same name: " + filter.Name)
 		}
 		m.TextFilterFuncs[name] = filterStruct
 	}
 	return fieldFuncTextFilterFields
 }
 
-type SortFields map[string]interface{}
+func SortField(name string, sort interface{}) FieldFuncOption {
+	sortMethod := &method{Fn: sort, Batch: false, MarkedNonNullable: true}
+	var fieldFuncSortFields fieldFuncOptionFunc = func(m *method) {
+		if m.SortMethods == nil {
+			m.SortMethods = map[string]*method{}
+		}
+		if _, ok := m.SortMethods[name]; ok {
+			panic("Sorts fields have the same name: " + name)
+		}
+		m.SortMethods[name] = sortMethod
+	}
+	return fieldFuncSortFields
+}
 
-func (s SortFields) apply(m *method) {
-	m.SortFuncs = s
+func BatchSortField(name string, batchSort interface{}) FieldFuncOption {
+	sortMethod := &method{Fn: batchSort, Batch: true, MarkedNonNullable: true}
+	var fieldFuncSortFields fieldFuncOptionFunc = func(m *method) {
+		if m.SortMethods == nil {
+			m.SortMethods = map[string]*method{}
+		}
+		if _, ok := m.SortMethods[name]; ok {
+			panic("Sorts fields have the same name: " + name)
+		}
+		m.SortMethods[name] = sortMethod
+	}
+	return fieldFuncSortFields
+}
+
+func BatchSortFieldWithFallback(name string, batchSort interface{}, sort interface{}, flag func(context.Context) bool) FieldFuncOption {
+	sortMethod := &method{
+		Fn: batchSort,
+		BatchArgs: batchArgs{
+			FallbackFunc:          sort,
+			ShouldUseFallbackFunc: flag,
+		}, Batch: true,
+		MarkedNonNullable: true}
+
+	var fieldFuncSortFields fieldFuncOptionFunc = func(m *method) {
+		if m.SortMethods == nil {
+			m.SortMethods = map[string]*method{}
+		}
+		if _, ok := m.SortMethods[name]; ok {
+			panic("Sorts fields have the same name: " + name)
+		}
+		m.SortMethods[name] = sortMethod
+	}
+	return fieldFuncSortFields
 }
 
 // FieldFunc exposes a field on an object. The function f can take a number of
@@ -213,7 +256,7 @@ type method struct {
 	TextFilterFuncs map[string]Filter
 
 	// Sort methods
-	SortFuncs map[string]interface{}
+	SortMethods map[string]*method
 
 	// Whether the FieldFunc is a batchField
 	Batch bool
