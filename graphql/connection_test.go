@@ -90,17 +90,24 @@ func TestConnection(t *testing.T) {
 			{Id: 4, Number: 2, String: "2", Float: 2.0},
 			{Id: 5, Number: 4, String: "4", Float: 4.0},
 		}
-	}, schemabuilder.Paginated, schemabuilder.SortFields{
-		"numbers": func(ctx context.Context, i Item) int64 {
-			return i.Number
-		},
-		"strings": func(ctx context.Context, i *Item) string {
-			return i.String
-		},
-		"floats": func(ctx context.Context, i Item) float64 {
-			return i.Float
-		},
-	})
+	},
+		schemabuilder.Paginated,
+		schemabuilder.BatchSortField(
+			"numbers", func(ctx context.Context, items map[batch.Index]Item) (map[batch.Index]int64, error) {
+				myMap := make(map[batch.Index]int64, len(items))
+				for i, item := range items {
+					myMap[i] = item.Number
+				}
+				return myMap, nil
+			}),
+		schemabuilder.SortField(
+			"strings", func(ctx context.Context, i Item) string {
+				return i.String
+			}),
+		schemabuilder.SortField(
+			"floats", func(ctx context.Context, i Item) float64 {
+				return i.Float
+			}))
 	inner.FieldFunc("innerConnectionNilArg", func() []Item {
 		return []Item{{Id: 1}, {Id: 2}, {Id: 3}, {Id: 4}, {Id: 5}}
 	}, schemabuilder.Paginated)
@@ -581,9 +588,12 @@ func TestPaginateBuildFailure(t *testing.T) {
 		object.Key("id")
 		inner.FieldFunc("connection", func(ctx context.Context, args Args) ([]StructWithKey, error) {
 			return nil, nil
-		}, schemabuilder.Paginated, schemabuilder.SortFields{
-			"badReturn": func() struct{} { return struct{}{} },
-		})
+		},
+			schemabuilder.Paginated,
+			schemabuilder.SortField(
+				"badReturn",
+				func() struct{} { return struct{}{} },
+			))
 
 		_, err := schema.Build()
 		require.Error(t, err)
@@ -603,11 +613,11 @@ func TestPaginateBuildFailure(t *testing.T) {
 		object.Key("id")
 		inner.FieldFunc("connection", func(ctx context.Context, i *Inner, args Args) ([]StructWithKey, error) {
 			return nil, nil
-		}, schemabuilder.Paginated, schemabuilder.SortFields{
-			"someArgs": func(ctx context.Context, i *StructWithKey, args Args) string {
+		}, schemabuilder.Paginated, schemabuilder.SortField(
+			"someArgs", func(ctx context.Context, i *StructWithKey, args Args) string {
 				return ""
 			},
-		})
+		))
 
 		_, err := schema.Build()
 		require.Error(t, err)
@@ -965,4 +975,283 @@ func TestPaginatedFilters(t *testing.T) {
 			},
 		},
 	}, internal.AsJSON(val))
+}
+
+func TestPaginatedSorts(t *testing.T) {
+	schema := schemabuilder.NewSchema()
+	type Inner struct {
+	}
+
+	query := schema.Query()
+	query.FieldFunc("inner", func() Inner {
+		return Inner{}
+	})
+
+	inner := schema.Object("inner", Inner{})
+	item := schema.Object("item", Item{})
+	item.Key("id")
+	inner.FieldFunc("innerConnection", func(args Args) []Item {
+		return []Item{{Id: 2}, {Id: 5}, {Id: 4}, {Id: 3}, {Id: 1}}
+	}, schemabuilder.Paginated)
+	inner.FieldFunc("innerConnectionWithSort", func() []Item {
+		return []Item{
+			{Id: 1, Number: 1, String: "1", Float: 1.0},
+			{Id: 2, Number: 3, String: "3", Float: 3.0},
+			{Id: 3, Number: 5, String: "5", Float: 5.0},
+			{Id: 4, Number: 2, String: "2", Float: 2.0},
+			{Id: 5, Number: 4, String: "4", Float: 4.0},
+		}
+	},
+		schemabuilder.Paginated,
+		schemabuilder.BatchSortField(
+			"numbersBatched", func(ctx context.Context, items map[batch.Index]Item) (map[batch.Index]int64, error) {
+				myMap := make(map[batch.Index]int64, len(items))
+				for i, item := range items {
+					myMap[i] = item.Number
+				}
+				return myMap, nil
+			}),
+		schemabuilder.SortField(
+			"numbers", func(ctx context.Context, item Item) int64 {
+				return item.Number
+			}),
+		schemabuilder.BatchSortFieldWithFallback("numbersBatchedWithFallbackFalse",
+			func(ctx context.Context, items map[batch.Index]Item) (map[batch.Index]int64, error) {
+				myMap := make(map[batch.Index]int64, len(items))
+				for i, item := range items {
+					myMap[i] = item.Number
+				}
+				return myMap, nil
+			},
+			func(ctx context.Context, item Item) (int64, error) {
+				return item.Number, nil
+			},
+			func(context.Context) bool {
+				return false
+			},
+		),
+		schemabuilder.BatchSortFieldWithFallback("numbersBatchedWithFallbackTrue",
+			func(ctx context.Context, items map[batch.Index]Item) (map[batch.Index]int64, error) {
+				myMap := make(map[batch.Index]int64, len(items))
+				for i, item := range items {
+					myMap[i] = item.Number
+				}
+				return myMap, nil
+			},
+			func(ctx context.Context, item Item) (int64, error) {
+				return item.Number, nil
+			},
+			func(context.Context) bool {
+				return true
+			},
+		),
+		schemabuilder.BatchSortFieldWithFallback("numbersIncorrectFallback",
+			func(ctx context.Context, items map[batch.Index]Item) (map[batch.Index]int64, error) {
+				myMap := make(map[batch.Index]int64, len(items))
+				for i, item := range items {
+					myMap[i] = item.Number
+				}
+				return myMap, nil
+			},
+			func(ctx context.Context, item Item) (int64, error) {
+				return 0, nil
+			},
+			func(context.Context) bool {
+				return true
+			},
+		),
+		schemabuilder.BatchSortFieldWithFallback("numbersIncorrectBatch",
+			func(ctx context.Context, items map[batch.Index]Item) (map[batch.Index]int64, error) {
+				myMap := make(map[batch.Index]int64, len(items))
+				for i, _ := range items {
+					myMap[i] = 0
+				}
+				return myMap, nil
+			},
+			func(ctx context.Context, item Item) (int64, error) {
+				return item.Number, nil
+			},
+			func(context.Context) bool {
+				return false
+			},
+		),
+	)
+
+	builtSchema := schema.MustBuild()
+	// Test querries that succesfully sort
+	queries := []*graphql.Query{
+		graphql.MustParse(`
+		{
+			inner {
+				innerConnectionWithSort(sortBy: "numbersBatchedWithFallbackTrue", sortOrder: "asc", first: 4, after: "") {
+					totalCount
+					edges {
+						node {
+							id
+							number
+						}
+					}
+				}
+			}
+		}`, nil),
+		graphql.MustParse(`
+		{
+			inner {
+				innerConnectionWithSort(sortBy: "numbersBatchedWithFallbackFalse", sortOrder: "asc", first: 4, after: "") {
+					totalCount
+					edges {
+						node {
+							id
+							number
+						}
+					}
+				}
+			}
+		}`, nil),
+		graphql.MustParse(`
+		{
+			inner {
+				innerConnectionWithSort(sortBy: "numbersBatched", sortOrder: "asc", first: 4, after: "") {
+					totalCount
+					edges {
+						node {
+							id
+							number
+						}
+					}
+				}
+			}
+		}`, nil),
+		graphql.MustParse(`
+		{
+			inner {
+				innerConnectionWithSort(sortBy: "numbers", sortOrder: "asc", first: 4, after: "") {
+					totalCount
+					edges {
+						node {
+							id
+							number
+						}
+					}
+				}
+			}
+		}`, nil),
+	}
+
+	for _, q := range queries {
+		if err := graphql.PrepareQuery(context.Background(), builtSchema.Query, q.SelectionSet); err != nil {
+			t.Error(err)
+		}
+		e := testgraphql.NewExecutorWrapper(t)
+		val, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
+		assert.Nil(t, err)
+		assert.Equal(t, map[string]interface{}{
+			"inner": map[string]interface{}{
+				"innerConnectionWithSort": map[string]interface{}{
+					"totalCount": float64(5),
+					"edges": []interface{}{
+						map[string]interface{}{
+							"node": map[string]interface{}{
+								"__key":  float64(1),
+								"id":     float64(1),
+								"number": float64(1),
+							},
+						},
+						map[string]interface{}{
+							"node": map[string]interface{}{
+								"__key":  float64(4),
+								"id":     float64(4),
+								"number": float64(2),
+							},
+						},
+						map[string]interface{}{
+							"node": map[string]interface{}{
+								"__key":  float64(2),
+								"id":     float64(2),
+								"number": float64(3),
+							},
+						},
+						map[string]interface{}{
+							"node": map[string]interface{}{
+								"__key":  float64(5),
+								"id":     float64(5),
+								"number": float64(4),
+							},
+						},
+					},
+				},
+			},
+		}, internal.AsJSON(val))
+	}
+
+	// Test querries that don't succesfully sort
+	queries = []*graphql.Query{
+		graphql.MustParse(`
+		{
+			inner {
+				innerConnectionWithSort(sortBy: "numbersIncorrectFallback", sortOrder: "asc", last: 3, after: "") {
+					totalCount
+					edges {
+						node {
+							id
+							number
+						}
+					}
+				}
+			}
+		}`, nil),
+		graphql.MustParse(`
+		{
+			inner {
+				innerConnectionWithSort(sortBy: "numbersIncorrectBatch", sortOrder: "asc", last: 3, after: "") {
+					totalCount
+					edges {
+						node {
+							id
+							number
+						}
+					}
+				}
+			}
+		}`, nil),
+	}
+
+	for _, q := range queries {
+		if err := graphql.PrepareQuery(context.Background(), builtSchema.Query, q.SelectionSet); err != nil {
+			t.Error(err)
+		}
+		e := testgraphql.NewExecutorWrapper(t)
+		val, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
+		assert.Nil(t, err)
+		assert.Equal(t, map[string]interface{}{
+			"inner": map[string]interface{}{
+				"innerConnectionWithSort": map[string]interface{}{
+					"totalCount": float64(5),
+					"edges": []interface{}{
+						map[string]interface{}{
+							"node": map[string]interface{}{
+								"__key":  float64(2),
+								"id":     float64(2),
+								"number": float64(3),
+							},
+						},
+						map[string]interface{}{
+							"node": map[string]interface{}{
+								"__key":  float64(5),
+								"id":     float64(5),
+								"number": float64(4),
+							},
+						},
+						map[string]interface{}{
+							"node": map[string]interface{}{
+								"__key":  float64(3),
+								"id":     float64(3),
+								"number": float64(5),
+							},
+						},
+					},
+				},
+			},
+		}, internal.AsJSON(val))
+	}
 }
