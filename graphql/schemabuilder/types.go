@@ -101,8 +101,11 @@ func BatchFilterFieldWithFallback(name string, batchFilter interface{}, filter i
 	return fieldFuncTextFilterFields
 }
 
-func SortField(name string, sort interface{}) FieldFuncOption {
+func SortField(name string, sort interface{}, options ...FieldFuncOption) FieldFuncOption {
 	sortMethod := &method{Fn: sort, Batch: false, MarkedNonNullable: true}
+	for _, opt := range options {
+		opt.apply(sortMethod)
+	}
 	var fieldFuncSortFields fieldFuncOptionFunc = func(m *method) {
 		if m.SortMethods == nil {
 			m.SortMethods = map[string]*method{}
@@ -115,8 +118,11 @@ func SortField(name string, sort interface{}) FieldFuncOption {
 	return fieldFuncSortFields
 }
 
-func BatchSortField(name string, batchSort interface{}) FieldFuncOption {
+func BatchSortField(name string, batchSort interface{}, options ...FieldFuncOption) FieldFuncOption {
 	sortMethod := &method{Fn: batchSort, Batch: true, MarkedNonNullable: true}
+	for _, opt := range options {
+		opt.apply(sortMethod)
+	}
 	var fieldFuncSortFields fieldFuncOptionFunc = func(m *method) {
 		if m.SortMethods == nil {
 			m.SortMethods = map[string]*method{}
@@ -129,7 +135,7 @@ func BatchSortField(name string, batchSort interface{}) FieldFuncOption {
 	return fieldFuncSortFields
 }
 
-func BatchSortFieldWithFallback(name string, batchSort interface{}, sort interface{}, flag func(context.Context) bool) FieldFuncOption {
+func BatchSortFieldWithFallback(name string, batchSort interface{}, sort interface{}, flag func(context.Context) bool, options ...FieldFuncOption) FieldFuncOption {
 	sortMethod := &method{
 		Fn: batchSort,
 		BatchArgs: batchArgs{
@@ -137,7 +143,9 @@ func BatchSortFieldWithFallback(name string, batchSort interface{}, sort interfa
 			ShouldUseFallbackFunc: flag,
 		}, Batch: true,
 		MarkedNonNullable: true}
-
+	for _, opt := range options {
+		opt.apply(sortMethod)
+	}
 	var fieldFuncSortFields fieldFuncOptionFunc = func(m *method) {
 		if m.SortMethods == nil {
 			m.SortMethods = map[string]*method{}
