@@ -23,7 +23,7 @@ type Connection struct {
 }
 
 var typeOfString = reflect.TypeOf("")
-var typeofMap = reflect.TypeOf(map[batch.Index]string{})
+var typeofFilterMap = reflect.TypeOf(map[batch.Index]string{})
 
 // paginateManually applies the pagination arguments to the edges in memory and sets hasNextPage +
 // hasPrevPage. The behavior is expected to conform to the Relay Cursor spec:
@@ -538,6 +538,20 @@ func (c *connectionContext) applyTextFilter(ctx context.Context, nodes []interfa
 	return filteredNodes, nil
 }
 
+func getSortReference(ctx context.Context, sortField *graphql.Field, node interface{}, i int) (*sortReference, error) {
+	// Resolve the graphql.Field made for sorting.
+	sortValue, err := graphql.SafeExecuteResolver(ctx, sortField, node, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	// Hang onto index in order added in order to properly sort the nodes.
+	return &sortReference{
+		index: i,
+		value: reflect.ValueOf(sortValue),
+	}, nil
+
+}
+
 func (c *connectionContext) applySort(ctx context.Context, nodes []interface{}, args PaginationArgs) ([]interface{}, error) {
 	if args.SortBy == nil {
 		return nodes, nil
@@ -555,27 +569,40 @@ func (c *connectionContext) applySort(ctx context.Context, nodes []interface{}, 
 		return nil, fmt.Errorf("unknown sort field %s", *args.SortBy)
 	}
 
-	// sortValues is the slice we'll be sorting (with the sorted values) in order to figure out
-	// node order.
+	// sortValues is the slice we'll be sorting (with the sorted values) in order to figure out node order.
 	sortValues := make([]sortReference, len(nodes))
 	g, ctx := errgroup.WithContext(ctx)
-
-	for unscopedI, unscopedNode := range nodes {
-		i, node := unscopedI, unscopedNode
-		g.Go(func() error {
-			// Resolve the graphql.Field made for sorting.
-			sortValue, err := sortField.Resolve(ctx, node, nil, nil)
-			if err != nil {
-				return err
-			}
-			// Hang onto index in order added in order to properly sort the nodes.
+	if sortField.Batch && sortField.UseBatchFunc(ctx) {
+		sortValuesBatched, err := graphql.SafeExecuteBatchResolver(ctx, sortField, nodes, nil, nil)
+		if err != nil {
+			return nil, err
+		}
+		for i, sortValue := range sortValuesBatched {
 			sortValues[i] = sortReference{
 				index: i,
 				value: reflect.ValueOf(sortValue),
 			}
-
-			return nil
-		})
+		}
+	} else {
+		for unscopedI, unscopedNode := range nodes {
+			i, node := unscopedI, unscopedNode
+			if sortField.Expensive {
+				g.Go(func() error {
+					sortValue, err := getSortReference(ctx, sortField, node, i)
+					if err != nil {
+						return err
+					}
+					sortValues[i] = *sortValue
+					return nil
+				})
+			} else {
+				sortValue, err := getSortReference(ctx, sortField, node, i)
+				if err != nil {
+					return nil, err
+				}
+				sortValues[i] = *sortValue
+			}
+		}
 	}
 
 	if err := g.Wait(); err != nil {
@@ -762,12 +789,10 @@ var sorts = map[reflect.Kind]func([]sortReference, SortOrder){
 	},
 }
 
-func (c *connectionContext) consumeSorts(sb *schemaBuilder, m *method, typ reflect.Type) error {
-	c.SortFunctions = make(map[string]func([]sortReference, SortOrder))
-	c.SortFields = make(map[string]*graphql.Field)
-
-	for name, fn := range m.SortFuncs {
-		sortableTyp := getFuncReturnType(fn)
+func (c *connectionContext) checkSortFunctionTypes(name string, sortMethod *method) error {
+	if sortMethod.BatchArgs.FallbackFunc != nil {
+		// Check the return type of the fallback function.
+		sortableTyp := getFuncReturnType(sortMethod.BatchArgs.FallbackFunc)
 		if !supportedSort(sortableTyp) {
 			return fmt.Errorf(
 				"invalid sort field %s: unsupported return type %v, must be of kind int, uint, float or string",
@@ -776,12 +801,57 @@ func (c *connectionContext) consumeSorts(sb *schemaBuilder, m *method, typ refle
 			)
 		}
 		c.SortFunctions[name] = getSort(sortableTyp)
+	}
 
-		// Build a GraphQL field for the function.
-		field, err := sb.buildFunction(typ, &method{Fn: fn})
+	if sortMethod.Batch == false {
+		// Check the return type of the function.
+		sortableTyp := getFuncReturnType(sortMethod.Fn)
+		if !supportedSort(sortableTyp) {
+			return fmt.Errorf(
+				"invalid sort field %s: unsupported return type %v, must be of kind int, uint, float or string",
+				name,
+				sortableTyp,
+			)
+		}
+		c.SortFunctions[name] = getSort(sortableTyp)
+	} else {
+		// Check the return type of the batched function
+		sortableTyp := getFuncReturnType(sortMethod.Fn)
+		if sortableTyp.Kind() != reflect.Map || !supportedSort(sortableTyp.Elem()) {
+			return fmt.Errorf(
+				"invalid sort field %s: unsupported return type %v, must be of kind int, uint, float or string",
+				name,
+				sortableTyp,
+			)
+		}
+		c.SortFunctions[name] = getSort(sortableTyp.Elem())
+	}
+	return nil
+}
+
+func (c *connectionContext) consumeSorts(sb *schemaBuilder, m *method, typ reflect.Type) error {
+	c.SortFunctions = make(map[string]func([]sortReference, SortOrder))
+	c.SortFields = make(map[string]*graphql.Field)
+
+	for name, sortMethod := range m.SortMethods {
+		err := c.checkSortFunctionTypes(name, sortMethod)
 		if err != nil {
 			return err
 		}
+
+		// Build a GraphQL field for the function.
+		var field *graphql.Field
+		if sortMethod.Batch && sortMethod.BatchArgs.FallbackFunc != nil && sortMethod.BatchArgs.ShouldUseFallbackFunc != nil {
+			field, err = sb.buildBatchFunctionWithFallback(typ, sortMethod)
+		} else if sortMethod.Batch {
+			field, err = sb.buildBatchFunction(typ, sortMethod)
+		} else {
+			field, err = sb.buildFunction(typ, sortMethod)
+		}
+		if err != nil {
+			return err
+		}
+
 		if field.Args != nil && len(field.Args) > 0 {
 			return fmt.Errorf("invalid sort field %s: sort fields can't take arguments", name)
 		}
@@ -797,7 +867,7 @@ func (c *connectionContext) consumeTextFilters(sb *schemaBuilder, m *method, typ
 	for name, fn := range m.TextFilterFuncs {
 		if fn.BatchFilterFunc != nil {
 			batchFuncTyp := getFuncReturnType(fn.BatchFilterFunc)
-			if batchFuncTyp != typeofMap {
+			if batchFuncTyp != typeofFilterMap {
 				return fmt.Errorf("invalid text filter field %s: unsupported return type %v, must be a map[batch.Index]string", name, batchFuncTyp)
 			}
 		}
@@ -808,9 +878,9 @@ func (c *connectionContext) consumeTextFilters(sb *schemaBuilder, m *method, typ
 			}
 		}
 
-		var field *graphql.Field = nil
-		var err error = nil
-		var m *method = nil
+		var field *graphql.Field
+		var err error
+		var m *method
 
 		// Create a method with the relevant function or batch function.
 		if fn.BatchFilterFunc != nil && fn.FilterFunc != nil && fn.FallbackFlag != nil {
