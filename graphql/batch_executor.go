@@ -15,7 +15,7 @@ import (
 // OutputNode that is used to record the result of running a section of the
 // graphql query.
 type WorkUnit struct {
-	ctx          context.Context
+	Ctx          context.Context
 	field        *Field
 	selection    *Selection
 	sources      []interface{}
@@ -32,7 +32,7 @@ func splitWorkUnit(unit *WorkUnit) []*WorkUnit {
 	workUnits := make([]*WorkUnit, 0, len(unit.sources))
 	for idx, source := range unit.sources {
 		workUnits = append(workUnits, &WorkUnit{
-			ctx:          unit.ctx,
+			Ctx:          unit.Ctx,
 			field:        unit.field,
 			sources:      []interface{}{source},
 			destinations: []*outputNode{unit.destinations[idx]},
@@ -92,7 +92,7 @@ func (e *Executor) Execute(ctx context.Context, typ Type, source interface{}, qu
 		initialSelectionWorkUnits = append(
 			initialSelectionWorkUnits,
 			&WorkUnit{
-				ctx:          ctx,
+				Ctx:          ctx,
 				sources:      []interface{}{source},
 				field:        field,
 				destinations: []*outputNode{writer},
@@ -129,14 +129,14 @@ func executeWorkUnit(unit *WorkUnit) []*WorkUnit {
 }
 
 func executeBatchWorkUnit(unit *WorkUnit) []*WorkUnit {
-	results, err := SafeExecuteBatchResolver(unit.ctx, unit.field, unit.sources, unit.selection.Args, unit.selection.SelectionSet)
+	results, err := SafeExecuteBatchResolver(unit.Ctx, unit.field, unit.sources, unit.selection.Args, unit.selection.SelectionSet)
 	if err != nil {
 		for _, dest := range unit.destinations {
 			dest.Fail(err)
 		}
 		return nil
 	}
-	unitChildren, err := resolveBatch(unit.ctx, results, unit.field.Type, unit.selection.SelectionSet, unit.destinations)
+	unitChildren, err := resolveBatch(unit.Ctx, results, unit.field.Type, unit.selection.SelectionSet, unit.destinations)
 	if err != nil {
 		for _, dest := range unit.destinations {
 			dest.Fail(err)
@@ -149,7 +149,7 @@ func executeBatchWorkUnit(unit *WorkUnit) []*WorkUnit {
 func executeNonExpensiveWorkUnit(unit *WorkUnit) []*WorkUnit {
 	results := make([]interface{}, 0, len(unit.sources))
 	for idx, src := range unit.sources {
-		fieldResult, err := SafeExecuteResolver(unit.ctx, unit.field, src, unit.selection.Args, unit.selection.SelectionSet)
+		fieldResult, err := SafeExecuteResolver(unit.Ctx, unit.field, src, unit.selection.Args, unit.selection.SelectionSet)
 		if err != nil {
 			// Fail the unit and exit.
 			unit.destinations[idx].Fail(err)
@@ -157,7 +157,7 @@ func executeNonExpensiveWorkUnit(unit *WorkUnit) []*WorkUnit {
 		}
 		results = append(results, fieldResult)
 	}
-	unitChildren, err := resolveBatch(unit.ctx, results, unit.field.Type, unit.selection.SelectionSet, unit.destinations)
+	unitChildren, err := resolveBatch(unit.Ctx, results, unit.field.Type, unit.selection.SelectionSet, unit.destinations)
 	if err != nil {
 		for _, dest := range unit.destinations {
 			dest.Fail(err)
@@ -175,7 +175,7 @@ func executeNonExpensiveWorkUnit(unit *WorkUnit) []*WorkUnit {
 //   error from propagating all the way to the top of the request stack.
 func executeNonBatchWorkUnitWithCaching(src interface{}, dest *outputNode, unit *WorkUnit) []*WorkUnit {
 	var workUnits []*WorkUnit
-	subDestRes, err := reactive.Cache(unit.ctx, getWorkCacheKey(src, unit.field, unit.selection), func(ctx context.Context) (interface{}, error) {
+	subDestRes, err := reactive.Cache(unit.Ctx, getWorkCacheKey(src, unit.field, unit.selection), func(ctx context.Context) (interface{}, error) {
 		subDest := newOutputNode(dest, "")
 		workUnits = executeNonBatchWorkUnit(ctx, src, subDest, unit)
 		return subDest.res, nil
@@ -417,7 +417,7 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 
 		field := typ.Fields[selection.Name]
 		unit := &WorkUnit{
-			ctx:          ctx,
+			Ctx:          ctx,
 			field:        field,
 			sources:      nonNilSources,
 			destinations: destForSelection,
@@ -459,7 +459,7 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 		workUnits = append(
 			workUnits,
 			executeWorkUnit(&WorkUnit{
-				ctx:          ctx,
+				Ctx:          ctx,
 				field:        typ.KeyField,
 				sources:      nonNilSources,
 				destinations: destForSelection,
