@@ -12,6 +12,7 @@ import (
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/internal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type alias int64
@@ -194,6 +195,69 @@ func TestExecuteGood(t *testing.T) {
 		"weirdKey": {"key": -1, "__key": -1}
 		}`)) {
 		t.Error("bad value")
+	}
+}
+
+func TestExpensiveField(t *testing.T) {
+	testCases := []struct {
+		name               string
+		hasContext         bool
+		hasExpensiveOption bool
+		expectExpensive    bool
+	}{
+		{
+			name:               "no context, no expensive option",
+			hasContext:         false,
+			hasExpensiveOption: false,
+			expectExpensive:    false,
+		},
+		{
+			name:               "no context, expensive option",
+			hasContext:         false,
+			hasExpensiveOption: true,
+			expectExpensive:    true,
+		},
+		{
+			name:               "has context, no expensive option",
+			hasContext:         true,
+			hasExpensiveOption: false,
+			expectExpensive:    false,
+		},
+		{
+			name:               "has context and expensive option",
+			hasContext:         true,
+			hasExpensiveOption: true,
+			expectExpensive:    true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			schema := NewSchema()
+			query := schema.Query()
+
+			var options []FieldFuncOption
+			if tc.hasExpensiveOption {
+				options = append(options, Expensive)
+			}
+
+			if tc.hasContext {
+				testFieldFunc := func(context.Context) int { return 0 }
+				query.FieldFunc("testField", testFieldFunc, options...)
+			} else {
+				testFieldFunc := func() int { return 0 }
+				query.FieldFunc("testField", testFieldFunc, options...)
+			}
+
+			_ = schema.Mutation()
+
+			builtSchema := schema.MustBuild()
+			builtObject, ok := (builtSchema.Query).(*graphql.Object)
+			require.True(t, ok)
+
+			builtField := builtObject.Fields["testField"]
+			assert.Equal(t, tc.expectExpensive, builtField.Expensive)
+		})
 	}
 }
 
