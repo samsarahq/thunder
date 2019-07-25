@@ -75,7 +75,7 @@ func (sb *schemaBuilder) buildFunctionAndFuncCtx(typ reflect.Type, m *method) (*
 		Args:           args,
 		Type:           retType,
 		ParseArguments: argParser.Parse,
-		Expensive:      funcCtx.hasContext,
+		Expensive:      m.Expensive,
 		External:       true,
 	}, funcCtx, nil
 }
