@@ -123,7 +123,7 @@ func (sb *schemaBuilder) buildBatchFunctionAndFuncCtx(typ reflect.Type, m *metho
 		Args:           args,
 		Type:           retType,
 		ParseArguments: argParser.Parse,
-		Expensive:      funcCtx.hasContext,
+		Expensive:      m.Expensive,
 	}, funcCtx, nil
 }
 
