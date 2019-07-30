@@ -44,6 +44,7 @@ func splitWorkUnit(unit *WorkUnit) []*WorkUnit {
 			sources:      []interface{}{source},
 			destinations: []*outputNode{unit.destinations[idx]},
 			selection:    unit.selection,
+			objectName:   unit.objectName,
 		})
 	}
 	return workUnits
@@ -157,10 +158,14 @@ func executeBatchWorkUnit(unit *WorkUnit) []*WorkUnit {
 func executeNonExpensiveWorkUnit(unit *WorkUnit) []*WorkUnit {
 	results := make([]interface{}, 0, len(unit.sources))
 	for idx, src := range unit.sources {
-		if unit.objectName == "Query" {
-			unit.Ctx = context.WithValue(unit.Ctx, nonExpensive{}, struct{}{})
+		ctx := unit.Ctx
+
+		// Fields on the Mutation object should not be marked as "non-Expensive" because they are guaranteed to only execute once.
+		// The only fields we want to validate "expensiveness" on are non-Mutation Fields.
+		if unit.objectName != "Mutation" {
+			ctx = context.WithValue(unit.Ctx, nonExpensive{}, struct{}{})
 		}
-		fieldResult, err := SafeExecuteResolver(unit.Ctx, unit.field, src, unit.selection.Args, unit.selection.SelectionSet)
+		fieldResult, err := SafeExecuteResolver(ctx, unit.field, src, unit.selection.Args, unit.selection.SelectionSet)
 		if err != nil {
 			// Fail the unit and exit.
 			unit.destinations[idx].Fail(err)
@@ -433,6 +438,7 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 			sources:      nonNilSources,
 			destinations: destForSelection,
 			selection:    selection,
+			objectName:   typ.Name,
 		}
 
 		switch {
@@ -475,6 +481,7 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 				sources:      nonNilSources,
 				destinations: destForSelection,
 				selection:    &Selection{},
+				objectName:   typ.Name,
 			})...,
 		)
 	}
