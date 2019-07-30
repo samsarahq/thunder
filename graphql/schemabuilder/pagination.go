@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"sort"
 	"sync"
+	"sync/atomic"
 
 	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/graphql"
@@ -401,35 +402,38 @@ type SafeBatchNodesToKeep struct {
 	mux         sync.Mutex
 }
 
-func (c *connectionContext) applyBatchTextFilter(ctx context.Context, nodes []interface{}, matchStrings []string, batchedFields map[string]*graphql.Field, nodesToKeep []bool) error {
-	g, ctx := errgroup.WithContext(ctx)
+func (c *connectionContext) applyBatchTextFilter(ctx context.Context, nodes []interface{}, matchStrings []string, batchedFields map[string]*graphql.Field, nodesToKeep []bool) []*graphql.ExecutionUnit {
 	m := &sync.Mutex{}
+	executors := []*graphql.ExecutionUnit{}
 	for unscopeName, unscopedFilterField := range batchedFields {
 		name, filterField := unscopeName, unscopedFilterField
-		g.Go(func() error {
-			texts, err := graphql.SafeExecuteBatchResolver(ctx, filterField, nodes, nil, nil)
-			if err != nil {
-				return err
-			}
-			for i, text := range texts {
-				textString, ok := text.(string)
-				if !ok {
-					return fmt.Errorf("filter %s returned %T, must be a string", name, text)
-				}
-				if filter.MatchText(textString, matchStrings) {
-					m.Lock()
-					nodesToKeep[i] = true
-					m.Unlock()
-				}
-			}
-			return nil
-		})
-	}
 
-	if err := g.Wait(); err != nil {
-		return err
+		executors = append(executors,
+			&graphql.ExecutionUnit{
+				Context: ctx,
+				Fields:  batchedFields,
+				ExeucteFunction: func(ctx context.Context) error {
+					texts, err := graphql.SafeExecuteBatchResolver(ctx, filterField, nodes, nil, nil)
+					if err != nil {
+						return err
+					}
+					for i, text := range texts {
+						textString, ok := text.(string)
+						if !ok {
+							return fmt.Errorf("filter %s returned %T, must be a string", name, text)
+						}
+						if filter.MatchText(textString, matchStrings) {
+							m.Lock()
+							nodesToKeep[i] = true
+							m.Unlock()
+						}
+					}
+					return nil
+				},
+			},
+		)
 	}
-	return nil
+	return executors
 }
 
 func (c *connectionContext) checkFilters(ctx context.Context, node interface{}, matchStrings []string, filterFields map[string]*graphql.Field) (bool, error) {
@@ -456,32 +460,47 @@ func (c *connectionContext) checkFilters(ctx context.Context, node interface{}, 
 // We found that parallelizing non-expensive fields was slower due to the overhead of
 // spawning goroutines, so we execute non-expensive fields serially. We're also concerned
 // about the memory overhead of spawning many goroutines
-func (c *connectionContext) applyTextFilterNotBatchedExpensive(ctx context.Context, nodes []interface{}, matchStrings []string, filterFields map[string]*graphql.Field, nodesToKeep []bool) error {
-	g, ctx := errgroup.WithContext(ctx)
+func (c *connectionContext) applyTextFilterNotBatchedExpensive(ctx context.Context, nodes []interface{}, matchStrings []string, filterFields map[string]*graphql.Field, nodesToKeep []bool) []*graphql.ExecutionUnit {
+	executors := []*graphql.ExecutionUnit{}
 	for unscopedI, unscopedNode := range nodes {
 		i, node := unscopedI, unscopedNode
-		g.Go(func() error {
-			keep, err := c.checkFilters(ctx, node, matchStrings, filterFields)
-			nodesToKeep[i] = keep
-			return err
-		})
+
+		executors = append(executors,
+			&graphql.ExecutionUnit{
+				Context: ctx,
+				Fields:  filterFields,
+				ExeucteFunction: func(ctx context.Context) error {
+					keep, err := c.checkFilters(ctx, node, matchStrings, filterFields)
+					nodesToKeep[i] = keep
+					return err
+				},
+			},
+		)
 	}
-	if err := g.Wait(); err != nil {
-		return err
-	}
-	return nil
+	return executors
 }
 
-func (c *connectionContext) applyTextFilterNotBatched(ctx context.Context, nodes []interface{}, matchStrings []string, filterFields map[string]*graphql.Field, nodesToKeep []bool) error {
-	for unscopedI, unscopedNode := range nodes {
-		i, node := unscopedI, unscopedNode
-		keep, err := c.checkFilters(ctx, node, matchStrings, filterFields)
-		if err != nil {
-			return err
-		}
-		nodesToKeep[i] = keep
-	}
-	return nil
+func (c *connectionContext) applyTextFilterNotBatched(ctx context.Context, nodes []interface{}, matchStrings []string, filterFields map[string]*graphql.Field, nodesToKeep []bool) []*graphql.ExecutionUnit {
+	executors := []*graphql.ExecutionUnit{}
+	executors = append(executors,
+		&graphql.ExecutionUnit{
+			Context: ctx,
+			Fields:  filterFields,
+			ExeucteFunction: func(ctx context.Context) error {
+				for unscopedI, unscopedNode := range nodes {
+					i, node := unscopedI, unscopedNode
+					keep, err := c.checkFilters(ctx, node, matchStrings, filterFields)
+					if err != nil {
+						return err
+					}
+					nodesToKeep[i] = keep
+				}
+				return nil
+			},
+		},
+	)
+	return executors
+
 }
 
 func (c *connectionContext) applyTextFilter(ctx context.Context, nodes []interface{}, args PaginationArgs) ([]interface{}, error) {
@@ -511,21 +530,18 @@ func (c *connectionContext) applyTextFilter(ctx context.Context, nodes []interfa
 	expensiveNodesToKeep := make([]bool, len(nodes))
 	batchedNodesToKeep := make([]bool, len(nodes))
 
+	executors := []*graphql.ExecutionUnit{}
 	if len(filterTextFieldsNotBatched) > 0 {
-		g.Go(func() error {
-			return c.applyTextFilterNotBatched(ctx, nodes, matchStrings, filterTextFieldsNotBatched, nodesToKeep)
-		})
+		executors = append(executors, c.applyTextFilterNotBatched(ctx, nodes, matchStrings, filterTextFieldsNotBatched, nodesToKeep)...)
 	}
 	if len(filterTextFieldsNotBatchedExpensive) > 0 {
-		g.Go(func() error {
-			return c.applyTextFilterNotBatchedExpensive(ctx, nodes, matchStrings, filterTextFieldsNotBatchedExpensive, expensiveNodesToKeep)
-		})
+		executors = append(executors, c.applyTextFilterNotBatchedExpensive(ctx, nodes, matchStrings, filterTextFieldsNotBatchedExpensive, expensiveNodesToKeep)...)
 	}
 	if len(filterTextFieldsBatched) > 0 {
-		g.Go(func() error {
-			return c.applyBatchTextFilter(ctx, nodes, matchStrings, filterTextFieldsBatched, batchedNodesToKeep)
-		})
+		executors = append(executors, c.applyBatchTextFilter(ctx, nodes, matchStrings, filterTextFieldsBatched, batchedNodesToKeep)...)
 	}
+	ctx.Value("pagiantionScheduler").(graphql.WorkScheduler).RunAll(ctx, executors)
+
 	if err := g.Wait(); err != nil {
 		return nil, err
 	}
@@ -584,16 +600,24 @@ func (c *connectionContext) applySort(ctx context.Context, nodes []interface{}, 
 			}
 		}
 	} else {
+		executors := []*graphql.ExecutionUnit{}
+		sortFieldName := *args.SortBy
 		for unscopedI, unscopedNode := range nodes {
 			i, node := unscopedI, unscopedNode
 			if sortField.Expensive {
-				g.Go(func() error {
-					sortValue, err := getSortReference(ctx, sortField, node, i)
-					if err != nil {
-						return err
-					}
-					sortValues[i] = *sortValue
-					return nil
+				executors = append(executors, &graphql.ExecutionUnit{
+					Context: ctx,
+					Fields: map[string]*graphql.Field{
+						sortFieldName: sortField,
+					},
+					ExeucteFunction: func(ctx context.Context) error {
+						sortValue, err := getSortReference(ctx, sortField, node, i)
+						if err != nil {
+							return err
+						}
+						sortValues[i] = *sortValue
+						return nil
+					},
 				})
 			} else {
 				sortValue, err := getSortReference(ctx, sortField, node, i)
@@ -603,6 +627,7 @@ func (c *connectionContext) applySort(ctx context.Context, nodes []interface{}, 
 				sortValues[i] = *sortValue
 			}
 		}
+		ctx.Value("pagiantionScheduler").(graphql.WorkScheduler).RunAll(ctx, executors)
 	}
 
 	if err := g.Wait(); err != nil {
@@ -621,6 +646,39 @@ func (c *connectionContext) applySort(ctx context.Context, nodes []interface{}, 
 	return sortedNodes, nil
 }
 
+func NewImmediateGoroutineSchedulerPaginated() graphql.WorkScheduler {
+	return &immediateGoroutineSchedulerPaginated{}
+}
+
+type immediateGoroutineSchedulerPaginated struct {
+	wg sync.WaitGroup
+
+	count int64
+}
+
+func (q *immediateGoroutineSchedulerPaginated) Run(resolver graphql.UnitResolver, initialUnits ...*graphql.WorkUnit) {
+}
+
+func (q *immediateGoroutineSchedulerPaginated) RunAll(ctx context.Context, executionUnits []*graphql.ExecutionUnit) {
+	q.runEnqueue(executionUnits)
+	q.wg.Wait()
+}
+
+func (q *immediateGoroutineSchedulerPaginated) runEnqueue(executionUnits []*graphql.ExecutionUnit) {
+	atomic.AddInt64(&q.count, int64(len(executionUnits)))
+	for _, unit := range executionUnits {
+		q.wg.Add(1)
+		go func(u *graphql.ExecutionUnit) {
+			defer q.wg.Done()
+			u.ExeucteFunction(u.Context)
+		}(unit)
+	}
+}
+
+func getScheduler(ctx context.Context) graphql.WorkScheduler {
+	return NewImmediateGoroutineSchedulerPaginated()
+}
+
 // getConnection applies the ConnectionArgs to nodes and returns the result in a wrapped Connection
 // type.
 func (c *connectionContext) getConnection(ctx context.Context, out []reflect.Value, args PaginationArgs) (Connection, error) {
@@ -628,7 +686,6 @@ func (c *connectionContext) getConnection(ctx context.Context, out []reflect.Val
 	if len(nodes) == 0 {
 		return Connection{}, nil
 	}
-
 	if !c.IsExternallyManaged() {
 		var err error
 		nodes, err = c.applyTextFilter(ctx, nodes, args)

@@ -275,15 +275,16 @@ func TestNonExpensiveExecution(t *testing.T) {
 }
 
 type counterGoroutineScheduler struct {
-	wg sync.WaitGroup
-
+	wg    sync.WaitGroup
 	count int64
 }
 
 func (q *counterGoroutineScheduler) Run(resolver graphql.UnitResolver, initialUnits ...*graphql.WorkUnit) {
 	q.runEnqueue(resolver, initialUnits...)
-
 	q.wg.Wait()
+}
+
+func (q *counterGoroutineScheduler) RunAll(ctx context.Context, executionUnits []*graphql.ExecutionUnit) {
 }
 
 func (q *counterGoroutineScheduler) runEnqueue(resolver graphql.UnitResolver, units ...*graphql.WorkUnit) {

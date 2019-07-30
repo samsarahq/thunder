@@ -10,6 +10,14 @@ import (
 	"github.com/samsarahq/thunder/reactive"
 )
 
+type executeFunction func(ctx context.Context) error
+
+type ExecutionUnit struct {
+	Context         context.Context
+	ExeucteFunction executeFunction
+	Fields          map[string]*Field
+}
+
 // WorkUnit is a set of execution work that will be done when running
 // a graphql query.  For every source there is an equivalent destination
 // OutputNode that is used to record the result of running a section of the
@@ -52,6 +60,7 @@ type UnitResolver func(*WorkUnit) []*WorkUnit
 // work unit.
 type WorkScheduler interface {
 	Run(resolver UnitResolver, startingUnits ...*WorkUnit)
+	RunAll(ctx context.Context, executionUnits []*ExecutionUnit)
 }
 
 func NewExecutor(scheduler WorkScheduler) ExecutorRunner {
@@ -80,6 +89,7 @@ func (e *Executor) Execute(ctx context.Context, typ Type, source interface{}, qu
 	topLevelRespWriter := newTopLevelOutputNode(query.Name)
 	initialSelectionWorkUnits := make([]*WorkUnit, 0, len(topLevelSelections))
 	writers := make(map[string]*outputNode)
+	ctx = context.WithValue(ctx, "pagiantionScheduler", e.scheduler)
 	for _, selection := range topLevelSelections {
 		field, ok := queryObject.Fields[selection.Name]
 		if !ok {
@@ -423,7 +433,6 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 			destinations: destForSelection,
 			selection:    selection,
 		}
-
 		switch {
 		case shouldUseBatch(ctx, field):
 			unit.useBatch = true
