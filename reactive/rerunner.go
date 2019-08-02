@@ -369,7 +369,13 @@ func (r *Rerunner) run() {
 		time.Sleep(WriteThenReadDelay)
 	}
 	r.cache.cleanInvalidated()
-	ctx := context.WithValue(r.ctx, cacheKey{}, r.cache)
+
+	// Cancel the context passed to "run". Canceling the context ensures that
+	// libraries let go of the context when they might otherwise hold onto it long
+	// past this run.
+	ctx, cancel := context.WithCancel(r.ctx)
+	defer cancel()
+	ctx = context.WithValue(ctx, cacheKey{}, r.cache)
 	ctx = context.WithValue(ctx, dependencySetKey{}, &dependencySet{})
 
 	currentComputation, err := run(ctx, r.f)
