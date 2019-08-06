@@ -18,6 +18,7 @@ import (
 type Filter map[string]interface{}
 
 type SelectOptions struct {
+	Columns []string  // hacky!
 	Where  string
 	Values []interface{}
 
@@ -52,7 +53,8 @@ const (
 )
 
 // parseQueryRow parses a row from a sql.DB query into a struct
-func parseQueryRow(table *Table, scanner *sql.Rows) (interface{}, error) {
+func parseQueryRow(query *BaseSelectQuery, scanner *sql.Rows) (interface{}, error) {
+	table := query.Table
 	ptr := reflect.New(table.Type)
 	elem := ptr.Elem()
 
@@ -62,6 +64,20 @@ func parseQueryRow(table *Table, scanner *sql.Rows) (interface{}, error) {
 	// Descriptor Scanner is instantiated with a reference to our struct fields.
 	// It scans directly into our struct.
 	for i, column := range table.Columns {
+		// hacky!
+		if query.Options != nil && len(query.Options.Columns) > 0 {
+			found := false
+			for _, c := range query.Options.Columns {
+				if c == column.Name {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
 		field := elem.FieldByIndex(column.Index)
 		if field.Kind() != reflect.Ptr {
 			field = field.Addr()
@@ -304,15 +320,10 @@ func (s *Schema) get(typ reflect.Type) (*Table, error) {
 	return table, nil
 }
 
-func (s *Schema) ParseRows(query *SelectQuery, res *sql.Rows) ([]interface{}, error) {
-	table, ok := s.ByName[query.Table]
-	if !ok {
-		return nil, errors.New("unknown table")
-	}
-
+func (s *Schema) ParseRows(query *BaseSelectQuery, res *sql.Rows) ([]interface{}, error) {
 	var rows []interface{}
 	for res.Next() {
-		row, err := parseQueryRow(table, res)
+		row, err := parseQueryRow(query, res)
 		if err != nil {
 			return nil, err
 		}
@@ -425,8 +436,13 @@ type BaseSelectQuery struct {
 
 func (b *BaseSelectQuery) MakeSelectQuery() (*SelectQuery, error) {
 	var columns []string
-	for _, column := range b.Table.Columns {
-		columns = append(columns, column.Name)
+	if b.Options != nil && len(b.Options.Columns) > 0 {
+		// hacky!
+		columns = b.Options.Columns
+	} else {
+		for _, column := range b.Table.Columns {
+			columns = append(columns, column.Name)
+		}
 	}
 
 	options := b.Options

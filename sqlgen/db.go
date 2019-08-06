@@ -55,7 +55,7 @@ func NewDB(conn *sql.DB, schema *Schema) *DB {
 				return nil, err
 			}
 			defer res.Close()
-			rows, err := db.Schema.ParseRows(selectQuery, res)
+			rows, err := db.Schema.ParseRows(query, res)
 			if err != nil {
 				return nil, err
 			}
@@ -174,7 +174,7 @@ func (db *DB) BaseQuery(ctx context.Context, query *BaseSelectQuery) ([]interfac
 	}
 	defer res.Close()
 
-	return db.Schema.ParseRows(selectQuery, res)
+	return db.Schema.ParseRows(query, res)
 }
 
 func (db *DB) execWithTrace(ctx context.Context, query SQLQuery, operationName string) (sql.Result, error) {
