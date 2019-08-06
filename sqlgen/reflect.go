@@ -63,6 +63,7 @@ func parseQueryRow(query *BaseSelectQuery, scanner *sql.Rows) (interface{}, erro
 
 	// Descriptor Scanner is instantiated with a reference to our struct fields.
 	// It scans directly into our struct.
+	subscanners := make([]interface{}, 0)
 	for i, column := range table.Columns {
 		// hacky!
 		if query.Options != nil && len(query.Options.Columns) > 0 {
@@ -84,9 +85,10 @@ func parseQueryRow(query *BaseSelectQuery, scanner *sql.Rows) (interface{}, erro
 		}
 		// Scan into field.
 		scanners[i].(*fields.Scanner).Target(field)
+		subscanners = append(subscanners, scanners[i])
 	}
 
-	if err := scanner.Scan(scanners...); err != nil {
+	if err := scanner.Scan(subscanners...); err != nil {
 		columns, _ := scanner.Columns()
 		return nil, fmt.Errorf("sqlgen: parsing error for `%s`.(%v): %v", table.Name, columns, err)
 	}
