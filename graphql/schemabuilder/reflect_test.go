@@ -199,7 +199,6 @@ func TestExecuteGood(t *testing.T) {
 }
 
 func TestExpensiveField(t *testing.T) {
-	t.Skip()
 	testCases := []struct {
 		name               string
 		hasContext         bool
