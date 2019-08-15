@@ -11,7 +11,11 @@ import (
 
 // buildBatchFunction corresponds to buildFunction for a batchFieldFunc
 func (sb *schemaBuilder) buildBatchFunctionWithFallback(typ reflect.Type, m *method) (*graphql.Field, error) {
-	fallbackField, fallbackFuncCtx, err := sb.buildFunctionAndFuncCtx(typ, &method{Fn: m.BatchArgs.FallbackFunc, MarkedNonNullable: m.MarkedNonNullable})
+	fallbackField, fallbackFuncCtx, err := sb.buildFunctionAndFuncCtx(typ, &method{
+		Fn: m.BatchArgs.FallbackFunc,
+		MarkedNonNullable: m.MarkedNonNullable,
+		Expensive: m.Expensive,
+	})
 	if err != nil {
 		return nil, err
 	}
