@@ -346,7 +346,7 @@ func (db *DB) DeleteRow(ctx context.Context, row interface{}) error {
 //
 // With multiple open databases, each database can store its own transactions in a context.
 type txKey struct {
-	db *DB
+	db *sql.DB
 }
 
 // WithTx begins a transaction and returns a derived Context that contains
@@ -357,7 +357,7 @@ type txKey struct {
 // On error WithTx returns a non-nil Context, so that the caller can
 // still easily use its Context (e.g., to log the error).
 func (db *DB) WithTx(ctx context.Context) (context.Context, *sql.Tx, error) {
-	maybeTx := ctx.Value(txKey{db: db})
+	maybeTx := ctx.Value(txKey{db: db.Conn})
 	if maybeTx != nil {
 		return ctx, nil, errors.New("already in a tx")
 	}
@@ -366,7 +366,7 @@ func (db *DB) WithTx(ctx context.Context) (context.Context, *sql.Tx, error) {
 	if err != nil {
 		return ctx, nil, err
 	}
-	return context.WithValue(ctx, txKey{db: db}, tx), tx, nil
+	return context.WithValue(ctx, txKey{db: db.Conn}, tx), tx, nil
 }
 
 // WithExistingTx returns a derived Context that contains the provided Tx.
@@ -375,18 +375,18 @@ func (db *DB) WithTx(ctx context.Context) (context.Context, *sql.Tx, error) {
 // On error WithExistingTx returns a non-nil Context, so that the caller can
 // still easily use its Context (e.g., to log the error).
 func (db *DB) WithExistingTx(ctx context.Context, tx *sql.Tx) (context.Context, error) {
-	maybeTx := ctx.Value(txKey{db: db})
+	maybeTx := ctx.Value(txKey{db: db.Conn})
 	if maybeTx != nil {
 		return ctx, errors.New("already in a tx")
 	}
 
-	return context.WithValue(ctx, txKey{db: db}, tx), nil
+	return context.WithValue(ctx, txKey{db: db.Conn}, tx), nil
 }
 
 // HasTx returns whether the provided Context contains a transaction for
 // this DB.
 func (db *DB) HasTx(ctx context.Context) bool {
-	return ctx.Value(txKey{db: db}) != nil
+	return ctx.Value(txKey{db: db.Conn}) != nil
 }
 
 // A QueryExecer is either a *sql.Tx or a *sql.DB.
@@ -401,7 +401,7 @@ type QueryExecer interface {
 }
 
 func (db *DB) QueryExecer(ctx context.Context) QueryExecer {
-	maybeTx := ctx.Value(txKey{db: db})
+	maybeTx := ctx.Value(txKey{db: db.Conn})
 	if maybeTx != nil {
 		return maybeTx.(*sql.Tx)
 	}
