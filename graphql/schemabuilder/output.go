@@ -42,6 +42,9 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 		if name == "" {
 			return fmt.Errorf("bad type %s: should have a name", typ)
 		}
+		if originalType, ok := sb.typeNames[name]; ok {
+			return fmt.Errorf("duplicate name %s: seen both %v and %v", name, originalType, typ)
+		}
 	}
 
 	object := &graphql.Object{
@@ -50,6 +53,7 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 		Fields:      make(map[string]*graphql.Field),
 	}
 	sb.types[typ] = object
+	sb.typeNames[name] = typ
 
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
@@ -161,6 +165,9 @@ func (sb *schemaBuilder) buildUnionStruct(typ reflect.Type) error {
 		if name == "" {
 			return fmt.Errorf("bad type %s: should have a name", typ)
 		}
+		if originalType, ok := sb.typeNames[name]; ok {
+			return fmt.Errorf("duplicate name %s: seen both %v and %v", name, originalType, typ)
+		}
 	}
 
 	union := &graphql.Union{
@@ -169,6 +176,7 @@ func (sb *schemaBuilder) buildUnionStruct(typ reflect.Type) error {
 		Types:       make(map[string]*graphql.Object),
 	}
 	sb.types[typ] = union
+	sb.typeNames[name] = typ
 
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
