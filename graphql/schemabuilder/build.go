@@ -15,6 +15,7 @@ import (
 // are stored in the type map which we can use to see sections of the graph.
 type schemaBuilder struct {
 	types        map[reflect.Type]graphql.Type
+	typeNames    map[string]reflect.Type
 	objects      map[reflect.Type]*Object
 	enumMappings map[reflect.Type]*EnumMapping
 	typeCache    map[reflect.Type]cachedType // typeCache maps Go types to GraphQL datatypes
