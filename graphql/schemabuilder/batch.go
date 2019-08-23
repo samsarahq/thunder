@@ -12,9 +12,13 @@ import (
 // buildBatchFunction corresponds to buildFunction for a batchFieldFunc
 func (sb *schemaBuilder) buildBatchFunctionWithFallback(typ reflect.Type, m *method) (*graphql.Field, error) {
 	fallbackField, fallbackFuncCtx, err := sb.buildFunctionAndFuncCtx(typ, &method{
-		Fn: m.BatchArgs.FallbackFunc,
+		Fn:                m.BatchArgs.FallbackFunc,
 		MarkedNonNullable: m.MarkedNonNullable,
-		Expensive: m.Expensive,
+		// We don't want to accidentally make the fallback non-expensive
+		// if someone forgets to pass the Expensive option to `BatchFieldFuncWithFallback`.
+		// It's safe to assume the fallback is expensive, because why else
+		// would someone bother batching it?
+		Expensive: true,
 	})
 	if err != nil {
 		return nil, err
