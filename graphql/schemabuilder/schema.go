@@ -131,7 +131,6 @@ func (s *Schema) Mutation() *Object {
 func (s *Schema) Build() (*graphql.Schema, error) {
 	sb := &schemaBuilder{
 		types:        make(map[reflect.Type]graphql.Type),
-		typeNames:    make(map[string]reflect.Type),
 		objects:      make(map[reflect.Type]*Object),
 		enumMappings: s.enumTypes,
 		typeCache:    make(map[reflect.Type]cachedType, 0),
