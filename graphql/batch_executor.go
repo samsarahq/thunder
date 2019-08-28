@@ -23,6 +23,12 @@ type WorkUnit struct {
 	useBatch     bool
 }
 
+type nonExpensive struct{}
+
+func CheckNonExpensive(ctx context.Context) bool {
+	return ctx.Value(nonExpensive{}) != nil
+}
+
 func (w *WorkUnit) Selection() *Selection {
 	return w.selection
 }
@@ -149,7 +155,8 @@ func executeBatchWorkUnit(unit *WorkUnit) []*WorkUnit {
 func executeNonExpensiveWorkUnit(unit *WorkUnit) []*WorkUnit {
 	results := make([]interface{}, 0, len(unit.sources))
 	for idx, src := range unit.sources {
-		fieldResult, err := SafeExecuteResolver(unit.Ctx, unit.field, src, unit.selection.Args, unit.selection.SelectionSet)
+		ctx := context.WithValue(unit.Ctx, nonExpensive{}, struct{}{})
+		fieldResult, err := SafeExecuteResolver(ctx, unit.field, src, unit.selection.Args, unit.selection.SelectionSet)
 		if err != nil {
 			// Fail the unit and exit.
 			unit.destinations[idx].Fail(err)
