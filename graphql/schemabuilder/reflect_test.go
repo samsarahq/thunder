@@ -10,7 +10,6 @@ import (
 
 	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/graphql"
-	"github.com/samsarahq/thunder/graphql/schemabuilder/testpackage"
 	"github.com/samsarahq/thunder/internal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -671,19 +670,6 @@ func TestBadArguments(t *testing.T) {
 	if _, err := schema.Build(); err.Error() != "bad method aField on type schemabuilder.query: attempted to parse int64 as arguments struct, but failed: expected struct but received type int64" {
 		t.Errorf("expected non-struct args argument to fail, but received %s", err.Error())
 	}
-}
-
-func TestTypeNamesMustBeUnique(t *testing.T) {
-	type Object struct {
-		Something string
-	}
-	builder := NewSchema()
-	builder.Query().FieldFunc("object1", func(ctx context.Context) *Object { return nil })
-	// Put other Object type in a separate package to induce name collision.
-	builder.Query().FieldFunc("object2", func(ctx context.Context) *testpackage.Object { return nil })
-	_, err := builder.Build()
-	assert.Error(t, err, "cannot have duplicate object names")
-	assert.Contains(t, err.Error(), "duplicate name")
 }
 
 func TestObjectKeyMustBeScalar(t *testing.T) {
