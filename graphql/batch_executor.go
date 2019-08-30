@@ -21,6 +21,7 @@ type WorkUnit struct {
 	sources      []interface{}
 	destinations []*outputNode
 	useBatch     bool
+	objectName   string
 }
 
 type nonExpensive struct{}
@@ -103,6 +104,7 @@ func (e *Executor) Execute(ctx context.Context, typ Type, source interface{}, qu
 				field:        field,
 				destinations: []*outputNode{writer},
 				selection:    selection,
+				objectName:   queryObject.Name,
 			},
 		)
 	}
@@ -155,8 +157,10 @@ func executeBatchWorkUnit(unit *WorkUnit) []*WorkUnit {
 func executeNonExpensiveWorkUnit(unit *WorkUnit) []*WorkUnit {
 	results := make([]interface{}, 0, len(unit.sources))
 	for idx, src := range unit.sources {
-		ctx := context.WithValue(unit.Ctx, nonExpensive{}, struct{}{})
-		fieldResult, err := SafeExecuteResolver(ctx, unit.field, src, unit.selection.Args, unit.selection.SelectionSet)
+		if unit.objectName == "Query" {
+			unit.Ctx = context.WithValue(unit.Ctx, nonExpensive{}, struct{}{})
+		}
+		fieldResult, err := SafeExecuteResolver(unit.Ctx, unit.field, src, unit.selection.Args, unit.selection.SelectionSet)
 		if err != nil {
 			// Fail the unit and exit.
 			unit.destinations[idx].Fail(err)
