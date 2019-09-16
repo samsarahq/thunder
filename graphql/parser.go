@@ -122,7 +122,7 @@ func parseSelectionSet(input *ast.SelectionSet, globalFragments map[string]*Frag
 			selections = append(selections, &Selection{
 				Alias:        alias,
 				Name:         selection.Name.Value,
-				Args:         args,
+				Args:         &ArgsAndFallback{Args: args},
 				SelectionSet: selectionSet,
 			})
 

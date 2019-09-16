@@ -28,6 +28,11 @@ type Args struct {
 	Additional string
 }
 
+type ManualArgs struct {
+	Additional     string
+	PaginationArgs schemabuilder.PaginationArgs
+}
+
 type Item struct {
 	Id         int64
 	FilterText string
@@ -1254,4 +1259,136 @@ func TestPaginatedSorts(t *testing.T) {
 			},
 		}, internal.AsJSON(val))
 	}
+}
+
+func TestConnectionManual(t *testing.T) {
+	schema := schemabuilder.NewSchema()
+	type Inner struct {
+	}
+
+	query := schema.Query()
+	query.FieldFunc("inner", func() Inner {
+		return Inner{}
+	})
+
+	inner := schema.Object("inner", Inner{})
+	item := schema.Object("item", Item{})
+	item.Key("id")
+
+	inner.FieldFunc("innerConnectionWithCtxAndError", func(ctx context.Context, args Args) ([]Item, error) {
+		return []Item{{Id: 1}, {Id: 2}, {Id: 3}, {Id: 4}, {Id: 5}}, nil
+	}, schemabuilder.Paginated)
+
+	inner.FieldFunc("innerConnectionWithCtxAndErrorManual", func(ctx context.Context, args ManualArgs) ([]Item, schemabuilder.PaginationInfo, error) {
+		var info schemabuilder.PaginationInfo
+		info.TotalCountFunc = func() int64 { return 5 }
+		info.HasNextPage = true
+		info.HasPrevPage = false
+		return []Item{{Id: 1}, {Id: 2}, {Id: 3}}, info, nil
+	}, schemabuilder.Paginated)
+
+	// shouldUseFallback := true
+	// inner.ManualPaginationWithFallback("innerConnectionWithCtxAndErrorManualAndFallback",
+	// 	func(ctx context.Context, args ManualArgs) ([]Item, schemabuilder.PaginationInfo, error) {
+	// 		var info schemabuilder.PaginationInfo
+	// 		info.TotalCountFunc = func() int64 { return 5 }
+	// 		info.HasNextPage = true
+	// 		info.HasPrevPage = false
+	// 		return []Item{{Id: 1}, {Id: 2}, {Id: 3}}, info, nil
+	// 	},
+	// 	func(ctx context.Context, args Args) ([]Item, error) {
+	// 		return []Item{{Id: 1}, {Id: 2}, {Id: 3}, {Id: 4}, {Id: 5}}, nil
+	// 	},
+	// 	func(ctx context.Context) bool {
+	// 		return shouldUseFallback
+	// 	},
+	// 	schemabuilder.Paginated)
+
+	builtSchema := schema.MustBuild()
+
+	snap := testgraphql.NewSnapshotter(t, builtSchema)
+	defer snap.Verify()
+
+	snap.SnapshotQuery("Pagination, with ctx and error", `{
+		inner {
+			innerConnectionWithCtxAndError(first: 3, after: "", additional: "jk") {
+				totalCount
+				edges {
+					node {
+						id
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+				}
+			}
+		}
+	}`)
+
+	snap.SnapshotQuery("Pagination, with ctx and error manual", `{
+		inner {
+			innerConnectionWithCtxAndErrorManual(first: 3, after: "", additional: "jk") {
+				totalCount
+				edges {
+					node {
+						id
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+				}
+			}
+		}
+	}`)
+
+	// shouldUseFallback = true
+	// snap.SnapshotQuery("Pagination, uses manual pagination instead of fallback", `{
+	// 	inner {
+	// 		innerConnectionWithCtxAndErrorManualAndFallback(first: 3, after: "", additional: "jk") {
+	// 			totalCount
+	// 			edges {
+	// 				node {
+	// 					id
+	// 				}
+	// 				cursor
+	// 			}
+	// 			pageInfo {
+	// 				hasNextPage
+	// 				hasPrevPage
+	// 				startCursor
+	// 				endCursor
+	// 			}
+	// 		}
+	// 	}
+	// }`)
+
+	// shouldUseFallback = false
+	// snap.SnapshotQuery("Pagination, uses fallback method", `{
+	// 	inner {
+	// 		innerConnectionWithCtxAndErrorManualAndFallback(first: 3, after: "", additional: "jk") {
+	// 			totalCount
+	// 			edges {
+	// 				node {
+	// 					id
+	// 				}
+	// 				cursor
+	// 			}
+	// 			pageInfo {
+	// 				hasNextPage
+	// 				hasPrevPage
+	// 				startCursor
+	// 				endCursor
+	// 			}
+	// 		}
+	// 	}
+	// }`)
+
 }

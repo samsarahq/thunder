@@ -165,6 +165,11 @@ type SelectionSet struct {
 	Fragments  []*Fragment
 }
 
+type ArgsAndFallback struct {
+	Args         interface{}
+	FallbackArgs interface{}
+}
+
 // A selection represents a part of a GraphQL query
 //
 // The selection
@@ -176,9 +181,11 @@ type SelectionSet struct {
 // arguments passed to the source field to be queried), and subselection name
 // representing the information to be queried from the resulting object.
 type Selection struct {
-	Name         string
-	Alias        string
-	Args         interface{}
+	Name  string
+	Alias string
+	// Args         interface{}
+	// FallbackArgs interface{}
+	Args         *ArgsAndFallback
 	SelectionSet *SelectionSet
 
 	// The parsed flag is used to make sure the args for this Selection are only

@@ -164,7 +164,7 @@ func PrepareQuery(ctx context.Context, typ Type, selectionSet *SelectionSet) err
 				if err != nil {
 					return NewClientError(`error parsing args for "%s": %s`, selection.Name, err)
 				}
-				selection.Args = parsed
+				selection.Args = &ArgsAndFallback{Args: parsed}
 				selection.parsed = true
 			}
 
@@ -190,7 +190,7 @@ func PrepareQuery(ctx context.Context, typ Type, selectionSet *SelectionSet) err
 	}
 }
 
-func SafeExecuteBatchResolver(ctx context.Context, field *Field, sources []interface{}, args interface{}, selectionSet *SelectionSet) (results []interface{}, err error) {
+func SafeExecuteBatchResolver(ctx context.Context, field *Field, sources []interface{}, args *ArgsAndFallback, selectionSet *SelectionSet) (results []interface{}, err error) {
 	defer func() {
 		if panicErr := recover(); panicErr != nil {
 			const size = 64 << 10
@@ -199,10 +199,10 @@ func SafeExecuteBatchResolver(ctx context.Context, field *Field, sources []inter
 			results, err = nil, fmt.Errorf("graphql: panic: %v\n%s", panicErr, buf)
 		}
 	}()
-	return field.BatchResolver(ctx, sources, args, selectionSet)
+	return field.BatchResolver(ctx, sources, args.Args, selectionSet)
 }
 
-func SafeExecuteResolver(ctx context.Context, field *Field, source, args interface{}, selectionSet *SelectionSet) (result interface{}, err error) {
+func SafeExecuteResolver(ctx context.Context, field *Field, source interface{}, args *ArgsAndFallback, selectionSet *SelectionSet) (result interface{}, err error) {
 	defer func() {
 		if panicErr := recover(); panicErr != nil {
 			const size = 64 << 10
@@ -211,7 +211,7 @@ func SafeExecuteResolver(ctx context.Context, field *Field, source, args interfa
 			result, err = nil, fmt.Errorf("graphql: panic: %v\n%s", panicErr, buf)
 		}
 	}()
-	return field.Resolve(ctx, source, args, selectionSet)
+	return field.Resolve(ctx, source, args.Args, selectionSet)
 }
 
 type ExecutorRunner interface {
