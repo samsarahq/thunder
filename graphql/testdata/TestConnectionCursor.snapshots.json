@@ -1,0 +1,206 @@
+[
+  {
+    "Name": "batchExecutor:Pagination first and after",
+    "Values": [
+      {
+        "inner": {
+          "innerConnectionWithCtxAndError": {
+            "edges": [
+              {
+                "cursor": "NA==",
+                "node": {
+                  "__key": 4,
+                  "id": 4
+                }
+              },
+              {
+                "cursor": "NQ==",
+                "node": {
+                  "__key": 5,
+                  "id": 5
+                }
+              }
+            ],
+            "pageInfo": {
+              "endCursor": "NQ==",
+              "hasNextPage": false,
+              "hasPrevPage": true,
+              "startCursor": "NA=="
+            },
+            "totalCount": 5
+          }
+        }
+      }
+    ]
+  },
+  {
+    "Name": "batchExecutor:Pagination first and after that doesnt match anything",
+    "Values": [
+      {
+        "inner": {
+          "innerConnectionWithCtxAndError": {
+            "edges": [
+              {
+                "cursor": "MQ==",
+                "node": {
+                  "__key": 1,
+                  "id": 1
+                }
+              },
+              {
+                "cursor": "Mg==",
+                "node": {
+                  "__key": 2,
+                  "id": 2
+                }
+              }
+            ],
+            "pageInfo": {
+              "endCursor": "Mg==",
+              "hasNextPage": true,
+              "hasPrevPage": false,
+              "startCursor": "MQ=="
+            },
+            "totalCount": 5
+          }
+        }
+      }
+    ]
+  },
+  {
+    "Name": "batchExecutor:Pagination only first",
+    "Values": [
+      {
+        "inner": {
+          "innerConnectionWithCtxAndError": {
+            "edges": [
+              {
+                "cursor": "MQ==",
+                "node": {
+                  "__key": 1,
+                  "id": 1
+                }
+              },
+              {
+                "cursor": "Mg==",
+                "node": {
+                  "__key": 2,
+                  "id": 2
+                }
+              }
+            ],
+            "pageInfo": {
+              "endCursor": "Mg==",
+              "hasNextPage": true,
+              "hasPrevPage": false,
+              "startCursor": "MQ=="
+            },
+            "totalCount": 5
+          }
+        }
+      }
+    ]
+  },
+  {
+    "Name": "batchExecutor:Pagination last and before",
+    "Values": [
+      {
+        "inner": {
+          "innerConnectionWithCtxAndError": {
+            "edges": [
+              {
+                "cursor": "MQ==",
+                "node": {
+                  "__key": 1,
+                  "id": 1
+                }
+              },
+              {
+                "cursor": "Mg==",
+                "node": {
+                  "__key": 2,
+                  "id": 2
+                }
+              }
+            ],
+            "pageInfo": {
+              "endCursor": "Mg==",
+              "hasNextPage": true,
+              "hasPrevPage": false,
+              "startCursor": "MQ=="
+            },
+            "totalCount": 5
+          }
+        }
+      }
+    ]
+  },
+  {
+    "Name": "batchExecutor:Pagination last and before that doens't match anything",
+    "Values": [
+      {
+        "inner": {
+          "innerConnectionWithCtxAndError": {
+            "edges": [
+              {
+                "cursor": "NA==",
+                "node": {
+                  "__key": 4,
+                  "id": 4
+                }
+              },
+              {
+                "cursor": "NQ==",
+                "node": {
+                  "__key": 5,
+                  "id": 5
+                }
+              }
+            ],
+            "pageInfo": {
+              "endCursor": "NQ==",
+              "hasNextPage": false,
+              "hasPrevPage": true,
+              "startCursor": "NA=="
+            },
+            "totalCount": 5
+          }
+        }
+      }
+    ]
+  },
+  {
+    "Name": "batchExecutor:Pagination only last",
+    "Values": [
+      {
+        "inner": {
+          "innerConnectionWithCtxAndError": {
+            "edges": [
+              {
+                "cursor": "NA==",
+                "node": {
+                  "__key": 4,
+                  "id": 4
+                }
+              },
+              {
+                "cursor": "NQ==",
+                "node": {
+                  "__key": 5,
+                  "id": 5
+                }
+              }
+            ],
+            "pageInfo": {
+              "endCursor": "NQ==",
+              "hasNextPage": false,
+              "hasPrevPage": true,
+              "startCursor": "NA=="
+            },
+            "totalCount": 5
+          }
+        }
+      }
+    ]
+  }
+]

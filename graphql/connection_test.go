@@ -1392,3 +1392,148 @@ func TestConnectionManual(t *testing.T) {
 	}`)
 
 }
+
+func TestConnectionCursor(t *testing.T) {
+	schema := schemabuilder.NewSchema()
+	type Inner struct {
+	}
+
+	query := schema.Query()
+	query.FieldFunc("inner", func() Inner {
+		return Inner{}
+	})
+
+	inner := schema.Object("inner", Inner{})
+	item := schema.Object("item", Item{})
+	item.Key("id")
+
+	inner.FieldFunc("innerConnectionWithCtxAndError", func(ctx context.Context, args Args) ([]Item, error) {
+		return []Item{{Id: 1}, {Id: 2}, {Id: 3}, {Id: 4}, {Id: 5}}, nil
+	}, schemabuilder.Paginated)
+
+	builtSchema := schema.MustBuild()
+
+	snap := testgraphql.NewSnapshotter(t, builtSchema)
+	defer snap.Verify()
+
+	snap.SnapshotQuery("Pagination first and after", `{
+		inner {
+			innerConnectionWithCtxAndError(first: 2, after: "Mw==", additional: "jk") {
+				totalCount
+				edges {
+					node {
+						id
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+				}
+			}
+		}
+	}`)
+
+	snap.SnapshotQuery("Pagination first and after that doesnt match anything", `{
+		inner {
+			innerConnectionWithCtxAndError(first: 2, after: "BAD", additional: "jk") {
+				totalCount
+				edges {
+					node {
+						id
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+				}
+			}
+		}
+	}`)
+
+	snap.SnapshotQuery("Pagination only first", `{
+		inner {
+			innerConnectionWithCtxAndError(first: 2,  additional: "jk") {
+				totalCount
+				edges {
+					node {
+						id
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+				}
+			}
+		}
+	}`)
+
+	snap.SnapshotQuery("Pagination last and before", `{
+		inner {
+			innerConnectionWithCtxAndError(last: 2, before: "Mw==", additional: "jk") {
+				totalCount
+				edges {
+					node {
+						id
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+				}
+			}
+		}
+	}`)
+
+	snap.SnapshotQuery("Pagination last and before that doens't match anything", `{
+		inner {
+			innerConnectionWithCtxAndError(last: 2, before: "BAD", additional: "jk") {
+				totalCount
+				edges {
+					node {
+						id
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+				}
+			}
+		}
+	}`)
+
+	snap.SnapshotQuery("Pagination only last", `{
+		inner {
+			innerConnectionWithCtxAndError(last: 2, additional: "jk") {
+				totalCount
+				edges {
+					node {
+						id
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+				}
+			}
+		}
+	}`)
+
+}
