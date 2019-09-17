@@ -240,6 +240,29 @@ func (s *Object) BatchFieldFuncWithFallback(name string, batchFunc interface{}, 
 	s.Methods[name] = m
 }
 
+func (s *Object) ManualPaginationWithFallback(name string, manualPaginatedFunc interface{}, fallbackFunc interface{}, flag UseFallbackFlag, options ...FieldFuncOption) {
+	if s.Methods == nil {
+		s.Methods = make(Methods)
+	}
+
+	m := &method{
+		Fn: manualPaginatedFunc,
+		ManualPaginationArgs: manualPaginationArgs{
+			FallbackFunc:          fallbackFunc,
+			ShouldUseFallbackFunc: flag,
+		},
+		Paginated: true,
+	}
+	for _, opt := range options {
+		opt.apply(m)
+	}
+
+	if _, ok := s.Methods[name]; ok {
+		panic("duplicate method")
+	}
+	s.Methods[name] = m
+}
+
 // Key registers the key field on an object. The field should be specified by the name of the
 // graphql field.
 // For example, for an object User:
@@ -272,11 +295,18 @@ type method struct {
 	Batch bool
 
 	BatchArgs batchArgs
+
+	ManualPaginationArgs manualPaginationArgs
 }
 
 type UseFallbackFlag func(context.Context) bool
 
 type batchArgs struct {
+	FallbackFunc          interface{}
+	ShouldUseFallbackFunc UseFallbackFlag
+}
+
+type manualPaginationArgs struct {
 	FallbackFunc          interface{}
 	ShouldUseFallbackFunc UseFallbackFlag
 }

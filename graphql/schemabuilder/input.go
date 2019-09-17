@@ -12,6 +12,31 @@ import (
 	"github.com/samsarahq/thunder/internal"
 )
 
+type dualArgParser struct {
+	argParser         func(interface{}) (interface{}, error)
+	fallbackArgParser func(interface{}) (interface{}, error)
+}
+
+type dualArgResponses struct {
+	argValue         interface{}
+	fallbackArgValue interface{}
+}
+
+func (p *dualArgParser) Parse(args interface{}) (interface{}, error) {
+	v1, err := p.argParser(args)
+	if err != nil {
+		return nil, err
+	}
+	v2, err := p.fallbackArgParser(args)
+	if err != nil {
+		return nil, err
+	}
+	return dualArgResponses{
+		argValue:         v1,
+		fallbackArgValue: v2,
+	}, nil
+}
+
 // argField is a representation of an input parameter field for a function.  It
 // must be a field on a struct and will have an associated "argParser" for
 // reading an input JSON and filling the struct field.

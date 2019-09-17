@@ -108,6 +108,14 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 		}
 
 		if method.Paginated {
+			if method.ManualPaginationArgs.FallbackFunc != nil {
+				typedField, err := sb.buildPaginatedFieldWithFallback(typ, method)
+				if err != nil {
+					return err
+				}
+				object.Fields[name] = typedField
+				continue
+			}
 			typedField, err := sb.buildPaginatedField(typ, method)
 			if err != nil {
 				return err
