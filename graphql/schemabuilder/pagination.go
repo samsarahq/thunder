@@ -1035,7 +1035,7 @@ func (sb *schemaBuilder) buildPaginatedFieldWithFallback(typ reflect.Type, m *me
 		return nil, err
 	}
 
-	// Validate that function signatures batch between the manually paginated version and fallback version
+	// Validate that function signatures the manually paginated version and fallback version
 	if fallbackFuncCtx.hasContext != manualPaginationFuncCtx.hasContext ||
 		fallbackFuncCtx.hasArgs != manualPaginationFuncCtx.hasArgs ||
 		fallbackFuncCtx.hasSelectionSet != manualPaginationFuncCtx.hasSelectionSet ||
@@ -1048,7 +1048,7 @@ func (sb *schemaBuilder) buildPaginatedFieldWithFallback(typ reflect.Type, m *me
 		return nil, fmt.Errorf("manual pagination and fallback graphql return types did not match: ManualPagination(%v) Fallback(%v)", manualPaginationField.Type, fallbackField.Type)
 	}
 
-	if len(fallbackField.Args) != (len(manualPaginationField.Args)) {
+	if len(fallbackField.Args) != len(manualPaginationField.Args) {
 		return nil, fmt.Errorf("manual pagination and fallback arg type did not match: ManualPagination(%v) Fallback(%v)", manualPaginationField.Args, fallbackField.Args)
 	}
 
