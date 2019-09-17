@@ -959,7 +959,6 @@ func (c *connectionContext) consumePaginatedArgs(sb *schemaBuilder, in []reflect
 		}
 
 	}
-
 	return argParser, argType, in, nil
 }
 
@@ -1022,14 +1021,80 @@ func (c *connectionContext) parsePaginatedReturnSignature(m *method) (err error)
 
 }
 
+// buildPaginatedFieldWithFallback corresponds to buildFunction on a manually paginated type and a fallback paginated type
+func (sb *schemaBuilder) buildPaginatedFieldWithFallback(typ reflect.Type, m *method) (*graphql.Field, error) {
+	fallbackField, fallbackFuncCtx, err := sb.buildPaginatedFunctionAndFuncCtx(typ, &method{
+		Fn: m.ManualPaginationArgs.FallbackFunc,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	manualPaginationField, manualPaginationFuncCtx, err := sb.buildPaginatedFunctionAndFuncCtx(typ, m)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate that function signatures batch between the manually paginated version and fallback version
+	if fallbackFuncCtx.hasContext != manualPaginationFuncCtx.hasContext ||
+		fallbackFuncCtx.hasArgs != manualPaginationFuncCtx.hasArgs ||
+		fallbackFuncCtx.hasSelectionSet != manualPaginationFuncCtx.hasSelectionSet ||
+		fallbackFuncCtx.hasError != manualPaginationFuncCtx.hasError ||
+		fallbackFuncCtx.hasRet != manualPaginationFuncCtx.hasRet {
+		return nil, fmt.Errorf("manual pagination and fallback function signatures did not match")
+	}
+
+	if fallbackField.Type.String() != manualPaginationField.Type.String() {
+		return nil, fmt.Errorf("manual pagination and fallback graphql return types did not match: ManualPagination(%v) Fallback(%v)", manualPaginationField.Type, fallbackField.Type)
+	}
+
+	if len(fallbackField.Args) != (len(manualPaginationField.Args)) {
+		return nil, fmt.Errorf("manual pagination and fallback arg type did not match: ManualPagination(%v) Fallback(%v)", manualPaginationField.Args, fallbackField.Args)
+	}
+
+	for key, fallbackTyp := range fallbackField.Args {
+		if manualPaginationType, ok := manualPaginationField.Args[key]; !ok || fallbackTyp.String() != manualPaginationType.String() {
+			return nil, fmt.Errorf("manual pagination and fallback func arg types did not match: ManualPagination(%v) Fallback(%v)", manualPaginationType, fallbackTyp)
+		}
+	}
+
+	dualParser := &dualArgParser{
+		argParser:         manualPaginationField.ParseArguments,
+		fallbackArgParser: fallbackField.ParseArguments,
+	}
+	field := &graphql.Field{
+		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *graphql.SelectionSet) (i interface{}, e error) {
+			dualArgs := args.(dualArgResponses)
+			if m.ManualPaginationArgs.ShouldUseFallbackFunc(ctx) {
+				return fallbackField.Resolve(ctx, source, dualArgs.fallbackArgValue, selectionSet)
+			}
+			return manualPaginationField.Resolve(ctx, source, dualArgs.argValue, selectionSet)
+		},
+		Type:           manualPaginationField.Type,
+		Args:           manualPaginationField.Args,
+		ParseArguments: dualParser.Parse,
+		UseBatchFunc:   manualPaginationField.UseBatchFunc,
+		Batch:          manualPaginationField.Batch,
+		External:       manualPaginationField.External,
+		Expensive:      manualPaginationField.Expensive,
+	}
+
+	return field, nil
+
+}
+
 // buildPaginatedField corresponds to buildFunction on a paginated type. It wraps the return result
 // of f in a connection type.
 func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*graphql.Field, error) {
-	c := &connectionContext{funcContext: &funcContext{typ: typ}}
+	paginatedField, _, err := sb.buildPaginatedFunctionAndFuncCtx(typ, m)
+	return paginatedField, err
+}
 
+func (sb *schemaBuilder) buildPaginatedFunctionAndFuncCtx(typ reflect.Type, m *method) (*graphql.Field, *connectionContext, error) {
+	c := &connectionContext{funcContext: &funcContext{typ: typ}}
 	fun, err := c.getFuncVal(m)
 	if err != nil {
-		return nil, err
+		return nil, c, err
 	}
 
 	in := c.getFuncInputTypes()
@@ -1037,7 +1102,7 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 
 	argParser, argType, in, err := c.consumePaginatedArgs(sb, in)
 	if err != nil {
-		return nil, err
+		return nil, c, err
 	}
 	c.hasArgs = true
 
@@ -1045,27 +1110,27 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 
 	// We have succeeded if no arguments remain.
 	if len(in) != 0 {
-		return nil, fmt.Errorf("%s arguments should be [context][, [*]%s][, args][, selectionSet]", c.funcType, typ)
+		return nil, nil, fmt.Errorf("%s arguments should be [context][, [*]%s][, args][, selectionSet]", c.funcType, typ)
 	}
 
 	// Parse return values. The first return value must be the actual value, and
 	// the second value can optionally be an error.
 	if err := c.parsePaginatedReturnSignature(&method{MarkedNonNullable: true}); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := c.Validate(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// It's safe to assume that there's a return type since the method is marked as non-nullable
 	// when calling parseReturnSignature above.
 	if c.funcType.Out(0).Kind() != reflect.Slice {
-		return nil, fmt.Errorf("paginated field func must return a slice type")
+		return nil, nil, fmt.Errorf("paginated field func must return a slice type")
 	}
 	nodeType := c.funcType.Out(0).Elem()
 	retType, err := c.constructConnectionType(sb, nodeType)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// If the node type is a pointer, get a non-pointer reference for building text filter and
@@ -1076,22 +1141,23 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 	}
 
 	if err := c.consumeTextFilters(sb, m, nonPtrNodeType); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if err := c.consumeSorts(sb, m, nonPtrNodeType); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	c.Key, err = sb.getKeyFieldOnStruct(nodeType)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	args, err := c.argsTypeMap(argType)
 
 	ret := &graphql.Field{
 		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
+
 			argsVal := args
 			hasArgs := true
 			if !c.IsExternallyManaged() {
@@ -1105,9 +1171,8 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 				}
 			}
 			in := c.prepareResolveArgs(source, hasArgs, argsVal, ctx, selectionSet)
-
-			// Call the function.
-			out := fun.Call(in)
+			var out []reflect.Value
+			out = fun.Call(in)
 			return c.extractReturnAndErr(ctx, out, args, retType)
 
 		},
@@ -1117,8 +1182,7 @@ func (sb *schemaBuilder) buildPaginatedField(typ reflect.Type, m *method) (*grap
 		Expensive:      m.Expensive,
 		External:       true,
 	}
-
-	return ret, nil
+	return ret, c, nil
 }
 
 func (c *connectionContext) extractReturnAndErr(ctx context.Context, out []reflect.Value, args interface{}, retType graphql.Type) (interface{}, error) {
