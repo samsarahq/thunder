@@ -32,6 +32,10 @@
               "endCursor": "Mw==",
               "hasNextPage": true,
               "hasPrevPage": false,
+              "pages": [
+                "",
+                "Mw=="
+              ],
               "startCursor": "MQ=="
             },
             "totalCount": 5
@@ -73,6 +77,7 @@
               "endCursor": "Mw==",
               "hasNextPage": true,
               "hasPrevPage": false,
+              "pages": [],
               "startCursor": "MQ=="
             },
             "totalCount": 5
@@ -114,6 +119,10 @@
               "endCursor": "Mw==",
               "hasNextPage": true,
               "hasPrevPage": false,
+              "pages": [
+                "",
+                "Mw=="
+              ],
               "startCursor": "MQ=="
             },
             "totalCount": 5
@@ -155,6 +164,7 @@
               "endCursor": "Mw==",
               "hasNextPage": true,
               "hasPrevPage": false,
+              "pages": [],
               "startCursor": "MQ=="
             },
             "totalCount": 5

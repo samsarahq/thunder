@@ -1294,6 +1294,7 @@ func TestConnectionManual(t *testing.T) {
 			info.TotalCountFunc = func() int64 { return 5 }
 			info.HasNextPage = true
 			info.HasPrevPage = false
+			info.Pages = []string{}
 			return []Item{{Id: 1}, {Id: 2}, {Id: 3}}, info, nil
 		},
 		func(ctx context.Context, args Args) ([]Item, error) {
@@ -1324,6 +1325,7 @@ func TestConnectionManual(t *testing.T) {
 					hasPrevPage
 					startCursor
 					endCursor
+					pages
 				}
 			}
 		}
@@ -1344,6 +1346,7 @@ func TestConnectionManual(t *testing.T) {
 					hasPrevPage
 					startCursor
 					endCursor
+					pages
 				}
 			}
 		}
@@ -1365,6 +1368,7 @@ func TestConnectionManual(t *testing.T) {
 					hasPrevPage
 					startCursor
 					endCursor
+					pages
 				}
 			}
 		}
@@ -1386,6 +1390,7 @@ func TestConnectionManual(t *testing.T) {
 					hasPrevPage
 					startCursor
 					endCursor
+					pages
 				}
 			}
 		}
