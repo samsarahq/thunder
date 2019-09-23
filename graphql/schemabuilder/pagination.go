@@ -71,6 +71,7 @@ func (c *Connection) externallySetPageInfo(info PaginationInfo) (err error) {
 	c.PageInfo.HasNextPage = info.HasNextPage
 	c.PageInfo.HasPrevPage = info.HasPrevPage
 	c.TotalCount, err = info.TotalCount()
+	c.PageInfo.Pages = info.Pages
 	return err
 }
 
@@ -145,6 +146,7 @@ type PaginationInfo struct {
 	TotalCountFunc func() int64
 	HasNextPage    bool
 	HasPrevPage    bool
+	Pages          []string
 }
 
 func (i PaginationInfo) TotalCount() (int64, error) {
@@ -281,15 +283,7 @@ func (c *connectionContext) constructConnectionType(sb *schemaBuilder, typ refle
 
 	pageInfoType, _ := reflect.TypeOf(Connection{}).FieldByName("PageInfo")
 	pageInfoField, err := sb.buildField(pageInfoType)
-	pageInfoNonNull, _ := pageInfoField.Type.(*graphql.NonNull)
-	pageInfoObj := pageInfoNonNull.Type.(*graphql.Object)
 
-	// If a PaginateFieldFunc returns connection info then it means that the resolver needs to
-	// handle slicing according to the connection args. Hence, it's no longer feasible to determine
-	// the entire set of pages on the connection.
-	if c.IsExternallyManaged() {
-		delete(pageInfoObj.Fields, "pages")
-	}
 	if err != nil {
 		return nil, err
 	}
@@ -681,6 +675,7 @@ func (c *connectionContext) getConnection(ctx context.Context, out []reflect.Val
 			return Connection{}, err
 		}
 	}
+
 	connection.setCursors()
 	return connection, nil
 }
