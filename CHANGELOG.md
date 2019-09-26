@@ -9,6 +9,10 @@
 - Introduced new executor for running GraphQL queries.  Includes WorkScheduler interface to control how work is scheduled/executed.
 - Introduced BatchFieldFuncWithFallback method for the new GraphQL executor (must have fallback until we've deleted the old executor)
 
+#### `sqlgen`
+
+- Added `WithDynamicLimit` which is similar to `WithShardLimit` but allows for user-specified dynamic filters instead of a single static filter at registration time.
+
 ### Changed
 
 #### `graphql`

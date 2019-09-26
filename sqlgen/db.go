@@ -18,6 +18,32 @@ type DB struct {
 
 	batchFetch *batch.Func
 	shardLimit Filter
+
+	dynamicLimit DynamicLimit
+}
+
+type DynamicLimitFilterCallback func(context.Context, string) Filter
+type DynamicLimitErrorCallback func(err error, table string) bool
+
+// DynamicLimit is used with WithDynamicLimit to register a
+// dynamic limit on a Thunder DB.
+//
+// A `DynamicLimit` consists of two callbacks, `GetLimitFilter`,
+// and `ShouldContinueOnError`, both user-defined.
+//
+// Before making an SQL query, a Thunder DB with a dynamic limit
+// will call `GetLimitFilter` with the request context and the name of
+// the table being queried. It will use the sqlgen filter returned by
+// the function as the limit to check for against the current query.
+// The underlying limit check is the same as that used in `WithShardLimit`.
+//
+// If the limit check fails, Thunder will call `ShouldContinueOnError` with
+// the resulting error object and the table name.  If `ShouldContinueOnError`
+// returns false, the query will fail. Otherwise, if the return value is true
+// Thunder will still execute the query.
+type DynamicLimit struct {
+	GetLimitFilter        DynamicLimitFilterCallback
+	ShouldContinueOnError DynamicLimitErrorCallback
 }
 
 func NewDB(conn *sql.DB, schema *Schema) *DB {
@@ -100,7 +126,7 @@ func NewDB(conn *sql.DB, schema *Schema) *DB {
 // pairs.
 func (db *DB) WithShardLimit(shardLimit Filter) (*DB, error) {
 	if db.shardLimit != nil {
-		return nil, errors.New("already limited")
+		return nil, errors.New("already has shard limit")
 	}
 
 	dbCopy := *db
@@ -108,27 +134,57 @@ func (db *DB) WithShardLimit(shardLimit Filter) (*DB, error) {
 	return &dbCopy, nil
 }
 
-func (db *DB) checkFilterAgainstShardLimit(filter Filter) error {
-	if db.shardLimit == nil {
-		return nil
+// WithDynamicLimit is similar to WithShardLimit except that it supports
+// dynamically computing what filter to enforce as a limit, based on a user-
+// provide callback. It may be used together with a shard limit.
+func (db *DB) WithDynamicLimit(dynamicLimit DynamicLimit) (*DB, error) {
+	if db.dynamicLimit.GetLimitFilter != nil {
+		return nil, errors.New("already has dynamic limit")
 	}
-	for k, v := range db.shardLimit {
+
+	dbCopy := *db
+	dbCopy.dynamicLimit = dynamicLimit
+	return &dbCopy, nil
+}
+
+func (db *DB) checkFilterAgainstLimit(filter Filter, limit Filter) error {
+	for k, v := range limit {
 		filterV, ok := filter[k]
 		if !ok {
-			return fmt.Errorf("db is sharded to require %s = %v, but query does not filter on %s", k, v, k)
+			return fmt.Errorf("db requires %s = %v, but query does not filter on %s", k, v, k)
 		}
 		if filterV != v {
-			return fmt.Errorf("db is sharded to require %s = %v, but query specifies %s = %v", k, v, k, filterV)
+			return fmt.Errorf("db requires %s = %v, but query specifies %s = %v", k, v, k, filterV)
 		}
 	}
 	return nil
 }
 
-func (db *DB) checkColumnValuesAgainstShardLimit(columns []string, values []interface{}) error {
-	if db.shardLimit == nil {
-		return nil
+func (db *DB) checkFilterAgainstLimits(ctx context.Context, filter Filter, table *Table) error {
+	// Check for shard limit
+	if db.shardLimit != nil {
+		err := db.checkFilterAgainstLimit(filter, db.shardLimit)
+		if err != nil {
+			return fmt.Errorf("check failed for db with shard limit: %s", err.Error())
+		}
 	}
-	for k, v := range db.shardLimit {
+
+	// Check for dynamic limit.
+	if db.dynamicLimit.GetLimitFilter != nil && db.dynamicLimit.ShouldContinueOnError != nil {
+		limitFilter := db.dynamicLimit.GetLimitFilter(ctx, table.Name)
+		if limitFilter != nil {
+			if err := db.checkFilterAgainstLimit(filter, limitFilter); err != nil {
+				if keepGoing := db.dynamicLimit.ShouldContinueOnError(err, table.Name); !keepGoing {
+					return fmt.Errorf("check failed for db with dynamic limit: %s", err.Error())
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func (db *DB) checkColumnValuesAgainstLimit(columns []string, values []interface{}, limit Filter) error {
+	for k, v := range limit {
 		var valuesV interface{}
 		var ok bool
 		for i := range columns {
@@ -139,17 +195,41 @@ func (db *DB) checkColumnValuesAgainstShardLimit(columns []string, values []inte
 			}
 		}
 		if !ok {
-			return fmt.Errorf("db is sharded to require %s = %v, but query does not include %s", k, v, k)
+			return fmt.Errorf("db requires %s = %v, but query does not include %s", k, v, k)
 		}
 		if valuesV != v {
-			return fmt.Errorf("db is sharded to require %s = %v, but query has %s = %v", k, v, k, valuesV)
+			return fmt.Errorf("db requies %s = %v, but query has %s = %v", k, v, k, valuesV)
 		}
 	}
 	return nil
 }
 
+func (db *DB) checkColumnValuesAgainstLimits(ctx context.Context, columns []string, values []interface{}, tableName string) error {
+	// Check for shard limit.
+	if db.shardLimit != nil {
+		err := db.checkColumnValuesAgainstLimit(columns, values, db.shardLimit)
+		if err != nil {
+			return fmt.Errorf("column values check failed for db with shard limit: %s", err.Error())
+		}
+	}
+
+	// Check for dynamic limit.
+	if db.dynamicLimit.GetLimitFilter != nil && db.dynamicLimit.ShouldContinueOnError != nil {
+		limitFilter := db.dynamicLimit.GetLimitFilter(ctx, tableName)
+		if limitFilter != nil {
+			if err := db.checkColumnValuesAgainstLimit(columns, values, limitFilter); err != nil {
+				if keepGoing := db.dynamicLimit.ShouldContinueOnError(err, tableName); !keepGoing {
+					return fmt.Errorf("column values check failed for db with dynamic limit: %s", err.Error())
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 func (db *DB) BaseQuery(ctx context.Context, query *BaseSelectQuery) ([]interface{}, error) {
-	if err := db.checkFilterAgainstShardLimit(query.Filter); err != nil {
+	if err := db.checkFilterAgainstLimits(ctx, query.Filter, query.Table); err != nil {
 		return nil, err
 	}
 
@@ -191,12 +271,12 @@ func (db *DB) execWithTrace(ctx context.Context, query SQLQuery, operationName s
 //   if err != nil { ... }
 //
 func (db *DB) Count(ctx context.Context, model interface{}, filter Filter) (int64, error) {
-	if err := db.checkFilterAgainstShardLimit(filter); err != nil {
+	query, err := db.Schema.makeCount(model, filter)
+	if err != nil {
 		return 0, err
 	}
 
-	query, err := db.Schema.makeCount(model, filter)
-	if err != nil {
+	if err := db.checkFilterAgainstLimits(ctx, filter, query.Table); err != nil {
 		return 0, err
 	}
 
@@ -271,7 +351,7 @@ func (db *DB) InsertRow(ctx context.Context, row interface{}) (sql.Result, error
 		return nil, err
 	}
 
-	if err := db.checkColumnValuesAgainstShardLimit(query.Columns, query.Values); err != nil {
+	if err := db.checkColumnValuesAgainstLimits(ctx, query.Columns, query.Values, query.Table); err != nil {
 		return nil, err
 	}
 
@@ -291,7 +371,7 @@ func (db *DB) UpsertRow(ctx context.Context, row interface{}) (sql.Result, error
 		return nil, err
 	}
 
-	if err := db.checkColumnValuesAgainstShardLimit(query.Columns, query.Values); err != nil {
+	if err := db.checkColumnValuesAgainstLimits(ctx, query.Columns, query.Values, query.Table); err != nil {
 		return nil, err
 	}
 
@@ -311,9 +391,10 @@ func (db *DB) UpdateRow(ctx context.Context, row interface{}) error {
 		return err
 	}
 
-	if err := db.checkColumnValuesAgainstShardLimit(
+	if err := db.checkColumnValuesAgainstLimits(
+		ctx,
 		append(query.Where.Columns, query.Columns...),
-		append(query.Where.Values, query.Values...)); err != nil {
+		append(query.Where.Values, query.Values...), query.Table); err != nil {
 		return err
 	}
 
@@ -334,7 +415,7 @@ func (db *DB) DeleteRow(ctx context.Context, row interface{}) error {
 		return err
 	}
 
-	if err := db.checkColumnValuesAgainstShardLimit(query.Where.Columns, query.Where.Values); err != nil {
+	if err := db.checkColumnValuesAgainstLimits(ctx, query.Where.Columns, query.Where.Values, query.Table); err != nil {
 		return err
 	}
 
