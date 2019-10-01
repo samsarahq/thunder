@@ -1019,7 +1019,11 @@ func (c *connectionContext) parsePaginatedReturnSignature(m *method) (err error)
 // buildPaginatedFieldWithFallback corresponds to buildFunction on a manually paginated type and a fallback paginated type
 func (sb *schemaBuilder) buildPaginatedFieldWithFallback(typ reflect.Type, m *method) (*graphql.Field, error) {
 	fallbackField, fallbackFuncCtx, err := sb.buildPaginatedFunctionAndFuncCtx(typ, &method{
-		Fn: m.ManualPaginationArgs.FallbackFunc,
+		Fn:                m.ManualPaginationArgs.FallbackFunc,
+		Expensive:         m.Expensive,
+		Paginated:         m.Paginated,
+		TextFilterMethods: m.TextFilterMethods,
+		SortMethods:       m.SortMethods,
 	})
 	if err != nil {
 		return nil, err
