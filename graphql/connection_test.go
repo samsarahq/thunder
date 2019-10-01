@@ -3,6 +3,7 @@ package graphql_test
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/samsarahq/thunder/batch"
@@ -1305,6 +1306,28 @@ func TestConnectionManual(t *testing.T) {
 		},
 		schemabuilder.Paginated)
 
+	inner.ManualPaginationWithFallback("manualPaginationAndFallbackWithFiltersAndSorts",
+		func(ctx context.Context, args ManualArgs) ([]Item, schemabuilder.PaginationInfo, error) {
+			var info schemabuilder.PaginationInfo
+			info.TotalCountFunc = func() int64 { return 5 }
+			info.HasNextPage = true
+			info.HasPrevPage = false
+			info.Pages = []string{}
+			return []Item{{Id: 1}, {Id: 2}, {Id: 3}}, info, nil
+		},
+		func(ctx context.Context, args Args) ([]Item, error) {
+			return []Item{{Id: 1}, {Id: 2}, {Id: 3}, {Id: 4}, {Id: 5}}, nil
+		},
+		func(ctx context.Context) bool {
+			return shouldUseFallback
+		},
+		schemabuilder.Paginated,
+		schemabuilder.FilterField("number", func(i Item) string {
+			return strconv.FormatInt(i.Id, 10)
+		}),
+		schemabuilder.SortField("number", func(i Item) string { return string(i.Id) }),
+	)
+
 	builtSchema := schema.MustBuild()
 
 	snap := testgraphql.NewSnapshotter(t, builtSchema)
@@ -1356,6 +1379,48 @@ func TestConnectionManual(t *testing.T) {
 	snap.SnapshotQuery("Pagination, uses manual pagination instead of fallback", `{
 		inner {
 			innerConnectionWithCtxAndErrorManualAndFallback(first: 3, after: "", additional: "jk") {
+				totalCount
+				edges {
+					node {
+						id
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+					pages
+				}
+			}
+		}
+	}`)
+
+	snap.SnapshotQuery("Pagination, uses manual pagination instead of fallback, with filtertext", `{
+		inner {
+			manualPaginationAndFallbackWithFiltersAndSorts(first: 3, after: "", filterText: "1", additional: "jk") {
+				totalCount
+				edges {
+					node {
+						id
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+					pages
+				}
+			}
+		}
+	}`)
+
+	snap.SnapshotQuery("Pagination, uses manual pagination instead of fallback, with sort by desc", `{
+		inner {
+			manualPaginationAndFallbackWithFiltersAndSorts(first: 3, after: "", sortBy: "number", sortOrder:"desc", additional: "jk") {
 				totalCount
 				edges {
 					node {
