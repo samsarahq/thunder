@@ -53,7 +53,8 @@ func WrapAsSafeError(err error, format string, a ...interface{}) error {
 	return SafeError{inner: err, message: fmt.Sprintf(format, a...)}
 }
 
-func sanitizeError(err error) string {
+// SanitizeError returns a sanitized error message for an error.
+func SanitizeError(err error) string {
 	if sanitized, ok := err.(SanitizedError); ok {
 		return sanitized.SanitizedError()
 	}
