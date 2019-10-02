@@ -217,7 +217,7 @@ func (c *conn) handleSubscribe(in *inEnvelope) error {
 			c.writeOrClose(outEnvelope{
 				ID:       id,
 				Type:     "error",
-				Message:  sanitizeError(err),
+				Message:  SanitizeError(err),
 				Metadata: output.Metadata,
 			})
 			go c.closeSubscription(id)
@@ -323,7 +323,7 @@ func (c *conn) handleMutate(in *inEnvelope) error {
 			c.writeOrClose(outEnvelope{
 				ID:       id,
 				Type:     "error",
-				Message:  sanitizeError(err),
+				Message:  SanitizeError(err),
 				Metadata: output.Metadata,
 			})
 
@@ -586,7 +586,7 @@ func (c *conn) ServeJSONSocket() {
 			c.writeOrClose(outEnvelope{
 				ID:       envelope.ID,
 				Type:     "error",
-				Message:  sanitizeError(err),
+				Message:  SanitizeError(err),
 				Metadata: nil,
 			})
 		}
