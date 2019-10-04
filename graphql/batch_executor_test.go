@@ -7,9 +7,11 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 	"github.com/samsarahq/thunder/internal"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -118,6 +120,149 @@ func TestNonExpensiveExecution(t *testing.T) {
 			]}
 			`,
 			wantRuns: 3, // Objects + (Value * 2 objects)
+		},
+		{
+			name: "batch run with extra concurrency",
+			registrationFunc: func(schema *schemabuilder.Schema) error {
+				schema.Query().FieldFunc("objects", func(ctx context.Context) []*Object {
+					return []*Object{&Object{Key: "key1"}, &Object{Key: "key2"}, &Object{Key: "key3"}, &Object{Key: "key4"}, &Object{Key: "key5"}}
+				})
+				obj := schema.Object("Object", Object{})
+				obj.BatchFieldFunc("value", func(ctx context.Context, objectBatch map[batch.Index]*Object) map[batch.Index]*Object {
+					assert.True(t, len(objectBatch) > 0, "batch run with extra concurrency too few objects in batch")
+					return objectBatch
+				}, schemabuilder.NumParallelInvocationsFunc(func(ctx context.Context, numNodes int) int {
+					assert.Equal(t, 5, numNodes, "batch run with extra concurrency invalid number of objects")
+					return 2
+				}))
+				return nil
+			},
+			query: `
+			{
+				objects {
+					key
+					value {
+						key
+					}
+				}
+			}`,
+			wantResultJSON: `
+			{"objects": [
+			{"key": "key1", "value": { "key": "key1"}},
+			{"key": "key2", "value": { "key": "key2"}},
+			{"key": "key3", "value": { "key": "key3"}},
+			{"key": "key4", "value": { "key": "key4"}},
+			{"key": "key5", "value": { "key": "key5"}}
+			]}
+			`,
+			wantRuns: 3, // Objects + (Value * 2 batches of objects)
+		},
+		{
+			name: "non-expensive run with extra concurrency",
+			registrationFunc: func(schema *schemabuilder.Schema) error {
+				schema.Query().FieldFunc("objects", func(ctx context.Context) []*Object {
+					return []*Object{&Object{Key: "key1"}, &Object{Key: "key2"}, &Object{Key: "key3"}, &Object{Key: "key4"}, &Object{Key: "key5"}}
+				})
+				obj := schema.Object("Object", Object{})
+				obj.FieldFunc("value", func(ctx context.Context, object *Object) *Object {
+					return object
+				}, schemabuilder.NumParallelInvocationsFunc(func(ctx context.Context, numNodes int) int {
+					assert.Equal(t, 5, numNodes, "non-expensive run with extra concurrency invalid number of objects")
+					return 2
+				}))
+				return nil
+			},
+			query: `
+			{
+				objects {
+					key
+					value {
+						key
+					}
+				}
+			}`,
+			wantResultJSON: `
+			{"objects": [
+			{"key": "key1", "value": { "key": "key1"}},
+			{"key": "key2", "value": { "key": "key2"}},
+			{"key": "key3", "value": { "key": "key3"}},
+			{"key": "key4", "value": { "key": "key4"}},
+			{"key": "key5", "value": { "key": "key5"}}
+			]}
+			`,
+			wantRuns: 3, // Objects + (Value * 2 batches of objects)
+		},
+		{
+			name: "batch run with extremely high concurrency",
+			registrationFunc: func(schema *schemabuilder.Schema) error {
+				schema.Query().FieldFunc("objects", func(ctx context.Context) []*Object {
+					return []*Object{&Object{Key: "key1"}, &Object{Key: "key2"}, &Object{Key: "key3"}, &Object{Key: "key4"}, &Object{Key: "key5"}}
+				})
+				obj := schema.Object("Object", Object{})
+				obj.BatchFieldFunc("value", func(ctx context.Context, objectBatch map[batch.Index]*Object) map[batch.Index]*Object {
+					assert.True(t, len(objectBatch) > 0, "batch run with extremely high concurrency too few objects in batch")
+					return objectBatch
+				}, schemabuilder.NumParallelInvocationsFunc(func(ctx context.Context, numNodes int) int {
+					assert.Equal(t, 5, numNodes, "batch run with extremely high concurrency invalid number of objects")
+					return 10 // Bigger number than value passed in
+				}))
+				return nil
+			},
+			query: `
+			{
+				objects {
+					key
+					value {
+						key
+					}
+				}
+			}`,
+			wantResultJSON: `
+			{"objects": [
+			{"key": "key1", "value": { "key": "key1"}},
+			{"key": "key2", "value": { "key": "key2"}},
+			{"key": "key3", "value": { "key": "key3"}},
+			{"key": "key4", "value": { "key": "key4"}},
+			{"key": "key5", "value": { "key": "key5"}}
+			]}
+			`,
+			wantRuns: 6, // Objects + (Value * 5 batches of objects)
+		},
+		{
+			name: "batch run with zero concurrency",
+			registrationFunc: func(schema *schemabuilder.Schema) error {
+				schema.Query().FieldFunc("objects", func(ctx context.Context) []*Object {
+					return []*Object{&Object{Key: "key1"}, &Object{Key: "key2"}, &Object{Key: "key3"}, &Object{Key: "key4"}, &Object{Key: "key5"}}
+				})
+				obj := schema.Object("Object", Object{})
+				obj.BatchFieldFunc("value", func(ctx context.Context, objectBatch map[batch.Index]*Object) map[batch.Index]*Object {
+					assert.True(t, len(objectBatch) > 0, "batch run with extremely high concurrency too few objects in batch")
+					return objectBatch
+				}, schemabuilder.NumParallelInvocationsFunc(func(ctx context.Context, numNodes int) int {
+					assert.Equal(t, 5, numNodes, "batch run with extremely high concurrency invalid number of objects")
+					return 0 // Invalid low value
+				}))
+				return nil
+			},
+			query: `
+			{
+				objects {
+					key
+					value {
+						key
+					}
+				}
+			}`,
+			wantResultJSON: `
+			{"objects": [
+			{"key": "key1", "value": { "key": "key1"}},
+			{"key": "key2", "value": { "key": "key2"}},
+			{"key": "key3", "value": { "key": "key3"}},
+			{"key": "key4", "value": { "key": "key4"}},
+			{"key": "key5", "value": { "key": "key5"}}
+			]}
+			`,
+			wantRuns: 2, // Objects + (Value * 1 batches of objects)
 		},
 		{
 			name: "non-expensive run with deep execution",
