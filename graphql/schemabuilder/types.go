@@ -291,6 +291,8 @@ type method struct {
 	// Sort methods
 	SortMethods map[string]*method
 
+	ConcurrencyArgs concurrencyArgs
+
 	// Whether the FieldFunc is a batchField
 	Batch bool
 
@@ -298,6 +300,18 @@ type method struct {
 
 	ManualPaginationArgs manualPaginationArgs
 }
+
+type concurrencyArgs struct {
+	numParallelInvocationsFunc NumParallelInvocationsFunc
+}
+
+// NumParallelInvocationsFunc is a configuration option for non-expensive and batch
+// fields that controls how many goroutines will get created for the field
+// execution.  The nodes for the field execution will be evenly split across
+// the different goroutines.
+type NumParallelInvocationsFunc func(ctx context.Context, numNodes int) int
+
+func (f NumParallelInvocationsFunc) apply(m *method) { m.ConcurrencyArgs.numParallelInvocationsFunc = f }
 
 type UseFallbackFlag func(context.Context) bool
 

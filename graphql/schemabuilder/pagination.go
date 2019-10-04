@@ -1069,13 +1069,14 @@ func (sb *schemaBuilder) buildPaginatedFieldWithFallback(typ reflect.Type, m *me
 			}
 			return manualPaginationField.Resolve(ctx, source, dualArgs.argValue, selectionSet)
 		},
-		Type:           manualPaginationField.Type,
-		Args:           manualPaginationField.Args,
-		ParseArguments: dualParser.Parse,
-		UseBatchFunc:   manualPaginationField.UseBatchFunc,
-		Batch:          manualPaginationField.Batch,
-		External:       manualPaginationField.External,
-		Expensive:      manualPaginationField.Expensive,
+		Type:                       manualPaginationField.Type,
+		Args:                       manualPaginationField.Args,
+		ParseArguments:             dualParser.Parse,
+		UseBatchFunc:               manualPaginationField.UseBatchFunc,
+		Batch:                      manualPaginationField.Batch,
+		External:                   manualPaginationField.External,
+		Expensive:                  manualPaginationField.Expensive,
+		NumParallelInvocationsFunc: manualPaginationField.NumParallelInvocationsFunc,
 	}
 
 	return field, nil
@@ -1175,11 +1176,12 @@ func (sb *schemaBuilder) buildPaginatedFunctionAndFuncCtx(typ reflect.Type, m *m
 			return c.extractReturnAndErr(ctx, out, args, retType)
 
 		},
-		Args:           args,
-		Type:           retType,
-		ParseArguments: argParser.Parse,
-		Expensive:      m.Expensive,
-		External:       true,
+		Args:                       args,
+		Type:                       retType,
+		ParseArguments:             argParser.Parse,
+		Expensive:                  m.Expensive,
+		External:                   true,
+		NumParallelInvocationsFunc: m.ConcurrencyArgs.numParallelInvocationsFunc,
 	}
 	return ret, c, nil
 }

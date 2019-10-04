@@ -72,11 +72,12 @@ func (sb *schemaBuilder) buildFunctionAndFuncCtx(typ reflect.Type, m *method) (*
 			return funcCtx.extractResultAndErr(funcOutputArgs, retType)
 
 		},
-		Args:           args,
-		Type:           retType,
-		ParseArguments: argParser.Parse,
-		Expensive:      m.Expensive,
-		External:       true,
+		Args:                       args,
+		Type:                       retType,
+		ParseArguments:             argParser.Parse,
+		Expensive:                  m.Expensive,
+		External:                   true,
+		NumParallelInvocationsFunc: m.ConcurrencyArgs.numParallelInvocationsFunc,
 	}, funcCtx, nil
 }
 
