@@ -125,13 +125,14 @@ func (sb *schemaBuilder) buildBatchFunctionAndFuncCtx(typ reflect.Type, m *metho
 	}
 
 	return &graphql.Field{
-		BatchResolver:  batchExecFunc,
-		Batch:          true,
-		External:       true,
-		Args:           args,
-		Type:           retType,
-		ParseArguments: argParser.Parse,
-		Expensive:      m.Expensive,
+		BatchResolver:              batchExecFunc,
+		Batch:                      true,
+		External:                   true,
+		Args:                       args,
+		Type:                       retType,
+		ParseArguments:             argParser.Parse,
+		Expensive:                  m.Expensive,
+		NumParallelInvocationsFunc: m.ConcurrencyArgs.numParallelInvocationsFunc,
 	}, funcCtx, nil
 }
 
