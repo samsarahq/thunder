@@ -41,12 +41,44 @@ func splitWorkUnit(unit *WorkUnit) []*WorkUnit {
 		workUnits = append(workUnits, &WorkUnit{
 			Ctx:          unit.Ctx,
 			field:        unit.field,
+			selection:    unit.selection,
 			sources:      []interface{}{source},
 			destinations: []*outputNode{unit.destinations[idx]},
-			selection:    unit.selection,
+			useBatch:     unit.useBatch,
 			objectName:   unit.objectName,
 		})
 	}
+	return workUnits
+}
+
+// Splits the work unit to N work units (based on configuration).
+func splitToNWorkUnits(unit *WorkUnit, numUnits int) []*WorkUnit {
+	if numUnits > len(unit.sources) {
+		numUnits = len(unit.sources)
+	}
+	if numUnits <= 0 {
+		numUnits = 1
+	}
+
+	avgUnitSize := (len(unit.sources) / numUnits) + 1
+	workUnits := make([]*WorkUnit, 0, numUnits)
+	for i := 0; i < numUnits; i++ {
+		workUnits = append(workUnits, &WorkUnit{
+			Ctx:          unit.Ctx,
+			field:        unit.field,
+			selection:    unit.selection,
+			sources:      make([]interface{}, 0, avgUnitSize),
+			destinations: make([]*outputNode, 0, avgUnitSize),
+			useBatch:     unit.useBatch,
+			objectName:   unit.objectName,
+		})
+	}
+
+	for idx, source := range unit.sources {
+		workUnits[idx%numUnits].sources = append(workUnits[idx%numUnits].sources, source)
+		workUnits[idx%numUnits].destinations = append(workUnits[idx%numUnits].destinations, unit.destinations[idx])
+	}
+
 	return workUnits
 }
 
@@ -444,7 +476,11 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 		switch {
 		case shouldUseBatch(ctx, field):
 			unit.useBatch = true
-			workUnits = append(workUnits, unit)
+			if field.NumParallelInvocationsFunc != nil {
+				workUnits = append(workUnits, splitToNWorkUnits(unit, field.NumParallelInvocationsFunc(ctx, len(unit.sources)))...)
+			} else {
+				workUnits = append(workUnits, unit)
+			}
 		case field.Expensive:
 			// Expensive fields should be executed as multiple "Units".  The scheduler
 			// controls how the units are executed
@@ -455,7 +491,11 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 			// to run them where they could potentially block.
 			// So we create an work unit with all the fields to execute
 			// asynchronously.
-			workUnits = append(workUnits, unit)
+			if field.NumParallelInvocationsFunc != nil {
+				workUnits = append(workUnits, splitToNWorkUnits(unit, field.NumParallelInvocationsFunc(ctx, len(unit.sources)))...)
+			} else {
+				workUnits = append(workUnits, unit)
+			}
 		default:
 			// If the fields are not expensive or external the work time should be
 			// bounded, so we can resolve them immediately.
