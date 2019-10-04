@@ -134,6 +134,11 @@ type Field struct {
 	Batch        bool
 	External     bool
 	Expensive    bool
+
+	// NumParallelInvocationsFunc controls how many goroutines we'll create for a
+	// field execution (batch or non-expensive).  We pass in the number of srcs
+	// we're executing with so implementers can write custom logic.
+	NumParallelInvocationsFunc func(ctx context.Context, numNodes int) int
 }
 
 type Schema struct {
