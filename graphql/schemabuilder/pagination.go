@@ -830,7 +830,7 @@ func (c *connectionContext) checkSortFunctionTypes(name string, sortMethod *meth
 		sortableTyp := getFuncReturnType(sortMethod.Fn)
 		if sortableTyp.Kind() != reflect.Map || !supportedSort(sortableTyp.Elem()) {
 			return fmt.Errorf(
-				"invalid sort field %s: unsupported return type %v, must be of kind int, uint, float or string",
+				"invalid batch sort field %s: unsupported return type %v, must be of kind int, uint, float or string",
 				name,
 				sortableTyp,
 			)
@@ -876,18 +876,16 @@ func (c *connectionContext) checkFilterTextFunctionTypes(name string, filterMeth
 	if filterMethod.BatchArgs.FallbackFunc != nil {
 		batchFuncTyp := getFuncReturnType(filterMethod.BatchArgs.FallbackFunc)
 		if batchFuncTyp != typeOfString {
-			return fmt.Errorf("invalid text filter field %s: unsupported return type %v, must be a map[batch.Index]string", name, batchFuncTyp)
+			return fmt.Errorf("invalid text filter field %s: unsupported return type %v, must be a string", name, batchFuncTyp)
 		}
 	}
 
 	if filterMethod.Batch == false {
 		batchFuncTyp := getFuncReturnType(filterMethod.Fn)
 		if batchFuncTyp != typeOfString {
-			return fmt.Errorf("invalid text filter field %s: unsupported return type %v, must be a map[batch.Index]string", name, batchFuncTyp)
+			return fmt.Errorf("invalid text filter field %s: unsupported return type %v, must be a string", name, batchFuncTyp)
 		}
-	}
-
-	if filterMethod.Batch == true {
+	} else {
 		batchFuncTyp := getFuncReturnType(filterMethod.Fn)
 		if batchFuncTyp != typeofFilterMap {
 			return fmt.Errorf("invalid text filter field %s: unsupported return type %v, must be a map[batch.Index]string", name, batchFuncTyp)
