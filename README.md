@@ -176,7 +176,7 @@ A large GraphQL server might have many resolvers on some shared types. To
 keep packages reasonably-sized, Thunder's schema builder supports extending a
 schema. For example, if you have a `User` type with a resolver `photos`
 implemented by your `photos` package, and resolver `events` implemented by
-your `calendar` package, those packages can independently register their
+your `events` package, those packages can independently register their
 resolvers:
 
 ```go
