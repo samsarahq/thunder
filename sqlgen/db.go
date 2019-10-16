@@ -160,7 +160,7 @@ func (db *DB) checkFilterAgainstLimit(filter Filter, limit Filter) error {
 	return nil
 }
 
-func (db *DB) checkFilterAgainstLimits(ctx context.Context, filter Filter, table *Table) error {
+func (db *DB) checkFilterAgainstLimits(ctx context.Context, query SQLQuery, filter Filter, table *Table) error {
 	// Check for shard limit
 	if db.shardLimit != nil {
 		err := db.checkFilterAgainstLimit(filter, db.shardLimit)
@@ -174,7 +174,9 @@ func (db *DB) checkFilterAgainstLimits(ctx context.Context, filter Filter, table
 		limitFilter := db.dynamicLimit.GetLimitFilter(ctx, table.Name)
 		if limitFilter != nil {
 			if err := db.checkFilterAgainstLimit(filter, limitFilter); err != nil {
-				if keepGoing := db.dynamicLimit.ShouldContinueOnError(err, table.Name); !keepGoing {
+				clause, args := query.ToSQL()
+				errWithQuery := &ErrorWithQuery{err, clause, args}
+				if keepGoing := db.dynamicLimit.ShouldContinueOnError(errWithQuery, table.Name); !keepGoing {
 					return fmt.Errorf("check failed for db with dynamic limit: %s", err.Error())
 				}
 			}
@@ -204,7 +206,7 @@ func (db *DB) checkColumnValuesAgainstLimit(columns []string, values []interface
 	return nil
 }
 
-func (db *DB) checkColumnValuesAgainstLimits(ctx context.Context, columns []string, values []interface{}, tableName string) error {
+func (db *DB) checkColumnValuesAgainstLimits(ctx context.Context, query SQLQuery, columns []string, values []interface{}, tableName string) error {
 	// Check for shard limit.
 	if db.shardLimit != nil {
 		err := db.checkColumnValuesAgainstLimit(columns, values, db.shardLimit)
@@ -218,7 +220,9 @@ func (db *DB) checkColumnValuesAgainstLimits(ctx context.Context, columns []stri
 		limitFilter := db.dynamicLimit.GetLimitFilter(ctx, tableName)
 		if limitFilter != nil {
 			if err := db.checkColumnValuesAgainstLimit(columns, values, limitFilter); err != nil {
-				if keepGoing := db.dynamicLimit.ShouldContinueOnError(err, tableName); !keepGoing {
+				clause, args := query.ToSQL()
+				errWithQuery := &ErrorWithQuery{err, clause, args}
+				if keepGoing := db.dynamicLimit.ShouldContinueOnError(errWithQuery, tableName); !keepGoing {
 					return fmt.Errorf("column values check failed for db with dynamic limit: %s", err.Error())
 				}
 			}
@@ -229,7 +233,12 @@ func (db *DB) checkColumnValuesAgainstLimits(ctx context.Context, columns []stri
 }
 
 func (db *DB) BaseQuery(ctx context.Context, query *BaseSelectQuery) ([]interface{}, error) {
-	if err := db.checkFilterAgainstLimits(ctx, query.Filter, query.Table); err != nil {
+	selectQuery, err := query.MakeSelectQuery()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := db.checkFilterAgainstLimits(ctx, selectQuery, query.Filter, query.Table); err != nil {
 		return nil, err
 	}
 
@@ -239,11 +248,6 @@ func (db *DB) BaseQuery(ctx context.Context, query *BaseSelectQuery) ([]interfac
 			return nil, err
 		}
 		return rows.([]interface{}), nil
-	}
-
-	selectQuery, err := query.MakeSelectQuery()
-	if err != nil {
-		return nil, err
 	}
 
 	clause, args := selectQuery.ToSQL()
@@ -276,17 +280,16 @@ func (db *DB) Count(ctx context.Context, model interface{}, filter Filter) (int6
 		return 0, err
 	}
 
-	if err := db.checkFilterAgainstLimits(ctx, filter, query.Table); err != nil {
-		return 0, err
-	}
-
 	countQuery, err := query.makeCountQuery()
 	if err != nil {
 		return 0, err
 	}
 
-	clause, args := countQuery.ToSQL()
+	if err := db.checkFilterAgainstLimits(ctx, countQuery, filter, query.Table); err != nil {
+		return 0, err
+	}
 
+	clause, args := countQuery.ToSQL()
 	var count int64
 	err = db.QueryExecer(ctx).QueryRowContext(ctx, clause, args...).Scan(&count)
 	if err != nil {
@@ -351,7 +354,7 @@ func (db *DB) InsertRow(ctx context.Context, row interface{}) (sql.Result, error
 		return nil, err
 	}
 
-	if err := db.checkColumnValuesAgainstLimits(ctx, query.Columns, query.Values, query.Table); err != nil {
+	if err := db.checkColumnValuesAgainstLimits(ctx, query, query.Columns, query.Values, query.Table); err != nil {
 		return nil, err
 	}
 
@@ -371,7 +374,7 @@ func (db *DB) UpsertRow(ctx context.Context, row interface{}) (sql.Result, error
 		return nil, err
 	}
 
-	if err := db.checkColumnValuesAgainstLimits(ctx, query.Columns, query.Values, query.Table); err != nil {
+	if err := db.checkColumnValuesAgainstLimits(ctx, query, query.Columns, query.Values, query.Table); err != nil {
 		return nil, err
 	}
 
@@ -393,6 +396,7 @@ func (db *DB) UpdateRow(ctx context.Context, row interface{}) error {
 
 	if err := db.checkColumnValuesAgainstLimits(
 		ctx,
+		query,
 		append(query.Where.Columns, query.Columns...),
 		append(query.Where.Values, query.Values...), query.Table); err != nil {
 		return err
@@ -415,7 +419,7 @@ func (db *DB) DeleteRow(ctx context.Context, row interface{}) error {
 		return err
 	}
 
-	if err := db.checkColumnValuesAgainstLimits(ctx, query.Where.Columns, query.Where.Values, query.Table); err != nil {
+	if err := db.checkColumnValuesAgainstLimits(ctx, query, query.Where.Columns, query.Where.Values, query.Table); err != nil {
 		return err
 	}
 
