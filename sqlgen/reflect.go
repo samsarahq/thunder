@@ -381,8 +381,8 @@ func (b *baseCountQuery) makeCountQuery() (*countQuery, error) {
 	}
 
 	return &countQuery{
-		Table:   b.Table.Name,
-		Where:   where,
+		Table: b.Table.Name,
+		Where: where,
 	}, nil
 }
 

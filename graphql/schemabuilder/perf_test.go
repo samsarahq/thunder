@@ -40,7 +40,7 @@ func BenchmarkSimpleExecute(b *testing.B) {
 		}
 	`, nil)
 
-	if err := graphql.PrepareQuery(ctx, builtSchema.Query, q.SelectionSet); err != nil {
+	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
 		b.Error(err)
 	}
 

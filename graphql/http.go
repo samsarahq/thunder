@@ -85,7 +85,7 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if query.Kind == "mutation" {
 		schema = h.schema.Mutation
 	}
-	if err := PrepareQuery(r.Context(), schema, query.SelectionSet); err != nil {
+	if err := PrepareQuery(schema, query.SelectionSet); err != nil {
 		writeResponse(nil, err)
 		return
 	}

@@ -98,7 +98,7 @@ func pagintedQueryWithFilterBenchmark(b *testing.B, n int, batchFunc bool, expen
 				}
 			}
 		}`, nil)
-	graphql.PrepareQuery(context.Background(), builtSchema.Query, q.SelectionSet)
+	graphql.PrepareQuery(builtSchema.Query, q.SelectionSet)
 	exeuctor := graphql.NewExecutor(graphql.NewImmediateGoroutineScheduler())
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -230,7 +230,7 @@ func pagintedQueryWithSortBenchmark(b *testing.B, n int, batchFunc bool, expensi
 				}
 			}
 		}`, nil)
-	graphql.PrepareQuery(context.Background(), builtSchema.Query, q.SelectionSet)
+	graphql.PrepareQuery(builtSchema.Query, q.SelectionSet)
 	exeuctor := graphql.NewExecutor(graphql.NewImmediateGoroutineScheduler())
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

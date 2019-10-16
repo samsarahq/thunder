@@ -158,20 +158,20 @@ func (s *Snapshotter) Verify() {
 }
 
 func coerceToString(i interface{}) string {
-       if str, ok := i.(string); ok {
-               return str
-       }
-       return pretty.Sprint(i)
+	if str, ok := i.(string); ok {
+		return str
+	}
+	return pretty.Sprint(i)
 }
 
 func diffString(a, b interface{}) string {
-       str, _ := difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
-               A:        difflib.SplitLines(coerceToString(a)),
-               B:        difflib.SplitLines(coerceToString(b)),
-               FromFile: "expected",
-               ToFile:   "received",
-               Context:  1,
-       })
+	str, _ := difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
+		A:        difflib.SplitLines(coerceToString(a)),
+		B:        difflib.SplitLines(coerceToString(b)),
+		FromFile: "expected",
+		ToFile:   "received",
+		Context:  1,
+	})
 
-       return str
+	return str
 }

@@ -129,7 +129,7 @@ func TestBasic(t *testing.T) {
 		as { value valuePtr }
 	}`, nil)
 
-	if err := graphql.PrepareQuery(context.Background(), query, q.SelectionSet); err != nil {
+	if err := graphql.PrepareQuery(query, q.SelectionSet); err != nil {
 		t.Error(err)
 	}
 	e := testgraphql.NewExecutorWrapper(t)
@@ -185,7 +185,7 @@ func TestRepeatedFragment(t *testing.T) {
 	}
 	`, nil)
 
-	if err := graphql.PrepareQuery(context.Background(), query, q.SelectionSet); err != nil {
+	if err := graphql.PrepareQuery(query, q.SelectionSet); err != nil {
 		t.Error(err)
 	}
 	e := testgraphql.NewExecutorWrapper(t)
@@ -258,7 +258,7 @@ func TestError(t *testing.T) {
 		}
 	`, map[string]interface{}{})
 
-	if err := graphql.PrepareQuery(context.Background(), query, q.SelectionSet); err != nil {
+	if err := graphql.PrepareQuery(query, q.SelectionSet); err != nil {
 		t.Error(err)
 	}
 
@@ -280,7 +280,7 @@ func TestPanic(t *testing.T) {
 		}
 	`, nil)
 
-	if err := graphql.PrepareQuery(context.Background(), query, q.SelectionSet); err != nil {
+	if err := graphql.PrepareQuery(query, q.SelectionSet); err != nil {
 		t.Error(err)
 	}
 
@@ -346,7 +346,7 @@ func TestExecutorRuns(t *testing.T) {
 
 			q := graphql.MustParse(tt.query, nil)
 
-			if err := graphql.PrepareQuery(context.Background(), schema.Query, q.SelectionSet); err != nil {
+			if err := graphql.PrepareQuery(schema.Query, q.SelectionSet); err != nil {
 				t.Error(err)
 			}
 

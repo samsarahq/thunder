@@ -1,9 +1,10 @@
 package testfixtures
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
-	"math/rand"
 )
 
 type DBConfig struct {
@@ -36,7 +37,11 @@ func NewTestDatabase() (*TestDatabase, error) {
 		return nil, err
 	}
 
-	name := fmt.Sprintf("thunder_test_%d", rand.Intn(1<<30))
+	var bytes [4]byte
+	if _, err := rand.Read(bytes[:]); err != nil {
+		return nil, err
+	}
+	name := fmt.Sprintf("thunder_test_%s", hex.EncodeToString(bytes[:]))
 	_, err = controlDb.Exec(fmt.Sprintf("CREATE DATABASE %s", name))
 	if err != nil {
 		controlDb.Close()

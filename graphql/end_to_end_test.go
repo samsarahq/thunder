@@ -59,7 +59,7 @@ func TestPathError(t *testing.T) {
 			inner { inners { expensive { expensives { err } } } }
         }`, nil)
 
-	if err := graphql.PrepareQuery(context.Background(), builtSchema.Query, q.SelectionSet); err != nil {
+	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
 		t.Error(err)
 	}
 
@@ -74,7 +74,7 @@ func TestPathError(t *testing.T) {
 			safe
 		}`, nil)
 
-	if err := graphql.PrepareQuery(context.Background(), builtSchema.Query, q.SelectionSet); err != nil {
+	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
 		t.Error(err)
 	}
 
@@ -142,7 +142,7 @@ func TestEnum(t *testing.T) {
 			inner(enumField: firstField)
 		}
 		`, nil)
-	if err := graphql.PrepareQuery(context.Background(), builtSchema.Query, q.SelectionSet); err != nil {
+	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
 		t.Error(err)
 	}
 
@@ -158,7 +158,7 @@ func TestEnum(t *testing.T) {
 			inner2(enumField2: this)
 		}
 		`, nil)
-	if err := graphql.PrepareQuery(context.Background(), builtSchema.Query, q.SelectionSet); err != nil {
+	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
 		t.Error(err)
 	}
 
@@ -174,7 +174,7 @@ func TestEnum(t *testing.T) {
 			inner(enumField: wrongField)
 		}
 		`, nil)
-	if err := graphql.PrepareQuery(context.Background(), builtSchema.Query, q.SelectionSet); err == nil {
+	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err == nil {
 		t.Error(err)
 	}
 
@@ -183,7 +183,7 @@ func TestEnum(t *testing.T) {
 			optional(enumField: firstField)
 		}
 		`, nil)
-	if err := graphql.PrepareQuery(context.Background(), builtSchema.Query, q.SelectionSet); err != nil {
+	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
 		t.Error(err)
 	}
 
@@ -199,7 +199,7 @@ func TestEnum(t *testing.T) {
 			pointerret(enumField: firstField)
 		}
 		`, nil)
-	if err := graphql.PrepareQuery(context.Background(), builtSchema.Query, q.SelectionSet); err != nil {
+	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
 		t.Error(err)
 	}
 
@@ -263,7 +263,7 @@ func TestEndToEndAwaitAndCache(t *testing.T) {
             }
         }`, nil)
 
-	if err := graphql.PrepareQuery(context.Background(), builtSchema.Query, q.SelectionSet); err != nil {
+	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
 		t.Error(err)
 	}
 
@@ -322,7 +322,7 @@ func TestEndToEndAwaitAndCache(t *testing.T) {
 func verifyArgumentOption(t *testing.T, query graphql.Type, queryString string, variables map[string]interface{}, expectedResult string) {
 	q := graphql.MustParse(queryString, variables)
 
-	if err := graphql.PrepareQuery(context.Background(), query, q.SelectionSet); err != nil {
+	if err := graphql.PrepareQuery(query, q.SelectionSet); err != nil {
 		t.Error(err)
 	}
 
@@ -424,7 +424,7 @@ func TestConcurrencyLimiterDeadlock(t *testing.T) {
             }
         }`, nil)
 
-	if err := graphql.PrepareQuery(context.Background(), builtSchema.Query, q.SelectionSet); err != nil {
+	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
 		t.Error(err)
 	}
 

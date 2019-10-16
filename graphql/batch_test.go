@@ -776,7 +776,7 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 
 				q := graphql.MustParse(tt.query, nil)
 
-				if err := graphql.PrepareQuery(context.Background(), schema.Query, q.SelectionSet); err != nil {
+				if err := graphql.PrepareQuery(schema.Query, q.SelectionSet); err != nil {
 					t.Error(err)
 				}
 

@@ -36,7 +36,7 @@ func TestSimpleWhere(t *testing.T) {
 
 func TestCountQuery(t *testing.T) {
 	testQuery(&countQuery{
-		Table:   "foo",
+		Table: "foo",
 		Where: &SimpleWhere{
 			Columns: []string{"bar"},
 			Values:  []interface{}{3},
@@ -44,7 +44,7 @@ func TestCountQuery(t *testing.T) {
 	}, "SELECT COUNT(*) FROM foo WHERE bar = ?", []interface{}{3}, t)
 
 	testQuery(&countQuery{
-		Table:   "foo2",
+		Table: "foo2",
 		Where: &SimpleWhere{
 			Columns: []string{"baz"},
 			Values:  []interface{}{"xyz"},
