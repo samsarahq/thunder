@@ -3,6 +3,7 @@ package sqlgen
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -285,7 +286,7 @@ func TestUpsertWithLimit(t *testing.T) {
 	}
 }
 
-func TestDynamicFilterErrorFunc(t *testing.T) {
+func TestDynamicFilterErrorFuncBasic(t *testing.T) {
 
 	testcases := []struct {
 		title                      string
@@ -370,6 +371,90 @@ func TestDynamicFilterErrorFunc(t *testing.T) {
 				assert.Error(t, err)
 			}
 
+		})
+	}
+}
+
+func TestDynamicFilterErrorFuncDetailederror(t *testing.T) {
+
+	testcases := []struct {
+		title                      string
+		shouldKeepGoingOnErrorFunc DynamicLimitErrorCallback
+		expectSoftFail             bool
+	}{
+		{
+			title: "Error func soft fails",
+			shouldKeepGoingOnErrorFunc: func(err error, table string) bool {
+				assert.Contains(t, err.Error(), "query clause: 'DELETE FROM users WHERE id = ?';")
+				return true
+			},
+			expectSoftFail: true,
+		},
+		{
+			title: "Error func hard fails",
+			shouldKeepGoingOnErrorFunc: func(err error, table string) bool {
+				assert.Contains(t, err.Error(), "query clause: 'DELETE FROM users WHERE id = ?';")
+				assert.Condition(
+					t,
+					func() bool {
+						return strings.Contains(err.Error(), "; query args: '[0]'") || strings.Contains(err.Error(), "; query args: '[1]'")
+					},
+				)
+				return false
+			},
+		},
+	}
+
+	for _, testcase := range testcases {
+		t.Run(testcase.title, func(t *testing.T) {
+			tdb, db, err := setup()
+			assert.NoError(t, err)
+
+			defer tdb.Close()
+			ctx := context.Background()
+
+			dynamicLimitFuncName := func(ctx context.Context, table string) Filter {
+				assert.Equal(t, "users", table)
+				return Filter{
+					"name": "Alice",
+				}
+			}
+
+			aliceDb, _ := db.WithDynamicLimit(DynamicLimit{
+				dynamicLimitFuncName,
+				testcase.shouldKeepGoingOnErrorFunc,
+			})
+
+			alice := &User{Name: "Alice"}
+			bob := &User{Name: "Bob"}
+			res, _ := aliceDb.InsertRow(ctx, alice)
+			id, _ := res.LastInsertId()
+			alice.Id = id
+			db.InsertRow(ctx, bob)
+
+			dynamicLimitFuncID := func(ctx context.Context, table string) Filter {
+				assert.Equal(t, "users", table)
+				return Filter{
+					"id": alice.Id,
+				}
+			}
+
+			// Deletes only include the primary key in the filter. This means
+			// we need to limit to the exact ID to do deletes. Check that.
+			aliceIDDb, _ := db.WithDynamicLimit(DynamicLimit{
+				dynamicLimitFuncID,
+				testcase.shouldKeepGoingOnErrorFunc,
+			})
+
+			// aliceDb normally can't delete alice with the limit, this should fail.
+			err = aliceDb.DeleteRow(ctx, alice)
+
+			// aliceIdDb normally can delete alice.
+			err = aliceIDDb.DeleteRow(ctx, alice)
+			assert.NoError(t, err)
+
+			// aliceIdDb normally can't delete bob with the limit, this should fail.
+			err = aliceIDDb.DeleteRow(ctx, bob)
 		})
 	}
 }
