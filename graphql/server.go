@@ -149,10 +149,6 @@ func (c *conn) handleSubscribe(in *inEnvelope) error {
 		c.logger.Error(c.ctx, err, tags)
 		return err
 	}
-	if err := PrepareQuery(c.schema.Query, query.SelectionSet); err != nil {
-		c.logger.Error(c.ctx, err, tags)
-		return err
-	}
 
 	var previous interface{}
 
@@ -172,7 +168,7 @@ func (c *conn) handleSubscribe(in *inEnvelope) error {
 		middlewares = append(middlewares, c.middlewares...)
 		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
 			output := next(input)
-			output.Current, output.Error = e.Execute(input.Ctx, c.schema.Query, nil, input.ParsedQuery)
+			output.Current, output.Error = e.Execute(input.Ctx, c.schema.Query, nil, query)
 			return output
 		})
 
@@ -274,10 +270,6 @@ func (c *conn) handleMutate(in *inEnvelope) error {
 		tags["queryName"] = query.Name
 	}
 	if err != nil {
-		c.logger.Error(c.ctx, err, tags)
-		return err
-	}
-	if err := PrepareQuery(c.mutationSchema.Mutation, query.SelectionSet); err != nil {
 		c.logger.Error(c.ctx, err, tags)
 		return err
 	}

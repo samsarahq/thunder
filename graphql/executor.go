@@ -75,9 +75,8 @@ func (pe *pathError) Error() string {
 	return buffer.String()
 }
 
-func isNilArgs(args interface{}) bool {
-	m, ok := args.(map[string]interface{})
-	return args == nil || (ok && len(m) == 0)
+func isNilArgs(args map[string]interface{}) bool {
+	return len(args) == 0
 }
 
 // unwrap will return the value associated with a pointer type, or nil if the
@@ -95,95 +94,140 @@ func unwrap(v interface{}) interface{} {
 
 // PrepareQuery checks that the given selectionSet matches the schema typ, and
 // parses the args in selectionSet
-func PrepareQuery(typ Type, selectionSet *SelectionSet) error {
+func PrepareQuery(typ Type, selectionSet *RawSelectionSet) (*SelectionSet, error) {
+	return prepareQuery(typ, selectionSet, make(map[prepareQueryMemoKey]*SelectionSet))
+}
+
+type prepareQueryMemoKey struct {
+	typ          Type
+	selectionSet *RawSelectionSet
+}
+
+func prepareQuery(typ Type, selectionSet *RawSelectionSet, memo map[prepareQueryMemoKey]*SelectionSet) (res *SelectionSet, err error) {
+	if res, ok := memo[prepareQueryMemoKey{typ: typ, selectionSet: selectionSet}]; ok {
+		return res, nil
+	}
+	defer func() {
+		if err == nil {
+			memo[prepareQueryMemoKey{typ: typ, selectionSet: selectionSet}] = res
+		}
+	}()
+
 	switch typ := typ.(type) {
 	case *Scalar:
 		if selectionSet != nil {
-			return NewClientError("scalar field must have no selections")
+			return nil, NewClientError("scalar field must have no selections")
 		}
-		return nil
+		return nil, nil
 	case *Enum:
 		if selectionSet != nil {
-			return NewClientError("enum field must have no selections")
+			return nil, NewClientError("enum field must have no selections")
 		}
-		return nil
+		return nil, nil
 	case *Union:
 		if selectionSet == nil {
-			return NewClientError("object field must have selections")
+			return nil, NewClientError("object field must have selections")
 		}
+
+		newSelectionSet := &SelectionSet{}
 
 		for _, fragment := range selectionSet.Fragments {
 			for typString, graphqlTyp := range typ.Types {
 				if fragment.On != typString {
 					continue
 				}
-				if err := PrepareQuery(graphqlTyp, fragment.SelectionSet); err != nil {
-					return err
+				newFragmentSelectionSet, err := prepareQuery(graphqlTyp, fragment.SelectionSet, memo)
+				if err != nil {
+					return nil, err
 				}
+				newSelectionSet.Fragments = append(newSelectionSet.Fragments, &Fragment{
+					On:           fragment.On,
+					SelectionSet: newFragmentSelectionSet,
+				})
 			}
 		}
 		for _, selection := range selectionSet.Selections {
 			if selection.Name == "__typename" {
 				if !isNilArgs(selection.Args) {
-					return NewClientError(`error parsing args for "__typename": no args expected`)
+					return nil, NewClientError(`error parsing args for "__typename": no args expected`)
 				}
 				if selection.SelectionSet != nil {
-					return NewClientError(`scalar field "__typename" must have no selection`)
+					return nil, NewClientError(`scalar field "__typename" must have no selection`)
 				}
-				for _, fragment := range selectionSet.Fragments {
-					fragment.SelectionSet.Selections = append(fragment.SelectionSet.Selections, selection)
+				for _, fragment := range newSelectionSet.Fragments {
+					fragment.SelectionSet.Selections = append(fragment.SelectionSet.Selections, &Selection{
+						Alias: selection.Alias,
+						Name:  "__typename",
+					})
 				}
 				continue
 			}
-			return NewClientError(`unknown field "%s"`, selection.Name)
+			return nil, NewClientError(`unknown field "%s"`, selection.Name)
 		}
-		return nil
+		return newSelectionSet, nil
+
 	case *Object:
 		if selectionSet == nil {
-			return NewClientError("object field must have selections")
+			return nil, NewClientError("object field must have selections")
 		}
+
+		newSelectionSet := &SelectionSet{}
+
 		for _, selection := range selectionSet.Selections {
 			if selection.Name == "__typename" {
 				if !isNilArgs(selection.Args) {
-					return NewClientError(`error parsing args for "__typename": no args expected`)
+					return nil, NewClientError(`error parsing args for "__typename": no args expected`)
 				}
 				if selection.SelectionSet != nil {
-					return NewClientError(`scalar field "__typename" must have no selection`)
+					return nil, NewClientError(`scalar field "__typename" must have no selection`)
 				}
+				newSelectionSet.Selections = append(newSelectionSet.Selections, &Selection{
+					Alias: selection.Alias,
+					Name:  "__typename",
+				})
 				continue
 			}
 
 			field, ok := typ.Fields[selection.Name]
 			if !ok {
-				return NewClientError(`unknown field "%s"`, selection.Name)
+				return nil, NewClientError(`unknown field "%s"`, selection.Name)
 			}
 
-			// Only parse args once for a given selection.
-			if !selection.parsed {
-				parsed, err := field.ParseArguments(selection.Args)
-				if err != nil {
-					return NewClientError(`error parsing args for "%s": %s`, selection.Name, err)
-				}
-				selection.Args = parsed
-				selection.parsed = true
+			parsed, err := field.ParseArguments(selection.Args)
+			if err != nil {
+				return nil, NewClientError(`error parsing args for "%s": %s`, selection.Name, err)
 			}
 
-			if err := PrepareQuery(field.Type, selection.SelectionSet); err != nil {
-				return err
+			newChildSelectionSet, err := prepareQuery(field.Type, selection.SelectionSet, memo)
+			if err != nil {
+				return nil, err
 			}
+
+			newSelectionSet.Selections = append(newSelectionSet.Selections, &Selection{
+				Alias:        selection.Alias,
+				Name:         selection.Name,
+				Args:         parsed,
+				SelectionSet: newChildSelectionSet,
+			})
 		}
 		for _, fragment := range selectionSet.Fragments {
-			if err := PrepareQuery(typ, fragment.SelectionSet); err != nil {
-				return err
+			newFragmentSelectionSet, err := prepareQuery(typ, fragment.SelectionSet, memo)
+			if err != nil {
+				return nil, err
 			}
+			newSelectionSet.Fragments = append(newSelectionSet.Fragments, &Fragment{
+				On:           fragment.On,
+				SelectionSet: newFragmentSelectionSet,
+			})
 		}
-		return nil
+
+		return newSelectionSet, nil
 
 	case *List:
-		return PrepareQuery(typ.Type, selectionSet)
+		return prepareQuery(typ.Type, selectionSet, memo)
 
 	case *NonNull:
-		return PrepareQuery(typ.Type, selectionSet)
+		return prepareQuery(typ.Type, selectionSet, memo)
 
 	default:
 		panic("unknown type kind")

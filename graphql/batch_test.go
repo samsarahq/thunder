@@ -776,10 +776,6 @@ func TestBatchFieldFuncExecution(t *testing.T) {
 
 				q := graphql.MustParse(tt.query, nil)
 
-				if err := graphql.PrepareQuery(schema.Query, q.SelectionSet); err != nil {
-					t.Error(err)
-				}
-
 				var e graphql.ExecutorRunner
 				e = graphql.NewExecutor(graphql.NewImmediateGoroutineScheduler())
 

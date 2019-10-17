@@ -59,10 +59,6 @@ func TestReactiveCacheResetsOnError(t *testing.T) {
 			uncachedError
 		}`, nil)
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
-		t.Error(err)
-	}
-
 	runGrabber := newConcurrencyManager(t, 1)
 	runGrabber.Inc()
 

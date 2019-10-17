@@ -85,10 +85,6 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if query.Kind == "mutation" {
 		schema = h.schema.Mutation
 	}
-	if err := PrepareQuery(schema, query.SelectionSet); err != nil {
-		writeResponse(nil, err)
-		return
-	}
 
 	var wg sync.WaitGroup
 	e := h.executor
@@ -103,7 +99,7 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		middlewares = append(middlewares, h.middlewares...)
 		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
 			output := next(input)
-			output.Current, output.Error = e.Execute(input.Ctx, schema, nil, input.ParsedQuery)
+			output.Current, output.Error = e.Execute(input.Ctx, schema, nil, query)
 			return output
 		})
 

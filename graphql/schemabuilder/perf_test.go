@@ -40,10 +40,6 @@ func BenchmarkSimpleExecute(b *testing.B) {
 		}
 	`, nil)
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
-		b.Error(err)
-	}
-
 	for _, executorAndName := range testgraphql.GetExecutors() {
 		b.Run(executorAndName.Name, func(b *testing.B) {
 			e := executorAndName.Executor

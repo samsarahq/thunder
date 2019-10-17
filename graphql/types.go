@@ -146,6 +146,28 @@ type Schema struct {
 	Mutation Type
 }
 
+type RawSelectionSet struct {
+	Selections []*RawSelection
+	Fragments  []*RawFragment
+}
+
+type RawSelection struct {
+	Name         string
+	Alias        string
+	Args         map[string]interface{}
+	SelectionSet *RawSelectionSet
+}
+
+// A Fragment represents a reusable part of a GraphQL query
+//
+// The On part of a Fragment represents the type of source object for which
+// this Fragment should be used. That is not currently implemented in this
+// package.
+type RawFragment struct {
+	On           string
+	SelectionSet *RawSelectionSet
+}
+
 // SelectionSet represents a core GraphQL query
 //
 // A SelectionSet can contain multiple fields and multiple fragments. For
@@ -185,10 +207,6 @@ type Selection struct {
 	Alias        string
 	Args         interface{}
 	SelectionSet *SelectionSet
-
-	// The parsed flag is used to make sure the args for this Selection are only
-	// parsed once.
-	parsed bool
 }
 
 // A Fragment represents a reusable part of a GraphQL query

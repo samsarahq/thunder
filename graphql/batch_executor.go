@@ -106,6 +106,11 @@ type Executor struct {
 	scheduler WorkScheduler
 }
 
+type cachePrepareKey struct {
+	typ          Type
+	selectionSet *RawSelectionSet
+}
+
 // Execute executes a query by traversing the GraphQL query graph and resolving
 // or executing fields.  Any work that needs to be done is passed off to the
 // scheduler to handle managing concurrency of the request.
@@ -116,7 +121,15 @@ func (e *Executor) Execute(ctx context.Context, typ Type, source interface{}, qu
 		return nil, fmt.Errorf("expected query or mutation object for execution, got: %s", typ.String())
 	}
 
-	topLevelSelections := Flatten(query.SelectionSet)
+	selectionSetIface, err := reactive.Cache(ctx, cachePrepareKey{typ: typ, selectionSet: query.SelectionSet}, func(ctx context.Context) (interface{}, error) {
+		return PrepareQuery(typ, query.SelectionSet)
+	})
+	if err != nil {
+		return nil, err
+	}
+	selectionSet := selectionSetIface.(*SelectionSet)
+
+	topLevelSelections := Flatten(selectionSet)
 	topLevelRespWriter := newTopLevelOutputNode(query.Name)
 	initialSelectionWorkUnits := make([]*WorkUnit, 0, len(topLevelSelections))
 	writers := make(map[string]*outputNode)

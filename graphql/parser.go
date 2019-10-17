@@ -72,7 +72,7 @@ func valueToJson(value ast.Value, vars map[string]interface{}) (interface{}, err
 
 // argsToJson converts a graphql-go ast argument list to a json.Marshal-style
 // map[string]interface{}
-func argsToJson(input []*ast.Argument, vars map[string]interface{}) (interface{}, error) {
+func argsToJson(input []*ast.Argument, vars map[string]interface{}) (map[string]interface{}, error) {
 	args := make(map[string]interface{})
 	for _, arg := range input {
 		name := arg.Name.Value
@@ -90,13 +90,13 @@ func argsToJson(input []*ast.Argument, vars map[string]interface{}) (interface{}
 
 // parseSelectionSet takes a grapqhl-go selection set and converts it to a
 // simplified *SelectionSet, bindings vars
-func parseSelectionSet(input *ast.SelectionSet, globalFragments map[string]*Fragment, vars map[string]interface{}) (*SelectionSet, error) {
+func parseSelectionSet(input *ast.SelectionSet, globalFragments map[string]*RawFragment, vars map[string]interface{}) (*RawSelectionSet, error) {
 	if input == nil {
 		return nil, nil
 	}
 
-	var selections []*Selection
-	var fragments []*Fragment
+	var selections []*RawSelection
+	var fragments []*RawFragment
 	for _, selection := range input.Selections {
 		switch selection := selection.(type) {
 		case *ast.Field:
@@ -119,7 +119,7 @@ func parseSelectionSet(input *ast.SelectionSet, globalFragments map[string]*Frag
 				return nil, err
 			}
 
-			selections = append(selections, &Selection{
+			selections = append(selections, &RawSelection{
 				Alias:        alias,
 				Name:         selection.Name.Value,
 				Args:         args,
@@ -152,14 +152,14 @@ func parseSelectionSet(input *ast.SelectionSet, globalFragments map[string]*Frag
 				return nil, err
 			}
 
-			fragments = append(fragments, &Fragment{
+			fragments = append(fragments, &RawFragment{
 				On:           on,
 				SelectionSet: selectionSet,
 			})
 		}
 	}
 
-	selectionSet := &SelectionSet{
+	selectionSet := &RawSelectionSet{
 		Selections: selections,
 		Fragments:  fragments,
 	}
@@ -176,13 +176,13 @@ const (
 
 // detectCyclesAndUnusedFragments finds cycles in fragments that include
 // eachother as well as fragments that don't appear anywhere
-func detectCyclesAndUnusedFragments(selectionSet *SelectionSet, globalFragments map[string]*Fragment) error {
-	state := make(map[*Fragment]visitState)
+func detectCyclesAndUnusedFragments(selectionSet *RawSelectionSet, globalFragments map[string]*RawFragment) error {
+	state := make(map[*RawFragment]visitState)
 
-	var visitFragment func(*Fragment) error
-	var visitSelectionSet func(*SelectionSet) error
+	var visitFragment func(*RawFragment) error
+	var visitSelectionSet func(*RawSelectionSet) error
 
-	visitSelectionSet = func(selectionSet *SelectionSet) error {
+	visitSelectionSet = func(selectionSet *RawSelectionSet) error {
 		if selectionSet == nil {
 			return nil
 		}
@@ -202,7 +202,7 @@ func detectCyclesAndUnusedFragments(selectionSet *SelectionSet, globalFragments 
 		return nil
 	}
 
-	visitFragment = func(fragment *Fragment) error {
+	visitFragment = func(fragment *RawFragment) error {
 		switch state[fragment] {
 		case visiting:
 			return NewClientError("fragment contains itself")
@@ -240,20 +240,20 @@ func detectCyclesAndUnusedFragments(selectionSet *SelectionSet, globalFragments 
 //
 // A query cannot contain both selections, because they have the same alias
 // with different source names, and they also have different arguments.
-func detectConflicts(selectionSet *SelectionSet) error {
-	state := make(map[*SelectionSet]visitState)
+func detectConflicts(selectionSet *RawSelectionSet) error {
+	state := make(map[*RawSelectionSet]visitState)
 
-	var visitChild func(*SelectionSet) error
-	visitChild = func(selectionSet *SelectionSet) error {
+	var visitChild func(*RawSelectionSet) error
+	visitChild = func(selectionSet *RawSelectionSet) error {
 		if state[selectionSet] == visited {
 			return nil
 		}
 		state[selectionSet] = visited
 
-		selections := make(map[string]*Selection)
+		selections := make(map[string]*RawSelection)
 
-		var visitSibling func(*SelectionSet) error
-		visitSibling = func(selectionSet *SelectionSet) error {
+		var visitSibling func(*RawSelectionSet) error
+		visitSibling = func(selectionSet *RawSelectionSet) error {
 			for _, selection := range selectionSet.Selections {
 				if other, found := selections[selection.Alias]; found {
 					if other.Name != selection.Name {
@@ -287,9 +287,9 @@ func detectConflicts(selectionSet *SelectionSet) error {
 }
 
 type Query struct {
-	Name string
-	Kind string
-	*SelectionSet
+	Name         string
+	Kind         string
+	SelectionSet *RawSelectionSet
 }
 
 // Parse parses an input GraphQL string into a *Query
@@ -388,9 +388,9 @@ func Parse(source string, vars map[string]interface{}) (*Query, error) {
 		vars = defaultedVars
 	}
 
-	globalFragments := make(map[string]*Fragment)
+	globalFragments := make(map[string]*RawFragment)
 	for name, fragment := range fragmentDefinitions {
-		globalFragments[name] = &Fragment{
+		globalFragments[name] = &RawFragment{
 			On: fragment.TypeCondition.Name.Value,
 		}
 	}

@@ -387,10 +387,6 @@ func TestNonExpensiveExecution(t *testing.T) {
 
 			q := graphql.MustParse(tt.query, nil)
 
-			if err := graphql.PrepareQuery(schema.Query, q.SelectionSet); err != nil {
-				t.Error(err)
-			}
-
 			c := &counterGoroutineScheduler{}
 			e := graphql.NewExecutor(c)
 

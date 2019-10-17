@@ -223,9 +223,6 @@ func main() {
 			}
 		}
 	`, map[string]interface{}{})
-	if err := graphql.PrepareQuery(merged.Query, query.SelectionSet); err != nil {
-		panic(err)
-	}
 	e := graphql.NewExecutor(
 		graphql.NewImmediateGoroutineScheduler(),
 	)

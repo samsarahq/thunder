@@ -2,7 +2,6 @@ package testgraphql
 
 import (
 	"context"
-	"reflect"
 	"testing"
 
 	"github.com/samsarahq/thunder/graphql"
@@ -63,11 +62,7 @@ func (e *ExecutorWrapper) Execute(ctx context.Context, typ graphql.Type, source 
 			continue
 		}
 		require.Nil(e.t, lastErr)
-		require.True(
-			e.t,
-			reflect.DeepEqual(internal.AsJSON(lastOutput), internal.AsJSON(output)),
-			"queries for %q do no match between different executors", query.Name,
-		)
+		require.Equal(e.t, internal.AsJSON(lastOutput), internal.AsJSON(output))
 	}
 	return lastOutput, lastErr
 }

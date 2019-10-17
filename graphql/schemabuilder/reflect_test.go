@@ -165,10 +165,6 @@ func TestExecuteGood(t *testing.T) {
 		}
 	`, map[string]interface{}{"var": float64(3)})
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
-		t.Error(err)
-	}
-
 	e := graphql.NewExecutor(graphql.NewImmediateGoroutineScheduler())
 
 	result, err := e.Execute(ctx, builtSchema.Query, nil, q)
@@ -367,10 +363,6 @@ func TestExecuteErrorNullReturn(t *testing.T) {
 		}
 	`, map[string]interface{}{"var": float64(3)})
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
-		t.Error(err)
-	}
-
 	e := graphql.NewExecutor(graphql.NewImmediateGoroutineScheduler())
 	_, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
 	if err == nil {
@@ -396,10 +388,6 @@ func TestExecuteErrorBasic(t *testing.T) {
 			field
 		}
 	`, map[string]interface{}{"var": float64(3)})
-
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
-		t.Error(err)
-	}
 
 	e := graphql.NewExecutor(graphql.NewImmediateGoroutineScheduler())
 	_, err := e.Execute(context.Background(), builtSchema.Query, nil, q)

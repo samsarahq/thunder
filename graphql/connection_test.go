@@ -729,9 +729,6 @@ func TestEmbeddedArgs(t *testing.T) {
 			}
 	    }`, nil)
 
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
-		t.Error(err)
-	}
 	e := testgraphql.NewExecutorWrapper(t)
 	val, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
 	assert.Nil(t, err)
@@ -945,9 +942,6 @@ func TestPaginatedFilters(t *testing.T) {
 				}
 			}
 		}`, nil)
-	if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
-		t.Error(err)
-	}
 	e := testgraphql.NewExecutorWrapper(t)
 	val, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
 	assert.Nil(t, err)
@@ -1145,9 +1139,6 @@ func TestPaginatedSorts(t *testing.T) {
 	}
 
 	for _, q := range queries {
-		if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
-			t.Error(err)
-		}
 		e := testgraphql.NewExecutorWrapper(t)
 		val, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
 		assert.Nil(t, err)
@@ -1223,9 +1214,6 @@ func TestPaginatedSorts(t *testing.T) {
 	}
 
 	for _, q := range queries {
-		if err := graphql.PrepareQuery(builtSchema.Query, q.SelectionSet); err != nil {
-			t.Error(err)
-		}
 		e := testgraphql.NewExecutorWrapper(t)
 		val, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
 		assert.Nil(t, err)

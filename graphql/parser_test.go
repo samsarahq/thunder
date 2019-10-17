@@ -37,14 +37,14 @@ fragment Bar on Foo {
 	expected := &Query{
 		Name: "",
 		Kind: "query",
-		SelectionSet: &SelectionSet{
-			Selections: []*Selection{
+		SelectionSet: &RawSelectionSet{
+			Selections: []*RawSelection{
 				{
 					Name:  "foo",
 					Alias: "foo",
 					Args:  map[string]interface{}{},
-					SelectionSet: &SelectionSet{
-						Selections: []*Selection{
+					SelectionSet: &RawSelectionSet{
+						Selections: []*RawSelection{
 							{
 								Name:  "bar",
 								Alias: "alias",
@@ -61,8 +61,8 @@ fragment Bar on Foo {
 								Args: map[string]interface{}{
 									"arg": float64(3),
 								},
-								SelectionSet: &SelectionSet{
-									Selections: []*Selection{
+								SelectionSet: &RawSelectionSet{
+									Selections: []*RawSelection{
 										{
 											Name:  "bah",
 											Alias: "bah",
@@ -89,22 +89,22 @@ fragment Bar on Foo {
 								},
 							},
 						},
-						Fragments: []*Fragment{
+						Fragments: []*RawFragment{
 							{
 								On: "Foo",
-								SelectionSet: &SelectionSet{
-									Selections: []*Selection{
+								SelectionSet: &RawSelectionSet{
+									Selections: []*RawSelection{
 										{
 											Name:  "asd",
 											Alias: "asd",
 											Args:  map[string]interface{}{},
 										},
 									},
-									Fragments: []*Fragment{
+									Fragments: []*RawFragment{
 										{
 											On: "Foo",
-											SelectionSet: &SelectionSet{
-												Selections: []*Selection{
+											SelectionSet: &RawSelectionSet{
+												Selections: []*RawSelection{
 													{
 														Name:  "zxc",
 														Alias: "zxc",
@@ -146,8 +146,8 @@ mutation foo($var: bar) {
 	expected = &Query{
 		Name: "foo",
 		Kind: "mutation",
-		SelectionSet: &SelectionSet{
-			Selections: []*Selection{
+		SelectionSet: &RawSelectionSet{
+			Selections: []*RawSelection{
 				{
 					Name:  "baz",
 					Alias: "baz",
@@ -270,7 +270,7 @@ query Operation($x: int64 = 2) {
 		t.Error("expected default value to be used, but received", err)
 	}
 
-	args := query.SelectionSet.Selections[0].Args.(map[string]interface{})
+	args := query.SelectionSet.Selections[0].Args
 
 	if len := len(args); len != 1 {
 		t.Errorf("expected 1 argument, received %d", len)
