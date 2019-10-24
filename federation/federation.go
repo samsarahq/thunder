@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/samsarahq/thunder/graphql"
@@ -26,6 +27,16 @@ func schema1() *schemabuilder.Schema {
 			Name: "jimbob",
 		}
 	})
+	query.FieldFunc("fff", func() []*Foo {
+		return []*Foo{
+			{
+				Name: "jimbo",
+			},
+			{
+				Name: "bob",
+			},
+		}
+	})
 
 	foo := schema.Object("foo", Foo{})
 	foo.BatchFieldFunc("hmm", func(ctx context.Context, in map[batch.Index]*Foo) (map[batch.Index]string, error) {
@@ -35,6 +46,9 @@ func schema1() *schemabuilder.Schema {
 		}
 		return out, nil
 	})
+	foo.FieldFunc("federationKey", func(f *Foo) string {
+		return f.Name
+	})
 
 	return schema
 }
@@ -42,7 +56,13 @@ func schema1() *schemabuilder.Schema {
 func schema2() *schemabuilder.Schema {
 	schema := schemabuilder.NewSchema()
 
-	schema.Query().FieldFunc("q", func() *Foo { return &Foo{Name: "carl"} })
+	schema.Query().FieldFunc("foosFromFederationKeys", func(args struct{ Keys []string }) []*Foo {
+		foos := make([]*Foo, 0, len(args.Keys))
+		for _, key := range args.Keys {
+			foos = append(foos, &Foo{Name: key})
+		}
+		return foos
+	})
 
 	foo := schema.Object("foo", Foo{})
 
@@ -210,6 +230,10 @@ func stitchSchemas(schemas []*graphql.Schema) *graphql.Schema {
 }
 
 func main() {
+	testfoo()
+
+	os.Exit(0)
+
 	merged := stitchSchemas([]*graphql.Schema{
 		schema1().MustBuild(),
 		schema2().MustBuild(),
