@@ -164,7 +164,7 @@ func (s *Schema) Build() (*graphql.Schema, error) {
 	}, nil
 }
 
-// MustBuildSchema builds a schema and panics if an error occurs.
+// MustBuild builds a schema and panics if an error occurs.
 func (s *Schema) MustBuild() *graphql.Schema {
 	built, err := s.Build()
 	if err != nil {
