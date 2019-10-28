@@ -463,9 +463,6 @@ func main() {
 }
 
 // todo
-// project. end to end test
-// kill panics, return errors
-//
 // project. end to end with rpcs.
 // rpc for invocation
 //
@@ -477,6 +474,7 @@ func main() {
 // implement it
 //
 // project. harden APIs
+// test malformed inputs
 //
 // project. fragments
 //
