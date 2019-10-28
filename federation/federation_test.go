@@ -258,8 +258,7 @@ func TestPlan(t *testing.T) {
 	types := convertSchema(executors)
 
 	e := &Executor{
-		Types:     types,
-		Executors: executors,
+		Types: types,
 	}
 
 	testCases := []struct {
@@ -415,6 +414,8 @@ func roundtripJson(t *testing.T, v interface{}) interface{} {
 }
 
 func TestExecutor(t *testing.T) {
+	ctx := context.Background()
+
 	// todo: assert specific invocation traces?
 
 	executors := map[string]*graphql.Schema{
@@ -424,9 +425,13 @@ func TestExecutor(t *testing.T) {
 
 	types := convertSchema(executors)
 
+	execs, close, err := makeExecutors(executors)
+	require.NoError(t, err)
+	defer close()
+
 	e := &Executor{
 		Types:     types,
-		Executors: executors,
+		Executors: execs,
 	}
 
 	testCases := []struct {
@@ -499,7 +504,7 @@ func TestExecutor(t *testing.T) {
 			plan, err := e.Plan(e.Types["Query"], mustParse(testCase.Input))
 			require.NoError(t, err)
 
-			res, err := e.execute(plan.After[0], nil)
+			res, err := e.execute(ctx, plan.After[0], nil)
 			require.NoError(t, err)
 
 			var expected interface{}

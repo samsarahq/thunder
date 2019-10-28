@@ -5,13 +5,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
+
+	"google.golang.org/grpc"
+
+	"github.com/samsarahq/thunder/thunderpb"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/samsarahq/thunder/graphql"
 )
 
 type Executor struct {
-	Executors map[string]*graphql.Schema
+	Executors map[string]thunderpb.ExecutorClient
+	// *graphql.Schema
 
 	Types map[TypeName]*Object
 }
@@ -101,16 +107,14 @@ func convertSelectionSet(selections []*Selection) *graphql.RawSelectionSet {
 	}
 }
 
-func (e *Executor) runOnService(service string, typName string, keys []interface{}, selections []*Selection) ([]interface{}, error) {
+func (e *Executor) runOnService(ctx context.Context, service string, typName string, keys []interface{}, selections []*Selection) ([]interface{}, error) {
 	schema := e.Executors[service]
 
 	// xxx: detect if root (?)
 
-	var selectionSet *graphql.RawSelectionSet
-
 	if keys == nil {
 		// Root query
-		selectionSet = convertSelectionSet(selections)
+		// selectionSet = convertSelectionSet(selections)
 	} else {
 		var garbage interface{}
 		bytes, err := json.Marshal(keys)
@@ -122,28 +126,33 @@ func (e *Executor) runOnService(service string, typName string, keys []interface
 		}
 
 		// XXX: halp
-		selectionSet = &graphql.RawSelectionSet{
-			Selections: []*graphql.RawSelection{
-				{
-					Name:  typName + "sFromFederationKeys",
-					Alias: "results",
-					Args: map[string]interface{}{
-						"keys": garbage, // keys,
-					},
-					SelectionSet: convertSelectionSet(selections),
+		selections = []*Selection{
+			{
+				Name:  typName + "sFromFederationKeys",
+				Alias: "results",
+				Args: map[string]interface{}{
+					"keys": garbage, // keys,
 				},
+				Selections: selections,
 			},
 		}
 	}
 
-	gqlExec := graphql.NewExecutor(graphql.NewImmediateGoroutineScheduler())
-	res, err := gqlExec.Execute(context.Background(), schema.Query, nil, &graphql.Query{
-		Kind:         "query",
-		Name:         "",
-		SelectionSet: selectionSet,
+	marshaled, err := marshalPbSelections(selections)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling selections: %v", err)
+	}
+
+	resPb, err := schema.Execute(ctx, &thunderpb.ExecuteRequest{
+		Selections: marshaled,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("executing query: %v", err)
+		return nil, fmt.Errorf("execute remotely: %v", err)
+	}
+
+	var res interface{}
+	if err := json.Unmarshal(resPb.Result, &res); err != nil {
+		return nil, fmt.Errorf("unmarshal res: %v", err)
 	}
 
 	// for root:
@@ -175,8 +184,8 @@ type Plan struct {
 
 // XXX: have a plan about failed conversions and nils everywhere.
 
-func (e *Executor) execute(p *Plan, keys []interface{}) ([]interface{}, error) {
-	res, err := e.runOnService(p.Service, p.Type, keys, p.Selections)
+func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) ([]interface{}, error) {
+	res, err := e.runOnService(ctx, p.Service, p.Type, keys, p.Selections)
 	if err != nil {
 		return nil, fmt.Errorf("run on service: %v", err)
 	}
@@ -241,7 +250,7 @@ func (e *Executor) execute(p *Plan, keys []interface{}) ([]interface{}, error) {
 		// XXX: don't execute here yet??? i mean we can but why? simpler?????? could go back to root?
 
 		// XXX: go
-		results, err := e.execute(subPlan, keys)
+		results, err := e.execute(ctx, subPlan, keys)
 		if err != nil {
 			return nil, fmt.Errorf("executing sub plan: %v", err)
 		}
@@ -417,7 +426,59 @@ func convert(query *graphql.RawSelectionSet) []*Selection {
 	return converted
 }
 
+func makeExecutors(schemas map[string]*graphql.Schema) (map[string]thunderpb.ExecutorClient, func(), error) {
+	var closers []func()
+
+	executors := make(map[string]thunderpb.ExecutorClient)
+
+	for name, schema := range schemas {
+		srv := &Server{
+			schema: schema,
+		}
+
+		grpcServer := grpc.NewServer()
+		thunderpb.RegisterExecutorServer(grpcServer, srv)
+
+		listener, err := net.Listen("tcp", ":0")
+		if err != nil {
+			for _, closer := range closers {
+				closer()
+			}
+			return nil, nil, err
+		}
+
+		go grpcServer.Serve(listener)
+
+		closers = append(closers, func() {
+			listener.Close()
+			grpcServer.Stop()
+		})
+
+		client, err := grpc.Dial(listener.Addr().String(), grpc.WithInsecure())
+		if err != nil {
+			for _, closer := range closers {
+				closer()
+			}
+			return nil, nil, err
+		}
+
+		closers = append(closers, func() {
+			client.Close()
+		})
+
+		executors[name] = thunderpb.NewExecutorClient(client)
+	}
+
+	return executors, func() {
+		for _, close := range closers {
+			close()
+		}
+	}, nil
+}
+
 func main() {
+	ctx := context.Background()
+
 	executors := map[string]*graphql.Schema{
 		"schema1": schema1().MustBuild(),
 		"schema2": schema2().MustBuild(),
@@ -426,10 +487,14 @@ func main() {
 	types := convertSchema(executors)
 
 	// executors["schema1"]
+	execs, _, err := makeExecutors(executors)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	e := &Executor{
 		Types:     types,
-		Executors: executors,
+		Executors: execs,
 	}
 
 	oldQuery := graphql.MustParse(`
@@ -454,7 +519,7 @@ func main() {
 	}
 
 	// XXX: have to deal with multiple plans here
-	res, err := e.execute(plan.After[0], nil)
+	res, err := e.execute(ctx, plan.After[0], nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -463,9 +528,6 @@ func main() {
 }
 
 // todo
-// project. end to end with rpcs.
-// rpc for invocation
-//
 // project. schema (un)marshaling
 // do that
 //
@@ -475,10 +537,14 @@ func main() {
 //
 // project. harden APIs
 // test malformed inputs
+// test incompatible schemas
+// test forward/backward schema rollout
 //
 // project. fragments
 //
 // project. union types
+//
+// project. independnet binaries
 //
 // XXX: cache queries and plans? even better, cache selection sets downstream?
 // XXX: precompile queries and query plans???
