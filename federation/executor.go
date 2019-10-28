@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"log"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/samsarahq/thunder/graphql"
@@ -99,7 +101,7 @@ func convertSelectionSet(selections []*Selection) *graphql.RawSelectionSet {
 	}
 }
 
-func (e *Executor) runOnService(service string, typName string, keys []interface{}, selections []*Selection) []interface{} {
+func (e *Executor) runOnService(service string, typName string, keys []interface{}, selections []*Selection) ([]interface{}, error) {
 	schema := e.Executors[service]
 
 	// xxx: detect if root (?)
@@ -110,14 +112,13 @@ func (e *Executor) runOnService(service string, typName string, keys []interface
 		// Root query
 		selectionSet = convertSelectionSet(selections)
 	} else {
-
 		var garbage interface{}
 		bytes, err := json.Marshal(keys)
 		if err != nil {
-			panic(err)
+			return nil, fmt.Errorf("roundtripping keys: %v", err)
 		}
 		if err := json.Unmarshal(bytes, &garbage); err != nil {
-			panic(err)
+			return nil, fmt.Errorf("roudntripping keys: %v", err)
 		}
 
 		// XXX: halp
@@ -142,14 +143,26 @@ func (e *Executor) runOnService(service string, typName string, keys []interface
 		SelectionSet: selectionSet,
 	})
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("executing query: %v", err)
 	}
 
+	// for root:
 	if keys == nil {
-		return []interface{}{res}
-	} else {
-		return res.(map[string]interface{})["results"].([]interface{})
+		return []interface{}{res}, nil
 	}
+
+	// otherwise:
+	asMap, ok := res.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("did not get back a map from executor, got %v", res)
+	}
+
+	results, ok := asMap["results"].([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("map did not have a results slice, got %v", res)
+	}
+
+	return results, nil
 }
 
 type Plan struct {
@@ -162,56 +175,93 @@ type Plan struct {
 
 // XXX: have a plan about failed conversions and nils everywhere.
 
-func (e *Executor) execute(p *Plan, keys []interface{}) []interface{} {
-	res := e.runOnService(p.Service, p.Type, keys, p.Selections)
+func (e *Executor) execute(p *Plan, keys []interface{}) ([]interface{}, error) {
+	res, err := e.runOnService(p.Service, p.Type, keys, p.Selections)
+	if err != nil {
+		return nil, fmt.Errorf("run on service: %v", err)
+	}
 
 	for _, subPlan := range p.After {
-		var targets []interface{}
+		var targets []map[string]interface{}
+		var keys []interface{}
+
 		// targets = []interface{}{res}
 
 		// DFS to follow path
 
-		var search func(node interface{}, path []string)
-		search = func(node interface{}, path []string) {
+		// XXX: extract and unit test...
+		var search func(node interface{}, path []string) error
+		search = func(node interface{}, path []string) error {
 			// XXX: encode list flattening in path?
 			if slice, ok := node.([]interface{}); ok {
-				for _, elem := range slice {
-					search(elem, path)
+				for i, elem := range slice {
+					if err := search(elem, path); err != nil {
+						fmt.Errorf("idx %d: %v", i, err)
+					}
 				}
-				return
+				return nil
 			}
 
 			if len(path) == 0 {
-				targets = append(targets, node)
-				return
+				obj, ok := node.(map[string]interface{})
+				if !ok {
+					return fmt.Errorf("not an object: %v", obj)
+				}
+				key, ok := obj["federationKey"]
+				if !ok {
+					return fmt.Errorf("missing federationKey: %v", obj)
+				}
+				targets = append(targets, obj)
+				keys = append(keys, key)
+				return nil
 			}
 
-			search(node.(map[string]interface{})[path[0]], path[1:])
+			obj, ok := node.(map[string]interface{})
+			if !ok {
+				// XXX: always do this? only if nullable?
+				return nil
+			}
+
+			next, ok := obj[path[0]]
+			if !ok {
+				return fmt.Errorf("does not have key %s", path[0])
+			}
+
+			if err := search(next, path[1:]); err != nil {
+				return fmt.Errorf("elem %s: %v", next, err)
+			}
+
+			return nil
 		}
 
-		// xxx; reverse path
-		search(res, subPlan.Path)
-
-		var keys []interface{}
-		for _, target := range targets {
-			keys = append(keys, target.(map[string]interface{})["federationKey"])
+		if err := search(res, subPlan.Path); err != nil {
+			return nil, fmt.Errorf("failed to follow path %v: %v", subPlan.Path, err)
 		}
-
-		// spew.Dump(targets, keys)
 
 		// XXX: don't execute here yet??? i mean we can but why? simpler?????? could go back to root?
 
 		// XXX: go
-		results := e.execute(subPlan, keys)
+		results, err := e.execute(subPlan, keys)
+		if err != nil {
+			return nil, fmt.Errorf("executing sub plan: %v", err)
+		}
 
-		for i := range targets {
-			for k, v := range results[i].(map[string]interface{}) {
-				targets[i].(map[string]interface{})[k] = v
+		if len(results) != len(targets) {
+			return nil, fmt.Errorf("got %d results for %d targets", len(results), len(targets))
+		}
+
+		for i, target := range targets {
+			result, ok := results[i].(map[string]interface{})
+			if !ok {
+				return nil, fmt.Errorf("result is not an object: %v", result)
+			}
+			for k, v := range result {
+				target[k] = v
 			}
 		}
 	}
 
-	return res
+	return res, nil
 }
 
 func (e *Executor) plan(typName string, typ *Object, selections []*Selection, service string) *Plan {
@@ -389,14 +439,16 @@ func main() {
 	plan := e.Plan(e.Types["Query"], query).After
 
 	// XXX: have to deal with multiple plans here
-	res := e.execute(plan[0], nil)
+	res, err := e.execute(plan[0], nil)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	spew.Dump(res)
 }
 
 // todo
 // project. end to end test
-// nail down some unit tests
 // kill panics, return errors
 //
 // project. end to end with rpcs.

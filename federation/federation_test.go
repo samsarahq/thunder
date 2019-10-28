@@ -497,10 +497,11 @@ func TestExecutor(t *testing.T) {
 		t.Run(testCase.Name, func(t *testing.T) {
 			plan := e.Plan(e.Types["Query"], mustParse(testCase.Input)).After
 
-			res := e.execute(plan[0], nil)
+			res, err := e.execute(plan[0], nil)
+			require.NoError(t, err)
 
 			var expected interface{}
-			err := json.Unmarshal([]byte(testCase.Output), &expected)
+			err = json.Unmarshal([]byte(testCase.Output), &expected)
 			require.NoError(t, err)
 
 			assert.Equal(t, expected, roundtripJson(t, res[0]))
