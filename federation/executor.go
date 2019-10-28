@@ -196,7 +196,7 @@ func (e *Executor) execute(p *Plan, keys []interface{}) ([]interface{}, error) {
 			if slice, ok := node.([]interface{}); ok {
 				for i, elem := range slice {
 					if err := search(elem, path); err != nil {
-						fmt.Errorf("idx %d: %v", i, err)
+						return fmt.Errorf("idx %d: %v", i, err)
 					}
 				}
 				return nil
