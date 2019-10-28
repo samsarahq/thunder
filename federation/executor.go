@@ -264,7 +264,7 @@ func (e *Executor) execute(p *Plan, keys []interface{}) ([]interface{}, error) {
 	return res, nil
 }
 
-func (e *Executor) plan(typName string, typ *Object, selections []*Selection, service string) *Plan {
+func (e *Executor) plan(typName string, typ *Object, selections []*Selection, service string) (*Plan, error) {
 	p := &Plan{
 		Type:       typName,
 		Service:    service,
@@ -297,7 +297,10 @@ func (e *Executor) plan(typName string, typ *Object, selections []*Selection, se
 	selectionsByService := make(map[string][]*Selection)
 
 	for _, selection := range selections {
-		field := typ.Fields[selection.Name]
+		field, ok := typ.Fields[selection.Name]
+		if !ok {
+			return nil, fmt.Errorf("typ %s has no field %s", typName, selection.Name)
+		}
 
 		// if we can stick to the current service, stay there
 		if field.Services[service] {
@@ -317,11 +320,17 @@ func (e *Executor) plan(typName string, typ *Object, selections []*Selection, se
 	// very snazzily we could merge subplans.
 
 	for _, selection := range selectionsByService[service] {
+		// we have already checked above that this field exists
 		field := typ.Fields[selection.Name]
 
 		var childPlan *Plan
 		if selection.Selections != nil {
-			childPlan = e.plan(string(field.Type), e.Types[field.Type], selection.Selections, service)
+			// XXX: assert existence of types elsewhere?
+			var err error
+			childPlan, err = e.plan(string(field.Type), e.Types[field.Type], selection.Selections, service)
+			if err != nil {
+				return nil, fmt.Errorf("planning for %s: %v", selection.Name, err)
+			}
 		}
 
 		newSelection := &Selection{
@@ -355,7 +364,10 @@ func (e *Executor) plan(typName string, typ *Object, selections []*Selection, se
 		// what other fields we might want to resolve after?
 		// nah, just go with default... and consider being able to stick with
 		// the same a bonus
-		subPlan := e.plan(typName, typ, selections, other)
+		subPlan, err := e.plan(typName, typ, selections, other)
+		if err != nil {
+			return nil, fmt.Errorf("planning for %s: %v", other, err)
+		}
 
 		p.After = append(p.After, subPlan)
 	}
@@ -378,10 +390,10 @@ func (e *Executor) plan(typName string, typ *Object, selections []*Selection, se
 		}
 	}
 
-	return p
+	return p, nil
 }
 
-func (e *Executor) Plan(typ *Object, selections []*Selection) *Plan {
+func (e *Executor) Plan(typ *Object, selections []*Selection) (*Plan, error) {
 	return e.plan("", typ, selections, "no-such-service")
 }
 
@@ -436,10 +448,13 @@ func main() {
 
 	query := convert(oldQuery.SelectionSet)
 
-	plan := e.Plan(e.Types["Query"], query).After
+	plan, err := e.Plan(e.Types["Query"], query)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// XXX: have to deal with multiple plans here
-	res, err := e.execute(plan[0], nil)
+	res, err := e.execute(plan.After[0], nil)
 	if err != nil {
 		log.Fatal(err)
 	}

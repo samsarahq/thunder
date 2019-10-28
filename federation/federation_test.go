@@ -344,8 +344,9 @@ func TestPlan(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.Name, func(t *testing.T) {
-			plan := e.Plan(e.Types["Query"], mustParse(testCase.Input)).After
-			assert.Equal(t, testCase.Output, plan)
+			plan, err := e.Plan(e.Types["Query"], mustParse(testCase.Input))
+			require.NoError(t, err)
+			assert.Equal(t, testCase.Output, plan.After)
 		})
 	}
 }
@@ -495,9 +496,10 @@ func TestExecutor(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.Name, func(t *testing.T) {
-			plan := e.Plan(e.Types["Query"], mustParse(testCase.Input)).After
+			plan, err := e.Plan(e.Types["Query"], mustParse(testCase.Input))
+			require.NoError(t, err)
 
-			res, err := e.execute(plan[0], nil)
+			res, err := e.execute(plan.After[0], nil)
 			require.NoError(t, err)
 
 			var expected interface{}
