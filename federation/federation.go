@@ -2,20 +2,19 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"log"
-	"os"
-
-	"github.com/davecgh/go-spew/spew"
-	"github.com/samsarahq/thunder/graphql"
 
 	"github.com/samsarahq/thunder/batch"
+	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 )
 
 type Foo struct {
 	Name string
+}
+
+type Bar struct {
+	Id int64
 }
 
 func schema1() *schemabuilder.Schema {
@@ -50,6 +49,23 @@ func schema1() *schemabuilder.Schema {
 		return f.Name
 	})
 
+	foo.FieldFunc("nest", func(f *Foo) *Foo {
+		return f
+	})
+
+	schema.Query().FieldFunc("barsFromFederationKeys", func(args struct{ Keys []int64 }) []*Bar {
+		bars := make([]*Bar, 0, len(args.Keys))
+		for _, key := range args.Keys {
+			bars = append(bars, &Bar{Id: key})
+		}
+		return bars
+	})
+
+	bar := schema.Object("bar", Bar{})
+	bar.FieldFunc("baz", func(b *Bar) string {
+		return fmt.Sprint(b.Id)
+	})
+
 	return schema
 }
 
@@ -72,6 +88,17 @@ func schema2() *schemabuilder.Schema {
 
 	foo.FieldFunc("ok", func(ctx context.Context, in *Foo) (int, error) {
 		return len(in.Name), nil
+	})
+
+	foo.FieldFunc("bar", func(in *Foo) *Bar {
+		return &Bar{
+			Id: int64(len(in.Name)*2 + 4),
+		}
+	})
+
+	bar := schema.Object("bar", Bar{})
+	bar.FieldFunc("federationKey", func(b *Bar) int64 {
+		return b.Id
 	})
 
 	return schema
@@ -127,150 +154,201 @@ func walkTypes(schema *graphql.Schema) map[string]graphql.Type {
 	return all
 }
 
-func stitchSchemas(schemas []*graphql.Schema) *graphql.Schema {
-	byName := make(map[string][]graphql.Type)
+func getName(t graphql.Type) string {
+	switch t := t.(type) {
+	case *graphql.Object:
+		return t.Name
 
-	for _, schema := range schemas {
-		for name, typ := range walkTypes(schema) {
-			byName[name] = append(byName[name], typ)
-		}
-	}
+	case *graphql.InputObject:
+		return t.Name
 
-	newByName := make(map[string]graphql.Type)
-	for name, types := range byName {
-		typ := types[0]
+	case *graphql.List:
+		return getName(t.Type)
 
-		// XXX: assert identical types
+	case *graphql.NonNull:
+		return getName(t.Type)
 
-		switch typ := typ.(type) {
-		case *graphql.Object:
-			newByName[name] = &graphql.Object{
-				Name:        name,
-				Description: typ.Description,
-				// KeyField:
-				Fields: make(map[string]*graphql.Field),
-			}
+	case *graphql.Union:
+		return t.Name
 
-		case *graphql.InputObject:
-			newByName[name] = &graphql.InputObject{
-				Name:        name,
-				InputFields: make(map[string]graphql.Type),
-			}
+	case *graphql.Scalar:
+		return t.Type
 
-		case *graphql.Union:
-			newByName[name] = &graphql.Union{
-				Name:        name,
-				Description: typ.Description,
-			}
-
-			// case *graphql.Scalar:
-			// newByName[name] = typ
-		}
-	}
-
-	var swizzleType func(graphql.Type) graphql.Type
-	swizzleType = func(t graphql.Type) graphql.Type {
-		switch t := t.(type) {
-		case *graphql.Object:
-			return newByName[t.Name]
-
-		case *graphql.InputObject:
-			return newByName[t.Name]
-
-		case *graphql.List:
-			return &graphql.List{
-				Type: swizzleType(t.Type),
-			}
-
-		case *graphql.NonNull:
-			return &graphql.NonNull{
-				Type: swizzleType(t.Type),
-			}
-
-		case *graphql.Union:
-			return newByName[t.Name]
-
-		case *graphql.Scalar:
-			return t
-			// return newByName[t.Type]
-		}
-		spew.Dump(t)
+	default:
 		panic("help")
 	}
+}
 
-	for name, types := range byName {
-		for _, typ := range types {
-			log.Println(name)
+func convertSchema(schemas map[string]*graphql.Schema) map[TypeName]*Object {
+	byName := make(map[TypeName]*Object)
+
+	for service, schema := range schemas {
+		for _, typ := range walkTypes(schema) {
 			switch typ := typ.(type) {
 			case *graphql.Object:
-				newTyp := newByName[name].(*graphql.Object)
-				for name, field := range typ.Fields {
-					log.Println(name)
-					copy := *field
-					copy.Type = swizzleType(field.Type)
-					if copy.Type == nil {
-						panic(field.Type)
+				obj, ok := byName[TypeName(typ.Name)]
+				if !ok {
+					obj = &Object{
+						Fields: make(map[string]*Field),
 					}
-					newTyp.Fields[name] = &copy
+					byName[TypeName(typ.Name)] = obj
+				}
+
+				for name, field := range typ.Fields {
+					// XXX: duplicates??
+					if f, ok := obj.Fields[name]; ok {
+						f.Services[service] = true
+					} else {
+						obj.Fields[name] = &Field{
+							Service: service,
+							Services: map[string]bool{
+								service: true,
+							},
+							Args: nil,                           // XXXX
+							Type: TypeName(getName(field.Type)), // XXX
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return byName
+
+	/*
+		for name, types := range byName {
+			typ := types[0]
+
+			// XXX: assert identical types
+
+			switch typ := typ.(type) {
+			case *graphql.Object:
+				newByName[name] = &graphql.Object{
+					Name:        name,
+					Description: typ.Description,
+					// KeyField:
+					Fields: make(map[string]*graphql.Field),
 				}
 
 			case *graphql.InputObject:
-				// XXX: assert identical fields
+				newByName[name] = &graphql.InputObject{
+					Name:        name,
+					InputFields: make(map[string]graphql.Type),
+				}
 
 			case *graphql.Union:
-				// XXX: assert identical
+				newByName[name] = &graphql.Union{
+					Name:        name,
+					Description: typ.Description,
+				}
+
+				// case *graphql.Scalar:
+				// newByName[name] = typ
 			}
 		}
-	}
 
-	return &graphql.Schema{
-		Query:    newByName["Query"],
-		Mutation: newByName["Mutation"],
-	}
+		var swizzleType func(graphql.Type) graphql.Type
+		swizzleType = func(t graphql.Type) graphql.Type {
+			switch t := t.(type) {
+			case *graphql.Object:
+				return newByName[t.Name]
+
+			case *graphql.InputObject:
+				return newByName[t.Name]
+
+			case *graphql.List:
+				return &graphql.List{
+					Type: swizzleType(t.Type),
+				}
+
+			case *graphql.NonNull:
+				return &graphql.NonNull{
+					Type: swizzleType(t.Type),
+				}
+
+			case *graphql.Union:
+				return newByName[t.Name]
+
+			case *graphql.Scalar:
+				return t
+				// return newByName[t.Type]
+			}
+			spew.Dump(t)
+			panic("help")
+		}
+
+		for name, types := range byName {
+			for _, typ := range types {
+				log.Println(name)
+				switch typ := typ.(type) {
+				case *graphql.Object:
+					newTyp := newByName[name].(*graphql.Object)
+					for name, field := range typ.Fields {
+						log.Println(name)
+						copy := *field
+						copy.Type = swizzleType(field.Type)
+						if copy.Type == nil {
+							panic(field.Type)
+						}
+						newTyp.Fields[name] = &copy
+					}
+
+				case *graphql.InputObject:
+					// XXX: assert identical fields
+
+				case *graphql.Union:
+					// XXX: assert identical
+				}
+			}
+		}
+
+		return &graphql.Schema{
+			Query:    newByName["Query"],
+			Mutation: newByName["Mutation"],
+		}
+	*/
 }
 
+/*
 func main() {
-	testfoo()
+		merged := stitchSchemas([]*graphql.Schema{
+			schema1().MustBuild(),
+			schema2().MustBuild(),
+		})
 
-	os.Exit(0)
-
-	merged := stitchSchemas([]*graphql.Schema{
-		schema1().MustBuild(),
-		schema2().MustBuild(),
-	})
-
-	query := graphql.MustParse(`
-		{
-			f {
-				hmm
-				ok
+		query := graphql.MustParse(`
+			{
+				f {
+					hmm
+					ok
+				}
 			}
+		`, map[string]interface{}{})
+		e := graphql.NewExecutor(
+			graphql.NewImmediateGoroutineScheduler(),
+		)
+		res, err := e.Execute(context.Background(), merged.Query, nil, query)
+		if err != nil {
+			panic(err)
 		}
-	`, map[string]interface{}{})
-	e := graphql.NewExecutor(
-		graphql.NewImmediateGoroutineScheduler(),
-	)
-	res, err := e.Execute(context.Background(), merged.Query, nil, query)
-	if err != nil {
-		panic(err)
-	}
-	bytes, err := json.MarshalIndent(res, "", "  ")
-	if err != nil {
-		panic(err)
-	}
-	fmt.Print(string(bytes))
+		bytes, err := json.MarshalIndent(res, "", "  ")
+		if err != nil {
+			panic(err)
+		}
+		fmt.Print(string(bytes))
+*/
 
-	// schema.Extend()
+// schema.Extend()
 
-	// XXX: any types you return you must have the definition for...
-	//
-	//   how do we enforce that?? some compile time check that crosses package
-	//   boundaries and spots Object() (or whatever) calls that are automatic in some
-	//   package and not in another?
-	//
-	//   could not do magic anymore and require an explicit "schema.Object" call for
-	//   any types returned... maybe with schema.AutoObject("") to handle automatic
-	//   cases?
-	//
-	// XXX: could not allow schemabuilder auto objects outside of packages? seems nice.
-}
+// XXX: any types you return you must have the definition for...
+//
+//   how do we enforce that?? some compile time check that crosses package
+//   boundaries and spots Object() (or whatever) calls that are automatic in some
+//   package and not in another?
+//
+//   could not do magic anymore and require an explicit "schema.Object" call for
+//   any types returned... maybe with schema.AutoObject("") to handle automatic
+//   cases?
+//
+// XXX: could not allow schemabuilder auto objects outside of packages? seems nice.
+// }

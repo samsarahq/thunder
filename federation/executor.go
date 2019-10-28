@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/samsarahq/thunder/graphql"
@@ -29,9 +30,23 @@ type Union struct {
 
 type Field struct {
 	// XXX: services?
-	Service string
-	Args    map[string]TypeName
-	Type    TypeName
+	Service  string
+	Services map[string]bool
+	Args     map[string]TypeName
+	Type     TypeName
+}
+
+/*
+type TypeRef struct {
+	TypeName string
+	NonNull  *NonNull
+	List     *List
+}
+
+type NonNull struct {
+}
+
+type List struct {
 }
 
 type Modifier string
@@ -45,6 +60,7 @@ type ModifiedType struct {
 	Type      TypeName
 	Modifiers []Modifier
 }
+*/
 
 type InputObject struct {
 	// xxx; how do we demarcate optional?
@@ -52,7 +68,7 @@ type InputObject struct {
 }
 
 type Object struct {
-	Fields map[string]Field
+	Fields map[string]*Field
 }
 
 type Selection struct {
@@ -88,7 +104,7 @@ func convertSelectionSet(selections []*Selection) *graphql.RawSelectionSet {
 	}
 }
 
-func (e *Executor) runOnService(service string, keys []interface{}, selections []*Selection) []interface{} {
+func (e *Executor) runOnService(service string, typName string, keys []interface{}, selections []*Selection) []interface{} {
 	schema := e.Executors[service]
 
 	// xxx: detect if root (?)
@@ -99,13 +115,24 @@ func (e *Executor) runOnService(service string, keys []interface{}, selections [
 		// Root query
 		selectionSet = convertSelectionSet(selections)
 	} else {
+
+		var garbage interface{}
+		bytes, err := json.Marshal(keys)
+		if err != nil {
+			panic(err)
+		}
+		if err := json.Unmarshal(bytes, &garbage); err != nil {
+			panic(err)
+		}
+
+		// XXX: halp
 		selectionSet = &graphql.RawSelectionSet{
 			Selections: []*graphql.RawSelection{
 				{
-					Name:  "foosFromFederationKeys",
+					Name:  typName + "sFromFederationKeys",
 					Alias: "results",
 					Args: map[string]interface{}{
-						"keys": keys,
+						"keys": garbage, // keys,
 					},
 					SelectionSet: convertSelectionSet(selections),
 				},
@@ -132,6 +159,7 @@ func (e *Executor) runOnService(service string, keys []interface{}, selections [
 
 type Plan struct {
 	Service    string
+	Type       string
 	Selections []*Selection
 	After      []SubPlan
 }
@@ -139,60 +167,45 @@ type Plan struct {
 // XXX: have a plan about failed conversions and nils everywhere.
 
 func (e *Executor) execute(p *Plan, keys []interface{}) []interface{} {
-	res := e.runOnService(p.Service, keys, p.Selections)
+	res := e.runOnService(p.Service, p.Type, keys, p.Selections)
 
 	for _, subPlan := range p.After {
-		// go func() {
 		var targets []interface{}
-		targets = []interface{}{res}
+		// targets = []interface{}{res}
+
+		// DFS to follow path
+
+		var search func(node interface{}, path []string)
+		search = func(node interface{}, path []string) {
+			// XXX: encode list flattening in path?
+			if slice, ok := node.([]interface{}); ok {
+				for _, elem := range slice {
+					search(elem, path)
+				}
+				return
+			}
+
+			if len(path) == 0 {
+				targets = append(targets, node)
+				return
+			}
+
+			search(node.(map[string]interface{})[path[0]], path[1:])
+		}
 
 		// xxx; reverse path
-		for _, elem := range subPlan.Path {
-			var newTargets []interface{}
-
-			// spew.Dump(elem, targets)
-
-			// XXX: have a clearer plan about this
-			// XXX: can save allocations if we DFS instead of BFS
-			if len(targets) > 0 {
-				if _, ok := targets[0].([]interface{}); ok {
-					for _, k := range targets {
-						for _, j := range k.([]interface{}) {
-							newTargets = append(newTargets, j)
-						}
-					}
-					targets = newTargets
-					newTargets = []interface{}{}
-				}
-			}
-
-			for _, k := range targets {
-				newTargets = append(newTargets, k.(map[string]interface{})[elem])
-			}
-			targets = newTargets
-		}
-
-		if len(targets) > 0 {
-			if _, ok := targets[0].([]interface{}); ok {
-				var newTargets []interface{}
-				for _, k := range targets {
-					for _, j := range k.([]interface{}) {
-						newTargets = append(newTargets, j)
-					}
-				}
-				targets = newTargets
-			}
-		}
+		search(res, subPlan.Path)
 
 		var keys []interface{}
 		for _, target := range targets {
 			keys = append(keys, target.(map[string]interface{})["federationKey"])
 		}
 
-		spew.Dump(targets, keys)
+		// spew.Dump(targets, keys)
 
 		// XXX: don't execute here yet??? i mean we can but why? simpler?????? could go back to root?
 
+		// XXX: go
 		results := e.execute(subPlan.Plan, keys)
 
 		for i := range targets {
@@ -200,14 +213,14 @@ func (e *Executor) execute(p *Plan, keys []interface{}) []interface{} {
 				targets[i].(map[string]interface{})[k] = v
 			}
 		}
-		// }()
 	}
 
 	return res
 }
 
-func (e *Executor) plan(typ *Object, selections []*Selection, service string) *Plan {
+func (e *Executor) plan(typName string, typ *Object, selections []*Selection, service string) *Plan {
 	p := &Plan{
+		Type:       typName,
 		Service:    service,
 		Selections: nil,
 		After:      nil,
@@ -240,11 +253,17 @@ func (e *Executor) plan(typ *Object, selections []*Selection, service string) *P
 	for _, selection := range selections {
 		field := typ.Fields[selection.Name]
 
-		selectionsByService[field.Service] = append(
-			selectionsByService[field.Service], selection)
+		// if we can stick to the current service, stay there
+		if field.Services[service] {
+			selectionsByService[service] = append(
+				selectionsByService[service], selection)
+		} else {
+			selectionsByService[field.Service] = append(
+				selectionsByService[field.Service], selection)
+		}
 	}
 
-	spew.Dump(service, selectionsByService)
+	// spew.Dump(service, selectionsByService)
 
 	// if we encounter a fragment, we find a branch
 	// either we hit it, or we don't. must make plan for both cases?
@@ -256,7 +275,7 @@ func (e *Executor) plan(typ *Object, selections []*Selection, service string) *P
 
 		var childPlan *Plan
 		if selection.Selections != nil {
-			childPlan = e.plan(e.Types[field.Type], selection.Selections, service)
+			childPlan = e.plan(string(field.Type), e.Types[field.Type], selection.Selections, service)
 		}
 
 		newSelection := &Selection{
@@ -273,7 +292,7 @@ func (e *Executor) plan(typ *Object, selections []*Selection, service string) *P
 		if childPlan != nil {
 			for _, subPlan := range childPlan.After {
 				p.After = append(p.After, SubPlan{
-					Path: append(subPlan.Path, selection.Alias),
+					Path: append([]string{selection.Alias}, subPlan.Path...),
 					Plan: subPlan.Plan,
 				})
 			}
@@ -292,7 +311,7 @@ func (e *Executor) plan(typ *Object, selections []*Selection, service string) *P
 		// what other fields we might want to resolve after?
 		// nah, just go with default... and consider being able to stick with
 		// the same a bonus
-		subPlan := e.plan(typ, selections, other)
+		subPlan := e.plan(typName, typ, selections, other)
 
 		p.After = append(p.After, SubPlan{
 			Path: []string{},
@@ -313,6 +332,7 @@ func (e *Executor) plan(typ *Object, selections []*Selection, service string) *P
 			p.Selections = append(p.Selections, &Selection{
 				Name:  "federationKey",
 				Alias: "federationKey",
+				Args:  map[string]interface{}{},
 			})
 		}
 	}
@@ -321,10 +341,90 @@ func (e *Executor) plan(typ *Object, selections []*Selection, service string) *P
 }
 
 func (e *Executor) Plan(typ *Object, selections []*Selection) *Plan {
-	return e.plan(typ, selections, "no-such-service")
+	return e.plan("", typ, selections, "no-such-service")
 }
 
-func testfoo() {
+func convert(query *graphql.RawSelectionSet) []*Selection {
+	if query == nil {
+		return nil
+	}
+
+	var converted []*Selection
+	for _, selection := range query.Selections {
+		if selection.Alias == "" {
+			selection.Alias = selection.Name
+		}
+		converted = append(converted, &Selection{
+			Name:       selection.Name,
+			Alias:      selection.Alias,
+			Args:       selection.Args,
+			Selections: convert(selection.SelectionSet),
+		})
+	}
+	return converted
+}
+
+func main() {
+	executors := map[string]*graphql.Schema{
+		"schema1": schema1().MustBuild(),
+		"schema2": schema2().MustBuild(),
+	}
+
+	types := convertSchema(executors)
+
+	// executors["schema1"]
+
+	e := &Executor{
+		Types:     types,
+		Executors: executors,
+	}
+
+	oldQuery := graphql.MustParse(`
+		{
+			fff {
+				a: nest { b: nest { c: nest { ok } } }
+				hmm
+				ok
+				bar {
+					id
+					baz
+				}
+			}
+		}
+	`, map[string]interface{}{})
+
+	query := convert(oldQuery.SelectionSet)
+
+	plan := e.Plan(e.Types["Query"], query).After
+
+	// XXX: have to deal with multiple plans here
+	res := e.execute(plan[0].Plan, nil)
+
+	spew.Dump(res)
+}
+
+// todo
+// project. end to end test
+// nail down some unit tests
+// kill panics, return errors
+//
+// project. end to end with rpcs.
+// rpc for invocation
+//
+// project. schema api
+// design it
+// implement it
+//
+// project. harden APIs
+//
+// project. union and fragment types
+//
+// project. schema (un)marshaling
+// do that
+
+// XXX: cache queries and plans? even better, cache selection sets downstream?
+
+/*
 	types := map[TypeName]*Object{
 		"Query": {
 			Fields: map[string]Field{
@@ -345,6 +445,11 @@ func testfoo() {
 					Args:    nil, // XXX
 					Type:    "foo",
 				},
+				"barsFromFederationKeys": {
+					Service: "schema1",
+					Args:    nil, // XXX
+					Type:    "bar",
+				},
 			},
 		},
 		"foo": {
@@ -364,22 +469,34 @@ func testfoo() {
 					Args:    nil,
 					Type:    "string",
 				},
+				"bar": {
+					Service: "schema2",
+					Type:    "bar",
+				},
+			},
+		},
+		"bar": {
+			Fields: map[string]Field{
+				"id": {
+					Service: "schema2",
+					Type:    "int64",
+				},
+				"federationKey": {
+					Service: "schema2",
+					Args:    nil,
+					Type:    "int64",
+				},
+				"baz": {
+					Service: "schema1",
+					Args:    nil,
+					Type:    "string",
+				},
 			},
 		},
 	}
+*/
 
-	executors := map[string]*graphql.Schema{
-		"schema1": schema1().MustBuild(),
-		"schema2": schema2().MustBuild(),
-	}
-
-	// executors["schema1"]
-
-	e := &Executor{
-		Types:     types,
-		Executors: executors,
-	}
-
+/*
 	query := []*Selection{
 		{
 			Name:  "fff",
@@ -393,36 +510,21 @@ func testfoo() {
 					Name:  "ok",
 					Alias: "ok",
 				},
+				{
+					Name:  "bar",
+					Alias: "bar",
+					Selections: []*Selection{
+						{
+							Name:  "id",
+							Alias: "id",
+						},
+						{
+							Name:  "baz",
+							Alias: "baz",
+						},
+					},
+				},
 			},
 		},
 	}
-
-	plan := e.Plan(e.Types["Query"], query).After
-
-	// XXX: have to deal with multiple plans here
-	res := e.execute(plan[0].Plan, nil)
-
-	spew.Dump(res)
-}
-
-// todo
-// project. end to end test
-// in process
-// make code actually work
-// nail down some unit tests
-//
-// project. end to end with rpcs.
-// rpc for invocation
-//
-// project. schema api
-// design it
-// implement it
-//
-// project. harden APIs
-//
-// project. union and fragment types
-//
-// project. schema (un)marshaling
-// do that
-
-// XXX: cache queries and plans? even better, cache selection sets downstream?
+*/
