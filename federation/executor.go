@@ -481,3 +481,4 @@ func main() {
 // project. union types
 //
 // XXX: cache queries and plans? even better, cache selection sets downstream?
+// XXX: precompile queries and query plans???
