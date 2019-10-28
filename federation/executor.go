@@ -78,11 +78,6 @@ type Selection struct {
 	Selections []*Selection
 }
 
-type SubPlan struct {
-	Path []string
-	*Plan
-}
-
 func convertSelectionSet(selections []*Selection) *graphql.RawSelectionSet {
 	if len(selections) == 0 {
 		return nil
@@ -158,10 +153,11 @@ func (e *Executor) runOnService(service string, typName string, keys []interface
 }
 
 type Plan struct {
+	Path       []string
 	Service    string
 	Type       string
 	Selections []*Selection
-	After      []SubPlan
+	After      []*Plan
 }
 
 // XXX: have a plan about failed conversions and nils everywhere.
@@ -206,7 +202,7 @@ func (e *Executor) execute(p *Plan, keys []interface{}) []interface{} {
 		// XXX: don't execute here yet??? i mean we can but why? simpler?????? could go back to root?
 
 		// XXX: go
-		results := e.execute(subPlan.Plan, keys)
+		results := e.execute(subPlan, keys)
 
 		for i := range targets {
 			for k, v := range results[i].(map[string]interface{}) {
@@ -291,10 +287,8 @@ func (e *Executor) plan(typName string, typ *Object, selections []*Selection, se
 
 		if childPlan != nil {
 			for _, subPlan := range childPlan.After {
-				p.After = append(p.After, SubPlan{
-					Path: append([]string{selection.Alias}, subPlan.Path...),
-					Plan: subPlan.Plan,
-				})
+				subPlan.Path = append([]string{selection.Alias}, subPlan.Path...)
+				p.After = append(p.After, subPlan)
 			}
 		}
 	}
@@ -313,10 +307,7 @@ func (e *Executor) plan(typName string, typ *Object, selections []*Selection, se
 		// the same a bonus
 		subPlan := e.plan(typName, typ, selections, other)
 
-		p.After = append(p.After, SubPlan{
-			Path: []string{},
-			Plan: subPlan,
-		})
+		p.After = append(p.After, subPlan)
 	}
 
 	if needKey {
@@ -398,7 +389,7 @@ func main() {
 	plan := e.Plan(e.Types["Query"], query).After
 
 	// XXX: have to deal with multiple plans here
-	res := e.execute(plan[0].Plan, nil)
+	res := e.execute(plan[0], nil)
 
 	spew.Dump(res)
 }
@@ -417,7 +408,9 @@ func main() {
 //
 // project. harden APIs
 //
-// project. union and fragment types
+// project. fragments
+//
+// project. union types
 //
 // project. schema (un)marshaling
 // do that

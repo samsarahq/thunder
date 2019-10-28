@@ -120,7 +120,7 @@ func TestPlan(t *testing.T) {
 	testCases := []struct {
 		Name   string
 		Input  string
-		Output []SubPlan
+		Output []*Plan
 	}{
 		{
 			Name: "kitchen sink",
@@ -143,59 +143,51 @@ func TestPlan(t *testing.T) {
 					}
 				}
 			`,
-			Output: []SubPlan{
+			Output: []*Plan{
 				{
-					Path: []string{},
-					Plan: &Plan{
-						Service: "schema1",
-						Selections: mustParse(`{
-							s1fff {
-								a: s1nest { b: s1nest { c: s1nest { federationKey } } }
-								s1hmm
-								s1nest {
+					Path:    nil,
+					Service: "schema1",
+					Selections: mustParse(`{
+						s1fff {
+							a: s1nest { b: s1nest { c: s1nest { federationKey } } }
+							s1hmm
+							s1nest {
+								name
+							}
+							federationKey
+						}
+					}`),
+					After: []*Plan{
+						{
+							Path:    []string{"s1fff", "a", "b", "c"},
+							Type:    "foo",
+							Service: "schema2",
+							Selections: mustParse(`{
+								s2ok
+							}`),
+						},
+						{
+							Path:    []string{"s1fff"},
+							Type:    "foo",
+							Service: "schema2",
+							Selections: mustParse(`{
+								s2ok
+								s2bar {
+									id
+									federationKey
+								}
+								s2nest {
 									name
 								}
-								federationKey
-							}
-						}`),
-						After: []SubPlan{
-							{
-								Path: []string{"s1fff", "a", "b", "c"},
-								Plan: &Plan{
-									Type:    "foo",
-									Service: "schema2",
+							}`),
+							After: []*Plan{
+								{
+									Path:    []string{"s2bar"},
+									Type:    "bar",
+									Service: "schema1",
 									Selections: mustParse(`{
-										s2ok
+										s1baz
 									}`),
-								},
-							},
-							{
-								Path: []string{"s1fff"},
-								Plan: &Plan{
-									Type:    "foo",
-									Service: "schema2",
-									Selections: mustParse(`{
-										s2ok
-										s2bar {
-											id
-											federationKey
-										}
-										s2nest {
-											name
-										}
-									}`),
-									After: []SubPlan{
-										{
-											Path: []string{"s2bar"},
-											Plan: &Plan{
-												Type:    "bar",
-												Service: "schema1",
-												Selections: mustParse(`{
-													s1baz
-												}`),
-											},
-										},
-									},
 								},
 							},
 						},
