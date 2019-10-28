@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package thunderpb;
+option go_package = "github.com/samsarahq/thunder/thunderpb";
+
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+
+message Selection {
+  string name = 1;
+  string alias = 2;
+  repeated Selection selections = 3;
+  bytes arguments = 4;
+}
+
+message ExecuteRequest {
+  repeated Selection selections = 1;
+}
+
+message ExecuteResponse {
+  bytes result = 1;
+}
+
+service Executor {
+  rpc Execute(ExecuteRequest) returns (ExecuteResponse) {}
+}
