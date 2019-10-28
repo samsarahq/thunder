@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/graphql"
@@ -399,4 +402,108 @@ func TestMustParse(t *testing.T) {
 	}
 
 	assert.Equal(t, expected, query)
+}
+
+func roundtripJson(t *testing.T, v interface{}) interface{} {
+	bytes, err := json.Marshal(v)
+	require.NoError(t, err)
+	var r interface{}
+	err = json.Unmarshal(bytes, &r)
+	require.NoError(t, err)
+	return r
+}
+
+func TestExecutor(t *testing.T) {
+	// todo: assert specific invocation traces?
+
+	executors := map[string]*graphql.Schema{
+		"schema1": buildTestSchema1(),
+		"schema2": buildTestSchema2(),
+	}
+
+	types := convertSchema(executors)
+
+	e := &Executor{
+		Types:     types,
+		Executors: executors,
+	}
+
+	testCases := []struct {
+		Name   string
+		Input  string
+		Output string
+	}{
+		{
+			Name: "kitchen sink",
+			Input: `
+				{
+					s1fff {
+						a: s1nest { b: s1nest { c: s1nest { s2ok } } }
+						s1hmm
+						s2ok
+						s2bar {
+							id
+							s1baz
+						}
+						s1nest {
+							name
+						}
+						s2nest {
+							name
+						}
+					}
+				}
+			`,
+			Output: `{
+				"s1fff": [{
+					"a": {"b": {"c": {"federationKey": "jimbo", "s2ok": 5}}},
+					"s1hmm": "jimbo!!!",
+					"s2ok": 5,
+					"s2bar": {
+						"id": 14,
+						"federationKey": 14,
+						"s1baz": "14"
+					},
+					"s1nest": {
+						"name": "jimbo"
+					},
+					"s2nest": {
+						"name": "jimbo"
+					},
+					"federationKey": "jimbo"
+				},
+				{
+					"a": {"b": {"c": {"federationKey": "bob", "s2ok": 3}}},
+					"s1hmm": "bob!!!",
+					"s2ok": 3,
+					"s2bar": {
+						"id": 10,
+						"federationKey": 10,
+						"s1baz": "10"
+					},
+					"s1nest": {
+						"name": "bob"
+					},
+					"s2nest": {
+						"name": "bob"
+					},
+					"federationKey": "bob"
+				}]
+			}`,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.Name, func(t *testing.T) {
+			plan := e.Plan(e.Types["Query"], mustParse(testCase.Input)).After
+
+			res := e.execute(plan[0], nil)
+
+			var expected interface{}
+			err := json.Unmarshal([]byte(testCase.Output), &expected)
+			require.NoError(t, err)
+
+			assert.Equal(t, expected, roundtripJson(t, res[0]))
+		})
+	}
 }
