@@ -104,6 +104,148 @@ func mustParse(s string) []*Selection {
 	return convert(graphql.MustParse(s, map[string]interface{}{}).SelectionSet)
 }
 
+func TestBuildSchema(t *testing.T) {
+	executors := map[string]*graphql.Schema{
+		"schema1": buildTestSchema1(),
+		"schema2": buildTestSchema2(),
+	}
+
+	types := convertSchema(executors)
+
+	expected := map[TypeName]*Object{
+		"Query": {
+			Fields: map[string]*Field{
+				"s1f": {
+					Service: "schema1",
+					Services: map[string]bool{
+						"schema1": true,
+					},
+					Args: nil,
+					Type: "foo",
+				},
+				"s1fff": {
+					Service: "schema1",
+					Services: map[string]bool{
+						"schema1": true,
+					},
+					Args: nil,
+					Type: "foo",
+				},
+				// XXX: federate other directon as well!
+				// XXX: federate multiple types?
+				"foosFromFederationKeys": {
+					Service: "schema2",
+					Services: map[string]bool{
+						"schema2": true,
+					},
+					Args: nil, // XXX
+					Type: "foo",
+				},
+				"barsFromFederationKeys": {
+					Service: "schema1",
+					Services: map[string]bool{
+						"schema1": true,
+					},
+					Args: nil, // XXX
+					Type: "bar",
+				},
+			},
+		},
+		"Mutation": {
+			Fields: map[string]*Field{},
+		},
+		"foo": {
+			Fields: map[string]*Field{
+				"name": {
+					Service: "schema1",
+					Services: map[string]bool{
+						"schema1": true,
+						"schema2": true,
+					},
+					Type: "string",
+				},
+				"federationKey": {
+					Service: "schema1",
+					Services: map[string]bool{
+						"schema1": true,
+					},
+					Args: nil,
+					Type: "string",
+				},
+				"s1hmm": {
+					Service: "schema1",
+					Services: map[string]bool{
+						"schema1": true,
+					},
+					Args: nil,
+					Type: "string",
+				},
+				"s1nest": {
+					Service: "schema1",
+					Services: map[string]bool{
+						"schema1": true,
+					},
+					Args: nil,
+					Type: "foo",
+				},
+				"s2ok": {
+					Service: "schema2",
+					Services: map[string]bool{
+						"schema2": true,
+					},
+					Args: nil,
+					Type: "int",
+				},
+				"s2bar": {
+					Service: "schema2",
+					Services: map[string]bool{
+						"schema2": true,
+					},
+					Type: "bar",
+				},
+				"s2nest": {
+					Service: "schema2",
+					Services: map[string]bool{
+						"schema2": true,
+					},
+					Args: nil,
+					Type: "foo",
+				},
+			},
+		},
+		"bar": {
+			Fields: map[string]*Field{
+				"id": {
+					Service: "schema1",
+					Services: map[string]bool{
+						"schema1": true,
+						"schema2": true,
+					},
+					Type: "int64",
+				},
+				"federationKey": {
+					Service: "schema2",
+					Services: map[string]bool{
+						"schema2": true,
+					},
+					Args: nil,
+					Type: "int64",
+				},
+				"s1baz": {
+					Service: "schema1",
+					Services: map[string]bool{
+						"schema1": true,
+					},
+					Args: nil,
+					Type: "string",
+				},
+			},
+		},
+	}
+
+	assert.Equal(t, expected, types)
+}
+
 func TestPlan(t *testing.T) {
 	executors := map[string]*graphql.Schema{
 		"schema1": buildTestSchema1(),
@@ -203,5 +345,58 @@ func TestPlan(t *testing.T) {
 			assert.Equal(t, testCase.Output, plan)
 		})
 	}
+}
 
+func TestMustParse(t *testing.T) {
+	query := mustParse(`
+		{
+			fff {
+				hmm
+				ah: ok
+				bar {
+					id
+					baz
+				}
+			}
+		}
+	`)
+
+	expected := []*Selection{
+		{
+			Name:  "fff",
+			Alias: "fff",
+			Args:  map[string]interface{}{},
+			Selections: []*Selection{
+				{
+					Name:  "hmm",
+					Alias: "hmm",
+					Args:  map[string]interface{}{},
+				},
+				{
+					Name:  "ok",
+					Alias: "ah",
+					Args:  map[string]interface{}{},
+				},
+				{
+					Name:  "bar",
+					Alias: "bar",
+					Args:  map[string]interface{}{},
+					Selections: []*Selection{
+						{
+							Name:  "id",
+							Alias: "id",
+							Args:  map[string]interface{}{},
+						},
+						{
+							Name:  "baz",
+							Alias: "baz",
+							Args:  map[string]interface{}{},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	assert.Equal(t, expected, query)
 }

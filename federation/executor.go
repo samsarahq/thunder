@@ -402,6 +402,9 @@ func main() {
 // project. end to end with rpcs.
 // rpc for invocation
 //
+// project. schema (un)marshaling
+// do that
+//
 // project. schema api
 // design it
 // implement it
@@ -412,112 +415,4 @@ func main() {
 //
 // project. union types
 //
-// project. schema (un)marshaling
-// do that
-
 // XXX: cache queries and plans? even better, cache selection sets downstream?
-
-/*
-	types := map[TypeName]*Object{
-		"Query": {
-			Fields: map[string]Field{
-				"f": {
-					Service: "schema1",
-					Args:    nil,
-					Type:    "foo",
-				},
-				"fff": {
-					Service: "schema1",
-					Args:    nil,
-					Type:    "foo",
-				},
-				// XXX: federate other directon as well!
-				// XXX: federate multiple types?
-				"foosFromFederationKeys": {
-					Service: "schema2",
-					Args:    nil, // XXX
-					Type:    "foo",
-				},
-				"barsFromFederationKeys": {
-					Service: "schema1",
-					Args:    nil, // XXX
-					Type:    "bar",
-				},
-			},
-		},
-		"foo": {
-			Fields: map[string]Field{
-				"federationKey": {
-					Service: "schema1",
-					Args:    nil,
-					Type:    "string",
-				},
-				"hmm": {
-					Service: "schema1",
-					Args:    nil,
-					Type:    "string",
-				},
-				"ok": {
-					Service: "schema2",
-					Args:    nil,
-					Type:    "string",
-				},
-				"bar": {
-					Service: "schema2",
-					Type:    "bar",
-				},
-			},
-		},
-		"bar": {
-			Fields: map[string]Field{
-				"id": {
-					Service: "schema2",
-					Type:    "int64",
-				},
-				"federationKey": {
-					Service: "schema2",
-					Args:    nil,
-					Type:    "int64",
-				},
-				"baz": {
-					Service: "schema1",
-					Args:    nil,
-					Type:    "string",
-				},
-			},
-		},
-	}
-*/
-
-/*
-	query := []*Selection{
-		{
-			Name:  "fff",
-			Alias: "fff",
-			Selections: []*Selection{
-				{
-					Name:  "hmm",
-					Alias: "hmm",
-				},
-				{
-					Name:  "ok",
-					Alias: "ok",
-				},
-				{
-					Name:  "bar",
-					Alias: "bar",
-					Selections: []*Selection{
-						{
-							Name:  "id",
-							Alias: "id",
-						},
-						{
-							Name:  "baz",
-							Alias: "baz",
-						},
-					},
-				},
-			},
-		},
-	}
-*/
