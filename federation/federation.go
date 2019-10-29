@@ -1,4 +1,4 @@
-package main
+package federation
 
 import (
 	"context"
@@ -140,6 +140,7 @@ type IntrospectionQuery struct {
 
 func convertSchema(schemas map[string]IntrospectionQuery) SchemaWithFederationInfo {
 	byName := make(map[string]*graphql.Object)
+	all := make(map[string]graphql.Type)
 	fieldInfos := make(map[*graphql.Field]*FieldInfo)
 
 	for _, schema := range schemas {
@@ -151,7 +152,14 @@ func convertSchema(schemas map[string]IntrospectionQuery) SchemaWithFederationIn
 						Name:   typ.Name,
 						Fields: make(map[string]*graphql.Field),
 					}
+					all[typ.Name] = byName[typ.Name]
 				}
+
+			case "SCALAR":
+				all[typ.Name] = &graphql.Scalar{
+					Type: typ.Name,
+				}
+
 			default:
 				// XXX
 			}
@@ -168,8 +176,8 @@ func convertSchema(schemas map[string]IntrospectionQuery) SchemaWithFederationIn
 					f, ok := obj.Fields[field.Name]
 					if !ok {
 						f = &graphql.Field{
-							Args: nil,                         // xxx
-							Type: byName[getName(field.Type)], // XXX
+							Args: nil,                      // xxx
+							Type: all[getName(field.Type)], // XXX
 						}
 						obj.Fields[field.Name] = f
 						fieldInfos[f] = &FieldInfo{

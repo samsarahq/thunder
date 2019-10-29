@@ -1,10 +1,12 @@
-package main
+package federation
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
+
+	"github.com/samsarahq/thunder/graphql/introspection"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -107,7 +109,6 @@ func mustParse(s string) []*Selection {
 	return convert(graphql.MustParse(s, map[string]interface{}{}).SelectionSet)
 }
 
-/*
 func TestBuildSchema(t *testing.T) {
 	schemas := map[string]*schemabuilder.Schema{
 		"schema1": buildTestSchema1(),
@@ -116,140 +117,313 @@ func TestBuildSchema(t *testing.T) {
 
 	types := convertSchema(mustExtractSchemas(schemas))
 
-	expected := map[TypeName]*Object{
-		"Query": {
-			Fields: map[string]*Field{
-				"s1f": {
-					Service: "schema1",
-					Services: map[string]bool{
-						"schema1": true,
-					},
-					Args: nil,
-					Type: "foo",
-				},
-				"s1fff": {
-					Service: "schema1",
-					Services: map[string]bool{
-						"schema1": true,
-					},
-					Args: nil,
-					Type: "foo",
-				},
-				// XXX: federate other directon as well!
-				// XXX: federate multiple types?
-				"foosFromFederationKeys": {
-					Service: "schema2",
-					Services: map[string]bool{
-						"schema2": true,
-					},
-					Args: nil, // XXX
-					Type: "foo",
-				},
-				"barsFromFederationKeys": {
-					Service: "schema1",
-					Services: map[string]bool{
-						"schema1": true,
-					},
-					Args: nil, // XXX
-					Type: "bar",
-				},
-			},
-		},
-		"Mutation": {
-			Fields: map[string]*Field{},
-		},
-		"foo": {
-			Fields: map[string]*Field{
-				"name": {
-					Service: "schema1",
-					Services: map[string]bool{
-						"schema1": true,
-						"schema2": true,
-					},
-					Type: "string",
-				},
-				"federationKey": {
-					Service: "schema1",
-					Services: map[string]bool{
-						"schema1": true,
-					},
-					Args: nil,
-					Type: "string",
-				},
-				"s1hmm": {
-					Service: "schema1",
-					Services: map[string]bool{
-						"schema1": true,
-					},
-					Args: nil,
-					Type: "string",
-				},
-				"s1nest": {
-					Service: "schema1",
-					Services: map[string]bool{
-						"schema1": true,
-					},
-					Args: nil,
-					Type: "foo",
-				},
-				"s2ok": {
-					Service: "schema2",
-					Services: map[string]bool{
-						"schema2": true,
-					},
-					Args: nil,
-					Type: "int",
-				},
-				"s2bar": {
-					Service: "schema2",
-					Services: map[string]bool{
-						"schema2": true,
-					},
-					Type: "bar",
-				},
-				"s2nest": {
-					Service: "schema2",
-					Services: map[string]bool{
-						"schema2": true,
-					},
-					Args: nil,
-					Type: "foo",
-				},
-			},
-		},
-		"bar": {
-			Fields: map[string]*Field{
-				"id": {
-					Service: "schema1",
-					Services: map[string]bool{
-						"schema1": true,
-						"schema2": true,
-					},
-					Type: "int64",
-				},
-				"federationKey": {
-					Service: "schema2",
-					Services: map[string]bool{
-						"schema2": true,
-					},
-					Args: nil,
-					Type: "int64",
-				},
-				"s1baz": {
-					Service: "schema1",
-					Services: map[string]bool{
-						"schema1": true,
-					},
-					Args: nil,
-					Type: "string",
-				},
-			},
-		},
+	schema := &graphql.Schema{
+		Query:    types.Query,
+		Mutation: nil,
 	}
+	introspection.AddIntrospectionToSchema(schema)
+	out, err := introspection.RunIntrospectionQuery(schema)
+	require.NoError(t, err)
 
-	assert.Equal(t, expected, types)
+	var iq IntrospectionQuery
+	err = json.Unmarshal(out, &iq)
+	require.NoError(t, err)
+
+	expectedStr := `
+	{
+		"__schema": {
+		  "types": [
+			{
+			  "name": "Query",
+			  "kind": "OBJECT",
+			  "fields": [
+				{
+				  "name": "barsFromFederationKeys",
+				  "type": {
+					"kind": "OBJECT",
+					"name": "bar",
+					"ofType": null
+				  }
+				},
+				{
+				  "name": "foosFromFederationKeys",
+				  "type": {
+					"kind": "OBJECT",
+					"name": "foo",
+					"ofType": null
+				  }
+				},
+				{
+				  "name": "s1f",
+				  "type": {
+					"kind": "OBJECT",
+					"name": "foo",
+					"ofType": null
+				  }
+				},
+				{
+				  "name": "s1fff",
+				  "type": {
+					"kind": "OBJECT",
+					"name": "foo",
+					"ofType": null
+				  }
+				}
+			  ]
+			},
+			{
+			  "name": "bar",
+			  "kind": "OBJECT",
+			  "fields": [
+				{
+				  "name": "federationKey",
+				  "type": {
+					"kind": "SCALAR",
+					"name": "int64",
+					"ofType": null
+				  }
+				},
+				{
+				  "name": "id",
+				  "type": {
+					"kind": "SCALAR",
+					"name": "int64",
+					"ofType": null
+				  }
+				},
+				{
+				  "name": "s1baz",
+				  "type": {
+					"kind": "SCALAR",
+					"name": "string",
+					"ofType": null
+				  }
+				}
+			  ]
+			},
+			{
+			  "name": "foo",
+			  "kind": "OBJECT",
+			  "fields": [
+				{
+				  "name": "federationKey",
+				  "type": {
+					"kind": "SCALAR",
+					"name": "string",
+					"ofType": null
+				  }
+				},
+				{
+				  "name": "name",
+				  "type": {
+					"kind": "SCALAR",
+					"name": "string",
+					"ofType": null
+				  }
+				},
+				{
+				  "name": "s1hmm",
+				  "type": {
+					"kind": "SCALAR",
+					"name": "string",
+					"ofType": null
+				  }
+				},
+				{
+				  "name": "s1nest",
+				  "type": {
+					"kind": "OBJECT",
+					"name": "foo",
+					"ofType": null
+				  }
+				},
+				{
+				  "name": "s2bar",
+				  "type": {
+					"kind": "OBJECT",
+					"name": "bar",
+					"ofType": null
+				  }
+				},
+				{
+				  "name": "s2nest",
+				  "type": {
+					"kind": "OBJECT",
+					"name": "foo",
+					"ofType": null
+				  }
+				},
+				{
+				  "name": "s2ok",
+				  "type": {
+					"kind": "SCALAR",
+					"name": "int",
+					"ofType": null
+				  }
+				}
+			  ]
+			},
+			{
+			  "name": "int",
+			  "kind": "SCALAR",
+			  "fields": []
+			},
+			{
+			  "name": "int64",
+			  "kind": "SCALAR",
+			  "fields": []
+			},
+			{
+			  "name": "string",
+			  "kind": "SCALAR",
+			  "fields": []
+			}
+		  ]
+		}
+	  }
+	`
+
+	var expected IntrospectionQuery
+	err = json.Unmarshal([]byte(expectedStr), &expected)
+	require.NoError(t, err)
+
+	assert.Equal(t, expected, iq)
+
+	/*
+		expected := map[TypeName]*Object{
+			"Query": {
+				Fields: map[string]*Field{
+					"s1f": {
+						Service: "schema1",
+						Services: map[string]bool{
+							"schema1": true,
+						},
+						Args: nil,
+						Type: "foo",
+					},
+					"s1fff": {
+						Service: "schema1",
+						Services: map[string]bool{
+							"schema1": true,
+						},
+						Args: nil,
+						Type: "foo",
+					},
+					// XXX: federate other directon as well!
+					// XXX: federate multiple types?
+					"foosFromFederationKeys": {
+						Service: "schema2",
+						Services: map[string]bool{
+							"schema2": true,
+						},
+						Args: nil, // XXX
+						Type: "foo",
+					},
+					"barsFromFederationKeys": {
+						Service: "schema1",
+						Services: map[string]bool{
+							"schema1": true,
+						},
+						Args: nil, // XXX
+						Type: "bar",
+					},
+				},
+			},
+			"Mutation": {
+				Fields: map[string]*Field{},
+			},
+			"foo": {
+				Fields: map[string]*Field{
+					"name": {
+						Service: "schema1",
+						Services: map[string]bool{
+							"schema1": true,
+							"schema2": true,
+						},
+						Type: "string",
+					},
+					"federationKey": {
+						Service: "schema1",
+						Services: map[string]bool{
+							"schema1": true,
+						},
+						Args: nil,
+						Type: "string",
+					},
+					"s1hmm": {
+						Service: "schema1",
+						Services: map[string]bool{
+							"schema1": true,
+						},
+						Args: nil,
+						Type: "string",
+					},
+					"s1nest": {
+						Service: "schema1",
+						Services: map[string]bool{
+							"schema1": true,
+						},
+						Args: nil,
+						Type: "foo",
+					},
+					"s2ok": {
+						Service: "schema2",
+						Services: map[string]bool{
+							"schema2": true,
+						},
+						Args: nil,
+						Type: "int",
+					},
+					"s2bar": {
+						Service: "schema2",
+						Services: map[string]bool{
+							"schema2": true,
+						},
+						Type: "bar",
+					},
+					"s2nest": {
+						Service: "schema2",
+						Services: map[string]bool{
+							"schema2": true,
+						},
+						Args: nil,
+						Type: "foo",
+					},
+				},
+			},
+			"bar": {
+				Fields: map[string]*Field{
+					"id": {
+						Service: "schema1",
+						Services: map[string]bool{
+							"schema1": true,
+							"schema2": true,
+						},
+						Type: "int64",
+					},
+					"federationKey": {
+						Service: "schema2",
+						Services: map[string]bool{
+							"schema2": true,
+						},
+						Args: nil,
+						Type: "int64",
+					},
+					"s1baz": {
+						Service: "schema1",
+						Services: map[string]bool{
+							"schema1": true,
+						},
+						Args: nil,
+						Type: "string",
+					},
+				},
+			},
+		}
+
+		assert.Equal(t, expected, types)
+	*/
 }
-*/
 
 func TestPlan(t *testing.T) {
 	schemas := map[string]*schemabuilder.Schema{

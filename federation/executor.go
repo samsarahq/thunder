@@ -1,4 +1,4 @@
-package main
+package federation
 
 import (
 	"context"
@@ -19,7 +19,6 @@ import (
 type Executor struct {
 	Executors map[string]thunderpb.ExecutorClient
 
-	// Types map[TypeName]*Object
 	schema SchemaWithFederationInfo
 }
 
