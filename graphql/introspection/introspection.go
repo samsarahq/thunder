@@ -371,6 +371,12 @@ func ComputeSchemaJSON(schemaBuilderSchema schemabuilder.Schema) ([]byte, error)
 	schema := schemaBuilderSchema.MustBuild()
 	AddIntrospectionToSchema(schema)
 
+	return RunIntrospectionQuery(schema)
+}
+
+// RunIntrospectionQuery returns the result of executing a GraphQL introspection
+// query.
+func RunIntrospectionQuery(schema *graphql.Schema) ([]byte, error) {
 	query, err := graphql.Parse(introspectionQuery, map[string]interface{}{})
 	if err != nil {
 		return nil, err
