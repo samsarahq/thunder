@@ -107,6 +107,7 @@ func mustParse(s string) []*Selection {
 	return convert(graphql.MustParse(s, map[string]interface{}{}).SelectionSet)
 }
 
+/*
 func TestBuildSchema(t *testing.T) {
 	schemas := map[string]*schemabuilder.Schema{
 		"schema1": buildTestSchema1(),
@@ -248,6 +249,7 @@ func TestBuildSchema(t *testing.T) {
 
 	assert.Equal(t, expected, types)
 }
+*/
 
 func TestPlan(t *testing.T) {
 	schemas := map[string]*schemabuilder.Schema{
@@ -258,7 +260,7 @@ func TestPlan(t *testing.T) {
 	types := convertSchema(mustExtractSchemas(schemas))
 
 	e := &Executor{
-		Types: types,
+		schema: types,
 	}
 
 	testCases := []struct {
@@ -291,6 +293,7 @@ func TestPlan(t *testing.T) {
 				{
 					Path:    nil,
 					Service: "schema1",
+					Type:    "Query",
 					Selections: mustParse(`{
 						s1fff {
 							a: s1nest { b: s1nest { c: s1nest { federationKey } } }
@@ -343,7 +346,7 @@ func TestPlan(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.Name, func(t *testing.T) {
-			plan, err := e.Plan(e.Types["Query"], mustParse(testCase.Input))
+			plan, err := e.Plan(e.schema.Query, mustParse(testCase.Input))
 			require.NoError(t, err)
 			assert.Equal(t, testCase.Output, plan.After)
 		})
@@ -495,7 +498,7 @@ func TestExecutor(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.Name, func(t *testing.T) {
-			plan, err := e.Plan(e.Types["Query"], mustParse(testCase.Input))
+			plan, err := e.Plan(e.schema.Query, mustParse(testCase.Input))
 			require.NoError(t, err)
 
 			res, err := e.execute(ctx, plan.After[0], nil)

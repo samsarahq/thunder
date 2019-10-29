@@ -19,7 +19,8 @@ import (
 type Executor struct {
 	Executors map[string]thunderpb.ExecutorClient
 
-	Types map[TypeName]*Object
+	// Types map[TypeName]*Object
+	schema SchemaWithFederationInfo
 }
 
 func NewExecutor(ctx context.Context, executors map[string]thunderpb.ExecutorClient) (*Executor, error) {
@@ -42,65 +43,20 @@ func NewExecutor(ctx context.Context, executors map[string]thunderpb.ExecutorCli
 	types := convertSchema(schemas)
 	return &Executor{
 		Executors: executors,
-		Types:     types,
+		schema:    types,
 	}, nil
 }
 
-type TypeName string
-
-type Type interface{}
-
 // oooh.. maybe we need to support introspection at the aggregator level... :)
 
-type Scalar struct {
-	Name TypeName
-}
-
-type Union struct {
-	Types []TypeName
-}
-
-type Field struct {
-	// XXX: services?
+type FieldInfo struct {
 	Service  string
 	Services map[string]bool
-	Args     map[string]TypeName
-	Type     TypeName
 }
 
-/*
-type TypeRef struct {
-	TypeName string
-	NonNull  *NonNull
-	List     *List
-}
-
-type NonNull struct {
-}
-
-type List struct {
-}
-
-type Modifier string
-
-const (
-	NonNull Modifier = "NonNull"
-	List    Modifier = "List"
-)
-
-type ModifiedType struct {
-	Type      TypeName
-	Modifiers []Modifier
-}
-*/
-
-type InputObject struct {
-	// xxx; how do we demarcate optional?
-	Fields map[string]TypeName
-}
-
-type Object struct {
-	Fields map[string]*Field
+type SchemaWithFederationInfo struct {
+	Query  *graphql.Object
+	Fields map[*graphql.Field]*FieldInfo
 }
 
 type Selection struct {
@@ -297,9 +253,9 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) ([]
 	return res, nil
 }
 
-func (e *Executor) plan(typName string, typ *Object, selections []*Selection, service string) (*Plan, error) {
+func (e *Executor) plan(typ *graphql.Object, selections []*Selection, service string) (*Plan, error) {
 	p := &Plan{
-		Type:       typName,
+		Type:       typ.Name,
 		Service:    service,
 		Selections: nil,
 		After:      nil,
@@ -332,16 +288,18 @@ func (e *Executor) plan(typName string, typ *Object, selections []*Selection, se
 	for _, selection := range selections {
 		field, ok := typ.Fields[selection.Name]
 		if !ok {
-			return nil, fmt.Errorf("typ %s has no field %s", typName, selection.Name)
+			return nil, fmt.Errorf("typ %s has no field %s", typ.Name, selection.Name)
 		}
 
+		fieldInfo := e.schema.Fields[field]
+
 		// if we can stick to the current service, stay there
-		if field.Services[service] {
+		if fieldInfo.Services[service] {
 			selectionsByService[service] = append(
 				selectionsByService[service], selection)
 		} else {
-			selectionsByService[field.Service] = append(
-				selectionsByService[field.Service], selection)
+			selectionsByService[fieldInfo.Service] = append(
+				selectionsByService[fieldInfo.Service], selection)
 		}
 	}
 
@@ -360,7 +318,8 @@ func (e *Executor) plan(typName string, typ *Object, selections []*Selection, se
 		if selection.Selections != nil {
 			// XXX: assert existence of types elsewhere?
 			var err error
-			childPlan, err = e.plan(string(field.Type), e.Types[field.Type], selection.Selections, service)
+			// XXX type assertoin
+			childPlan, err = e.plan(field.Type.(*graphql.Object), selection.Selections, service)
 			if err != nil {
 				return nil, fmt.Errorf("planning for %s: %v", selection.Name, err)
 			}
@@ -397,7 +356,7 @@ func (e *Executor) plan(typName string, typ *Object, selections []*Selection, se
 		// what other fields we might want to resolve after?
 		// nah, just go with default... and consider being able to stick with
 		// the same a bonus
-		subPlan, err := e.plan(typName, typ, selections, other)
+		subPlan, err := e.plan(typ, selections, other)
 		if err != nil {
 			return nil, fmt.Errorf("planning for %s: %v", other, err)
 		}
@@ -426,8 +385,8 @@ func (e *Executor) plan(typName string, typ *Object, selections []*Selection, se
 	return p, nil
 }
 
-func (e *Executor) Plan(typ *Object, selections []*Selection) (*Plan, error) {
-	return e.plan("", typ, selections, "no-such-service")
+func (e *Executor) Plan(typ *graphql.Object, selections []*Selection) (*Plan, error) {
+	return e.plan(typ, selections, "no-such-service")
 }
 
 func convert(query *graphql.RawSelectionSet) []*Selection {
@@ -554,7 +513,7 @@ func main() {
 
 	query := convert(oldQuery.SelectionSet)
 
-	plan, err := e.Plan(e.Types["Query"], query)
+	plan, err := e.Plan(e.schema.Query, query)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -104,56 +104,6 @@ func schema2() *schemabuilder.Schema {
 	return schema
 }
 
-func walkTypes(schema *graphql.Schema) map[string]graphql.Type {
-	seen := make(map[graphql.Type]bool)
-	all := make(map[string]graphql.Type)
-
-	var visit func(t graphql.Type)
-	visit = func(t graphql.Type) {
-		if seen[t] {
-			return
-		}
-		seen[t] = true
-
-		switch t := t.(type) {
-		case *graphql.Object:
-			all[t.Name] = t
-
-			for _, field := range t.Fields {
-				for _, arg := range field.Args {
-					visit(arg)
-				}
-				visit(field.Type)
-			}
-
-		case *graphql.InputObject:
-			all[t.Name] = t
-
-			for _, field := range t.InputFields {
-				visit(field)
-			}
-
-		case *graphql.List:
-			visit(t.Type)
-
-		case *graphql.NonNull:
-			visit(t.Type)
-
-		case *graphql.Union:
-			all[t.Name] = t
-
-			for _, typ := range t.Types {
-				visit(typ)
-			}
-		}
-	}
-
-	visit(schema.Query)
-	visit(schema.Mutation)
-
-	return all
-}
-
 func getName(t *TypeRef) string {
 	if t == nil {
 		panic("nil")
@@ -188,41 +138,59 @@ type IntrospectionQuery struct {
 	} `json:"__schema"`
 }
 
-func convertSchema(schemas map[string]IntrospectionQuery) map[TypeName]*Object {
-	byName := make(map[TypeName]*Object)
+func convertSchema(schemas map[string]IntrospectionQuery) SchemaWithFederationInfo {
+	byName := make(map[string]*graphql.Object)
+	fieldInfos := make(map[*graphql.Field]*FieldInfo)
+
+	for _, schema := range schemas {
+		for _, typ := range schema.Schema.Types {
+			switch typ.Kind {
+			case "OBJECT":
+				if _, ok := byName[typ.Name]; !ok {
+					byName[typ.Name] = &graphql.Object{
+						Name:   typ.Name,
+						Fields: make(map[string]*graphql.Field),
+					}
+				}
+			default:
+				// XXX
+			}
+		}
+	}
 
 	for service, schema := range schemas {
 		for _, typ := range schema.Schema.Types {
 			switch typ.Kind {
 			case "OBJECT":
-				obj, ok := byName[TypeName(typ.Name)]
-				if !ok {
-					obj = &Object{
-						Fields: make(map[string]*Field),
-					}
-					byName[TypeName(typ.Name)] = obj
-				}
+				obj := byName[typ.Name]
 
 				for _, field := range typ.Fields {
-					// XXX: duplicates??
-					if f, ok := obj.Fields[field.Name]; ok {
-						f.Services[service] = true
-					} else {
-						obj.Fields[field.Name] = &Field{
-							Service: service,
-							Services: map[string]bool{
-								service: true,
-							},
-							Args: nil,                           // XXXX
-							Type: TypeName(getName(field.Type)), // XXX
+					f, ok := obj.Fields[field.Name]
+					if !ok {
+						f = &graphql.Field{
+							Args: nil,                         // xxx
+							Type: byName[getName(field.Type)], // XXX
+						}
+						obj.Fields[field.Name] = f
+						fieldInfos[f] = &FieldInfo{
+							Service:  service,
+							Services: map[string]bool{},
 						}
 					}
+
+					fieldInfos[f].Services[service] = true
 				}
+
+			default:
+				// XXX
 			}
 		}
 	}
 
-	return byName
+	return SchemaWithFederationInfo{
+		Query:  byName["Query"], // XXX
+		Fields: fieldInfos,
+	}
 }
 
 // schema.Extend()
