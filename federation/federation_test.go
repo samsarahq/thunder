@@ -4,9 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"net"
 	"testing"
 
 	"github.com/samsarahq/thunder/graphql/introspection"
+	"github.com/samsarahq/thunder/thunderpb"
+	"google.golang.org/grpc"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,6 +19,86 @@ import (
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 )
+
+func makeExecutors(schemas map[string]*schemabuilder.Schema) (_ map[string]thunderpb.ExecutorClient, close func(), err error) {
+	var closers []func()
+	defer func() {
+		if err != nil {
+			for _, close := range closers {
+				close()
+			}
+		}
+	}()
+
+	executors := make(map[string]thunderpb.ExecutorClient)
+
+	for name, schema := range schemas {
+		srv, err := NewServer(schema)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		grpcServer := grpc.NewServer()
+		thunderpb.RegisterExecutorServer(grpcServer, srv)
+
+		listener, err := net.Listen("tcp", ":0")
+		if err != nil {
+			return nil, nil, err
+		}
+
+		go grpcServer.Serve(listener)
+
+		closers = append(closers, func() {
+			listener.Close()
+			grpcServer.Stop()
+		})
+
+		client, err := grpc.Dial(listener.Addr().String(), grpc.WithInsecure())
+		if err != nil {
+			return nil, nil, err
+		}
+
+		closers = append(closers, func() {
+			client.Close()
+		})
+
+		executors[name] = thunderpb.NewExecutorClient(client)
+	}
+
+	return executors, func() {
+		for _, close := range closers {
+			close()
+		}
+	}, nil
+}
+
+func mustExtractSchema(schema *schemabuilder.Schema) IntrospectionQuery {
+	bytes, err := introspection.ComputeSchemaJSON(*schema)
+	if err != nil {
+		log.Fatal(err)
+	}
+	var iq IntrospectionQuery
+	if err := json.Unmarshal(bytes, &iq); err != nil {
+		log.Fatal(err)
+	}
+	return iq
+}
+
+func mustExtractSchemas(schemas map[string]*schemabuilder.Schema) map[string]IntrospectionQuery {
+	out := make(map[string]IntrospectionQuery)
+	for k, v := range schemas {
+		out[k] = mustExtractSchema(v)
+	}
+	return out
+}
+
+type Foo struct {
+	Name string
+}
+
+type Bar struct {
+	Id int64
+}
 
 func buildTestSchema1() *schemabuilder.Schema {
 	schema := schemabuilder.NewSchema()
@@ -520,7 +604,7 @@ func TestPlan(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.Name, func(t *testing.T) {
-			plan, err := e.Plan(e.schema.Query, mustParse(testCase.Input))
+			plan, err := e.Plan(graphql.MustParse(testCase.Input, map[string]interface{}{}).SelectionSet)
 			require.NoError(t, err)
 			assert.Equal(t, testCase.Output, plan.After)
 		})
@@ -672,10 +756,10 @@ func TestExecutor(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.Name, func(t *testing.T) {
-			plan, err := e.Plan(e.schema.Query, mustParse(testCase.Input))
+			plan, err := e.Plan(graphql.MustParse(testCase.Input, map[string]interface{}{}).SelectionSet)
 			require.NoError(t, err)
 
-			res, err := e.execute(ctx, plan.After[0], nil)
+			res, err := e.Execute(ctx, plan.After[0], nil)
 			require.NoError(t, err)
 
 			var expected interface{}

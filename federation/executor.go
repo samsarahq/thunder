@@ -4,15 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
-	"net"
-
-	"github.com/davecgh/go-spew/spew"
-	"google.golang.org/grpc"
 
 	"github.com/samsarahq/thunder/graphql"
-	"github.com/samsarahq/thunder/graphql/introspection"
-	"github.com/samsarahq/thunder/graphql/schemabuilder"
 	"github.com/samsarahq/thunder/thunderpb"
 )
 
@@ -163,7 +156,7 @@ type Plan struct {
 
 // XXX: have a plan about failed conversions and nils everywhere.
 
-func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) ([]interface{}, error) {
+func (e *Executor) Execute(ctx context.Context, p *Plan, keys []interface{}) ([]interface{}, error) {
 	res, err := e.runOnService(ctx, p.Service, p.Type, keys, p.Selections)
 	if err != nil {
 		return nil, fmt.Errorf("run on service: %v", err)
@@ -229,7 +222,7 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) ([]
 		// XXX: don't execute here yet??? i mean we can but why? simpler?????? could go back to root?
 
 		// XXX: go
-		results, err := e.execute(ctx, subPlan, keys)
+		results, err := e.Execute(ctx, subPlan, keys)
 		if err != nil {
 			return nil, fmt.Errorf("executing sub plan: %v", err)
 		}
@@ -384,8 +377,8 @@ func (e *Executor) plan(typ *graphql.Object, selections []*Selection, service st
 	return p, nil
 }
 
-func (e *Executor) Plan(typ *graphql.Object, selections []*Selection) (*Plan, error) {
-	return e.plan(typ, selections, "no-such-service")
+func (e *Executor) Plan(query *graphql.RawSelectionSet) (*Plan, error) {
+	return e.plan(e.schema.Query, convert(query), "no-such-service")
 }
 
 func convert(query *graphql.RawSelectionSet) []*Selection {
@@ -406,124 +399,6 @@ func convert(query *graphql.RawSelectionSet) []*Selection {
 		})
 	}
 	return converted
-}
-
-func makeExecutors(schemas map[string]*schemabuilder.Schema) (_ map[string]thunderpb.ExecutorClient, close func(), err error) {
-	var closers []func()
-	defer func() {
-		if err != nil {
-			for _, close := range closers {
-				close()
-			}
-		}
-	}()
-
-	executors := make(map[string]thunderpb.ExecutorClient)
-
-	for name, schema := range schemas {
-		srv, err := NewServer(schema)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		grpcServer := grpc.NewServer()
-		thunderpb.RegisterExecutorServer(grpcServer, srv)
-
-		listener, err := net.Listen("tcp", ":0")
-		if err != nil {
-			return nil, nil, err
-		}
-
-		go grpcServer.Serve(listener)
-
-		closers = append(closers, func() {
-			listener.Close()
-			grpcServer.Stop()
-		})
-
-		client, err := grpc.Dial(listener.Addr().String(), grpc.WithInsecure())
-		if err != nil {
-			return nil, nil, err
-		}
-
-		closers = append(closers, func() {
-			client.Close()
-		})
-
-		executors[name] = thunderpb.NewExecutorClient(client)
-	}
-
-	return executors, func() {
-		for _, close := range closers {
-			close()
-		}
-	}, nil
-}
-
-func mustExtractSchema(schema *schemabuilder.Schema) IntrospectionQuery {
-	bytes, err := introspection.ComputeSchemaJSON(*schema)
-	if err != nil {
-		log.Fatal(err)
-	}
-	var iq IntrospectionQuery
-	if err := json.Unmarshal(bytes, &iq); err != nil {
-		log.Fatal(err)
-	}
-	return iq
-}
-
-func mustExtractSchemas(schemas map[string]*schemabuilder.Schema) map[string]IntrospectionQuery {
-	out := make(map[string]IntrospectionQuery)
-	for k, v := range schemas {
-		out[k] = mustExtractSchema(v)
-	}
-	return out
-}
-
-func main() {
-	ctx := context.Background()
-
-	execs, _, err := makeExecutors(map[string]*schemabuilder.Schema{
-		"schema1": schema1(),
-		"schema2": schema2(),
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	e, err := NewExecutor(ctx, execs)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	oldQuery := graphql.MustParse(`
-		{
-			fff {
-				a: nest { b: nest { c: nest { ok } } }
-				hmm
-				ok
-				bar {
-					id
-					baz
-				}
-			}
-		}
-	`, map[string]interface{}{})
-
-	query := convert(oldQuery.SelectionSet)
-
-	plan, err := e.Plan(e.schema.Query, query)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// XXX: have to deal with multiple plans here
-	res, err := e.execute(ctx, plan.After[0], nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	spew.Dump(res)
 }
 
 // todo
