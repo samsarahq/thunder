@@ -154,38 +154,47 @@ func walkTypes(schema *graphql.Schema) map[string]graphql.Type {
 	return all
 }
 
-func getName(t graphql.Type) string {
-	switch t := t.(type) {
-	case *graphql.Object:
+func getName(t *TypeRef) string {
+	if t == nil {
+		panic("nil")
+	}
+
+	switch t.Kind {
+	case "SCALAR", "OBJECT":
 		return t.Name
-
-	case *graphql.InputObject:
-		return t.Name
-
-	case *graphql.List:
-		return getName(t.Type)
-
-	case *graphql.NonNull:
-		return getName(t.Type)
-
-	case *graphql.Union:
-		return t.Name
-
-	case *graphql.Scalar:
-		return t.Type
-
+	case "LIST", "NON_NULL":
+		return getName(t.OfType)
 	default:
 		panic("help")
 	}
 }
 
-func convertSchema(schemas map[string]*graphql.Schema) map[TypeName]*Object {
+type TypeRef struct {
+	Kind   string   `json:"kind"`
+	Name   string   `json:"name"`
+	OfType *TypeRef `json:"ofType"`
+}
+
+type IntrospectionQuery struct {
+	Schema struct {
+		Types []struct {
+			Name   string `json:"name"`
+			Kind   string `json:"kind"`
+			Fields []struct {
+				Name string   `json:"name"`
+				Type *TypeRef `json:"type"`
+			} `json:"fields"`
+		} `json:"types"`
+	} `json:"__schema"`
+}
+
+func convertSchema(schemas map[string]IntrospectionQuery) map[TypeName]*Object {
 	byName := make(map[TypeName]*Object)
 
 	for service, schema := range schemas {
-		for _, typ := range walkTypes(schema) {
-			switch typ := typ.(type) {
-			case *graphql.Object:
+		for _, typ := range schema.Schema.Types {
+			switch typ.Kind {
+			case "OBJECT":
 				obj, ok := byName[TypeName(typ.Name)]
 				if !ok {
 					obj = &Object{
@@ -194,12 +203,12 @@ func convertSchema(schemas map[string]*graphql.Schema) map[TypeName]*Object {
 					byName[TypeName(typ.Name)] = obj
 				}
 
-				for name, field := range typ.Fields {
+				for _, field := range typ.Fields {
 					// XXX: duplicates??
-					if f, ok := obj.Fields[name]; ok {
+					if f, ok := obj.Fields[field.Name]; ok {
 						f.Services[service] = true
 					} else {
-						obj.Fields[name] = &Field{
+						obj.Fields[field.Name] = &Field{
 							Service: service,
 							Services: map[string]bool{
 								service: true,
@@ -214,129 +223,7 @@ func convertSchema(schemas map[string]*graphql.Schema) map[TypeName]*Object {
 	}
 
 	return byName
-
-	/*
-		for name, types := range byName {
-			typ := types[0]
-
-			// XXX: assert identical types
-
-			switch typ := typ.(type) {
-			case *graphql.Object:
-				newByName[name] = &graphql.Object{
-					Name:        name,
-					Description: typ.Description,
-					// KeyField:
-					Fields: make(map[string]*graphql.Field),
-				}
-
-			case *graphql.InputObject:
-				newByName[name] = &graphql.InputObject{
-					Name:        name,
-					InputFields: make(map[string]graphql.Type),
-				}
-
-			case *graphql.Union:
-				newByName[name] = &graphql.Union{
-					Name:        name,
-					Description: typ.Description,
-				}
-
-				// case *graphql.Scalar:
-				// newByName[name] = typ
-			}
-		}
-
-		var swizzleType func(graphql.Type) graphql.Type
-		swizzleType = func(t graphql.Type) graphql.Type {
-			switch t := t.(type) {
-			case *graphql.Object:
-				return newByName[t.Name]
-
-			case *graphql.InputObject:
-				return newByName[t.Name]
-
-			case *graphql.List:
-				return &graphql.List{
-					Type: swizzleType(t.Type),
-				}
-
-			case *graphql.NonNull:
-				return &graphql.NonNull{
-					Type: swizzleType(t.Type),
-				}
-
-			case *graphql.Union:
-				return newByName[t.Name]
-
-			case *graphql.Scalar:
-				return t
-				// return newByName[t.Type]
-			}
-			spew.Dump(t)
-			panic("help")
-		}
-
-		for name, types := range byName {
-			for _, typ := range types {
-				log.Println(name)
-				switch typ := typ.(type) {
-				case *graphql.Object:
-					newTyp := newByName[name].(*graphql.Object)
-					for name, field := range typ.Fields {
-						log.Println(name)
-						copy := *field
-						copy.Type = swizzleType(field.Type)
-						if copy.Type == nil {
-							panic(field.Type)
-						}
-						newTyp.Fields[name] = &copy
-					}
-
-				case *graphql.InputObject:
-					// XXX: assert identical fields
-
-				case *graphql.Union:
-					// XXX: assert identical
-				}
-			}
-		}
-
-		return &graphql.Schema{
-			Query:    newByName["Query"],
-			Mutation: newByName["Mutation"],
-		}
-	*/
 }
-
-/*
-func main() {
-		merged := stitchSchemas([]*graphql.Schema{
-			schema1().MustBuild(),
-			schema2().MustBuild(),
-		})
-
-		query := graphql.MustParse(`
-			{
-				f {
-					hmm
-					ok
-				}
-			}
-		`, map[string]interface{}{})
-		e := graphql.NewExecutor(
-			graphql.NewImmediateGoroutineScheduler(),
-		)
-		res, err := e.Execute(context.Background(), merged.Query, nil, query)
-		if err != nil {
-			panic(err)
-		}
-		bytes, err := json.MarshalIndent(res, "", "  ")
-		if err != nil {
-			panic(err)
-		}
-		fmt.Print(string(bytes))
-*/
 
 // schema.Extend()
 

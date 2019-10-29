@@ -7,17 +7,17 @@ import (
 	"log"
 	"net"
 
+	"github.com/davecgh/go-spew/spew"
 	"google.golang.org/grpc"
 
-	"github.com/samsarahq/thunder/thunderpb"
-
-	"github.com/davecgh/go-spew/spew"
 	"github.com/samsarahq/thunder/graphql"
+	"github.com/samsarahq/thunder/graphql/introspection"
+	"github.com/samsarahq/thunder/graphql/schemabuilder"
+	"github.com/samsarahq/thunder/thunderpb"
 )
 
 type Executor struct {
 	Executors map[string]thunderpb.ExecutorClient
-	// *graphql.Schema
 
 	Types map[TypeName]*Object
 }
@@ -426,14 +426,14 @@ func convert(query *graphql.RawSelectionSet) []*Selection {
 	return converted
 }
 
-func makeExecutors(schemas map[string]*graphql.Schema) (map[string]thunderpb.ExecutorClient, func(), error) {
+func makeExecutors(schemas map[string]*schemabuilder.Schema) (map[string]thunderpb.ExecutorClient, func(), error) {
 	var closers []func()
 
 	executors := make(map[string]thunderpb.ExecutorClient)
 
 	for name, schema := range schemas {
 		srv := &Server{
-			schema: schema,
+			schema: schema.MustBuild(),
 		}
 
 		grpcServer := grpc.NewServer()
@@ -476,18 +476,38 @@ func makeExecutors(schemas map[string]*graphql.Schema) (map[string]thunderpb.Exe
 	}, nil
 }
 
+func mustExtractSchema(schema *schemabuilder.Schema) IntrospectionQuery {
+	bytes, err := introspection.ComputeSchemaJSON(*schema)
+	if err != nil {
+		log.Fatal(err)
+	}
+	var iq IntrospectionQuery
+	if err := json.Unmarshal(bytes, &iq); err != nil {
+		log.Fatal(err)
+	}
+	return iq
+}
+
+func mustExtractSchemas(schemas map[string]*schemabuilder.Schema) map[string]IntrospectionQuery {
+	out := make(map[string]IntrospectionQuery)
+	for k, v := range schemas {
+		out[k] = mustExtractSchema(v)
+	}
+	return out
+}
+
 func main() {
 	ctx := context.Background()
 
-	executors := map[string]*graphql.Schema{
-		"schema1": schema1().MustBuild(),
-		"schema2": schema2().MustBuild(),
+	schemas := map[string]*schemabuilder.Schema{
+		"schema1": schema1(),
+		"schema2": schema2(),
 	}
 
-	types := convertSchema(executors)
+	types := convertSchema(mustExtractSchemas(schemas))
 
 	// executors["schema1"]
-	execs, _, err := makeExecutors(executors)
+	execs, _, err := makeExecutors(schemas)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -534,6 +554,8 @@ func main() {
 // project. schema api
 // design it
 // implement it
+//
+// project. federation API
 //
 // project. harden APIs
 // test malformed inputs

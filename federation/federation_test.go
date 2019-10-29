@@ -6,15 +6,15 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
-	"github.com/stretchr/testify/assert"
 )
 
-func buildTestSchema1() *graphql.Schema {
+func buildTestSchema1() *schemabuilder.Schema {
 	schema := schemabuilder.NewSchema()
 
 	query := schema.Query()
@@ -63,10 +63,10 @@ func buildTestSchema1() *graphql.Schema {
 		return fmt.Sprint(b.Id)
 	})
 
-	return schema.MustBuild()
+	return schema
 }
 
-func buildTestSchema2() *graphql.Schema {
+func buildTestSchema2() *schemabuilder.Schema {
 	schema := schemabuilder.NewSchema()
 
 	schema.Query().FieldFunc("foosFromFederationKeys", func(args struct{ Keys []string }) []*Foo {
@@ -100,7 +100,7 @@ func buildTestSchema2() *graphql.Schema {
 		return b.Id
 	})
 
-	return schema.MustBuild()
+	return schema
 }
 
 func mustParse(s string) []*Selection {
@@ -108,12 +108,12 @@ func mustParse(s string) []*Selection {
 }
 
 func TestBuildSchema(t *testing.T) {
-	executors := map[string]*graphql.Schema{
+	schemas := map[string]*schemabuilder.Schema{
 		"schema1": buildTestSchema1(),
 		"schema2": buildTestSchema2(),
 	}
 
-	types := convertSchema(executors)
+	types := convertSchema(mustExtractSchemas(schemas))
 
 	expected := map[TypeName]*Object{
 		"Query": {
@@ -250,12 +250,12 @@ func TestBuildSchema(t *testing.T) {
 }
 
 func TestPlan(t *testing.T) {
-	executors := map[string]*graphql.Schema{
+	schemas := map[string]*schemabuilder.Schema{
 		"schema1": buildTestSchema1(),
 		"schema2": buildTestSchema2(),
 	}
 
-	types := convertSchema(executors)
+	types := convertSchema(mustExtractSchemas(schemas))
 
 	e := &Executor{
 		Types: types,
@@ -418,14 +418,14 @@ func TestExecutor(t *testing.T) {
 
 	// todo: assert specific invocation traces?
 
-	executors := map[string]*graphql.Schema{
+	schemas := map[string]*schemabuilder.Schema{
 		"schema1": buildTestSchema1(),
 		"schema2": buildTestSchema2(),
 	}
 
-	types := convertSchema(executors)
+	types := convertSchema(mustExtractSchemas(schemas))
 
-	execs, close, err := makeExecutors(executors)
+	execs, close, err := makeExecutors(schemas)
 	require.NoError(t, err)
 	defer close()
 
