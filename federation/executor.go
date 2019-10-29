@@ -548,19 +548,20 @@ func main() {
 }
 
 // todo
-// project. schema (un)marshaling
-// do that
-//
 // project. schema api
-// design it
-// implement it
+// basic sketch with two packages
 //
 // project. federation API
+// clean up xyzFromFederationKeys
 //
 // project. harden APIs
 // test malformed inputs
 // test incompatible schemas
 // test forward/backward schema rollout
+// validate incoming queries
+//
+// project. expose introspection query
+// federate onto introspectoin server (!?!?!)
 //
 // project. fragments
 //
