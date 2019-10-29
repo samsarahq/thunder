@@ -418,21 +418,15 @@ func TestExecutor(t *testing.T) {
 
 	// todo: assert specific invocation traces?
 
-	schemas := map[string]*schemabuilder.Schema{
+	execs, close, err := makeExecutors(map[string]*schemabuilder.Schema{
 		"schema1": buildTestSchema1(),
 		"schema2": buildTestSchema2(),
-	}
-
-	types := convertSchema(mustExtractSchemas(schemas))
-
-	execs, close, err := makeExecutors(schemas)
+	})
 	require.NoError(t, err)
 	defer close()
 
-	e := &Executor{
-		Types:     types,
-		Executors: execs,
-	}
+	e, err := NewExecutor(ctx, execs)
+	require.NoError(t, err)
 
 	testCases := []struct {
 		Name   string

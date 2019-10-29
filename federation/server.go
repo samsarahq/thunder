@@ -6,11 +6,31 @@ import (
 	"fmt"
 
 	"github.com/samsarahq/thunder/graphql"
+	"github.com/samsarahq/thunder/graphql/introspection"
+	"github.com/samsarahq/thunder/graphql/schemabuilder"
 	"github.com/samsarahq/thunder/thunderpb"
 )
 
 type Server struct {
-	schema *graphql.Schema
+	schema      *graphql.Schema
+	schemaBytes []byte
+}
+
+func NewServer(schema *schemabuilder.Schema) (*Server, error) {
+	built, err := schema.Build()
+	if err != nil {
+		return nil, fmt.Errorf("build schema: %v", err)
+	}
+
+	bytes, err := introspection.ComputeSchemaJSON(*schema)
+	if err != nil {
+		return nil, fmt.Errorf("get introspection result: %v", err)
+	}
+
+	return &Server{
+		schema:      built,
+		schemaBytes: bytes,
+	}, nil
 }
 
 func unmarshalPbSelections(selections []*thunderpb.Selection) ([]*Selection, error) {
@@ -101,5 +121,11 @@ func (s *Server) Execute(ctx context.Context, req *thunderpb.ExecuteRequest) (*t
 
 	return &thunderpb.ExecuteResponse{
 		Result: bytes,
+	}, nil
+}
+
+func (s *Server) Schema(ctx context.Context, req *thunderpb.SchemaRequest) (*thunderpb.SchemaResponse, error) {
+	return &thunderpb.SchemaResponse{
+		Schema: s.schemaBytes,
 	}, nil
 }

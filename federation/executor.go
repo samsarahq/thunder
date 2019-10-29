@@ -22,6 +22,30 @@ type Executor struct {
 	Types map[TypeName]*Object
 }
 
+func NewExecutor(ctx context.Context, executors map[string]thunderpb.ExecutorClient) (*Executor, error) {
+	schemas := make(map[string]IntrospectionQuery)
+
+	for server, client := range executors {
+		schema, err := client.Schema(ctx, &thunderpb.SchemaRequest{})
+		if err != nil {
+			return nil, fmt.Errorf("fetching schema %s: %v", server, err)
+		}
+
+		var iq IntrospectionQuery
+		if err := json.Unmarshal(schema.Schema, &iq); err != nil {
+			return nil, fmt.Errorf("unmarshaling schema %s: %v", server, err)
+		}
+
+		schemas[server] = iq
+	}
+
+	types := convertSchema(schemas)
+	return &Executor{
+		Executors: executors,
+		Types:     types,
+	}, nil
+}
+
 type TypeName string
 
 type Type interface{}
@@ -426,14 +450,22 @@ func convert(query *graphql.RawSelectionSet) []*Selection {
 	return converted
 }
 
-func makeExecutors(schemas map[string]*schemabuilder.Schema) (map[string]thunderpb.ExecutorClient, func(), error) {
+func makeExecutors(schemas map[string]*schemabuilder.Schema) (_ map[string]thunderpb.ExecutorClient, close func(), err error) {
 	var closers []func()
+	defer func() {
+		if err != nil {
+			for _, close := range closers {
+				close()
+			}
+		}
+	}()
 
 	executors := make(map[string]thunderpb.ExecutorClient)
 
 	for name, schema := range schemas {
-		srv := &Server{
-			schema: schema.MustBuild(),
+		srv, err := NewServer(schema)
+		if err != nil {
+			return nil, nil, err
 		}
 
 		grpcServer := grpc.NewServer()
@@ -441,9 +473,6 @@ func makeExecutors(schemas map[string]*schemabuilder.Schema) (map[string]thunder
 
 		listener, err := net.Listen("tcp", ":0")
 		if err != nil {
-			for _, closer := range closers {
-				closer()
-			}
 			return nil, nil, err
 		}
 
@@ -456,9 +485,6 @@ func makeExecutors(schemas map[string]*schemabuilder.Schema) (map[string]thunder
 
 		client, err := grpc.Dial(listener.Addr().String(), grpc.WithInsecure())
 		if err != nil {
-			for _, closer := range closers {
-				closer()
-			}
 			return nil, nil, err
 		}
 
@@ -499,22 +525,17 @@ func mustExtractSchemas(schemas map[string]*schemabuilder.Schema) map[string]Int
 func main() {
 	ctx := context.Background()
 
-	schemas := map[string]*schemabuilder.Schema{
+	execs, _, err := makeExecutors(map[string]*schemabuilder.Schema{
 		"schema1": schema1(),
 		"schema2": schema2(),
-	}
-
-	types := convertSchema(mustExtractSchemas(schemas))
-
-	// executors["schema1"]
-	execs, _, err := makeExecutors(schemas)
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	e := &Executor{
-		Types:     types,
-		Executors: execs,
+	e, err := NewExecutor(ctx, execs)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	oldQuery := graphql.MustParse(`
