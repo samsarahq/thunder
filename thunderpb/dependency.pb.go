@@ -15,6 +15,8 @@
 		Selection
 		ExecuteRequest
 		ExecuteResponse
+		SchemaRequest
+		SchemaResponse
 */
 package thunderpb
 
