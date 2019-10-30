@@ -44,7 +44,7 @@ func schema() *schemabuilder.Schema {
 }
 
 func main() {
-	server, err := federation.NewServer(schema())
+	server, err := federation.NewServer(schema().MustBuild())
 	if err != nil {
 		log.Fatal(err)
 	}

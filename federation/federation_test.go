@@ -33,7 +33,7 @@ func makeExecutors(schemas map[string]*schemabuilder.Schema) (_ map[string]thund
 	executors := make(map[string]thunderpb.ExecutorClient)
 
 	for name, schema := range schemas {
-		srv, err := NewServer(schema)
+		srv, err := NewServer(schema.MustBuild())
 		if err != nil {
 			return nil, nil, err
 		}
@@ -200,12 +200,8 @@ func TestBuildSchema(t *testing.T) {
 
 	types := convertSchema(mustExtractSchemas(schemas))
 
-	schema := &graphql.Schema{
-		Query:    types.Query,
-		Mutation: nil,
-	}
-	introspection.AddIntrospectionToSchema(schema)
-	out, err := introspection.RunIntrospectionQuery(schema)
+	introspection.AddIntrospectionToSchema(types.Schema)
+	out, err := introspection.RunIntrospectionQuery(types.Schema)
 	require.NoError(t, err)
 
 	var iq IntrospectionQuery
@@ -236,6 +232,12 @@ func TestBuildSchema(t *testing.T) {
 					"ofType": null
 				  }
 				}
+			  ]
+			},
+			{
+			  "name": "Mutation",
+			  "kind": "OBJECT",
+			  "fields": [
 			  ]
 			},
 			{

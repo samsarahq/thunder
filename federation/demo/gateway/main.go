@@ -56,6 +56,7 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// s := federation.NewServer()
 	spew.Dump(res)
 
 	http.Handle("/graphql", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -80,10 +81,21 @@ func main() {
 			return
 		}
 
-		resp, err := e.Execute(ctx, plan.After[0], nil)
+		var resp interface{}
+		// xxx: resp[0]?
+		resp, err = e.Execute(ctx, plan.After[0], nil)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
+		}
+
+		/*
+			ee := graphql.NewExecutor(graphql.NewImmediateGoroutineScheduler())
+			resp, err := ee.Execute(ctx, e.IntrospectionSchema.Query, nil, query)
+		*/
+
+		resp = map[string]interface{}{
+			"data": resp,
 		}
 
 		json.NewEncoder(w).Encode(resp)

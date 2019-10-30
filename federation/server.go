@@ -7,7 +7,6 @@ import (
 
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/introspection"
-	"github.com/samsarahq/thunder/graphql/schemabuilder"
 	"github.com/samsarahq/thunder/thunderpb"
 )
 
@@ -16,19 +15,15 @@ type Server struct {
 	schemaBytes []byte
 }
 
-func NewServer(schema *schemabuilder.Schema) (*Server, error) {
-	built, err := schema.Build()
-	if err != nil {
-		return nil, fmt.Errorf("build schema: %v", err)
-	}
-
-	bytes, err := introspection.ComputeSchemaJSON(*schema)
+func NewServer(schema *graphql.Schema) (*Server, error) {
+	introspectionSchema := introspection.BareIntrospectionSchema(schema)
+	bytes, err := introspection.RunIntrospectionQuery(introspectionSchema)
 	if err != nil {
 		return nil, fmt.Errorf("get introspection result: %v", err)
 	}
 
 	return &Server{
-		schema:      built,
+		schema:      schema,
 		schemaBytes: bytes,
 	}, nil
 }

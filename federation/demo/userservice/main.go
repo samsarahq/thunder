@@ -49,11 +49,13 @@ func schema() *schemabuilder.Schema {
 		}, nil
 	})
 
+	schema.Mutation().FieldFunc("register", func() {})
+
 	return schema
 }
 
 func main() {
-	server, err := federation.NewServer(schema())
+	server, err := federation.NewServer(schema().MustBuild())
 	if err != nil {
 		log.Fatal(err)
 	}

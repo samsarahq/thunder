@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/samsarahq/thunder/graphql/introspection"
+
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/thunderpb"
 )
 
 type Executor struct {
-	Executors map[string]thunderpb.ExecutorClient
+	Executors           map[string]thunderpb.ExecutorClient
+	IntrospectionSchema *graphql.Schema
 
 	schema SchemaWithFederationInfo
 }
@@ -33,9 +36,13 @@ func NewExecutor(ctx context.Context, executors map[string]thunderpb.ExecutorCli
 	}
 
 	types := convertSchema(schemas)
+
+	introspectionSchema := introspection.BareIntrospectionSchema(types.Schema)
+
 	return &Executor{
-		Executors: executors,
-		schema:    types,
+		Executors:           executors,
+		schema:              types,
+		IntrospectionSchema: introspectionSchema,
 	}, nil
 }
 
@@ -47,7 +54,7 @@ type FieldInfo struct {
 }
 
 type SchemaWithFederationInfo struct {
-	Query  *graphql.Object
+	Schema *graphql.Schema
 	Fields map[*graphql.Field]*FieldInfo
 }
 
@@ -379,7 +386,7 @@ func (e *Executor) plan(typ *graphql.Object, selections []*Selection, service st
 }
 
 func (e *Executor) Plan(query *graphql.RawSelectionSet) (*Plan, error) {
-	return e.plan(e.schema.Query, convert(query), "no-such-service")
+	return e.plan(e.schema.Schema.Query.(*graphql.Object), convert(query), "no-such-service")
 }
 
 func convert(query *graphql.RawSelectionSet) []*Selection {
@@ -428,5 +435,9 @@ func convert(query *graphql.RawSelectionSet) []*Selection {
 //
 // XXX: cache queries and plans? even better, cache selection sets downstream?
 // XXX: precompile queries and query plans???
+//
+// xxx: concurrent execution
+//
+// xxx: schema migrations? moving fields?
 //
 // dependency sets

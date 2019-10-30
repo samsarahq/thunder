@@ -96,7 +96,10 @@ func convertSchema(schemas map[string]IntrospectionQuery) SchemaWithFederationIn
 	}
 
 	return SchemaWithFederationInfo{
-		Query:  byName["Query"], // XXX
+		Schema: &graphql.Schema{
+			Query:    byName["Query"],    // XXX
+			Mutation: byName["Mutation"], // XXX
+		},
 		Fields: fieldInfos,
 	}
 }
