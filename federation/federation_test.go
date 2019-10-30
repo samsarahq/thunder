@@ -5,12 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"net"
 	"testing"
 
 	"github.com/samsarahq/thunder/graphql/introspection"
-	"github.com/samsarahq/thunder/thunderpb"
-	"google.golang.org/grpc"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,56 +17,19 @@ import (
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 )
 
-func makeExecutors(schemas map[string]*schemabuilder.Schema) (_ map[string]thunderpb.ExecutorClient, close func(), err error) {
-	var closers []func()
-	defer func() {
-		if err != nil {
-			for _, close := range closers {
-				close()
-			}
-		}
-	}()
-
-	executors := make(map[string]thunderpb.ExecutorClient)
+func makeExecutors(schemas map[string]*schemabuilder.Schema) (map[string]ExecutorClient, error) {
+	executors := make(map[string]ExecutorClient)
 
 	for name, schema := range schemas {
 		srv, err := NewServer(schema.MustBuild())
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
-		grpcServer := grpc.NewServer()
-		thunderpb.RegisterExecutorServer(grpcServer, srv)
-
-		listener, err := net.Listen("tcp", ":0")
-		if err != nil {
-			return nil, nil, err
-		}
-
-		go grpcServer.Serve(listener)
-
-		closers = append(closers, func() {
-			listener.Close()
-			grpcServer.Stop()
-		})
-
-		client, err := grpc.Dial(listener.Addr().String(), grpc.WithInsecure())
-		if err != nil {
-			return nil, nil, err
-		}
-
-		closers = append(closers, func() {
-			client.Close()
-		})
-
-		executors[name] = thunderpb.NewExecutorClient(client)
+		executors[name] = &DirectExecutorClient{client: srv}
 	}
 
-	return executors, func() {
-		for _, close := range closers {
-			close()
-		}
-	}, nil
+	return executors, nil
 }
 
 func mustExtractSchema(schema *schemabuilder.Schema) IntrospectionQuery {
@@ -694,12 +654,11 @@ func TestExecutor(t *testing.T) {
 
 	// todo: assert specific invocation traces?
 
-	execs, close, err := makeExecutors(map[string]*schemabuilder.Schema{
+	execs, err := makeExecutors(map[string]*schemabuilder.Schema{
 		"schema1": buildTestSchema1(),
 		"schema2": buildTestSchema2(),
 	})
 	require.NoError(t, err)
-	defer close()
 
 	e, err := NewExecutor(ctx, execs)
 	require.NoError(t, err)

@@ -12,13 +12,42 @@ import (
 )
 
 type Executor struct {
-	Executors           map[string]thunderpb.ExecutorClient
+	Executors           map[string]ExecutorClient
 	IntrospectionSchema *graphql.Schema
 
 	schema SchemaWithFederationInfo
 }
 
-func NewExecutor(ctx context.Context, executors map[string]thunderpb.ExecutorClient) (*Executor, error) {
+type ExecutorClient interface {
+	Execute(ctx context.Context, req *thunderpb.ExecuteRequest) (*thunderpb.ExecuteResponse, error)
+	Schema(ctx context.Context, req *thunderpb.SchemaRequest) (*thunderpb.SchemaResponse, error)
+}
+
+type GrpcExecutorClient struct {
+	Client thunderpb.ExecutorClient
+}
+
+func (c *GrpcExecutorClient) Execute(ctx context.Context, req *thunderpb.ExecuteRequest) (*thunderpb.ExecuteResponse, error) {
+	return c.Client.Execute(ctx, req)
+}
+
+func (c *GrpcExecutorClient) Schema(ctx context.Context, req *thunderpb.SchemaRequest) (*thunderpb.SchemaResponse, error) {
+	return c.Client.Schema(ctx, req)
+}
+
+type DirectExecutorClient struct {
+	Client thunderpb.ExecutorServer
+}
+
+func (c *DirectExecutorClient) Execute(ctx context.Context, req *thunderpb.ExecuteRequest) (*thunderpb.ExecuteResponse, error) {
+	return c.Client.Execute(ctx, req)
+}
+
+func (c *DirectExecutorClient) Schema(ctx context.Context, req *thunderpb.SchemaRequest) (*thunderpb.SchemaResponse, error) {
+	return c.Client.Schema(ctx, req)
+}
+
+func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Executor, error) {
 	schemas := make(map[string]IntrospectionQuery)
 
 	for server, client := range executors {
@@ -38,6 +67,26 @@ func NewExecutor(ctx context.Context, executors map[string]thunderpb.ExecutorCli
 	types := convertSchema(schemas)
 
 	introspectionSchema := introspection.BareIntrospectionSchema(types.Schema)
+	newServer, err := NewServer(introspectionSchema)
+	if err != nil {
+		return nil, err
+	}
+
+	executors["introspection"] = &DirectExecutorClient{Client: newServer}
+	server := "introspection"
+	client := executors[server]
+	schema, err := client.Schema(ctx, &thunderpb.SchemaRequest{})
+	if err != nil {
+		return nil, fmt.Errorf("fetching schema %s: %v", server, err)
+	}
+
+	var iq IntrospectionQuery
+	if err := json.Unmarshal(schema.Schema, &iq); err != nil {
+		return nil, fmt.Errorf("unmarshaling schema %s: %v", server, err)
+	}
+
+	schemas[server] = iq
+	types = convertSchema(schemas)
 
 	return &Executor{
 		Executors:           executors,
@@ -405,7 +454,12 @@ func convert(query *graphql.RawSelectionSet) []*Selection {
 			Args:       selection.Args,
 			Selections: convert(selection.SelectionSet),
 		})
+		// XXX: janky hack
 	}
+	for _, fragment := range query.Fragments {
+		converted = append(converted, convert(fragment.SelectionSet)...)
+	}
+
 	return converted
 }
 

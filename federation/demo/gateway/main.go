@@ -17,7 +17,7 @@ import (
 func main() {
 	ctx := context.Background()
 
-	execs := make(map[string]thunderpb.ExecutorClient)
+	execs := make(map[string]federation.ExecutorClient)
 	for name, addr := range map[string]string{
 		"service1": "localhost:1234",
 		"service2": "localhost:1235",
@@ -26,7 +26,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		execs[name] = thunderpb.NewExecutorClient(cc)
+		execs[name] = &federation.GrpcExecutorClient{Client: thunderpb.NewExecutorClient(cc)}
 	}
 
 	e, err := federation.NewExecutor(ctx, execs)
@@ -56,7 +56,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// s := federation.NewServer()
 	spew.Dump(res)
 
 	http.Handle("/graphql", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -81,18 +80,13 @@ func main() {
 			return
 		}
 
-		var resp interface{}
-		// xxx: resp[0]?
-		resp, err = e.Execute(ctx, plan.After[0], nil)
+		resp1, err := e.Execute(ctx, plan.After[0], nil)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-
-		/*
-			ee := graphql.NewExecutor(graphql.NewImmediateGoroutineScheduler())
-			resp, err := ee.Execute(ctx, e.IntrospectionSchema.Query, nil, query)
-		*/
+		var resp interface{}
+		resp = resp1[0]
 
 		resp = map[string]interface{}{
 			"data": resp,

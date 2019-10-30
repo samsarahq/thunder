@@ -344,7 +344,7 @@ func (s *introspection) schema() *graphql.Schema {
 	return schema.MustBuild()
 }
 
-func AddIntrospectionToSchema(schema *graphql.Schema) {
+func BareIntrospectionSchema(schema *graphql.Schema) *graphql.Schema {
 	types := make(map[string]graphql.Type)
 	collectTypes(schema.Query, types)
 	collectTypes(schema.Mutation, types)
@@ -353,7 +353,11 @@ func AddIntrospectionToSchema(schema *graphql.Schema) {
 		query:    schema.Query,
 		mutation: schema.Mutation,
 	}
-	isSchema := is.schema()
+	return is.schema()
+}
+
+func AddIntrospectionToSchema(schema *graphql.Schema) {
+	isSchema := BareIntrospectionSchema(schema)
 
 	query := schema.Query.(*graphql.Object)
 
