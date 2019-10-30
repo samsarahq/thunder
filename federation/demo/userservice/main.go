@@ -39,15 +39,14 @@ func schema() *schemabuilder.Schema {
 	})
 
 	user := schema.Object("User", User{})
+	user.Federation(func(u *User) int64 {
+		return u.Id
+	})
 	user.FieldFunc("address", func(ctx context.Context, in *User) (*Address, error) {
 		return &Address{
 			City:   in.Name + "city",
 			Street: "Main street",
 		}, nil
-	})
-
-	user.FieldFunc("federationKey", func(u *User) int64 {
-		return u.Id
 	})
 
 	return schema

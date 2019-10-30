@@ -121,6 +121,9 @@ func buildTestSchema1() *schemabuilder.Schema {
 	})
 
 	foo := schema.Object("foo", Foo{})
+	foo.Federation(func(f *Foo) string {
+		return f.Name
+	})
 	foo.BatchFieldFunc("s1hmm", func(ctx context.Context, in map[batch.Index]*Foo) (map[batch.Index]string, error) {
 		out := make(map[batch.Index]string)
 		for i, foo := range in {
@@ -128,15 +131,11 @@ func buildTestSchema1() *schemabuilder.Schema {
 		}
 		return out, nil
 	})
-	foo.FieldFunc("federationKey", func(f *Foo) string {
-		return f.Name
-	})
-
 	foo.FieldFunc("s1nest", func(f *Foo) *Foo {
 		return f
 	})
 
-	schema.Query().FieldFunc("barsFromFederationKeys", func(args struct{ Keys []int64 }) []*Bar {
+	schema.Federation().FieldFunc("bar", func(args struct{ Keys []int64 }) []*Bar {
 		bars := make([]*Bar, 0, len(args.Keys))
 		for _, key := range args.Keys {
 			bars = append(bars, &Bar{Id: key})
@@ -155,7 +154,7 @@ func buildTestSchema1() *schemabuilder.Schema {
 func buildTestSchema2() *schemabuilder.Schema {
 	schema := schemabuilder.NewSchema()
 
-	schema.Query().FieldFunc("foosFromFederationKeys", func(args struct{ Keys []string }) []*Foo {
+	schema.Federation().FieldFunc("foo", func(args struct{ Keys []string }) []*Foo {
 		foos := make([]*Foo, 0, len(args.Keys))
 		for _, key := range args.Keys {
 			foos = append(foos, &Foo{Name: key})
@@ -182,7 +181,7 @@ func buildTestSchema2() *schemabuilder.Schema {
 	})
 
 	bar := schema.Object("bar", Bar{})
-	bar.FieldFunc("federationKey", func(b *Bar) int64 {
+	bar.Federation(func(b *Bar) int64 {
 		return b.Id
 	})
 
@@ -218,11 +217,11 @@ func TestBuildSchema(t *testing.T) {
 		"__schema": {
 		  "types": [
 			{
-			  "name": "Query",
+			  "name": "Federation",
 			  "kind": "OBJECT",
 			  "fields": [
 				{
-				  "name": "barsFromFederationKeys",
+				  "name": "bar",
 				  "type": {
 					"kind": "OBJECT",
 					"name": "bar",
@@ -230,10 +229,24 @@ func TestBuildSchema(t *testing.T) {
 				  }
 				},
 				{
-				  "name": "foosFromFederationKeys",
+				  "name": "foo",
 				  "type": {
 					"kind": "OBJECT",
 					"name": "foo",
+					"ofType": null
+				  }
+				}
+			  ]
+			},
+			{
+			  "name": "Query",
+			  "kind": "OBJECT",
+			  "fields": [
+				{
+				  "name": "__federation",
+				  "type": {
+					"kind": "OBJECT",
+					"name": "Federation",
 					"ofType": null
 				  }
 				},
@@ -260,7 +273,7 @@ func TestBuildSchema(t *testing.T) {
 			  "kind": "OBJECT",
 			  "fields": [
 				{
-				  "name": "federationKey",
+				  "name": "__federation",
 				  "type": {
 					"kind": "SCALAR",
 					"name": "int64",
@@ -290,7 +303,7 @@ func TestBuildSchema(t *testing.T) {
 			  "kind": "OBJECT",
 			  "fields": [
 				{
-				  "name": "federationKey",
+				  "name": "__federation",
 				  "type": {
 					"kind": "SCALAR",
 					"name": "string",
@@ -426,7 +439,7 @@ func TestBuildSchema(t *testing.T) {
 						},
 						Type: "string",
 					},
-					"federationKey": {
+					"__federation": {
 						Service: "schema1",
 						Services: map[string]bool{
 							"schema1": true,
@@ -485,7 +498,7 @@ func TestBuildSchema(t *testing.T) {
 						},
 						Type: "int64",
 					},
-					"federationKey": {
+					"__federation": {
 						Service: "schema2",
 						Services: map[string]bool{
 							"schema2": true,
@@ -554,12 +567,12 @@ func TestPlan(t *testing.T) {
 					Type:    "Query",
 					Selections: mustParse(`{
 						s1fff {
-							a: s1nest { b: s1nest { c: s1nest { federationKey } } }
+							a: s1nest { b: s1nest { c: s1nest { __federation } } }
 							s1hmm
 							s1nest {
 								name
 							}
-							federationKey
+							__federation
 						}
 					}`),
 					After: []*Plan{
@@ -579,7 +592,7 @@ func TestPlan(t *testing.T) {
 								s2ok
 								s2bar {
 									id
-									federationKey
+									__federation
 								}
 								s2nest {
 									name
@@ -717,12 +730,12 @@ func TestExecutor(t *testing.T) {
 			`,
 			Output: `{
 				"s1fff": [{
-					"a": {"b": {"c": {"federationKey": "jimbo", "s2ok": 5}}},
+					"a": {"b": {"c": {"__federation": "jimbo", "s2ok": 5}}},
 					"s1hmm": "jimbo!!!",
 					"s2ok": 5,
 					"s2bar": {
 						"id": 14,
-						"federationKey": 14,
+						"__federation": 14,
 						"s1baz": "14"
 					},
 					"s1nest": {
@@ -731,15 +744,15 @@ func TestExecutor(t *testing.T) {
 					"s2nest": {
 						"name": "jimbo"
 					},
-					"federationKey": "jimbo"
+					"__federation": "jimbo"
 				},
 				{
-					"a": {"b": {"c": {"federationKey": "bob", "s2ok": 3}}},
+					"a": {"b": {"c": {"__federation": "bob", "s2ok": 3}}},
 					"s1hmm": "bob!!!",
 					"s2ok": 3,
 					"s2bar": {
 						"id": 10,
-						"federationKey": 10,
+						"__federation": 10,
 						"s1baz": "10"
 					},
 					"s1nest": {
@@ -748,7 +761,7 @@ func TestExecutor(t *testing.T) {
 					"s2nest": {
 						"name": "bob"
 					},
-					"federationKey": "bob"
+					"__federation": "bob"
 				}]
 			}`,
 		},

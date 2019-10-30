@@ -24,8 +24,8 @@ type Picture struct {
 func schema() *schemabuilder.Schema {
 	schema := schemabuilder.NewSchema()
 
-	query := schema.Query()
-	query.FieldFunc("UsersFromFederationKeys", func(args struct{ Keys []int64 }) []*User {
+	federation := schema.Federation()
+	federation.FieldFunc("User", func(args struct{ Keys []int64 }) []*User {
 		users := make([]*User, 0, len(args.Keys))
 		for _, key := range args.Keys {
 			users = append(users, &User{Id: key})

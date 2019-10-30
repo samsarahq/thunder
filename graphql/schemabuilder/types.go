@@ -263,6 +263,10 @@ func (s *Object) ManualPaginationWithFallback(name string, manualPaginatedFunc i
 	s.Methods[name] = m
 }
 
+func (s *Object) Federation(f interface{}) {
+	s.FieldFunc("__federation", f)
+}
+
 // Key registers the key field on an object. The field should be specified by the name of the
 // graphql field.
 // For example, for an object User:

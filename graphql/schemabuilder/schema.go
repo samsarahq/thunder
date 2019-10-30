@@ -123,6 +123,17 @@ func (s *Schema) Mutation() *Object {
 	return s.Object("Mutation", mutation{})
 }
 
+type federation struct{}
+
+// Federation returns an object struct for exposing federated objects.
+func (s *Schema) Federation() *Object {
+	q := s.Query()
+	if _, ok := q.Methods["__federation"]; !ok {
+		q.FieldFunc("__federation", func() federation { return federation{} })
+	}
+	return s.Object("Federation", federation{})
+}
+
 // Build takes the schema we have built on our Query and Mutation starting
 // points and builds a full graphql.Schema we can use to execute and run
 // queries.  Essentially we read through all the methods we've attached to our

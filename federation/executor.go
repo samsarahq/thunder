@@ -100,12 +100,19 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 		// XXX: halp
 		selections = []*Selection{
 			{
-				Name:  typName + "sFromFederationKeys",
-				Alias: "results",
-				Args: map[string]interface{}{
-					"keys": garbage, // keys,
+				Name:  "__federation",
+				Alias: "__federation",
+				Args:  map[string]interface{}{},
+				Selections: []*Selection{
+					{
+						Name:  typName,
+						Alias: typName,
+						Args: map[string]interface{}{
+							"keys": garbage, // keys,
+						},
+						Selections: selections,
+					},
 				},
-				Selections: selections,
 			},
 		}
 	}
@@ -133,14 +140,19 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 	}
 
 	// otherwise:
-	asMap, ok := res.(map[string]interface{})
+	root, ok := res.(map[string]interface{})
 	if !ok {
 		return nil, fmt.Errorf("did not get back a map from executor, got %v", res)
 	}
 
-	results, ok := asMap["results"].([]interface{})
+	federation, ok := root["__federation"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("map did not have a results slice, got %v", res)
+		return nil, fmt.Errorf("root did not have a federation map, got %v", res)
+	}
+
+	results, ok := federation[typName].([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("federation map did not have a %s slice, got %v", typName, res)
 	}
 
 	return results, nil
@@ -188,9 +200,9 @@ func (e *Executor) Execute(ctx context.Context, p *Plan, keys []interface{}) ([]
 				if !ok {
 					return fmt.Errorf("not an object: %v", obj)
 				}
-				key, ok := obj["federationKey"]
+				key, ok := obj["__federation"]
 				if !ok {
-					return fmt.Errorf("missing federationKey: %v", obj)
+					return fmt.Errorf("missing __federation: %v", obj)
 				}
 				targets = append(targets, obj)
 				keys = append(keys, key)
@@ -359,16 +371,16 @@ func (e *Executor) plan(typ *graphql.Object, selections []*Selection, service st
 	if needKey {
 		hasKey := false
 		for _, selection := range p.Selections {
-			if selection.Name == "federationKey" && selection.Alias == "federationKey" {
+			if selection.Name == "__federation" && selection.Alias == "__federation" {
 				hasKey = true
-			} else if selection.Alias == "federationKey" {
+			} else if selection.Alias == "__federation" {
 				// error, conflict, can't do this.
 			}
 		}
 		if !hasKey {
 			p.Selections = append(p.Selections, &Selection{
-				Name:  "federationKey",
-				Alias: "federationKey",
+				Name:  "__federation",
+				Alias: "__federation",
 				Args:  map[string]interface{}{},
 			})
 		}
@@ -402,12 +414,6 @@ func convert(query *graphql.RawSelectionSet) []*Selection {
 }
 
 // todo
-// project. schema api
-// basic sketch with two packages
-//
-// project. federation API
-// clean up xyzFromFederationKeys
-//
 // project. harden APIs
 // test malformed inputs
 // test incompatible schemas
@@ -423,6 +429,8 @@ func convert(query *graphql.RawSelectionSet) []*Selection {
 // project. union types
 //
 // clean up types in thunder/graphql, clean up flagging
+//
+// mutations
 //
 // defer
 //
