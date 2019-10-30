@@ -21,6 +21,10 @@ type Picture struct {
 	Url string
 }
 
+type Album struct {
+	Pictures []*Picture
+}
+
 func schema() *schemabuilder.Schema {
 	schema := schemabuilder.NewSchema()
 
@@ -37,6 +41,17 @@ func schema() *schemabuilder.Schema {
 	user.FieldFunc("picture", func(ctx context.Context, in *User) (*Picture, error) {
 		return &Picture{
 			Url: fmt.Sprintf("http://pictures/%d", in.Id),
+		}, nil
+	})
+	user.FieldFunc("albums", func(in *User) ([]*Album, error) {
+		return []*Album{
+			{
+				Pictures: []*Picture{
+					{
+						Url: fmt.Sprintf("http://pictures/%d", in.Id),
+					},
+				},
+			},
 		}, nil
 	})
 
