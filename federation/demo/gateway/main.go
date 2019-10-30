@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
+	"net/http"
 
 	"github.com/davecgh/go-spew/spew"
 	"google.golang.org/grpc"
@@ -55,4 +57,38 @@ func main() {
 	}
 
 	spew.Dump(res)
+
+	http.Handle("/graphql", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
+			Query     string                 `json:"query"`
+			Variables map[string]interface{} `json:"variables"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		query, err := graphql.Parse(request.Query, request.Variables)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		plan, err := e.Plan(query.SelectionSet)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		resp, err := e.Execute(ctx, plan.After[0], nil)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		json.NewEncoder(w).Encode(resp)
+	}))
+
+	http.Handle("/", http.FileServer(http.Dir(".")))
+	http.ListenAndServe(":3000", nil)
 }

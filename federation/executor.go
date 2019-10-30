@@ -428,3 +428,5 @@ func convert(query *graphql.RawSelectionSet) []*Selection {
 //
 // XXX: cache queries and plans? even better, cache selection sets downstream?
 // XXX: precompile queries and query plans???
+//
+// dependency sets
