@@ -1,8 +1,8 @@
 #!/bin/sh
 
-go run ./service1 &
-go run ./service2 &
+go run ./userservice &
+go run ./pictureservice &
 sleep 1
 go run ./gateway
 
-killall service1 service2
+killall userservice pictureservice

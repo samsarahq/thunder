@@ -5,10 +5,11 @@ import (
 	"log"
 
 	"github.com/davecgh/go-spew/spew"
+	"google.golang.org/grpc"
+
 	"github.com/samsarahq/thunder/federation"
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/thunderpb"
-	"google.golang.org/grpc"
 )
 
 func main() {
@@ -33,14 +34,11 @@ func main() {
 
 	oldQuery := graphql.MustParse(`
 		{
-			fff {
-				a: nest { b: nest { c: nest { ok } } }
-				hmm
-				ok
-				bar {
-					id
-					baz
-				}
+			users {
+				id
+				name
+				address { city street }
+				picture { url }
 			}
 		}
 	`, map[string]interface{}{})
