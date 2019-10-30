@@ -82,21 +82,9 @@ func convertSelectionSet(selections []*Selection) *graphql.RawSelectionSet {
 func (e *Executor) runOnService(ctx context.Context, service string, typName string, keys []interface{}, selections []*Selection) ([]interface{}, error) {
 	schema := e.Executors[service]
 
-	// xxx: detect if root (?)
-
 	if keys == nil {
 		// Root query
-		// selectionSet = convertSelectionSet(selections)
 	} else {
-		var garbage interface{}
-		bytes, err := json.Marshal(keys)
-		if err != nil {
-			return nil, fmt.Errorf("roundtripping keys: %v", err)
-		}
-		if err := json.Unmarshal(bytes, &garbage); err != nil {
-			return nil, fmt.Errorf("roudntripping keys: %v", err)
-		}
-
 		// XXX: halp
 		selections = []*Selection{
 			{
@@ -108,7 +96,8 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 						Name:  typName,
 						Alias: typName,
 						Args: map[string]interface{}{
-							"keys": garbage, // keys,
+							// xxx: do we need to marshal these differently? rely on schema handling of scalars?
+							"keys": keys,
 						},
 						Selections: selections,
 					},
