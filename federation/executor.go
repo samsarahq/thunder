@@ -412,6 +412,7 @@ func convert(query *graphql.RawSelectionSet) []*Selection {
 // test malformed inputs
 // test incompatible schemas
 // test forward/backward schema rollout
+// multiple root fields
 // validate incoming queries
 //
 // project. expose introspection query
@@ -421,7 +422,11 @@ func convert(query *graphql.RawSelectionSet) []*Selection {
 //
 // project. union types
 //
-// project. independnet binaries
+// clean up types in thunder/graphql, clean up flagging
+//
+// defer
+//
+// failure boundaries, timeouts (?)
 //
 // XXX: cache queries and plans? even better, cache selection sets downstream?
 // XXX: precompile queries and query plans???
