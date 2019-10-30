@@ -414,15 +414,16 @@ func convert(query *graphql.RawSelectionSet) []*Selection {
 }
 
 // todo
+// project. expose introspection query
+// federate onto introspectoin server (!?!?!)
+// serve graphiql
+//
 // project. harden APIs
 // test malformed inputs
 // test incompatible schemas
 // test forward/backward schema rollout
 // multiple root fields
 // validate incoming queries
-//
-// project. expose introspection query
-// federate onto introspectoin server (!?!?!)
 //
 // project. fragments
 //
