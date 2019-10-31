@@ -7,15 +7,13 @@ import (
 	"log"
 	"testing"
 
-	"github.com/samsarahq/go/snapshotter"
-
-	"github.com/samsarahq/thunder/graphql/introspection"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/samsarahq/go/snapshotter"
 	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/graphql"
+	"github.com/samsarahq/thunder/graphql/introspection"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 )
 
