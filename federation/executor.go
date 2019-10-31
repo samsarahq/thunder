@@ -509,24 +509,23 @@ func convert(query *graphql.RawSelectionSet) []*Selection {
 }
 
 // todo
+// project. union types
+// project. fragments
+// __typename
+//
+// concurrent execution
+//
+// defer
+//
 // project. harden APIs
 // test malformed inputs
 // test incompatible schemas
 // test forward/backward schema rollout
 // validate incoming queries
 //
-// concurrent execution
-//
-// project. fragments
-//
-// project. union types
-// __typename
-//
 // clean up types in thunder/graphql, clean up flagging
 //
 // mutations
-//
-// defer
 //
 // failure boundaries, timeouts (?)
 //
