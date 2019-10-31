@@ -49,12 +49,31 @@
                 }
               ],
               "kind": "OBJECT",
-              "name": "Federation"
+              "name": "Federation",
+              "possibleTypes": []
+            },
+            {
+              "fields": [],
+              "kind": "UNION",
+              "name": "FooOrBar",
+              "possibleTypes": [
+                {
+                  "kind": "OBJECT",
+                  "name": "bar",
+                  "ofType": null
+                },
+                {
+                  "kind": "OBJECT",
+                  "name": "foo",
+                  "ofType": null
+                }
+              ]
             },
             {
               "fields": [],
               "kind": "OBJECT",
-              "name": "Mutation"
+              "name": "Mutation",
+              "possibleTypes": []
             },
             {
               "fields": [
@@ -67,6 +86,26 @@
                       "kind": "OBJECT",
                       "name": "Federation",
                       "ofType": null
+                    }
+                  }
+                },
+                {
+                  "name": "s1both",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "LIST",
+                      "name": "",
+                      "ofType": {
+                        "kind": "NON_NULL",
+                        "name": "",
+                        "ofType": {
+                          "kind": "UNION",
+                          "name": "FooOrBar",
+                          "ofType": null
+                        }
+                      }
                     }
                   }
                 },
@@ -112,7 +151,8 @@
                 }
               ],
               "kind": "OBJECT",
-              "name": "Query"
+              "name": "Query",
+              "possibleTypes": []
             },
             {
               "fields": [
@@ -154,7 +194,8 @@
                 }
               ],
               "kind": "OBJECT",
-              "name": "bar"
+              "name": "bar",
+              "possibleTypes": []
             },
             {
               "fields": [
@@ -228,22 +269,26 @@
                 }
               ],
               "kind": "OBJECT",
-              "name": "foo"
+              "name": "foo",
+              "possibleTypes": []
             },
             {
               "fields": [],
               "kind": "SCALAR",
-              "name": "int"
+              "name": "int",
+              "possibleTypes": []
             },
             {
               "fields": [],
               "kind": "SCALAR",
-              "name": "int64"
+              "name": "int64",
+              "possibleTypes": []
             },
             {
               "fields": [],
               "kind": "SCALAR",
-              "name": "string"
+              "name": "string",
+              "possibleTypes": []
             }
           ]
         }

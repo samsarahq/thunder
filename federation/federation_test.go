@@ -62,6 +62,12 @@ type Bar struct {
 	Id int64
 }
 
+type FooOrBar struct {
+	schemabuilder.Union
+	*Foo
+	*Bar
+}
+
 func buildTestSchema1() *schemabuilder.Schema {
 	schema := schemabuilder.NewSchema()
 
@@ -108,6 +114,21 @@ func buildTestSchema1() *schemabuilder.Schema {
 	bar := schema.Object("bar", Bar{})
 	bar.FieldFunc("s1baz", func(b *Bar) string {
 		return fmt.Sprint(b.Id)
+	})
+
+	query.FieldFunc("s1both", func() []FooOrBar {
+		return []FooOrBar{
+			{
+				Foo: &Foo{
+					Name: "foo",
+				},
+			},
+			{
+				Bar: &Bar{
+					Id: 3,
+				},
+			},
+		}
 	})
 
 	return schema

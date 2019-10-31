@@ -22,6 +22,7 @@ type IntrospectionQuery struct {
 				Name string   `json:"name"`
 				Type *TypeRef `json:"type"`
 			} `json:"fields"`
+			PossibleTypes []*TypeRef `json:"possibleTypes"`
 		} `json:"types"`
 	} `json:"__schema"`
 }
@@ -48,6 +49,12 @@ func convertSchema(schemas map[string]IntrospectionQuery) (*SchemaWithFederation
 					Type: typ.Name,
 				}
 
+			case "UNION":
+				all[typ.Name] = &graphql.Union{
+					Name:  typ.Name,
+					Types: make(map[string]*graphql.Object),
+				}
+
 			default:
 				return nil, fmt.Errorf("unknown type kind %s", typ.Kind)
 			}
@@ -61,7 +68,8 @@ func convertSchema(schemas map[string]IntrospectionQuery) (*SchemaWithFederation
 		}
 
 		switch t.Kind {
-		case "SCALAR", "OBJECT":
+		case "SCALAR", "OBJECT", "UNION":
+			// XXX: enforce type?
 			typ, ok := all[t.Name]
 			if !ok {
 				return nil, fmt.Errorf("type %s not found among top-level types", t.Name)
@@ -81,6 +89,9 @@ func convertSchema(schemas map[string]IntrospectionQuery) (*SchemaWithFederation
 					Type: inner,
 				}, nil
 			}
+
+			// xxx: ban duplicates so we can guarantee types below are same
+
 		default:
 			return nil, fmt.Errorf("unknown type kind %s", t.Kind)
 		}
@@ -115,6 +126,19 @@ func convertSchema(schemas map[string]IntrospectionQuery) (*SchemaWithFederation
 					// XXX check consistent types
 
 					fieldInfos[f].Services[service] = true
+				}
+
+			case "UNION":
+				union := all[typ.Name].(*graphql.Union)
+				for _, other := range typ.PossibleTypes {
+					if other.Kind != "OBJECT" {
+						return nil, fmt.Errorf("service %s typ %s has possible typ not OBJECT: %v", service, typ.Name, other)
+					}
+					typ, ok := all[other.Name].(*graphql.Object)
+					if !ok {
+						return nil, fmt.Errorf("service %s typ %s possible typ %s does not refer to obj", service, typ.Name, other.Name)
+					}
+					union.Types[typ.Name] = typ
 				}
 			}
 		}
