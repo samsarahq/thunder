@@ -1,0 +1,253 @@
+[
+  {
+    "Name": "resulting schema",
+    "Values": [
+      {
+        "__schema": {
+          "types": [
+            {
+              "fields": [
+                {
+                  "name": "bar",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "LIST",
+                      "name": "",
+                      "ofType": {
+                        "kind": "NON_NULL",
+                        "name": "",
+                        "ofType": {
+                          "kind": "OBJECT",
+                          "name": "bar",
+                          "ofType": null
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "name": "foo",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "LIST",
+                      "name": "",
+                      "ofType": {
+                        "kind": "NON_NULL",
+                        "name": "",
+                        "ofType": {
+                          "kind": "OBJECT",
+                          "name": "foo",
+                          "ofType": null
+                        }
+                      }
+                    }
+                  }
+                }
+              ],
+              "kind": "OBJECT",
+              "name": "Federation"
+            },
+            {
+              "fields": [],
+              "kind": "OBJECT",
+              "name": "Mutation"
+            },
+            {
+              "fields": [
+                {
+                  "name": "__federation",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "OBJECT",
+                      "name": "Federation",
+                      "ofType": null
+                    }
+                  }
+                },
+                {
+                  "name": "s1f",
+                  "type": {
+                    "kind": "OBJECT",
+                    "name": "foo",
+                    "ofType": null
+                  }
+                },
+                {
+                  "name": "s1fff",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "LIST",
+                      "name": "",
+                      "ofType": {
+                        "kind": "NON_NULL",
+                        "name": "",
+                        "ofType": {
+                          "kind": "OBJECT",
+                          "name": "foo",
+                          "ofType": null
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "name": "s2root",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "string",
+                      "ofType": null
+                    }
+                  }
+                }
+              ],
+              "kind": "OBJECT",
+              "name": "Query"
+            },
+            {
+              "fields": [
+                {
+                  "name": "__federation",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "int64",
+                      "ofType": null
+                    }
+                  }
+                },
+                {
+                  "name": "id",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "int64",
+                      "ofType": null
+                    }
+                  }
+                },
+                {
+                  "name": "s1baz",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "string",
+                      "ofType": null
+                    }
+                  }
+                }
+              ],
+              "kind": "OBJECT",
+              "name": "bar"
+            },
+            {
+              "fields": [
+                {
+                  "name": "__federation",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "string",
+                      "ofType": null
+                    }
+                  }
+                },
+                {
+                  "name": "name",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "string",
+                      "ofType": null
+                    }
+                  }
+                },
+                {
+                  "name": "s1hmm",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "string",
+                    "ofType": null
+                  }
+                },
+                {
+                  "name": "s1nest",
+                  "type": {
+                    "kind": "OBJECT",
+                    "name": "foo",
+                    "ofType": null
+                  }
+                },
+                {
+                  "name": "s2bar",
+                  "type": {
+                    "kind": "OBJECT",
+                    "name": "bar",
+                    "ofType": null
+                  }
+                },
+                {
+                  "name": "s2nest",
+                  "type": {
+                    "kind": "OBJECT",
+                    "name": "foo",
+                    "ofType": null
+                  }
+                },
+                {
+                  "name": "s2ok",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "int",
+                      "ofType": null
+                    }
+                  }
+                }
+              ],
+              "kind": "OBJECT",
+              "name": "foo"
+            },
+            {
+              "fields": [],
+              "kind": "SCALAR",
+              "name": "int"
+            },
+            {
+              "fields": [],
+              "kind": "SCALAR",
+              "name": "int64"
+            },
+            {
+              "fields": [],
+              "kind": "SCALAR",
+              "name": "string"
+            }
+          ]
+        }
+      }
+    ]
+  }
+]

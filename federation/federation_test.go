@@ -7,6 +7,8 @@ import (
 	"log"
 	"testing"
 
+	"github.com/samsarahq/go/snapshotter"
+
 	"github.com/samsarahq/thunder/graphql/introspection"
 
 	"github.com/stretchr/testify/assert"
@@ -162,7 +164,8 @@ func TestBuildSchema(t *testing.T) {
 		"schema2": buildTestSchema2(),
 	}
 
-	types := convertSchema(mustExtractSchemas(schemas))
+	types, err := convertSchema(mustExtractSchemas(schemas))
+	require.NoError(t, err)
 
 	introspection.AddIntrospectionToSchema(types.Schema)
 	out, err := introspection.RunIntrospectionQuery(types.Schema)
@@ -172,193 +175,10 @@ func TestBuildSchema(t *testing.T) {
 	err = json.Unmarshal(out, &iq)
 	require.NoError(t, err)
 
-	expectedStr := `
-	{
-		"__schema": {
-		  "types": [
-			{
-			  "name": "Federation",
-			  "kind": "OBJECT",
-			  "fields": [
-				{
-				  "name": "bar",
-				  "type": {
-					"kind": "OBJECT",
-					"name": "bar",
-					"ofType": null
-				  }
-				},
-				{
-				  "name": "foo",
-				  "type": {
-					"kind": "OBJECT",
-					"name": "foo",
-					"ofType": null
-				  }
-				}
-			  ]
-			},
-			{
-			  "name": "Mutation",
-			  "kind": "OBJECT",
-			  "fields": [
-			  ]
-			},
-			{
-			  "name": "Query",
-			  "kind": "OBJECT",
-			  "fields": [
-				{
-				  "name": "__federation",
-				  "type": {
-					"kind": "OBJECT",
-					"name": "Federation",
-					"ofType": null
-				  }
-				},
-				{
-				  "name": "s1f",
-				  "type": {
-					"kind": "OBJECT",
-					"name": "foo",
-					"ofType": null
-				  }
-				},
-				{
-				  "name": "s1fff",
-				  "type": {
-					"kind": "OBJECT",
-					"name": "foo",
-					"ofType": null
-				  }
-				},
-				{
-				  "name": "s2root",
-				  "type": {
-					"kind": "SCALAR",
-					"name": "string",
-					"ofType": null
-				  }
-				}
-			  ]
-			},
-			{
-			  "name": "bar",
-			  "kind": "OBJECT",
-			  "fields": [
-				{
-				  "name": "__federation",
-				  "type": {
-					"kind": "SCALAR",
-					"name": "int64",
-					"ofType": null
-				  }
-				},
-				{
-				  "name": "id",
-				  "type": {
-					"kind": "SCALAR",
-					"name": "int64",
-					"ofType": null
-				  }
-				},
-				{
-				  "name": "s1baz",
-				  "type": {
-					"kind": "SCALAR",
-					"name": "string",
-					"ofType": null
-				  }
-				}
-			  ]
-			},
-			{
-			  "name": "foo",
-			  "kind": "OBJECT",
-			  "fields": [
-				{
-				  "name": "__federation",
-				  "type": {
-					"kind": "SCALAR",
-					"name": "string",
-					"ofType": null
-				  }
-				},
-				{
-				  "name": "name",
-				  "type": {
-					"kind": "SCALAR",
-					"name": "string",
-					"ofType": null
-				  }
-				},
-				{
-				  "name": "s1hmm",
-				  "type": {
-					"kind": "SCALAR",
-					"name": "string",
-					"ofType": null
-				  }
-				},
-				{
-				  "name": "s1nest",
-				  "type": {
-					"kind": "OBJECT",
-					"name": "foo",
-					"ofType": null
-				  }
-				},
-				{
-				  "name": "s2bar",
-				  "type": {
-					"kind": "OBJECT",
-					"name": "bar",
-					"ofType": null
-				  }
-				},
-				{
-				  "name": "s2nest",
-				  "type": {
-					"kind": "OBJECT",
-					"name": "foo",
-					"ofType": null
-				  }
-				},
-				{
-				  "name": "s2ok",
-				  "type": {
-					"kind": "SCALAR",
-					"name": "int",
-					"ofType": null
-				  }
-				}
-			  ]
-			},
-			{
-			  "name": "int",
-			  "kind": "SCALAR",
-			  "fields": []
-			},
-			{
-			  "name": "int64",
-			  "kind": "SCALAR",
-			  "fields": []
-			},
-			{
-			  "name": "string",
-			  "kind": "SCALAR",
-			  "fields": []
-			}
-		  ]
-		}
-	  }
-	`
+	snapshotter := snapshotter.New(t)
+	defer snapshotter.Verify()
 
-	var expected IntrospectionQuery
-	err = json.Unmarshal([]byte(expectedStr), &expected)
-	require.NoError(t, err)
-
-	assert.Equal(t, expected, iq)
+	snapshotter.Snapshot("resulting schema", iq)
 
 	/*
 		expected := map[TypeName]*Object{
@@ -502,7 +322,8 @@ func TestPlan(t *testing.T) {
 		"schema2": buildTestSchema2(),
 	}
 
-	types := convertSchema(mustExtractSchemas(schemas))
+	types, err := convertSchema(mustExtractSchemas(schemas))
+	require.NoError(t, err)
 
 	e := &Executor{
 		schema: types,

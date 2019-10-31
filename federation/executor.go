@@ -16,7 +16,7 @@ type Executor struct {
 	Executors           map[string]ExecutorClient
 	IntrospectionSchema *graphql.Schema
 
-	schema SchemaWithFederationInfo
+	schema *SchemaWithFederationInfo
 }
 
 type ExecutorClient interface {
@@ -65,7 +65,10 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Exe
 		schemas[server] = iq
 	}
 
-	types := convertSchema(schemas)
+	types, err := convertSchema(schemas)
+	if err != nil {
+		return nil, err
+	}
 
 	introspectionSchema := introspection.BareIntrospectionSchema(types.Schema)
 	newServer, err := NewServer(introspectionSchema)
@@ -87,7 +90,10 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Exe
 	}
 
 	schemas[server] = iq
-	types = convertSchema(schemas)
+	types, err = convertSchema(schemas)
+	if err != nil {
+		return nil, err
+	}
 
 	return &Executor{
 		Executors:           executors,
@@ -320,7 +326,22 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) ([]
 	return res, nil
 }
 
-func (e *Executor) plan(typ *graphql.Object, selections []*Selection, service string) (*Plan, error) {
+func (e *Executor) plan(typIface graphql.Type, selections []*Selection, service string) (*Plan, error) {
+	switch typ := typIface.(type) {
+	case *graphql.NonNull:
+		return e.plan(typ.Type, selections, service)
+
+	case *graphql.List:
+		return e.plan(typ.Type, selections, service)
+
+	case *graphql.Object:
+		// great
+
+	default:
+		return nil, fmt.Errorf("bad typ %v", typIface)
+	}
+	typ := typIface.(*graphql.Object)
+
 	p := &Plan{
 		Type:       typ.Name,
 		Service:    service,
@@ -386,7 +407,7 @@ func (e *Executor) plan(typ *graphql.Object, selections []*Selection, service st
 			// XXX: assert existence of types elsewhere?
 			var err error
 			// XXX type assertoin
-			childPlan, err = e.plan(field.Type.(*graphql.Object), selection.Selections, service)
+			childPlan, err = e.plan(field.Type, selection.Selections, service)
 			if err != nil {
 				return nil, fmt.Errorf("planning for %s: %v", selection.Name, err)
 			}
@@ -488,14 +509,13 @@ func convert(query *graphql.RawSelectionSet) []*Selection {
 }
 
 // todo
-// validate incoming queries
-//
-// slice & nonnull types
-//
 // project. harden APIs
 // test malformed inputs
 // test incompatible schemas
 // test forward/backward schema rollout
+// validate incoming queries
+//
+// concurrent execution
 //
 // project. fragments
 //
@@ -512,8 +532,6 @@ func convert(query *graphql.RawSelectionSet) []*Selection {
 //
 // XXX: cache queries and plans? even better, cache selection sets downstream?
 // XXX: precompile queries and query plans???
-//
-// xxx: concurrent execution
 //
 // xxx: schema migrations? moving fields?
 //
