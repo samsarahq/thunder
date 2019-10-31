@@ -37,6 +37,12 @@ func schema() *schemabuilder.Schema {
 		return users
 	})
 
+	schema.Query().FieldFunc("logo", func() *Picture {
+		return &Picture{
+			Url: fmt.Sprintf("http://pictures/logo"),
+		}
+	})
+
 	user := schema.Object("User", User{})
 	user.FieldFunc("picture", func(ctx context.Context, in *User) (*Picture, error) {
 		return &Picture{

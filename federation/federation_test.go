@@ -26,7 +26,7 @@ func makeExecutors(schemas map[string]*schemabuilder.Schema) (map[string]Executo
 			return nil, err
 		}
 
-		executors[name] = &DirectExecutorClient{client: srv}
+		executors[name] = &DirectExecutorClient{Client: srv}
 	}
 
 	return executors, nil
@@ -120,6 +120,10 @@ func buildTestSchema2() *schemabuilder.Schema {
 			foos = append(foos, &Foo{Name: key})
 		}
 		return foos
+	})
+
+	schema.Query().FieldFunc("s2root", func() string {
+		return "hello"
 	})
 
 	foo := schema.Object("foo", Foo{})
@@ -225,6 +229,14 @@ func TestBuildSchema(t *testing.T) {
 				  "type": {
 					"kind": "OBJECT",
 					"name": "foo",
+					"ofType": null
+				  }
+				},
+				{
+				  "name": "s2root",
+				  "type": {
+					"kind": "SCALAR",
+					"name": "string",
 					"ofType": null
 				  }
 				}
@@ -520,6 +532,7 @@ func TestPlan(t *testing.T) {
 							name
 						}
 					}
+					s2root
 				}
 			`,
 			Output: []*Plan{
@@ -572,6 +585,14 @@ func TestPlan(t *testing.T) {
 							},
 						},
 					},
+				},
+				{
+					Path:    nil,
+					Service: "schema2",
+					Type:    "Query",
+					Selections: mustParse(`{
+						s2root
+					}`),
 				},
 			},
 		},
@@ -687,6 +708,7 @@ func TestExecutor(t *testing.T) {
 							name
 						}
 					}
+					s2root
 				}
 			`,
 			Output: `{
@@ -723,7 +745,8 @@ func TestExecutor(t *testing.T) {
 						"name": "bob"
 					},
 					"__federation": "bob"
-				}]
+				}],
+				"s2root": "hello"
 			}`,
 		},
 	}
@@ -733,14 +756,14 @@ func TestExecutor(t *testing.T) {
 			plan, err := e.Plan(graphql.MustParse(testCase.Input, map[string]interface{}{}).SelectionSet)
 			require.NoError(t, err)
 
-			res, err := e.Execute(ctx, plan.After[0], nil)
+			res, err := e.Execute(ctx, plan)
 			require.NoError(t, err)
 
 			var expected interface{}
 			err = json.Unmarshal([]byte(testCase.Output), &expected)
 			require.NoError(t, err)
 
-			assert.Equal(t, expected, roundtripJson(t, res[0]))
+			assert.Equal(t, expected, roundtripJson(t, res))
 		})
 	}
 }

@@ -51,7 +51,7 @@ func main() {
 	}
 
 	// XXX: have to deal with multiple plans here
-	res, err := e.Execute(ctx, plan.After[0], nil)
+	res, err := e.Execute(ctx, plan)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -80,13 +80,11 @@ func main() {
 			return
 		}
 
-		resp1, err := e.Execute(ctx, plan.After[0], nil)
+		resp, err := e.Execute(ctx, plan)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		var resp interface{}
-		resp = resp1[0]
 
 		resp = map[string]interface{}{
 			"data": resp,

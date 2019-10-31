@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	"github.com/samsarahq/thunder/graphql/introspection"
 
@@ -213,7 +214,24 @@ type Plan struct {
 
 // XXX: have a plan about failed conversions and nils everywhere.
 
-func (e *Executor) Execute(ctx context.Context, p *Plan, keys []interface{}) ([]interface{}, error) {
+func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
+	combined := make(map[string]interface{})
+
+	for _, plan := range p.After {
+		res, err := e.execute(ctx, plan, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		for k, v := range res[0].(map[string]interface{}) {
+			combined[k] = v
+		}
+	}
+
+	return combined, nil
+}
+
+func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) ([]interface{}, error) {
 	res, err := e.runOnService(ctx, p.Service, p.Type, keys, p.Selections)
 	if err != nil {
 		return nil, fmt.Errorf("run on service: %v", err)
@@ -279,7 +297,7 @@ func (e *Executor) Execute(ctx context.Context, p *Plan, keys []interface{}) ([]
 		// XXX: don't execute here yet??? i mean we can but why? simpler?????? could go back to root?
 
 		// XXX: go
-		results, err := e.Execute(ctx, subPlan, keys)
+		results, err := e.execute(ctx, subPlan, keys)
 		if err != nil {
 			return nil, fmt.Errorf("executing sub plan: %v", err)
 		}
@@ -395,10 +413,16 @@ func (e *Executor) plan(typ *graphql.Object, selections []*Selection, service st
 
 	needKey := false
 
-	for other, selections := range selectionsByService {
-		if other == service {
-			continue
+	var otherServices []string
+	for other := range selectionsByService {
+		if other != service {
+			otherServices = append(otherServices, other)
 		}
+	}
+	sort.Strings(otherServices)
+
+	for _, other := range otherServices {
+		selections := selectionsByService[other]
 		needKey = true
 
 		// what if a field has multiple options? should we consider capacity?
@@ -454,8 +478,8 @@ func convert(query *graphql.RawSelectionSet) []*Selection {
 			Args:       selection.Args,
 			Selections: convert(selection.SelectionSet),
 		})
-		// XXX: janky hack
 	}
+	// XXX: janky hack
 	for _, fragment := range query.Fragments {
 		converted = append(converted, convert(fragment.SelectionSet)...)
 	}
@@ -464,16 +488,19 @@ func convert(query *graphql.RawSelectionSet) []*Selection {
 }
 
 // todo
-// project. fragments
+// validate incoming queries
+//
+// slice & nonnull types
 //
 // project. harden APIs
 // test malformed inputs
 // test incompatible schemas
 // test forward/backward schema rollout
-// multiple root fields
-// validate incoming queries
+//
+// project. fragments
 //
 // project. union types
+// __typename
 //
 // clean up types in thunder/graphql, clean up flagging
 //
