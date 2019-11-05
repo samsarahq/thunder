@@ -3,6 +3,7 @@ package graphql_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -372,6 +373,43 @@ func TestExecutorRuns(t *testing.T) {
 				internal.MarshalJSON(wantParsedJSON),
 				internal.MarshalJSON(gotJSON),
 			)
+		})
+	}
+}
+
+func Test_pathError_Reason(t *testing.T) {
+	type fields struct {
+		inner error
+		path  []string
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		want   string
+	}{
+		{
+			name: "empty list",
+			fields: fields{
+				inner: nil,
+				path:  []string{},
+			},
+			want: "",
+		},
+		{
+			name: "non empty list",
+			fields: fields{
+				inner: fmt.Errorf("error"),
+				path:  []string{"a", "b", "c"},
+			},
+			want: "c.b.a",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pe := graphql.PathErrorInit(tt.fields.inner, tt.fields.path).(*graphql.PathError)
+			if got := pe.Reason(); got != tt.want {
+				t.Errorf("Reason() = %v, want %v", got, tt.want)
+			}
 		})
 	}
 }

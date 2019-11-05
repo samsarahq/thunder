@@ -34,6 +34,10 @@ func (e SafeError) SanitizedError() string {
 	return e.message
 }
 
+func (e SafeError) Reason() string {
+	return e.message
+}
+
 // Unwrap returns the wrapped error, implementing go's 1.13 error wrapping proposal.
 func (e SafeError) Unwrap() error {
 	return e.inner
