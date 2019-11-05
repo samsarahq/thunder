@@ -25,3 +25,8 @@ func (e *ErrorWithQuery) Error() string {
 func (e *ErrorWithQuery) Unwrap() error {
 	return e.err
 }
+
+// Reason returns a human-readable error message of the clause and args
+func (e *ErrorWithQuery) Reason() string {
+	return fmt.Sprintf("Error in query clause: '%s'; query args: '%v'", e.clause, e.args)
+}

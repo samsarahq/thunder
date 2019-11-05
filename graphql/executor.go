@@ -64,15 +64,26 @@ func (pe *pathError) Unwrap() error {
 
 func (pe *pathError) Error() string {
 	var buffer bytes.Buffer
+	writePath(pe, &buffer)
+	buffer.WriteString(": ")
+	buffer.WriteString(pe.inner.Error())
+	return buffer.String()
+}
+
+func (pe *pathError) Reason() string {
+	var buffer bytes.Buffer
+	writePath(pe, &buffer)
+	return buffer.String()
+}
+
+// Writes path from pe into buffer
+func writePath(pe *pathError, buffer *bytes.Buffer) {
 	for i := len(pe.path) - 1; i >= 0; i-- {
 		if i < len(pe.path)-1 {
 			buffer.WriteString(".")
 		}
 		buffer.WriteString(pe.path[i])
 	}
-	buffer.WriteString(": ")
-	buffer.WriteString(pe.inner.Error())
-	return buffer.String()
 }
 
 func isNilArgs(args interface{}) bool {

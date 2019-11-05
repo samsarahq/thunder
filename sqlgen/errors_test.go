@@ -99,3 +99,45 @@ func TestErrorWithQuery(t *testing.T) {
 		})
 	}
 }
+
+func TestErrorWithQuery_Reason(t *testing.T) {
+	type fields struct {
+		err    error
+		clause string
+		args   []interface{}
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		want   string
+	}{
+		{
+			name: "nil err and args",
+			fields: fields{
+				clause: "clause",
+				args:   nil,
+			},
+			want: "Error in query clause: 'clause'; query args: '[]'",
+		},
+		{
+			name: "args array is not empty",
+			fields: fields{
+				clause: "clause",
+				args:   []interface{}{"a", "b"},
+			},
+			want: "Error in query clause: 'clause'; query args: '[a b]'",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := &ErrorWithQuery{
+				err:    tt.fields.err,
+				clause: tt.fields.clause,
+				args:   tt.fields.args,
+			}
+			if got := e.Reason(); got != tt.want {
+				t.Errorf("Reason() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
