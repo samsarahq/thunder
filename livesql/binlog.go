@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"os"
 	"reflect"
 	"strings"
 	"sync"
@@ -100,9 +101,21 @@ func NewBinlogWithSource(ldb *LiveDB, sourceDB *sql.DB, host string, port uint16
 		return nil, err
 	}
 
+	// Slave hosts have a max hostname length of 60 characters.
+	const maxHostNameLength = 60
+	localHostName, err := os.Hostname()
+	if err != nil {
+		localHostName = "localhost"
+	}
+	if len(localHostName) > maxHostNameLength {
+		runes := []rune(localHostName)
+		localHostName = string(runes[0:maxHostNameLength])
+	}
+
 	syncer := replication.NewBinlogSyncer(&replication.BinlogSyncerConfig{
 		ServerID: binary.LittleEndian.Uint32(slaveId),
 		Host:     host,
+		Localhost: localHostName,
 		Port:     port,
 		User:     username,
 		Password: password,
