@@ -449,8 +449,24 @@ func flatten(selectionSet *SelectionSet, typ graphql.Type, allTypes map[string]g
 
 	case *graphql.Object:
 		// XXX: type check?
-		selections := make([]*Selection, len(selectionSet.Selections))
-		copy(selections, selectionSet.Selections)
+		selections := make([]*Selection, 0, len(selectionSet.Selections))
+		// XXX: test that we flatten recursively??
+		for _, selection := range selectionSet.Selections {
+			field, ok := typ.Fields[selection.Name]
+			if !ok {
+				return nil, fmt.Errorf("unknown field %s on typ %s", selection.Name, typ.Name)
+			}
+			selectionSet, err := flatten(selection.SelectionSet, field.Type, allTypes)
+			if err != nil {
+				return nil, err
+			}
+			selections = append(selections, &Selection{
+				Name:         selection.Name,
+				Alias:        selection.Alias,
+				Args:         selection.Args,
+				SelectionSet: selectionSet,
+			})
+		}
 
 		for _, fragment := range selectionSet.Fragments {
 			ok, err := applies(typ, fragment, allTypes)
