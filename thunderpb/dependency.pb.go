@@ -13,6 +13,8 @@
 		SQLFilter
 		ExpirationTime
 		Selection
+		Fragment
+		SelectionSet
 		ExecuteRequest
 		ExecuteResponse
 		SchemaRequest

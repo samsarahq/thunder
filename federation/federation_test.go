@@ -86,7 +86,7 @@ func buildTestSchema1() *schemabuilder.Schema {
 		}
 	})
 
-	foo := schema.Object("foo", Foo{})
+	foo := schema.Object("Foo", Foo{})
 	foo.Federation(func(f *Foo) string {
 		return f.Name
 	})
@@ -101,7 +101,7 @@ func buildTestSchema1() *schemabuilder.Schema {
 		return f
 	})
 
-	schema.Federation().FieldFunc("bar", func(args struct{ Keys []int64 }) []*Bar {
+	schema.Federation().FieldFunc("Bar", func(args struct{ Keys []int64 }) []*Bar {
 		bars := make([]*Bar, 0, len(args.Keys))
 		for _, key := range args.Keys {
 			bars = append(bars, &Bar{Id: key})
@@ -109,7 +109,7 @@ func buildTestSchema1() *schemabuilder.Schema {
 		return bars
 	})
 
-	bar := schema.Object("bar", Bar{})
+	bar := schema.Object("Bar", Bar{})
 	bar.FieldFunc("s1baz", func(b *Bar) string {
 		return fmt.Sprint(b.Id)
 	})
@@ -118,12 +118,12 @@ func buildTestSchema1() *schemabuilder.Schema {
 		return []FooOrBar{
 			{
 				Foo: &Foo{
-					Name: "foo",
+					Name: "this is the foo",
 				},
 			},
 			{
 				Bar: &Bar{
-					Id: 3,
+					Id: 1234,
 				},
 			},
 		}
@@ -135,7 +135,7 @@ func buildTestSchema1() *schemabuilder.Schema {
 func buildTestSchema2() *schemabuilder.Schema {
 	schema := schemabuilder.NewSchema()
 
-	schema.Federation().FieldFunc("foo", func(args struct{ Keys []string }) []*Foo {
+	schema.Federation().FieldFunc("Foo", func(args struct{ Keys []string }) []*Foo {
 		foos := make([]*Foo, 0, len(args.Keys))
 		for _, key := range args.Keys {
 			foos = append(foos, &Foo{Name: key})
@@ -147,7 +147,7 @@ func buildTestSchema2() *schemabuilder.Schema {
 		return "hello"
 	})
 
-	foo := schema.Object("foo", Foo{})
+	foo := schema.Object("Foo", Foo{})
 
 	// XXX: require schema.Key
 
@@ -165,7 +165,7 @@ func buildTestSchema2() *schemabuilder.Schema {
 		return f
 	})
 
-	bar := schema.Object("bar", Bar{})
+	bar := schema.Object("Bar", Bar{})
 	bar.Federation(func(b *Bar) int64 {
 		return b.Id
 	})
@@ -173,7 +173,7 @@ func buildTestSchema2() *schemabuilder.Schema {
 	return schema
 }
 
-func mustParse(s string) []*Selection {
+func mustParse(s string) *SelectionSet {
 	return convert(graphql.MustParse(s, map[string]interface{}{}).SelectionSet)
 }
 
@@ -373,12 +373,13 @@ func TestPlan(t *testing.T) {
 						}
 					}
 					s1both {
-						... on foo {
+						... on Foo {
 							name
 							s1hmm
 							s2ok
+							a: s1nest { b: s1nest { c: s1nest { s2ok } } }
 						}
-						... on bar {
+						... on Bar {
 							id
 							s1baz
 						}
@@ -392,7 +393,7 @@ func TestPlan(t *testing.T) {
 					PathStep: nil,
 					Service:  "schema1",
 					Type:     "Query",
-					Selections: mustParse(`{
+					SelectionSet: mustParse(`{
 						s1fff {
 							a: s1nest { b: s1nest { c: s1nest { __federation } } }
 							s1hmm
@@ -403,12 +404,13 @@ func TestPlan(t *testing.T) {
 						}
 						s1both {
 							__typename
-							... on foo {
+							... on Foo {
 								name
 								s1hmm
+								a: s1nest { b: s1nest { c: s1nest { __federation } } }
 								__federation
 							}
-							... on bar {
+							... on Bar {
 								id
 								s1baz
 							}
@@ -423,9 +425,9 @@ func TestPlan(t *testing.T) {
 								{Kind: KindField, Name: "b"},
 								{Kind: KindField, Name: "c"},
 							},
-							Type:    "foo",
+							Type:    "Foo",
 							Service: "schema2",
-							Selections: mustParse(`{
+							SelectionSet: mustParse(`{
 								s2ok
 							}`),
 						},
@@ -433,9 +435,9 @@ func TestPlan(t *testing.T) {
 							PathStep: []PathStep{
 								{Kind: KindField, Name: "s1fff"},
 							},
-							Type:    "foo",
+							Type:    "Foo",
 							Service: "schema2",
-							Selections: mustParse(`{
+							SelectionSet: mustParse(`{
 								s2ok
 								s2bar {
 									id
@@ -450,9 +452,9 @@ func TestPlan(t *testing.T) {
 									PathStep: []PathStep{
 										{Kind: KindField, Name: "s2bar"},
 									},
-									Type:    "bar",
+									Type:    "Bar",
 									Service: "schema1",
-									Selections: mustParse(`{
+									SelectionSet: mustParse(`{
 										s1baz
 									}`),
 								},
@@ -461,12 +463,25 @@ func TestPlan(t *testing.T) {
 						{
 							PathStep: []PathStep{
 								{Kind: KindField, Name: "s1both"},
-								{Kind: KindType, Name: "bar"},
+								{Kind: KindType, Name: "Foo"},
+								{Kind: KindField, Name: "a"},
+								{Kind: KindField, Name: "b"},
+								{Kind: KindField, Name: "c"},
 							},
-							// XXX: should this be part of the path instead?
-							Type:    "bar",
+							Type:    "Foo",
 							Service: "schema2",
-							Selections: mustParse(`{
+							SelectionSet: mustParse(`{
+								s2ok
+							}`),
+						},
+						{
+							PathStep: []PathStep{
+								{Kind: KindField, Name: "s1both"},
+								{Kind: KindType, Name: "Foo"},
+							},
+							Type:    "Foo",
+							Service: "schema2",
+							SelectionSet: mustParse(`{
 								s2ok
 							}`),
 						},
@@ -476,7 +491,7 @@ func TestPlan(t *testing.T) {
 					PathStep: nil,
 					Service:  "schema2",
 					Type:     "Query",
-					Selections: mustParse(`{
+					SelectionSet: mustParse(`{
 						s2root
 					}`),
 				},
@@ -507,36 +522,42 @@ func TestMustParse(t *testing.T) {
 		}
 	`)
 
-	expected := []*Selection{
-		{
-			Name:  "fff",
-			Alias: "fff",
-			Args:  map[string]interface{}{},
-			Selections: []*Selection{
-				{
-					Name:  "hmm",
-					Alias: "hmm",
-					Args:  map[string]interface{}{},
-				},
-				{
-					Name:  "ok",
-					Alias: "ah",
-					Args:  map[string]interface{}{},
-				},
-				{
-					Name:  "bar",
-					Alias: "bar",
-					Args:  map[string]interface{}{},
+	expected := &SelectionSet{
+		Selections: []*Selection{
+			{
+				Name:  "fff",
+				Alias: "fff",
+				Args:  map[string]interface{}{},
+				SelectionSet: &SelectionSet{
 					Selections: []*Selection{
 						{
-							Name:  "id",
-							Alias: "id",
+							Name:  "hmm",
+							Alias: "hmm",
 							Args:  map[string]interface{}{},
 						},
 						{
-							Name:  "baz",
-							Alias: "baz",
+							Name:  "ok",
+							Alias: "ah",
 							Args:  map[string]interface{}{},
+						},
+						{
+							Name:  "bar",
+							Alias: "bar",
+							Args:  map[string]interface{}{},
+							SelectionSet: &SelectionSet{
+								Selections: []*Selection{
+									{
+										Name:  "id",
+										Alias: "id",
+										Args:  map[string]interface{}{},
+									},
+									{
+										Name:  "baz",
+										Alias: "baz",
+										Args:  map[string]interface{}{},
+									},
+								},
+							},
 						},
 					},
 				},
@@ -594,6 +615,18 @@ func TestExecutor(t *testing.T) {
 							name
 						}
 					}
+					s1both {
+						... on Foo {
+							name
+							s1hmm
+							s2ok
+							a: s1nest { b: s1nest { c: s1nest { s2ok } } }
+						}
+						... on Bar {
+							id
+							s1baz
+						}
+					}
 					s2root
 				}
 			`,
@@ -631,6 +664,19 @@ func TestExecutor(t *testing.T) {
 						"name": "bob"
 					},
 					"__federation": "bob"
+				}],
+				"s1both": [{
+					"__typename": "Foo",
+					"__federation": "this is the foo",
+					"name": "this is the foo",
+					"s1hmm": "this is the foo!!!",
+					"a": {"b": {"c": {"__federation": "this is the foo", "s2ok": 15}}},
+					"s2ok": 15
+				},
+				{
+					"__typename": "Bar",
+					"id": 1234,
+					"s1baz": "1234"
 				}],
 				"s2root": "hello"
 			}`,

@@ -28,14 +28,14 @@ func NewServer(schema *graphql.Schema) (*Server, error) {
 	}, nil
 }
 
-func unmarshalPbSelections(selections []*thunderpb.Selection) ([]*Selection, error) {
-	if selections == nil {
+func unmarshalPbSelectionSet(selectionSet *thunderpb.SelectionSet) (*SelectionSet, error) {
+	if selectionSet == nil {
 		return nil, nil
 	}
 
-	result := make([]*Selection, 0, len(selections))
-	for _, selection := range selections {
-		children, err := unmarshalPbSelections(selection.Selections)
+	selections := make([]*Selection, 0, len(selectionSet.Selections))
+	for _, selection := range selectionSet.Selections {
+		children, err := unmarshalPbSelectionSet(selection.SelectionSet)
 		if err != nil {
 			return nil, err
 		}
@@ -47,25 +47,40 @@ func unmarshalPbSelections(selections []*thunderpb.Selection) ([]*Selection, err
 			}
 		}
 
-		result = append(result, &Selection{
-			Name:       selection.Name,
-			Alias:      selection.Alias,
-			Selections: children,
-			Args:       args,
+		selections = append(selections, &Selection{
+			Name:         selection.Name,
+			Alias:        selection.Alias,
+			SelectionSet: children,
+			Args:         args,
 		})
 	}
 
-	return result, nil
+	fragments := make([]*Fragment, 0, len(selectionSet.Fragments))
+	for _, fragment := range selectionSet.Fragments {
+		selections, err := unmarshalPbSelectionSet(fragment.SelectionSet)
+		if err != nil {
+			return nil, err
+		}
+		fragments = append(fragments, &Fragment{
+			On:           fragment.On,
+			SelectionSet: selections,
+		})
+	}
+
+	return &SelectionSet{
+		Selections: selections,
+		Fragments:  fragments,
+	}, nil
 }
 
-func marshalPbSelections(selections []*Selection) ([]*thunderpb.Selection, error) {
-	if selections == nil {
+func marshalPbSelections(selectionSet *SelectionSet) (*thunderpb.SelectionSet, error) {
+	if selectionSet == nil {
 		return nil, nil
 	}
 
-	result := make([]*thunderpb.Selection, 0, len(selections))
-	for _, selection := range selections {
-		children, err := marshalPbSelections(selection.Selections)
+	selections := make([]*thunderpb.Selection, 0, len(selectionSet.Selections))
+	for _, selection := range selectionSet.Selections {
+		children, err := marshalPbSelections(selection.SelectionSet)
 		if err != nil {
 			return nil, err
 		}
@@ -79,31 +94,45 @@ func marshalPbSelections(selections []*Selection) ([]*thunderpb.Selection, error
 			}
 		}
 
-		result = append(result, &thunderpb.Selection{
-			Name:       selection.Name,
-			Alias:      selection.Alias,
-			Selections: children,
-			Arguments:  args,
+		selections = append(selections, &thunderpb.Selection{
+			Name:         selection.Name,
+			Alias:        selection.Alias,
+			SelectionSet: children,
+			Arguments:    args,
 		})
 	}
 
-	return result, nil
+	fragments := make([]*thunderpb.Fragment, 0, len(selectionSet.Fragments))
+	for _, fragment := range selectionSet.Fragments {
+		selections, err := marshalPbSelections(fragment.SelectionSet)
+		if err != nil {
+			return nil, err
+		}
+		fragments = append(fragments, &thunderpb.Fragment{
+			On:           fragment.On,
+			SelectionSet: selections,
+		})
+	}
 
+	return &thunderpb.SelectionSet{
+		Selections: selections,
+		Fragments:  fragments,
+	}, nil
 }
 
 func (s *Server) Execute(ctx context.Context, req *thunderpb.ExecuteRequest) (*thunderpb.ExecuteResponse, error) {
-	selections, err := unmarshalPbSelections(req.Selections)
+	selectionSet, err := unmarshalPbSelectionSet(req.SelectionSet)
 	if err != nil {
 		return nil, err
 	}
 
-	selectionSet := convertSelectionSet(selections)
+	gqlSelectionSet := convertSelectionSet(selectionSet)
 
 	gqlExec := graphql.NewExecutor(graphql.NewImmediateGoroutineScheduler())
 	res, err := gqlExec.Execute(context.Background(), s.schema.Query, nil, &graphql.Query{
 		Kind:         "query",
 		Name:         "",
-		SelectionSet: selectionSet,
+		SelectionSet: gqlSelectionSet,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("executing query: %v", err)

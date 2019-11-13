@@ -5,24 +5,28 @@ option go_package = "github.com/samsarahq/thunder/thunderpb";
 
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
-
 message Selection {
   string name = 1;
   string alias = 2;
-  repeated Selection selections = 3;
+  SelectionSet selectionSet = 3;
   bytes arguments = 4;
 }
 
-message ExecuteRequest {
+message Fragment {
+  string on = 1;
+  SelectionSet selectionSet = 2;
+}
+
+message SelectionSet {
   repeated Selection selections = 1;
+  repeated Fragment fragments = 2;
 }
 
-message ExecuteResponse {
-  bytes result = 1;
-}
+message ExecuteRequest { SelectionSet selectionSet = 1; }
 
-message SchemaRequest {
-}
+message ExecuteResponse { bytes result = 1; }
+
+message SchemaRequest {}
 
 message SchemaResponse {
   // schema is the introspection query result.
