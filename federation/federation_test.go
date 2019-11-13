@@ -404,15 +404,15 @@ func TestPlan(t *testing.T) {
 						}
 						s1both {
 							__typename
+							... on Bar {
+								id
+								s1baz
+							}
 							... on Foo {
 								name
 								s1hmm
 								a: s1nest { b: s1nest { c: s1nest { __federation } } }
 								__federation
-							}
-							... on Bar {
-								id
-								s1baz
 							}
 						}
 					}`),

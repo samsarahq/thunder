@@ -234,33 +234,25 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 	return results, nil
 }
 
-type AfterNodeKind int
+type StepKind int
 
 const (
-	KindType  = 1
-	KindField = 2
+	KindType StepKind = iota
+	KindField
 )
 
-type AfterNode struct {
-	Kind     AfterNodeKind
-	Next     map[string]*AfterNode
-	Services map[string]*Plan
-}
-
 type PathStep struct {
-	Kind AfterNodeKind
+	Kind StepKind
 	Name string
 }
 
 type Plan struct {
-	// Path    []string
 	PathStep []PathStep
 	Service  string
-	// XXX: What are we using Type for here again?
+	// XXX: What are we using Type for here again? -- oh, it's for the __federation field...
 	Type         string
 	SelectionSet *SelectionSet
 	After        []*Plan
-	// AfterNode *AfterNode
 }
 
 // XXX: have a plan about failed conversions and nils everywhere.
@@ -498,7 +490,7 @@ func flatten(selectionSet *SelectionSet, typ graphql.Type, allTypes map[string]g
 
 		fragments := make([]*Fragment, 0, len(typ.Types))
 		for _, obj := range typ.Types {
-			plan, err := flatten(selectionSet, typ, allTypes)
+			plan, err := flatten(selectionSet, obj, allTypes)
 			if err != nil {
 				return nil, err
 			}
@@ -507,6 +499,9 @@ func flatten(selectionSet *SelectionSet, typ graphql.Type, allTypes map[string]g
 				SelectionSet: plan,
 			})
 		}
+		sort.Slice(fragments, func(a, b int) bool {
+			return fragments[a].On < fragments[b].On
+		})
 
 		return &SelectionSet{
 			Selections: selections,
@@ -805,10 +800,6 @@ func convert(query *graphql.RawSelectionSet) *SelectionSet {
 }
 
 // todo
-// project. union types
-// project. fragments
-// __typename
-//
 // concurrent execution
 //
 // defer
