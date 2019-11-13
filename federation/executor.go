@@ -115,10 +115,15 @@ type SchemaWithFederationInfo struct {
 }
 
 type Selection struct {
-	Alias      string
-	Name       string
-	Args       map[string]interface{}
+	Alias string
+	Name  string
+	Args  map[string]interface{}
+	// Selections []*Selection
+}
+
+type SelectionSet struct {
 	Selections []*Selection
+	Fragments  map[string][]*Selection
 }
 
 func convertSelectionSet(selections []*Selection) *graphql.RawSelectionSet {
@@ -210,12 +215,33 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 	return results, nil
 }
 
+type AfterNodeKind int
+
+const (
+	KindType  = 1
+	KindField = 2
+)
+
+type AfterNode struct {
+	Kind     AfterNodeKind
+	Next     map[string]*AfterNode
+	Services map[string]*Plan
+}
+
+type PathStep struct {
+	Kind AfterNodeKind
+	Name string
+}
+
 type Plan struct {
-	Path       []string
-	Service    string
+	// Path    []string
+	PathStep []PathStep
+	Service  string
+	// XXX: What are we using Type for here again?
 	Type       string
 	Selections []*Selection
 	After      []*Plan
+	// AfterNode *AfterNode
 }
 
 // XXX: have a plan about failed conversions and nils everywhere.
@@ -252,8 +278,8 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) ([]
 		// DFS to follow path
 
 		// XXX: extract and unit test...
-		var search func(node interface{}, path []string) error
-		search = func(node interface{}, path []string) error {
+		var search func(node interface{}, path []PathStep) error
+		search = func(node interface{}, path []PathStep) error {
 			// XXX: encode list flattening in path?
 			if slice, ok := node.([]interface{}); ok {
 				for i, elem := range slice {
@@ -284,20 +310,36 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) ([]
 				return nil
 			}
 
-			next, ok := obj[path[0]]
-			if !ok {
-				return fmt.Errorf("does not have key %s", path[0])
-			}
+			step := path[0]
+			switch step.Kind {
+			case KindField:
+				next, ok := obj[step.Name]
+				if !ok {
+					return fmt.Errorf("does not have key %s", step.Name)
+				}
 
-			if err := search(next, path[1:]); err != nil {
-				return fmt.Errorf("elem %s: %v", next, err)
+				if err := search(next, path[1:]); err != nil {
+					return fmt.Errorf("elem %s: %v", next, err)
+				}
+
+			case KindType:
+				typ, ok := obj["__typename"].(string)
+				if !ok {
+					return fmt.Errorf("does not have string key __typename")
+				}
+
+				if typ == step.Name {
+					if err := search(obj, path[1:]); err != nil {
+						return fmt.Errorf("typ %s: %v", typ, err)
+					}
+				}
 			}
 
 			return nil
 		}
 
-		if err := search(res, subPlan.Path); err != nil {
-			return nil, fmt.Errorf("failed to follow path %v: %v", subPlan.Path, err)
+		if err := search(res, subPlan.PathStep); err != nil {
+			return nil, fmt.Errorf("failed to follow path %v: %v", subPlan.PathStep, err)
 		}
 
 		// XXX: don't execute here yet??? i mean we can but why? simpler?????? could go back to root?
@@ -326,6 +368,54 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) ([]
 	return res, nil
 }
 
+type CompiledSelections struct {
+	ByType map[string][]*Selection
+}
+
+func (e *Executor) planUnion(typ *graphql.Union, selections *CompiledSelections, service string) (*Plan, error) {
+	// needTypename := true
+
+	overallP := &Plan{}
+
+	/*
+		overallP.AfterNode = &AfterNode{
+			Kind:     KindType,
+			Next:     map[string]*AfterNode{},
+			Services: map[string]*Plan{},
+		}
+	*/
+
+	for name, option := range typ.Types {
+		// figure out selections for this type -- should we demand precompiled a selectionset? (yes)
+
+		hereSelections := selections.ByType[name] // XXX: todo
+		if len(hereSelections) == 0 {
+			continue
+		}
+
+		p, err := e.plan(option, hereSelections, service)
+		if err != nil {
+			return nil, err
+		}
+
+		// take p.Selections and stick them in plan as fragment on type.
+		// XXX: conditional on type matching
+		overallP.Selections = append(overallP.Selections, p.Selections...)
+
+		for _, subPlan := range p.After {
+			// take p.After and make them conditional on __typename == X -- stick that in path? seems nice.
+			// XXX: include type in path
+			subPlan.PathStep = append(subPlan.PathStep, PathStep{Kind: KindType, Name: name})
+			overallP.After = append(overallP.After, subPlan)
+		}
+
+		// xxx: have a test where this nests a couple steps
+
+		// if we might have to dispatch, then include __typename
+	}
+	return overallP, nil
+}
+
 func (e *Executor) plan(typIface graphql.Type, selections []*Selection, service string) (*Plan, error) {
 	switch typ := typIface.(type) {
 	case *graphql.NonNull:
@@ -337,6 +427,10 @@ func (e *Executor) plan(typIface graphql.Type, selections []*Selection, service 
 	case *graphql.Object:
 		// great
 
+	case *graphql.Union:
+		// XXX
+		return e.planUnion(typ, nil, service)
+
 	default:
 		return nil, fmt.Errorf("bad typ %v", typIface)
 	}
@@ -347,6 +441,13 @@ func (e *Executor) plan(typIface graphql.Type, selections []*Selection, service 
 		Service:    service,
 		Selections: nil,
 		After:      nil,
+		/*
+			AfterNode: &AfterNode{
+				Kind:     KindField,
+				Next:     map[string]*AfterNode{},
+				Services: map[string]*Plan{},
+			},
+		*/
 	}
 
 	// XXX: pass in sub-path (and sub-plan slice?) to make sub-plan munging simpler?
@@ -426,7 +527,7 @@ func (e *Executor) plan(typIface graphql.Type, selections []*Selection, service 
 
 		if childPlan != nil {
 			for _, subPlan := range childPlan.After {
-				subPlan.Path = append([]string{selection.Alias}, subPlan.Path...)
+				subPlan.PathStep = append(subPlan.PathStep, PathStep{Kind: KindField, Name: selection.Alias})
 				p.After = append(p.After, subPlan)
 			}
 		}
@@ -455,6 +556,7 @@ func (e *Executor) plan(typIface graphql.Type, selections []*Selection, service 
 			return nil, fmt.Errorf("planning for %s: %v", other, err)
 		}
 
+		// p.AfterNode.Services[other] = subPlan
 		p.After = append(p.After, subPlan)
 	}
 
@@ -476,7 +578,18 @@ func (e *Executor) plan(typIface graphql.Type, selections []*Selection, service 
 		}
 	}
 
+	reversePaths(p)
 	return p, nil
+}
+
+func reversePaths(p *Plan) {
+	for i := 0; i < len(p.PathStep)/2; i++ {
+		j := len(p.PathStep) - 1 - i
+		p.PathStep[i], p.PathStep[j] = p.PathStep[j], p.PathStep[i]
+	}
+	for _, p := range p.After {
+		reversePaths(p)
+	}
 }
 
 func (e *Executor) Plan(query *graphql.RawSelectionSet) (*Plan, error) {

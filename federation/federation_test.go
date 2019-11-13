@@ -372,14 +372,26 @@ func TestPlan(t *testing.T) {
 							name
 						}
 					}
+					s1both {
+						... on foo {
+							name
+							s1hmm
+							s2ok
+						}
+						... on bar {
+							id
+							s1baz
+						}
+					}
 					s2root
 				}
 			`,
 			Output: []*Plan{
 				{
-					Path:    nil,
-					Service: "schema1",
-					Type:    "Query",
+					// Path:    nil,
+					PathStep: nil,
+					Service:  "schema1",
+					Type:     "Query",
 					Selections: mustParse(`{
 						s1fff {
 							a: s1nest { b: s1nest { c: s1nest { __federation } } }
@@ -389,10 +401,28 @@ func TestPlan(t *testing.T) {
 							}
 							__federation
 						}
+						s1both {
+							__typename
+							... on foo {
+								name
+								s1hmm
+								__federation
+							}
+							... on bar {
+								id
+								s1baz
+							}
+						}
 					}`),
 					After: []*Plan{
 						{
-							Path:    []string{"s1fff", "a", "b", "c"},
+							//Path:    []string{"s1fff", "a", "b", "c"},
+							PathStep: []PathStep{
+								{Kind: KindField, Name: "s1fff"},
+								{Kind: KindField, Name: "a"},
+								{Kind: KindField, Name: "b"},
+								{Kind: KindField, Name: "c"},
+							},
 							Type:    "foo",
 							Service: "schema2",
 							Selections: mustParse(`{
@@ -400,7 +430,9 @@ func TestPlan(t *testing.T) {
 							}`),
 						},
 						{
-							Path:    []string{"s1fff"},
+							PathStep: []PathStep{
+								{Kind: KindField, Name: "s1fff"},
+							},
 							Type:    "foo",
 							Service: "schema2",
 							Selections: mustParse(`{
@@ -415,7 +447,9 @@ func TestPlan(t *testing.T) {
 							}`),
 							After: []*Plan{
 								{
-									Path:    []string{"s2bar"},
+									PathStep: []PathStep{
+										{Kind: KindField, Name: "s2bar"},
+									},
 									Type:    "bar",
 									Service: "schema1",
 									Selections: mustParse(`{
@@ -424,12 +458,24 @@ func TestPlan(t *testing.T) {
 								},
 							},
 						},
+						{
+							PathStep: []PathStep{
+								{Kind: KindField, Name: "s1both"},
+								{Kind: KindType, Name: "bar"},
+							},
+							// XXX: should this be part of the path instead?
+							Type:    "bar",
+							Service: "schema2",
+							Selections: mustParse(`{
+								s2ok
+							}`),
+						},
 					},
 				},
 				{
-					Path:    nil,
-					Service: "schema2",
-					Type:    "Query",
+					PathStep: nil,
+					Service:  "schema2",
+					Type:     "Query",
 					Selections: mustParse(`{
 						s2root
 					}`),
