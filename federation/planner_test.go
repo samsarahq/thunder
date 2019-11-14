@@ -1,6 +1,7 @@
 package federation
 
 import (
+	"context"
 	"testing"
 
 	"github.com/samsarahq/thunder/graphql"
@@ -10,17 +11,18 @@ import (
 )
 
 func TestPlan(t *testing.T) {
-	schemas := map[string]*schemabuilder.Schema{
+	ctx := context.Background()
+
+	// todo: assert specific invocation traces?
+
+	execs, err := makeExecutors(map[string]*schemabuilder.Schema{
 		"schema1": buildTestSchema1(),
 		"schema2": buildTestSchema2(),
-	}
-
-	types, err := convertSchema(mustExtractSchemas(schemas))
+	})
 	require.NoError(t, err)
 
-	e := &Executor{
-		schema: types,
-	}
+	e, err := NewExecutor(ctx, execs)
+	require.NoError(t, err)
 
 	testCases := []struct {
 		Name   string

@@ -15,6 +15,7 @@ type Executor struct {
 	IntrospectionSchema *graphql.Schema
 
 	schema *SchemaWithFederationInfo
+	types  map[string]graphql.Type
 }
 
 type ExecutorClient interface {
@@ -93,10 +94,20 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Exe
 		return nil, err
 	}
 
+	allTypes := make(map[graphql.Type]string)
+	if err := collectTypes(types.Schema.Query, allTypes); err != nil {
+		return nil, err
+	}
+	reversedTypes := make(map[string]graphql.Type)
+	for typ, name := range allTypes {
+		reversedTypes[name] = typ
+	}
+
 	return &Executor{
 		Executors:           executors,
 		schema:              types,
 		IntrospectionSchema: introspectionSchema,
+		types:               reversedTypes,
 	}, nil
 }
 

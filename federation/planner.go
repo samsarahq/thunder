@@ -1,6 +1,7 @@
 package federation
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 
@@ -8,8 +9,6 @@ import (
 )
 
 func (e *Executor) planObject(typ *graphql.Object, selectionSet *SelectionSet, service string) (*Plan, error) {
-	// needTypename := true
-
 	p := &Plan{
 		Type:         typ.Name,
 		Service:      service,
@@ -18,10 +17,7 @@ func (e *Executor) planObject(typ *graphql.Object, selectionSet *SelectionSet, s
 	}
 
 	// XXX: pass in sub-path (and sub-plan slice?) to make sub-plan munging simpler?
-
 	// - should we type check here?
-	// - what do we here with fragments? inline them?
-	// - the executor might need to know the types to switch?
 
 	// - refactor to return array of subplans with preferential treatment for given service?
 	// eh whatever.
@@ -29,8 +25,10 @@ func (e *Executor) planObject(typ *graphql.Object, selectionSet *SelectionSet, s
 	var localSelections []*Selection
 	selectionsByService := make(map[string][]*Selection)
 
-	// A flattened selection set on an object will have only selectoins, no fragments.
-	// XXX: assert?
+	// Assert that we are working with a flattened query.
+	if len(selectionSet.Fragments) > 0 {
+		return nil, errors.New("selectionSet has fragments, expected flattened query")
+	}
 
 	for _, selection := range selectionSet.Selections {
 		if selection.Name == "__typename" {
@@ -53,13 +51,6 @@ func (e *Executor) planObject(typ *graphql.Object, selectionSet *SelectionSet, s
 				selectionsByService[fieldInfo.Service], selection)
 		}
 	}
-
-	// spew.Dump(service, selectionsByService)
-
-	// if we encounter a fragment, we find a branch
-	// either we hit it, or we don't. must make plan for both cases?
-	//
-	// very snazzily we could merge subplans.
 
 	for _, selection := range localSelections {
 		// we have already checked above that this field exists
@@ -143,9 +134,9 @@ func (e *Executor) planObject(typ *graphql.Object, selectionSet *SelectionSet, s
 }
 
 func (e *Executor) planUnion(typ *graphql.Union, selectionSet *SelectionSet, service string) (*Plan, error) {
-	// needTypename := true
-
-	overallP := &Plan{
+	plan := &Plan{
+		// XXX: only include __typename if needed for dispatching? ie. len(types) > 1 and len(fragments) > 0?
+		// XXX: ensure __typename doesn't conflict with another field?
 		SelectionSet: &SelectionSet{
 			Selections: []*Selection{
 				{
@@ -157,39 +148,50 @@ func (e *Executor) planUnion(typ *graphql.Union, selectionSet *SelectionSet, ser
 		},
 	}
 
-	overallP.SelectionSet.Selections = append(overallP.SelectionSet.Selections, selectionSet.Selections...)
+	for _, selection := range selectionSet.Selections {
+		if selection.Name != "__typename" {
+			return nil, fmt.Errorf("unexpected selection %s on union", selection.Name)
+		}
+		plan.SelectionSet.Selections = append(plan.SelectionSet.Selections, selection)
+	}
 
-	// fragments := make(map[string]...)
+	// Expect a flattened query, so we see each type at most once and create at
+	// most one set of sub-plans per type.
+	seenFragments := make(map[string]struct{})
 
 	for _, fragment := range selectionSet.Fragments {
-		// This is a flattened selection set.
+		// Enforce flattened schema.
+		if _, ok := seenFragments[fragment.On]; ok {
+			return nil, fmt.Errorf("reused fragment %s, expected flattened query", fragment.On)
+		}
+		seenFragments[fragment.On] = struct{}{}
+
+		// This is a flattened selection set, so all fragments must be on a concrete type.
 		typ, ok := typ.Types[fragment.On]
 		if !ok {
 			return nil, fmt.Errorf("unexpected fragment on %s for typ %s", fragment.On, typ.Name)
 		}
 
-		p, err := e.plan(typ, fragment.SelectionSet, service)
+		// Plan for the concrete object type.
+		concretePlan, err := e.plan(typ, fragment.SelectionSet, service)
 		if err != nil {
 			return nil, err
 		}
 
-		overallP.SelectionSet.Fragments = append(overallP.SelectionSet.Fragments, &Fragment{
+		// Query the fields known to the current with a local fragment.
+		plan.SelectionSet.Fragments = append(plan.SelectionSet.Fragments, &Fragment{
 			On:           typ.Name,
-			SelectionSet: p.SelectionSet,
+			SelectionSet: concretePlan.SelectionSet,
 		})
 
-		for _, subPlan := range p.After {
-			// take p.After and make them conditional on __typename == X -- stick that in path? seems nice.
-			// XXX: include type in path
+		// Make subplans conditional on the current type.
+		for _, subPlan := range concretePlan.After {
 			subPlan.PathStep = append(subPlan.PathStep, PathStep{Kind: KindType, Name: typ.Name})
-			overallP.After = append(overallP.After, subPlan)
+			plan.After = append(plan.After, subPlan)
 		}
-
-		// xxx: have a test where this nests a couple steps
-
-		// if we might have to dispatch, then include __typename
 	}
-	return overallP, nil
+
+	return plan, nil
 }
 
 func (e *Executor) plan(typIface graphql.Type, selectionSet *SelectionSet, service string) (*Plan, error) {
@@ -201,11 +203,9 @@ func (e *Executor) plan(typIface graphql.Type, selectionSet *SelectionSet, servi
 		return e.plan(typ.Type, selectionSet, service)
 
 	case *graphql.Object:
-		// great
 		return e.planObject(typ, selectionSet, service)
 
 	case *graphql.Union:
-		// XXX
 		return e.planUnion(typ, selectionSet, service)
 
 	default:
@@ -213,6 +213,9 @@ func (e *Executor) plan(typIface graphql.Type, selectionSet *SelectionSet, servi
 	}
 }
 
+// reversePaths reverses all paths in the plan and its subplans.
+//
+// Building reverse plans is easier with append, this cleans up the mess.
 func reversePaths(p *Plan) {
 	for i := 0; i < len(p.PathStep)/2; i++ {
 		j := len(p.PathStep) - 1 - i
@@ -224,16 +227,7 @@ func reversePaths(p *Plan) {
 }
 
 func (e *Executor) Plan(query *graphql.RawSelectionSet) (*Plan, error) {
-	allTypes := make(map[graphql.Type]string)
-	if err := collectTypes(e.schema.Schema.Query, allTypes); err != nil {
-		return nil, err
-	}
-	reversedTypes := make(map[string]graphql.Type)
-	for typ, name := range allTypes {
-		reversedTypes[name] = typ
-	}
-
-	flattened, err := flatten(convert(query), e.schema.Schema.Query, reversedTypes)
+	flattened, err := e.flatten(convert(query), e.schema.Schema.Query)
 	if err != nil {
 		return nil, err
 	}
@@ -242,6 +236,8 @@ func (e *Executor) Plan(query *graphql.RawSelectionSet) (*Plan, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	reversePaths(p)
+
 	return p, nil
 }

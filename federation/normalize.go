@@ -7,8 +7,8 @@ import (
 	"github.com/samsarahq/thunder/graphql"
 )
 
-func applies(obj *graphql.Object, fragment *Fragment, allTypes map[string]graphql.Type) (bool, error) {
-	switch typ := allTypes[fragment.On].(type) {
+func (e *Executor) applies(obj *graphql.Object, fragment *Fragment) (bool, error) {
+	switch typ := e.types[fragment.On].(type) {
 	case *graphql.Object:
 		return typ.Name == obj.Name, nil
 
@@ -59,13 +59,13 @@ func collectTypes(typ graphql.Type, types map[graphql.Type]string) error {
 	return nil
 }
 
-func flatten(selectionSet *SelectionSet, typ graphql.Type, allTypes map[string]graphql.Type) (*SelectionSet, error) {
+func (e *Executor) flatten(selectionSet *SelectionSet, typ graphql.Type) (*SelectionSet, error) {
 	switch typ := typ.(type) {
 	case *graphql.NonNull:
-		return flatten(selectionSet, typ.Type, allTypes)
+		return e.flatten(selectionSet, typ.Type)
 
 	case *graphql.List:
-		return flatten(selectionSet, typ.Type, allTypes)
+		return e.flatten(selectionSet, typ.Type)
 
 	case *graphql.Object:
 		// XXX: type check?
@@ -89,7 +89,7 @@ func flatten(selectionSet *SelectionSet, typ graphql.Type, allTypes map[string]g
 			if !ok {
 				return nil, fmt.Errorf("unknown field %s on typ %s", selection.Name, typ.Name)
 			}
-			selectionSet, err := flatten(selection.SelectionSet, field.Type, allTypes)
+			selectionSet, err := e.flatten(selection.SelectionSet, field.Type)
 			if err != nil {
 				return nil, err
 			}
@@ -102,7 +102,7 @@ func flatten(selectionSet *SelectionSet, typ graphql.Type, allTypes map[string]g
 		}
 
 		for _, fragment := range selectionSet.Fragments {
-			ok, err := applies(typ, fragment, allTypes)
+			ok, err := e.applies(typ, fragment)
 			if err != nil {
 				return nil, err
 			}
@@ -110,7 +110,7 @@ func flatten(selectionSet *SelectionSet, typ graphql.Type, allTypes map[string]g
 				continue
 			}
 
-			flattened, err := flatten(fragment.SelectionSet, typ, allTypes)
+			flattened, err := e.flatten(fragment.SelectionSet, typ)
 			if err != nil {
 				return nil, err
 			}
@@ -131,7 +131,7 @@ func flatten(selectionSet *SelectionSet, typ graphql.Type, allTypes map[string]g
 
 		fragments := make([]*Fragment, 0, len(typ.Types))
 		for _, obj := range typ.Types {
-			plan, err := flatten(selectionSet, obj, allTypes)
+			plan, err := e.flatten(selectionSet, obj)
 			if err != nil {
 				return nil, err
 			}
