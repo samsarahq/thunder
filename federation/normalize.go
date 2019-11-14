@@ -7,20 +7,6 @@ import (
 	"github.com/samsarahq/thunder/graphql"
 )
 
-func (e *Executor) applies(obj *graphql.Object, fragment *Fragment) (bool, error) {
-	switch typ := e.types[fragment.On].(type) {
-	case *graphql.Object:
-		return typ.Name == obj.Name, nil
-
-	case *graphql.Union:
-		_, ok := typ.Types[obj.Name]
-		return ok, nil
-
-	default:
-		return false, fmt.Errorf("bad fragment %v", fragment.On)
-	}
-}
-
 func collectTypes(typ graphql.Type, types map[graphql.Type]string) error {
 	if _, ok := types[typ]; ok {
 		return nil
@@ -57,6 +43,20 @@ func collectTypes(typ graphql.Type, types map[graphql.Type]string) error {
 	}
 
 	return nil
+}
+
+func (e *Executor) applies(obj *graphql.Object, fragment *Fragment) (bool, error) {
+	switch typ := e.types[fragment.On].(type) {
+	case *graphql.Object:
+		return typ.Name == obj.Name, nil
+
+	case *graphql.Union:
+		_, ok := typ.Types[obj.Name]
+		return ok, nil
+
+	default:
+		return false, fmt.Errorf("bad fragment %v", fragment.On)
+	}
 }
 
 func (e *Executor) flatten(selectionSet *SelectionSet, typ graphql.Type) (*SelectionSet, error) {

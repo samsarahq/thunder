@@ -1,6 +1,11 @@
 package federation
 
-import "github.com/samsarahq/thunder/graphql"
+import (
+	"encoding/json"
+
+	"github.com/samsarahq/thunder/graphql"
+	"github.com/samsarahq/thunder/thunderpb"
+)
 
 type Selection struct {
 	Alias string
@@ -80,4 +85,96 @@ func convert(query *graphql.RawSelectionSet) *SelectionSet {
 		Selections: converted,
 		Fragments:  fragments,
 	}
+}
+
+func unmarshalPbSelectionSet(selectionSet *thunderpb.SelectionSet) (*SelectionSet, error) {
+	if selectionSet == nil {
+		return nil, nil
+	}
+
+	selections := make([]*Selection, 0, len(selectionSet.Selections))
+	for _, selection := range selectionSet.Selections {
+		children, err := unmarshalPbSelectionSet(selection.SelectionSet)
+		if err != nil {
+			return nil, err
+		}
+
+		var args map[string]interface{}
+		if len(selection.Arguments) != 0 {
+			if err := json.Unmarshal(selection.Arguments, &args); err != nil {
+				return nil, err
+			}
+		}
+
+		selections = append(selections, &Selection{
+			Name:         selection.Name,
+			Alias:        selection.Alias,
+			SelectionSet: children,
+			Args:         args,
+		})
+	}
+
+	fragments := make([]*Fragment, 0, len(selectionSet.Fragments))
+	for _, fragment := range selectionSet.Fragments {
+		selections, err := unmarshalPbSelectionSet(fragment.SelectionSet)
+		if err != nil {
+			return nil, err
+		}
+		fragments = append(fragments, &Fragment{
+			On:           fragment.On,
+			SelectionSet: selections,
+		})
+	}
+
+	return &SelectionSet{
+		Selections: selections,
+		Fragments:  fragments,
+	}, nil
+}
+
+func marshalPbSelections(selectionSet *SelectionSet) (*thunderpb.SelectionSet, error) {
+	if selectionSet == nil {
+		return nil, nil
+	}
+
+	selections := make([]*thunderpb.Selection, 0, len(selectionSet.Selections))
+	for _, selection := range selectionSet.Selections {
+		children, err := marshalPbSelections(selection.SelectionSet)
+		if err != nil {
+			return nil, err
+		}
+
+		var args []byte
+		if selection.Args != nil {
+			var err error
+			args, err = json.Marshal(selection.Args)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		selections = append(selections, &thunderpb.Selection{
+			Name:         selection.Name,
+			Alias:        selection.Alias,
+			SelectionSet: children,
+			Arguments:    args,
+		})
+	}
+
+	fragments := make([]*thunderpb.Fragment, 0, len(selectionSet.Fragments))
+	for _, fragment := range selectionSet.Fragments {
+		selections, err := marshalPbSelections(fragment.SelectionSet)
+		if err != nil {
+			return nil, err
+		}
+		fragments = append(fragments, &thunderpb.Fragment{
+			On:           fragment.On,
+			SelectionSet: selections,
+		})
+	}
+
+	return &thunderpb.SelectionSet{
+		Selections: selections,
+		Fragments:  fragments,
+	}, nil
 }

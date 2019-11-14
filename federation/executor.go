@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/introspection"
@@ -114,9 +115,9 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Exe
 func (e *Executor) runOnService(ctx context.Context, service string, typName string, keys []interface{}, selectionSet *SelectionSet) ([]interface{}, error) {
 	schema := e.Executors[service]
 
-	if keys == nil {
-		// Root query
-	} else {
+	isRoot := keys == nil
+
+	if !isRoot {
 		// XXX: halp
 		selectionSet = &SelectionSet{
 			Selections: []*Selection{
@@ -160,159 +161,124 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 	}
 
 	// for root:
-	if keys == nil {
-		return []interface{}{res}, nil
-	}
+	var results []interface{}
+	if !isRoot {
+		root, ok := res.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("did not get back a map from executor, got %v", res)
+		}
 
-	// otherwise:
-	root, ok := res.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("did not get back a map from executor, got %v", res)
-	}
+		federation, ok := root["__federation"].(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("root did not have a federation map, got %v", res)
+		}
 
-	federation, ok := root["__federation"].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("root did not have a federation map, got %v", res)
-	}
-
-	results, ok := federation[typName].([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("federation map did not have a %s slice, got %v", typName, res)
+		results, ok = federation[typName].([]interface{})
+		if !ok {
+			return nil, fmt.Errorf("federation map did not have a %s slice, got %v", typName, res)
+		}
+	} else {
+		results = []interface{}{res}
 	}
 
 	return results, nil
 }
 
-type StepKind int
-
-const (
-	KindType StepKind = iota
-	KindField
-)
-
-type PathStep struct {
-	Kind StepKind
-	Name string
-}
-
-type Plan struct {
-	PathStep []PathStep
-	Service  string
-	// XXX: What are we using Type for here again? -- oh, it's for the __federation field...
-	Type         string
-	SelectionSet *SelectionSet
-	After        []*Plan
-}
-
 // XXX: have a plan about failed conversions and nils everywhere.
 
-func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
-	combined := make(map[string]interface{})
+type pathFollower struct {
+	targets []map[string]interface{}
+	keys    []interface{}
+}
 
-	for _, plan := range p.After {
-		res, err := e.execute(ctx, plan, nil)
-		if err != nil {
-			return nil, err
+// XXX: this needs some tests
+func (pf *pathFollower) extractTargets(node interface{}, path []PathStep) error {
+	// XXX: encode list flattening in path?
+	if slice, ok := node.([]interface{}); ok {
+		for i, elem := range slice {
+			if err := pf.extractTargets(elem, path); err != nil {
+				return fmt.Errorf("idx %d: %v", i, err)
+			}
+		}
+		return nil
+	}
+
+	if len(path) == 0 {
+		obj, ok := node.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("not an object: %v", obj)
+		}
+		key, ok := obj["__federation"]
+		if !ok {
+			return fmt.Errorf("missing __federation: %v", obj)
+		}
+		pf.targets = append(pf.targets, obj)
+		pf.keys = append(pf.keys, key)
+		return nil
+	}
+
+	obj, ok := node.(map[string]interface{})
+	if !ok {
+		// XXX: always do this? only if nullable?
+		return nil
+	}
+
+	step := path[0]
+	switch step.Kind {
+	case KindField:
+		next, ok := obj[step.Name]
+		if !ok {
+			return fmt.Errorf("does not have key %s", step.Name)
 		}
 
-		for k, v := range res[0].(map[string]interface{}) {
-			combined[k] = v
+		if err := pf.extractTargets(next, path[1:]); err != nil {
+			return fmt.Errorf("elem %s: %v", next, err)
+		}
+
+	case KindType:
+		typ, ok := obj["__typename"].(string)
+		if !ok {
+			return fmt.Errorf("does not have string key __typename")
+		}
+
+		if typ == step.Name {
+			if err := pf.extractTargets(obj, path[1:]); err != nil {
+				return fmt.Errorf("typ %s: %v", typ, err)
+			}
 		}
 	}
 
-	return combined, nil
+	return nil
 }
 
-func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) ([]interface{}, error) {
-	res, err := e.runOnService(ctx, p.Service, p.Type, keys, p.SelectionSet)
+type executorContext struct {
+	e        *Executor
+	outputMu sync.Mutex
+}
+
+func (ec *executorContext) execute(ctx context.Context, p *Plan, keys []interface{}) ([]interface{}, error) {
+	res, err := ec.e.runOnService(ctx, p.Service, p.Type, keys, p.SelectionSet)
 	if err != nil {
 		return nil, fmt.Errorf("run on service: %v", err)
 	}
 
 	for _, subPlan := range p.After {
-		var targets []map[string]interface{}
-		var keys []interface{}
-
-		// DFS to follow path
-
-		// XXX: extract and unit test...
-		var search func(node interface{}, path []PathStep) error
-		search = func(node interface{}, path []PathStep) error {
-			// XXX: encode list flattening in path?
-			if slice, ok := node.([]interface{}); ok {
-				for i, elem := range slice {
-					if err := search(elem, path); err != nil {
-						return fmt.Errorf("idx %d: %v", i, err)
-					}
-				}
-				return nil
-			}
-
-			if len(path) == 0 {
-				obj, ok := node.(map[string]interface{})
-				if !ok {
-					return fmt.Errorf("not an object: %v", obj)
-				}
-				key, ok := obj["__federation"]
-				if !ok {
-					return fmt.Errorf("missing __federation: %v", obj)
-				}
-				targets = append(targets, obj)
-				keys = append(keys, key)
-				return nil
-			}
-
-			obj, ok := node.(map[string]interface{})
-			if !ok {
-				// XXX: always do this? only if nullable?
-				return nil
-			}
-
-			step := path[0]
-			switch step.Kind {
-			case KindField:
-				next, ok := obj[step.Name]
-				if !ok {
-					return fmt.Errorf("does not have key %s", step.Name)
-				}
-
-				if err := search(next, path[1:]); err != nil {
-					return fmt.Errorf("elem %s: %v", next, err)
-				}
-
-			case KindType:
-				typ, ok := obj["__typename"].(string)
-				if !ok {
-					return fmt.Errorf("does not have string key __typename")
-				}
-
-				if typ == step.Name {
-					if err := search(obj, path[1:]); err != nil {
-						return fmt.Errorf("typ %s: %v", typ, err)
-					}
-				}
-			}
-
-			return nil
-		}
-
-		if err := search(res, subPlan.PathStep); err != nil {
+		var pf pathFollower
+		if err := pf.extractTargets(res, subPlan.PathStep); err != nil {
 			return nil, fmt.Errorf("failed to follow path %v: %v", subPlan.PathStep, err)
 		}
 
-		// XXX: don't execute here yet??? i mean we can but why? simpler?????? could go back to root?
-
 		// XXX: go
-		results, err := e.execute(ctx, subPlan, keys)
+		results, err := ec.execute(ctx, subPlan, pf.keys)
 		if err != nil {
 			return nil, fmt.Errorf("executing sub plan: %v", err)
 		}
 
-		if len(results) != len(targets) {
-			return nil, fmt.Errorf("got %d results for %d targets", len(results), len(targets))
+		if len(results) != len(pf.targets) {
+			return nil, fmt.Errorf("got %d results for %d targets", len(results), len(pf.targets))
 		}
 
-		for i, target := range targets {
+		for i, target := range pf.targets {
 			result, ok := results[i].(map[string]interface{})
 			if !ok {
 				return nil, fmt.Errorf("result is not an object: %v", result)
@@ -326,26 +292,49 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) ([]
 	return res, nil
 }
 
+func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
+	combined := make(map[string]interface{})
+
+	ec := executorContext{
+		e: e,
+	}
+
+	for _, plan := range p.After {
+		res, err := ec.execute(ctx, plan, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		for k, v := range res[0].(map[string]interface{}) {
+			combined[k] = v
+		}
+	}
+
+	return combined, nil
+}
+
 // todo
 // concurrent execution
 //
 // defer
+//
+// failure boundaries, timeouts (?)
+//
+// input types
+//
+// mutations
 //
 // project. harden APIs
 // test malformed inputs
 // test incompatible schemas
 // test forward/backward schema rollout
 // validate incoming queries
+// xxx: schema migrations? moving fields?
 //
 // clean up types in thunder/graphql, clean up flagging
-//
-// mutations
-//
-// failure boundaries, timeouts (?)
 //
 // XXX: cache queries and plans? (late binding of args?) even better, cache selection sets downstream?
 // XXX: precompile queries and query plans???
 //
-// xxx: schema migrations? moving fields?
-//
 // dependency sets
+// caching?

@@ -8,6 +8,27 @@ import (
 	"github.com/samsarahq/thunder/graphql"
 )
 
+type StepKind int
+
+const (
+	KindType StepKind = iota
+	KindField
+)
+
+type PathStep struct {
+	Kind StepKind
+	Name string
+}
+
+type Plan struct {
+	PathStep []PathStep
+	Service  string
+	// XXX: What are we using Type for here again? -- oh, it's for the __federation field...
+	Type         string
+	SelectionSet *SelectionSet
+	After        []*Plan
+}
+
 func (e *Executor) planObject(typ *graphql.Object, selectionSet *SelectionSet, service string) (*Plan, error) {
 	p := &Plan{
 		Type:         typ.Name,
