@@ -7,27 +7,37 @@ import (
 	"github.com/samsarahq/thunder/graphql"
 )
 
-type TypeRef struct {
-	Kind   string   `json:"kind"`
-	Name   string   `json:"name"`
-	OfType *TypeRef `json:"ofType"`
+type FieldInfo struct {
+	Service  string
+	Services map[string]bool
 }
 
-type IntrospectionQuery struct {
+type SchemaWithFederationInfo struct {
+	Schema *graphql.Schema
+	Fields map[*graphql.Field]*FieldInfo
+}
+
+type introspectionTypeRef struct {
+	Kind   string                `json:"kind"`
+	Name   string                `json:"name"`
+	OfType *introspectionTypeRef `json:"ofType"`
+}
+
+type introspectionQueryResult struct {
 	Schema struct {
 		Types []struct {
 			Name   string `json:"name"`
 			Kind   string `json:"kind"`
 			Fields []struct {
-				Name string   `json:"name"`
-				Type *TypeRef `json:"type"`
+				Name string                `json:"name"`
+				Type *introspectionTypeRef `json:"type"`
 			} `json:"fields"`
-			PossibleTypes []*TypeRef `json:"possibleTypes"`
+			PossibleTypes []*introspectionTypeRef `json:"possibleTypes"`
 		} `json:"types"`
 	} `json:"__schema"`
 }
 
-func convertSchema(schemas map[string]IntrospectionQuery) (*SchemaWithFederationInfo, error) {
+func convertSchema(schemas map[string]introspectionQueryResult) (*SchemaWithFederationInfo, error) {
 	byName := make(map[string]*graphql.Object)
 	all := make(map[string]graphql.Type)
 	fieldInfos := make(map[*graphql.Field]*FieldInfo)
@@ -61,8 +71,8 @@ func convertSchema(schemas map[string]IntrospectionQuery) (*SchemaWithFederation
 		}
 	}
 
-	var convert func(*TypeRef) (graphql.Type, error)
-	convert = func(t *TypeRef) (graphql.Type, error) {
+	var convert func(*introspectionTypeRef) (graphql.Type, error)
+	convert = func(t *introspectionTypeRef) (graphql.Type, error) {
 		if t == nil {
 			return nil, errors.New("malformed typeref")
 		}

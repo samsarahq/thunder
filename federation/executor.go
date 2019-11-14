@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
 
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/introspection"
@@ -48,7 +47,7 @@ func (c *DirectExecutorClient) Schema(ctx context.Context, req *thunderpb.Schema
 }
 
 func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Executor, error) {
-	schemas := make(map[string]IntrospectionQuery)
+	schemas := make(map[string]introspectionQueryResult)
 
 	for server, client := range executors {
 		schema, err := client.Schema(ctx, &thunderpb.SchemaRequest{})
@@ -56,7 +55,7 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Exe
 			return nil, fmt.Errorf("fetching schema %s: %v", server, err)
 		}
 
-		var iq IntrospectionQuery
+		var iq introspectionQueryResult
 		if err := json.Unmarshal(schema.Schema, &iq); err != nil {
 			return nil, fmt.Errorf("unmarshaling schema %s: %v", server, err)
 		}
@@ -83,7 +82,7 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Exe
 		return nil, fmt.Errorf("fetching schema %s: %v", server, err)
 	}
 
-	var iq IntrospectionQuery
+	var iq introspectionQueryResult
 	if err := json.Unmarshal(schema.Schema, &iq); err != nil {
 		return nil, fmt.Errorf("unmarshaling schema %s: %v", server, err)
 	}
@@ -99,67 +98,6 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Exe
 		schema:              types,
 		IntrospectionSchema: introspectionSchema,
 	}, nil
-}
-
-// oooh.. maybe we need to support introspection at the aggregator level... :)
-
-type FieldInfo struct {
-	Service  string
-	Services map[string]bool
-}
-
-type SchemaWithFederationInfo struct {
-	Schema *graphql.Schema
-	Fields map[*graphql.Field]*FieldInfo
-}
-
-type Selection struct {
-	Alias string
-	Name  string
-	Args  map[string]interface{}
-	// Selections []*Selection
-	SelectionSet *SelectionSet
-}
-
-type Fragment struct {
-	On           string
-	SelectionSet *SelectionSet
-}
-
-type SelectionSet struct {
-	Selections []*Selection
-	Fragments  []*Fragment
-}
-
-func convertSelectionSet(selectionSet *SelectionSet) *graphql.RawSelectionSet {
-	if selectionSet == nil {
-		return nil
-	}
-
-	newSelections := make([]*graphql.RawSelection, 0, len(selectionSet.Selections))
-
-	for _, selection := range selectionSet.Selections {
-		newSelections = append(newSelections, &graphql.RawSelection{
-			Alias:        selection.Alias,
-			Args:         selection.Args,
-			Name:         selection.Name,
-			SelectionSet: convertSelectionSet(selection.SelectionSet),
-		})
-	}
-
-	fragments := make([]*graphql.RawFragment, 0, len(selectionSet.Fragments))
-
-	for _, fragment := range selectionSet.Fragments {
-		fragments = append(fragments, &graphql.RawFragment{
-			On:           fragment.On,
-			SelectionSet: convertSelectionSet(fragment.SelectionSet),
-		})
-	}
-
-	return &graphql.RawSelectionSet{
-		Selections: newSelections,
-		Fragments:  fragments,
-	}
 }
 
 func (e *Executor) runOnService(ctx context.Context, service string, typName string, keys []interface{}, selectionSet *SelectionSet) ([]interface{}, error) {
@@ -284,8 +222,6 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) ([]
 		var targets []map[string]interface{}
 		var keys []interface{}
 
-		// targets = []interface{}{res}
-
 		// DFS to follow path
 
 		// XXX: extract and unit test...
@@ -379,426 +315,6 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) ([]
 	return res, nil
 }
 
-func applies(obj *graphql.Object, fragment *Fragment, allTypes map[string]graphql.Type) (bool, error) {
-	switch typ := allTypes[fragment.On].(type) {
-	case *graphql.Object:
-		return typ.Name == obj.Name, nil
-
-	case *graphql.Union:
-		_, ok := typ.Types[obj.Name]
-		return ok, nil
-
-	default:
-		return false, fmt.Errorf("bad fragment %v", fragment.On)
-	}
-}
-
-func collectTypes(typ graphql.Type, types map[graphql.Type]string) error {
-	if _, ok := types[typ]; ok {
-		return nil
-	}
-
-	switch typ := typ.(type) {
-	case *graphql.NonNull:
-		collectTypes(typ.Type, types)
-
-	case *graphql.List:
-		collectTypes(typ.Type, types)
-
-	case *graphql.Object:
-		types[typ] = typ.Name
-
-		for _, field := range typ.Fields {
-			collectTypes(field.Type, types)
-		}
-
-	case *graphql.Union:
-		types[typ] = typ.Name
-		for _, obj := range typ.Types {
-			collectTypes(obj, types)
-		}
-
-	case *graphql.Enum:
-		types[typ] = typ.Type
-
-	case *graphql.Scalar:
-		types[typ] = typ.Type
-
-	default:
-		return fmt.Errorf("bad typ %v", typ)
-	}
-
-	return nil
-}
-
-func flatten(selectionSet *SelectionSet, typ graphql.Type, allTypes map[string]graphql.Type) (*SelectionSet, error) {
-	switch typ := typ.(type) {
-	case *graphql.NonNull:
-		return flatten(selectionSet, typ.Type, allTypes)
-
-	case *graphql.List:
-		return flatten(selectionSet, typ.Type, allTypes)
-
-	case *graphql.Object:
-		// XXX: type check?
-		selections := make([]*Selection, 0, len(selectionSet.Selections))
-		// XXX: test that we flatten recursively??
-		for _, selection := range selectionSet.Selections {
-			field, ok := typ.Fields[selection.Name]
-			if !ok {
-				return nil, fmt.Errorf("unknown field %s on typ %s", selection.Name, typ.Name)
-			}
-			selectionSet, err := flatten(selection.SelectionSet, field.Type, allTypes)
-			if err != nil {
-				return nil, err
-			}
-			selections = append(selections, &Selection{
-				Name:         selection.Name,
-				Alias:        selection.Alias,
-				Args:         selection.Args,
-				SelectionSet: selectionSet,
-			})
-		}
-
-		for _, fragment := range selectionSet.Fragments {
-			ok, err := applies(typ, fragment, allTypes)
-			if err != nil {
-				return nil, err
-			}
-			if !ok {
-				continue
-			}
-
-			flattened, err := flatten(fragment.SelectionSet, typ, allTypes)
-			if err != nil {
-				return nil, err
-			}
-
-			selections = append(selections, flattened.Selections...)
-		}
-
-		return &SelectionSet{
-			Selections: selections,
-		}, nil
-
-		// great
-
-	case *graphql.Union:
-		// XXX: all these selections must be on on __typename. type check?
-		selections := make([]*Selection, len(selectionSet.Selections))
-		copy(selections, selectionSet.Selections)
-
-		fragments := make([]*Fragment, 0, len(typ.Types))
-		for _, obj := range typ.Types {
-			plan, err := flatten(selectionSet, obj, allTypes)
-			if err != nil {
-				return nil, err
-			}
-			fragments = append(fragments, &Fragment{
-				On:           obj.Name,
-				SelectionSet: plan,
-			})
-		}
-		sort.Slice(fragments, func(a, b int) bool {
-			return fragments[a].On < fragments[b].On
-		})
-
-		return &SelectionSet{
-			Selections: selections,
-			Fragments:  fragments,
-		}, nil
-
-	case *graphql.Enum, *graphql.Scalar:
-		// XXX: ensure nil?
-		return selectionSet, nil
-
-	default:
-		return nil, fmt.Errorf("bad typ %v", typ)
-	}
-}
-func (e *Executor) planObject(typ *graphql.Object, selectionSet *SelectionSet, service string) (*Plan, error) {
-	// needTypename := true
-
-	p := &Plan{
-		Type:         typ.Name,
-		Service:      service,
-		SelectionSet: &SelectionSet{},
-		After:        nil,
-		/*
-			AfterNode: &AfterNode{
-				Kind:     KindField,
-				Next:     map[string]*AfterNode{},
-				Services: map[string]*Plan{},
-			},
-		*/
-	}
-
-	// XXX: pass in sub-path (and sub-plan slice?) to make sub-plan munging simpler?
-
-	// - should we type check here?
-	// - what do we here with fragments? inline them?
-	// - the executor might need to know the types to switch?
-
-	// - refactor to return array of subplans with preferential treatment for given service?
-	// eh whatever.
-
-	selectionsByService := make(map[string][]*Selection)
-
-	// A flattened selection set on an object will have only selectoins, no fragments.
-	// XXX: assert?
-
-	for _, selection := range selectionSet.Selections {
-		field, ok := typ.Fields[selection.Name]
-		if !ok {
-			return nil, fmt.Errorf("typ %s has no field %s", typ.Name, selection.Name)
-		}
-
-		fieldInfo := e.schema.Fields[field]
-
-		// if we can stick to the current service, stay there
-		if fieldInfo.Services[service] {
-			selectionsByService[service] = append(
-				selectionsByService[service], selection)
-		} else {
-			selectionsByService[fieldInfo.Service] = append(
-				selectionsByService[fieldInfo.Service], selection)
-		}
-	}
-
-	// spew.Dump(service, selectionsByService)
-
-	// if we encounter a fragment, we find a branch
-	// either we hit it, or we don't. must make plan for both cases?
-	//
-	// very snazzily we could merge subplans.
-
-	for _, selection := range selectionsByService[service] {
-		// we have already checked above that this field exists
-		field := typ.Fields[selection.Name]
-
-		var childPlan *Plan
-		if selection.SelectionSet != nil {
-			// XXX: assert existence of types elsewhere?
-			var err error
-			// XXX type assertoin
-			childPlan, err = e.plan(field.Type, selection.SelectionSet, service)
-			if err != nil {
-				return nil, fmt.Errorf("planning for %s: %v", selection.Name, err)
-			}
-		}
-
-		newSelection := &Selection{
-			Alias: selection.Alias,
-			Name:  selection.Name,
-			Args:  selection.Args,
-		}
-		if childPlan != nil {
-			newSelection.SelectionSet = childPlan.SelectionSet
-		}
-
-		p.SelectionSet.Selections = append(p.SelectionSet.Selections, newSelection)
-
-		if childPlan != nil {
-			for _, subPlan := range childPlan.After {
-				subPlan.PathStep = append(subPlan.PathStep, PathStep{Kind: KindField, Name: selection.Alias})
-				p.After = append(p.After, subPlan)
-			}
-		}
-	}
-
-	needKey := false
-
-	var otherServices []string
-	for other := range selectionsByService {
-		if other != service {
-			otherServices = append(otherServices, other)
-		}
-	}
-	sort.Strings(otherServices)
-
-	for _, other := range otherServices {
-		selections := selectionsByService[other]
-		needKey = true
-
-		// what if a field has multiple options? should we consider capacity?
-		// what other fields we might want to resolve after?
-		// nah, just go with default... and consider being able to stick with
-		// the same a bonus
-		subPlan, err := e.plan(typ, &SelectionSet{Selections: selections}, other)
-		if err != nil {
-			return nil, fmt.Errorf("planning for %s: %v", other, err)
-		}
-
-		// p.AfterNode.Services[other] = subPlan
-		p.After = append(p.After, subPlan)
-	}
-
-	if needKey {
-		hasKey := false
-		for _, selection := range p.SelectionSet.Selections {
-			if selection.Name == "__federation" && selection.Alias == "__federation" {
-				hasKey = true
-			} else if selection.Alias == "__federation" {
-				// error, conflict, can't do this.
-			}
-		}
-		if !hasKey {
-			p.SelectionSet.Selections = append(p.SelectionSet.Selections, &Selection{
-				Name:  "__federation",
-				Alias: "__federation",
-				Args:  map[string]interface{}{},
-			})
-		}
-	}
-
-	return p, nil
-
-}
-
-func (e *Executor) planUnion(typ *graphql.Union, selectionSet *SelectionSet, service string) (*Plan, error) {
-	// needTypename := true
-
-	overallP := &Plan{
-		SelectionSet: &SelectionSet{
-			Selections: []*Selection{
-				{
-					Name:  "__typename",
-					Alias: "__typename",
-					Args:  map[string]interface{}{},
-				},
-			},
-		},
-	}
-
-	/*
-		overallP.AfterNode = &AfterNode{
-			Kind:     KindType,
-			Next:     map[string]*AfterNode{},
-			Services: map[string]*Plan{},
-		}
-	*/
-
-	overallP.SelectionSet.Selections = append(overallP.SelectionSet.Selections, selectionSet.Selections...)
-
-	// fragments := make(map[string]...)
-
-	for _, fragment := range selectionSet.Fragments {
-		// This is a flattened selection set.
-		typ, ok := typ.Types[fragment.On]
-		if !ok {
-			return nil, fmt.Errorf("unexpected fragment on %s for typ %s", fragment.On, typ.Name)
-		}
-
-		p, err := e.plan(typ, fragment.SelectionSet, service)
-		if err != nil {
-			return nil, err
-		}
-
-		overallP.SelectionSet.Fragments = append(overallP.SelectionSet.Fragments, &Fragment{
-			On:           typ.Name,
-			SelectionSet: p.SelectionSet,
-		})
-
-		for _, subPlan := range p.After {
-			// take p.After and make them conditional on __typename == X -- stick that in path? seems nice.
-			// XXX: include type in path
-			subPlan.PathStep = append(subPlan.PathStep, PathStep{Kind: KindType, Name: typ.Name})
-			overallP.After = append(overallP.After, subPlan)
-		}
-
-		// xxx: have a test where this nests a couple steps
-
-		// if we might have to dispatch, then include __typename
-	}
-	return overallP, nil
-}
-
-func (e *Executor) plan(typIface graphql.Type, selectionSet *SelectionSet, service string) (*Plan, error) {
-	switch typ := typIface.(type) {
-	case *graphql.NonNull:
-		return e.plan(typ.Type, selectionSet, service)
-
-	case *graphql.List:
-		return e.plan(typ.Type, selectionSet, service)
-
-	case *graphql.Object:
-		// great
-		return e.planObject(typ, selectionSet, service)
-
-	case *graphql.Union:
-		// XXX
-		return e.planUnion(typ, selectionSet, service)
-
-	default:
-		return nil, fmt.Errorf("bad typ %v", typIface)
-	}
-}
-
-func reversePaths(p *Plan) {
-	for i := 0; i < len(p.PathStep)/2; i++ {
-		j := len(p.PathStep) - 1 - i
-		p.PathStep[i], p.PathStep[j] = p.PathStep[j], p.PathStep[i]
-	}
-	for _, p := range p.After {
-		reversePaths(p)
-	}
-}
-
-func (e *Executor) Plan(query *graphql.RawSelectionSet) (*Plan, error) {
-	allTypes := make(map[graphql.Type]string)
-	if err := collectTypes(e.schema.Schema.Query, allTypes); err != nil {
-		return nil, err
-	}
-	reversedTypes := make(map[string]graphql.Type)
-	for typ, name := range allTypes {
-		reversedTypes[name] = typ
-	}
-
-	flattened, err := flatten(convert(query), e.schema.Schema.Query, reversedTypes)
-	if err != nil {
-		return nil, err
-	}
-
-	p, err := e.plan(e.schema.Schema.Query, flattened, "no-such-service")
-	if err != nil {
-		return nil, err
-	}
-	reversePaths(p)
-	return p, nil
-}
-
-func convert(query *graphql.RawSelectionSet) *SelectionSet {
-	if query == nil {
-		return nil
-	}
-
-	var converted []*Selection
-	for _, selection := range query.Selections {
-		if selection.Alias == "" {
-			selection.Alias = selection.Name
-		}
-		converted = append(converted, &Selection{
-			Name:         selection.Name,
-			Alias:        selection.Alias,
-			Args:         selection.Args,
-			SelectionSet: convert(selection.SelectionSet),
-		})
-	}
-	// XXX: janky hack
-	var fragments []*Fragment
-	for _, fragment := range query.Fragments {
-		fragments = append(fragments, &Fragment{
-			On:           fragment.On,
-			SelectionSet: convert(fragment.SelectionSet),
-		})
-	}
-
-	return &SelectionSet{
-		Selections: converted,
-		Fragments:  fragments,
-	}
-}
-
 // todo
 // concurrent execution
 //
@@ -816,7 +332,7 @@ func convert(query *graphql.RawSelectionSet) *SelectionSet {
 //
 // failure boundaries, timeouts (?)
 //
-// XXX: cache queries and plans? even better, cache selection sets downstream?
+// XXX: cache queries and plans? (late binding of args?) even better, cache selection sets downstream?
 // XXX: precompile queries and query plans???
 //
 // xxx: schema migrations? moving fields?
