@@ -177,7 +177,7 @@ func executeWorkUnit(unit *WorkUnit) []*WorkUnit {
 
 	var units []*WorkUnit
 	for idx, src := range unit.sources {
-		units = append(units, executeNonBatchWorkUnitWithCaching(src, unit.destinations[idx], unit)...)
+		units = append(units, executeNonBatchWorkUnit(unit.Ctx, src, unit.destinations[idx], unit)...)
 	}
 	return units
 }
@@ -226,26 +226,6 @@ func executeNonExpensiveWorkUnit(unit *WorkUnit) []*WorkUnit {
 		return nil
 	}
 	return unitChildren
-}
-
-// executeNonBatchWorkUnitWithCaching wraps a resolve request in a reactive cache
-// call.
-// This function makes two assumptions:
-// - We assume that all the reactive cache will get cleared if there is an error.
-// - We assume that there is no "error-catching" mechanism that will stop an
-//   error from propagating all the way to the top of the request stack.
-func executeNonBatchWorkUnitWithCaching(src interface{}, dest *outputNode, unit *WorkUnit) []*WorkUnit {
-	var workUnits []*WorkUnit
-	subDestRes, err := reactive.Cache(unit.Ctx, getWorkCacheKey(src, unit.field, unit.selection), func(ctx context.Context) (interface{}, error) {
-		subDest := newOutputNode(dest, "")
-		workUnits = executeNonBatchWorkUnit(ctx, src, subDest, unit)
-		return subDest.res, nil
-	})
-	if err != nil {
-		dest.Fail(err)
-	}
-	dest.Fill(subDestRes)
-	return workUnits
 }
 
 // getWorkCacheKey gets the work cache key for the provided source.

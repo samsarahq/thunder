@@ -189,18 +189,15 @@ func TestEnum(t *testing.T) {
 
 }
 
-// TestEndToEndAwaitAndCache tests that slow fields get run in parallel and cached.
+// TestEndToEndConcurrently tests that slow fields get run in parallel.
 //
 // The test verifies that the `slow` field on user, which sleeps for 100ms, gets
 // run in parallel by verifying the total runtime over several users.
-//
-// The test verifies that a `count` sub-field of the `slow` field is cached by
-// invalidating a single `slow` call, and tracking the number of calls to count.
 func TestEndToEndAwaitAndCache(t *testing.T) {
 	users := []*User{
-		{Name: "Alice", Age: 5, resource: reactive.NewResource()},
-		{Name: "Bob", Age: 6, resource: reactive.NewResource()},
-		{Name: "Charlie", Age: 7, resource: reactive.NewResource()},
+		{Name: "Alice", Age: 5},
+		{Name: "Bob", Age: 6},
+		{Name: "Charlie", Age: 7},
 	}
 
 	var mu sync.Mutex
@@ -217,7 +214,6 @@ func TestEndToEndAwaitAndCache(t *testing.T) {
 
 	user := schema.Object("User", User{})
 	user.FieldFunc("slow", func(ctx context.Context, u *User) *Slow {
-		reactive.AddDependency(ctx, u.resource, nil)
 		time.Sleep(100 * time.Millisecond)
 		return new(Slow)
 	}, schemabuilder.Expensive)
@@ -240,27 +236,18 @@ func TestEndToEndAwaitAndCache(t *testing.T) {
             }
         }`, nil)
 
-	results := make(chan interface{})
-
 	start := time.Now()
-	rerunner := reactive.NewRerunner(context.Background(), func(ctx context.Context) (interface{}, error) {
-		e := testgraphql.NewExecutorWrapper(t)
-		result, err := e.Execute(ctx, builtSchema.Query, nil, q)
-		if err != nil {
-			t.Error(err)
-		}
+	e := testgraphql.NewExecutorWrapper(t)
+	result, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
+	if err != nil {
+		t.Error(err)
+	}
 
-		results <- internal.AsJSON(result)
-		return nil, nil
-	}, 0, false)
-	defer rerunner.Stop()
-
-	result := <-results
 	duration := time.Since(start)
 	if duration > 450*time.Millisecond {
 		t.Errorf("did not execute in parallel; duration %v > 150ms", duration)
 	}
-	if !reflect.DeepEqual(result, internal.ParseJSON(`
+	if !reflect.DeepEqual(internal.AsJSON(result), internal.ParseJSON(`
 		{"users": [
 			{"name": "Alice", "slow": {"count": true}},
 			{"name": "Bob", "slow": {"count": true}},
@@ -270,25 +257,6 @@ func TestEndToEndAwaitAndCache(t *testing.T) {
 	}
 	if calls != 3 {
 		t.Errorf("expected 3 calls to slow, got %d", calls)
-	}
-
-	start = time.Now()
-	users[0].resource.Strobe()
-	result = <-results
-	duration = time.Since(start)
-	if duration > 450*time.Millisecond {
-		t.Errorf("did not execute in parallel; duration %v > 150ms", duration)
-	}
-	if !reflect.DeepEqual(result, internal.ParseJSON(`
-		{"users": [
-			{"name": "Alice", "slow": {"count": true}},
-			{"name": "Bob", "slow": {"count": true}},
-			{"name": "Charlie", "slow": {"count": true}}
-        ]}`)) {
-		t.Error("bad value")
-	}
-	if calls != 4 {
-		t.Errorf("expected 4 total calls to slow, got %d", calls)
 	}
 }
 
