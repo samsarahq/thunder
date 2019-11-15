@@ -59,6 +59,8 @@ func (e *Executor) applies(obj *graphql.Object, fragment *Fragment) (bool, error
 	}
 }
 
+// xxx: limit complexity of flattened result?
+
 func (e *Executor) flatten(selectionSet *SelectionSet, typ graphql.Type) (*SelectionSet, error) {
 	switch typ := typ.(type) {
 	case *graphql.NonNull:

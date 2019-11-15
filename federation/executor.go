@@ -252,65 +252,114 @@ func (pf *pathFollower) extractTargets(node interface{}, path []PathStep) error 
 }
 
 type executorContext struct {
-	e        *Executor
+	e *Executor
+
 	outputMu sync.Mutex
+	wg       sync.WaitGroup
+	err      error
+}
+
+func (ec *executorContext) setError(err error) {
+	if ec.err != nil {
+		ec.err = err
+	}
 }
 
 func (ec *executorContext) execute(ctx context.Context, p *Plan, keys []interface{}) ([]interface{}, error) {
-	res, err := ec.e.runOnService(ctx, p.Service, p.Type, keys, p.SelectionSet)
-	if err != nil {
-		return nil, fmt.Errorf("run on service: %v", err)
+	var res []interface{}
+	if p.Service != "no-such-service" {
+		var err error
+		res, err = ec.e.runOnService(ctx, p.Service, p.Type, keys, p.SelectionSet)
+		if err != nil {
+			return nil, fmt.Errorf("run on service: %v", err)
+		}
+	} else {
+		res = []interface{}{
+			map[string]interface{}{},
+		}
 	}
 
 	for _, subPlan := range p.After {
+		subPlan := subPlan
 		var pf pathFollower
-		if err := pf.extractTargets(res, subPlan.PathStep); err != nil {
-			return nil, fmt.Errorf("failed to follow path %v: %v", subPlan.PathStep, err)
+		if p.Service != "no-such-service" {
+			if err := pf.extractTargets(res, subPlan.PathStep); err != nil {
+				return nil, fmt.Errorf("failed to follow path %v: %v", subPlan.PathStep, err)
+			}
+		} else {
+			pf.keys = nil
+			pf.targets = []map[string]interface{}{
+				res[0].(map[string]interface{}),
+			}
 		}
 
 		// XXX: go
-		results, err := ec.execute(ctx, subPlan, pf.keys)
-		if err != nil {
-			return nil, fmt.Errorf("executing sub plan: %v", err)
-		}
+		ec.wg.Add(1)
+		go func() {
+			defer ec.wg.Done()
 
-		if len(results) != len(pf.targets) {
-			return nil, fmt.Errorf("got %d results for %d targets", len(results), len(pf.targets))
-		}
+			results, err := ec.execute(ctx, subPlan, pf.keys)
 
-		for i, target := range pf.targets {
-			result, ok := results[i].(map[string]interface{})
-			if !ok {
-				return nil, fmt.Errorf("result is not an object: %v", result)
+			ec.outputMu.Lock()
+			defer ec.outputMu.Unlock()
+
+			if err != nil {
+				ec.setError(fmt.Errorf("executing sub plan: %v", err))
+				return
 			}
-			for k, v := range result {
-				target[k] = v
+
+			if len(results) != len(pf.targets) {
+				ec.setError(fmt.Errorf("got %d results for %d targets", len(results), len(pf.targets)))
+				return
 			}
-		}
+
+			for i, target := range pf.targets {
+				result, ok := results[i].(map[string]interface{})
+				if !ok {
+					ec.setError(fmt.Errorf("result is not an object: %v", result))
+					return
+				}
+				for k, v := range result {
+					target[k] = v
+				}
+			}
+		}()
 	}
 
 	return res, nil
 }
 
-func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
-	combined := make(map[string]interface{})
+func deleteKey(v interface{}, k string) {
+	switch v := v.(type) {
+	case []interface{}:
+		for _, e := range v {
+			deleteKey(e, k)
+		}
+	case map[string]interface{}:
+		delete(v, k)
+		for _, e := range v {
+			deleteKey(e, k)
+		}
+	}
+}
 
+func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 	ec := executorContext{
 		e: e,
 	}
 
-	for _, plan := range p.After {
-		res, err := ec.execute(ctx, plan, nil)
-		if err != nil {
-			return nil, err
-		}
-
-		for k, v := range res[0].(map[string]interface{}) {
-			combined[k] = v
-		}
+	r, err := ec.execute(ctx, p, nil)
+	if err != nil {
+		return nil, err
+	}
+	ec.wg.Wait()
+	if ec.err != nil {
+		return nil, ec.err
 	}
 
-	return combined, nil
+	res := r[0]
+	deleteKey(res, "__federation")
+	return res, nil
 }
 
 // todo
@@ -338,3 +387,5 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 //
 // dependency sets
 // caching?
+//
+// analyze current schema, measure number of package transitions / expected plan depth(s)

@@ -223,6 +223,20 @@ func roundtripJson(t *testing.T, v interface{}) interface{} {
 	return r
 }
 
+func assertExecuteEqual(ctx context.Context, t *testing.T, e *Executor, in, out string) {
+	plan, err := e.Plan(graphql.MustParse(in, map[string]interface{}{}).SelectionSet)
+	require.NoError(t, err)
+
+	res, err := e.Execute(ctx, plan)
+	require.NoError(t, err)
+
+	var expected interface{}
+	err = json.Unmarshal([]byte(out), &expected)
+	require.NoError(t, err)
+
+	assert.Equal(t, expected, roundtripJson(t, res))
+}
+
 func TestExecutor(t *testing.T) {
 	ctx := context.Background()
 
@@ -278,12 +292,11 @@ func TestExecutor(t *testing.T) {
 			`,
 			Output: `{
 				"s1fff": [{
-					"a": {"b": {"c": {"__federation": "jimbo", "s2ok": 5}}},
+					"a": {"b": {"c": {"s2ok": 5}}},
 					"s1hmm": "jimbo!!!",
 					"s2ok": 5,
 					"s2bar": {
 						"id": 14,
-						"__federation": 14,
 						"s1baz": "14"
 					},
 					"s1nest": {
@@ -291,16 +304,14 @@ func TestExecutor(t *testing.T) {
 					},
 					"s2nest": {
 						"name": "jimbo"
-					},
-					"__federation": "jimbo"
+					}
 				},
 				{
-					"a": {"b": {"c": {"__federation": "bob", "s2ok": 3}}},
+					"a": {"b": {"c": {"s2ok": 3}}},
 					"s1hmm": "bob!!!",
 					"s2ok": 3,
 					"s2bar": {
 						"id": 10,
-						"__federation": 10,
 						"s1baz": "10"
 					},
 					"s1nest": {
@@ -308,15 +319,13 @@ func TestExecutor(t *testing.T) {
 					},
 					"s2nest": {
 						"name": "bob"
-					},
-					"__federation": "bob"
+					}
 				}],
 				"s1both": [{
 					"__typename": "Foo",
-					"__federation": "this is the foo",
 					"name": "this is the foo",
 					"s1hmm": "this is the foo!!!",
-					"a": {"b": {"c": {"__federation": "this is the foo", "s2ok": 15}}},
+					"a": {"b": {"c": {"s2ok": 15}}},
 					"s2ok": 15
 				},
 				{
@@ -331,17 +340,109 @@ func TestExecutor(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.Name, func(t *testing.T) {
-			plan, err := e.Plan(graphql.MustParse(testCase.Input, map[string]interface{}{}).SelectionSet)
-			require.NoError(t, err)
-
-			res, err := e.Execute(ctx, plan)
-			require.NoError(t, err)
-
-			var expected interface{}
-			err = json.Unmarshal([]byte(testCase.Output), &expected)
-			require.NoError(t, err)
-
-			assert.Equal(t, expected, roundtripJson(t, res))
+			assertExecuteEqual(ctx, t, e, testCase.Input, testCase.Output)
 		})
 	}
+}
+
+// TestExecutorConcurrency tests that plans that can run concurrently do run
+// concurrently.
+//
+// It's not a very exhaustive test.
+func TestExecutorConcurrency(t *testing.T) {
+	type Foo struct {
+	}
+
+	var running chan chan struct{}
+
+	makeSchema := func(prefix string) *schemabuilder.Schema {
+		schema := schemabuilder.NewSchema()
+		schema.Query().FieldFunc(prefix+"foo", func() *Foo {
+			return &Foo{}
+		})
+
+		foo := schema.Object("Foo", Foo{})
+		foo.Federation(func(*Foo) string {
+			return ""
+		})
+		foo.FieldFunc(prefix+"instant", func(f *Foo) *Foo {
+			return f
+		})
+		foo.FieldFunc(prefix+"wait", func(f *Foo) *Foo {
+			// xxx: store path in Foo by concatenating field name funcs and then
+			// use that to record exec order?
+			release := <-running
+			<-release
+			return f
+		})
+		foo.FieldFunc(prefix+"echo", func(f *Foo) string {
+			return "echo"
+		})
+
+		schema.Federation().FieldFunc("Foo", func(args struct{ Keys []string }) []*Foo {
+			foos := make([]*Foo, 0, len(args.Keys))
+			for range args.Keys {
+				foos = append(foos, &Foo{})
+			}
+			return foos
+		})
+
+		return schema
+	}
+
+	ctx := context.Background()
+
+	// todo: assert specific invocation traces?
+
+	execs, err := makeExecutors(map[string]*schemabuilder.Schema{
+		"schema1": makeSchema("s1"),
+		"schema2": makeSchema("s2"),
+	})
+	require.NoError(t, err)
+
+	e, err := NewExecutor(ctx, execs)
+	require.NoError(t, err)
+
+	running = make(chan chan struct{}, 0)
+	go func() {
+		release := make(chan struct{}, 0)
+		for i := 0; i < 3; i++ {
+			running <- release
+		}
+		close(release)
+	}()
+
+	assertExecuteEqual(ctx, t, e, `
+		{
+			s1foo {
+				s1instant {
+					s2wait {
+						s2echo
+					}
+				}
+				s2instant {
+					s1wait {
+						s1echo
+					}
+				}
+			}
+			s2foo {
+				s1wait {
+					s1echo
+				}
+			}
+		}
+	`, `
+		{
+			"s1foo": {
+				"s1instant": {"s2wait": {"s2echo": "echo"}},
+				"s2instant": {"s1wait": {"s1echo": "echo"}}
+			},
+			"s2foo": {
+				"s1wait": {"s1echo": "echo"}
+			}
+		}
+	`)
+
+	// xxx: test and verify concurrency limit?
 }
