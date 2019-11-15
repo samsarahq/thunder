@@ -33,10 +33,9 @@ func (w *WorkUnit) Selection() *Selection {
 }
 
 // Splits the work unit to a series of work units (one for every source/dest pair).
-func splitWorkUnit(unit *WorkUnit) []*WorkUnit {
-	workUnits := make([]*WorkUnit, 0, len(unit.sources))
+func scheduleAsIndependentWorkUnits(ws WorkScheduler, unit *WorkUnit) {
 	for idx, source := range unit.sources {
-		workUnits = append(workUnits, &WorkUnit{
+		ws.Schedule(&WorkUnit{
 			Ctx:          unit.Ctx,
 			field:        unit.field,
 			selection:    unit.selection,
@@ -46,11 +45,9 @@ func splitWorkUnit(unit *WorkUnit) []*WorkUnit {
 			objectName:   unit.objectName,
 		})
 	}
-	return workUnits
 }
 
-// Splits the work unit to N work units (based on configuration).
-func splitToNWorkUnits(unit *WorkUnit, numUnits int) []*WorkUnit {
+func scheduleAsNWorkUnits(ws WorkScheduler, unit *WorkUnit, numUnits int) {
 	if numUnits > len(unit.sources) {
 		numUnits = len(unit.sources)
 	}
@@ -58,38 +55,38 @@ func splitToNWorkUnits(unit *WorkUnit, numUnits int) []*WorkUnit {
 		numUnits = 1
 	}
 
-	avgUnitSize := (len(unit.sources) / numUnits) + 1
-	workUnits := make([]*WorkUnit, 0, numUnits)
-	for i := 0; i < numUnits; i++ {
-		workUnits = append(workUnits, &WorkUnit{
+	// maxUnitSize is the number of items divided by the number of workers, rounded up.
+	maxUnitSize := (len(unit.sources) + numUnits - 1) / numUnits
+
+	// Assign 0..maxUnitSize to worker 1, maxUnitSize..maxUnitSize*2 to worker 2, etc.
+	for i := 0; i < len(unit.sources); i += maxUnitSize {
+		j := i + maxUnitSize
+		if j > len(unit.sources) {
+			j = len(unit.sources)
+		}
+		ws.Schedule(&WorkUnit{
 			Ctx:          unit.Ctx,
 			field:        unit.field,
 			selection:    unit.selection,
-			sources:      make([]interface{}, 0, avgUnitSize),
-			destinations: make([]*outputNode, 0, avgUnitSize),
+			sources:      unit.sources[i:j],
+			destinations: unit.destinations[i:j],
 			useBatch:     unit.useBatch,
 			objectName:   unit.objectName,
 		})
 	}
-
-	for idx, source := range unit.sources {
-		workUnits[idx%numUnits].sources = append(workUnits[idx%numUnits].sources, source)
-		workUnits[idx%numUnits].destinations = append(workUnits[idx%numUnits].destinations, unit.destinations[idx])
-	}
-
-	return workUnits
 }
 
 // UnitResolver is a function that executes a function and returns a set of
 // new work units that need to be run.
-type UnitResolver func(*WorkUnit) []*WorkUnit
+type UnitResolver func(WorkScheduler, *WorkUnit)
 
 // WorkScheduler is an interface that can be provided to the BatchExecutor
 // to control how we traverse the Execution graph.  Examples would include using
 // a bounded goroutine pool, or using unbounded goroutine generation for each
 // work unit.
 type WorkScheduler interface {
-	Run(resolver UnitResolver, startingUnits ...*WorkUnit)
+	Run()
+	Schedule(*WorkUnit)
 }
 
 func NewExecutor(scheduler WorkScheduler) ExecutorRunner {
@@ -122,12 +119,11 @@ func (e *Executor) Execute(ctx context.Context, typ Type, query *Query) (interfa
 	source := struct{}{}
 	topLevelRespWriter := newTopLevelOutputNode(query.Name)
 
-	units, err := resolveObjectBatch(ctx, []interface{}{source}, queryObject, selectionSet, []*outputNode{topLevelRespWriter})
-	if err != nil {
+	if err := resolveObjectBatch(ctx, e.scheduler, []interface{}{source}, queryObject, selectionSet, []*outputNode{topLevelRespWriter}); err != nil {
 		return nil, err
 	}
 
-	e.scheduler.Run(executeWorkUnit, units...)
+	e.scheduler.Run()
 
 	if topLevelRespWriter.errRecorder.err != nil {
 		return nil, topLevelRespWriter.errRecorder.err
@@ -135,44 +131,42 @@ func (e *Executor) Execute(ctx context.Context, typ Type, query *Query) (interfa
 	return outputNodeToJSON(topLevelRespWriter.res), nil
 }
 
-// executeWorkUnit executes/resolves a work unit and checks the
+// ExecuteWorkUnit executes/resolves a work unit and checks the
 // selections of the unit to determine if it needs to schedule more work (which
 // will be returned as new work units that will need to get scheduled.
-func executeWorkUnit(unit *WorkUnit) []*WorkUnit {
+func ExecuteWorkUnit(ws WorkScheduler, unit *WorkUnit) {
 	if unit.field.Batch && unit.useBatch {
-		return executeBatchWorkUnit(unit)
+		executeBatchWorkUnit(ws, unit)
+		return
 	}
 
 	if !unit.field.Expensive {
-		return executeNonExpensiveWorkUnit(unit)
+		executeNonExpensiveWorkUnit(ws, unit)
+		return
 	}
 
-	var units []*WorkUnit
 	for idx, src := range unit.sources {
-		units = append(units, executeNonBatchWorkUnit(unit.Ctx, src, unit.destinations[idx], unit)...)
+		executeNonBatchWorkUnit(unit.Ctx, ws, src, unit.destinations[idx], unit)
 	}
-	return units
 }
 
-func executeBatchWorkUnit(unit *WorkUnit) []*WorkUnit {
+func executeBatchWorkUnit(ws WorkScheduler, unit *WorkUnit) {
 	results, err := SafeExecuteBatchResolver(unit.Ctx, unit.field, unit.sources, unit.selection.Args, unit.selection.SelectionSet)
 	if err != nil {
 		for _, dest := range unit.destinations {
 			dest.Fail(err)
 		}
-		return nil
+		return
 	}
-	unitChildren, err := resolveBatch(unit.Ctx, results, unit.field.Type, unit.selection.SelectionSet, unit.destinations)
-	if err != nil {
+	if err := resolveBatch(unit.Ctx, ws, results, unit.field.Type, unit.selection.SelectionSet, unit.destinations); err != nil {
 		for _, dest := range unit.destinations {
 			dest.Fail(err)
 		}
-		return nil
+		return
 	}
-	return unitChildren
 }
 
-func executeNonExpensiveWorkUnit(unit *WorkUnit) []*WorkUnit {
+func executeNonExpensiveWorkUnit(ws WorkScheduler, unit *WorkUnit) {
 	results := make([]interface{}, 0, len(unit.sources))
 	for idx, src := range unit.sources {
 		ctx := unit.Ctx
@@ -186,55 +180,51 @@ func executeNonExpensiveWorkUnit(unit *WorkUnit) []*WorkUnit {
 		if err != nil {
 			// Fail the unit and exit.
 			unit.destinations[idx].Fail(err)
-			return nil
+			return
 		}
 		results = append(results, fieldResult)
 	}
-	unitChildren, err := resolveBatch(unit.Ctx, results, unit.field.Type, unit.selection.SelectionSet, unit.destinations)
-	if err != nil {
+	if err := resolveBatch(unit.Ctx, ws, results, unit.field.Type, unit.selection.SelectionSet, unit.destinations); err != nil {
 		for _, dest := range unit.destinations {
 			dest.Fail(err)
 		}
-		return nil
+		return
 	}
-	return unitChildren
 }
 
 // executeNonBatchWorkUnit resolves a non-batch field in our graphql response graph.
-func executeNonBatchWorkUnit(ctx context.Context, src interface{}, dest *outputNode, unit *WorkUnit) []*WorkUnit {
+func executeNonBatchWorkUnit(ctx context.Context, ws WorkScheduler, src interface{}, dest *outputNode, unit *WorkUnit) {
 	fieldResult, err := SafeExecuteResolver(ctx, unit.field, src, unit.selection.Args, unit.selection.SelectionSet)
 	if err != nil {
 		dest.Fail(err)
-		return nil
+		return
 	}
-	subFieldWorkUnits, err := resolveBatch(ctx, []interface{}{fieldResult}, unit.field.Type, unit.selection.SelectionSet, []*outputNode{dest})
-	if err != nil {
+	if err := resolveBatch(ctx, ws, []interface{}{fieldResult}, unit.field.Type, unit.selection.SelectionSet, []*outputNode{dest}); err != nil {
 		dest.Fail(err)
-		return nil
+		return
 	}
-	return subFieldWorkUnits
 }
 
 // resolveBatch traverses the provided sources and fills in result data and
 // returns new work units that are required to resolve the rest of the
 // query result.
-func resolveBatch(ctx context.Context, sources []interface{}, typ Type, selectionSet *SelectionSet, destinations []*outputNode) ([]*WorkUnit, error) {
+func resolveBatch(ctx context.Context, ws WorkScheduler, sources []interface{}, typ Type, selectionSet *SelectionSet, destinations []*outputNode) error {
 	if len(sources) == 0 {
-		return nil, nil
+		return nil
 	}
 	switch typ := typ.(type) {
 	case *Scalar:
-		return nil, resolveScalarBatch(sources, typ, destinations)
+		return resolveScalarBatch(sources, typ, destinations)
 	case *Enum:
-		return nil, resolveEnumBatch(sources, typ, destinations)
+		return resolveEnumBatch(sources, typ, destinations)
 	case *List:
-		return resolveListBatch(ctx, sources, typ, selectionSet, destinations)
+		return resolveListBatch(ctx, ws, sources, typ, selectionSet, destinations)
 	case *Union:
-		return resolveUnionBatch(ctx, sources, typ, selectionSet, destinations)
+		return resolveUnionBatch(ctx, ws, sources, typ, selectionSet, destinations)
 	case *Object:
-		return resolveObjectBatch(ctx, sources, typ, selectionSet, destinations)
+		return resolveObjectBatch(ctx, ws, sources, typ, selectionSet, destinations)
 	case *NonNull:
-		return resolveBatch(ctx, sources, typ.Type, selectionSet, destinations)
+		return resolveBatch(ctx, ws, sources, typ.Type, selectionSet, destinations)
 	default:
 		panic(typ)
 	}
@@ -273,7 +263,7 @@ func resolveEnumBatch(sources []interface{}, typ *Enum, destinations []*outputNo
 
 // Flattens the sources for the list type and calls into an unwrapper method for
 // the list's subtype.
-func resolveListBatch(ctx context.Context, sources []interface{}, typ *List, selectionSet *SelectionSet, destinations []*outputNode) ([]*WorkUnit, error) {
+func resolveListBatch(ctx context.Context, ws WorkScheduler, sources []interface{}, typ *List, selectionSet *SelectionSet, destinations []*outputNode) error {
 	reflectedSources := make([]reflect.Value, len(sources))
 	numFlattenedSources := 0
 	for idx, source := range sources {
@@ -299,12 +289,12 @@ func resolveListBatch(ctx context.Context, sources []interface{}, typ *List, sel
 		}
 		destinations[idx].Fill(respList)
 	}
-	return resolveBatch(ctx, flattenedSources, typ.Type, selectionSet, flattenedResps)
+	return resolveBatch(ctx, ws, flattenedSources, typ.Type, selectionSet, flattenedResps)
 }
 
 // Traverses the Union type and resolves or creates work units to resolve
 // all of the sub-objects for all the provided sources.
-func resolveUnionBatch(ctx context.Context, sources []interface{}, typ *Union, selectionSet *SelectionSet, destinations []*outputNode) ([]*WorkUnit, error) {
+func resolveUnionBatch(ctx context.Context, ws WorkScheduler, sources []interface{}, typ *Union, selectionSet *SelectionSet, destinations []*outputNode) error {
 	sourcesByType := make(map[string][]interface{}, len(typ.Types))
 	destinationsByType := make(map[string][]*outputNode, len(typ.Types))
 	for idx, src := range sources {
@@ -325,7 +315,7 @@ func resolveUnionBatch(ctx context.Context, sources []interface{}, typ *Union, s
 				continue
 			}
 			if srcType != "" {
-				return nil, fmt.Errorf("union type field should only return one value, but received: %s %s", srcType, typString)
+				return fmt.Errorf("union type field should only return one value, but received: %s %s", srcType, typString)
 			}
 			srcType = typString
 			sourcesByType[srcType] = append(sourcesByType[srcType], inner.Interface())
@@ -333,48 +323,25 @@ func resolveUnionBatch(ctx context.Context, sources []interface{}, typ *Union, s
 		}
 	}
 
-	var workUnits []*WorkUnit
 	for srcType, sources := range sourcesByType {
 		gqlType := typ.Types[srcType]
 		for _, fragment := range selectionSet.Fragments {
 			if fragment.On != srcType {
 				continue
 			}
-			units, err := resolveObjectBatch(ctx, sources, gqlType, fragment.SelectionSet, destinationsByType[srcType])
-			if err != nil {
-				return nil, err
+			if err := resolveObjectBatch(ctx, ws, sources, gqlType, fragment.SelectionSet, destinationsByType[srcType]); err != nil {
+				return err
 			}
-			workUnits = append(workUnits, units...)
 		}
 
 	}
-	return workUnits, nil
+	return nil
 }
 
 // Traverses the object selections and resolves or creates work units to resolve
 // all of the object fields for every source passed in.
-func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object, selectionSet *SelectionSet, destinations []*outputNode) ([]*WorkUnit, error) {
+func resolveObjectBatch(ctx context.Context, ws WorkScheduler, sources []interface{}, typ *Object, selectionSet *SelectionSet, destinations []*outputNode) error {
 	selections := Flatten(selectionSet)
-	numExpensive := 0
-	numNonExpensive := 0
-	for _, selection := range selections {
-		field, ok := typ.Fields[selection.Name]
-		if !ok {
-			continue
-		}
-		if shouldUseBatch(ctx, field) {
-			numNonExpensive++
-			continue
-		}
-		if field.Expensive {
-			numExpensive++
-			continue
-		}
-		if field.External {
-			numNonExpensive++
-			continue
-		}
-	}
 
 	// For every object, create a "destination" map that we can fill with our
 	// result values.  Filter out invalid/nil objects.
@@ -393,9 +360,6 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 		nonNilDestinations = append(nonNilDestinations, destMap)
 		originDestinations = append(originDestinations, destinations[idx])
 	}
-
-	// Number of Work Units = (NumExpensiveFields x NumSources) + NumNonExpensiveFields
-	workUnits := make([]*WorkUnit, 0, numNonExpensive+(numExpensive*len(nonNilSources)))
 
 	// for every selection, resolve the value or schedule an work unit for the field
 	for _, selection := range selections {
@@ -427,14 +391,14 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 		case shouldUseBatch(ctx, field):
 			unit.useBatch = true
 			if field.NumParallelInvocationsFunc != nil {
-				workUnits = append(workUnits, splitToNWorkUnits(unit, field.NumParallelInvocationsFunc(ctx, len(unit.sources)))...)
+				scheduleAsNWorkUnits(ws, unit, field.NumParallelInvocationsFunc(ctx, len(unit.sources)))
 			} else {
-				workUnits = append(workUnits, unit)
+				ws.Schedule(unit)
 			}
 		case field.Expensive:
 			// Expensive fields should be executed as multiple "Units".  The scheduler
 			// controls how the units are executed
-			workUnits = append(workUnits, splitWorkUnit(unit)...)
+			scheduleAsIndependentWorkUnits(ws, unit)
 		case field.External:
 			// External non-Expensive fields should be fast (so we can run them at the
 			// same time), but, since they are still external functions we don't want
@@ -442,17 +406,14 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 			// So we create an work unit with all the fields to execute
 			// asynchronously.
 			if field.NumParallelInvocationsFunc != nil {
-				workUnits = append(workUnits, splitToNWorkUnits(unit, field.NumParallelInvocationsFunc(ctx, len(unit.sources)))...)
+				scheduleAsNWorkUnits(ws, unit, field.NumParallelInvocationsFunc(ctx, len(unit.sources)))
 			} else {
-				workUnits = append(workUnits, unit)
+				ws.Schedule(unit)
 			}
 		default:
 			// If the fields are not expensive or external the work time should be
 			// bounded, so we can resolve them immediately.
-			workUnits = append(
-				workUnits,
-				executeWorkUnit(unit)...,
-			)
+			ExecuteWorkUnit(ws, unit)
 		}
 	}
 
@@ -463,20 +424,17 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 			destForSelection = append(destForSelection, filler)
 			destMap["__key"] = filler
 		}
-		workUnits = append(
-			workUnits,
-			executeWorkUnit(&WorkUnit{
-				Ctx:          ctx,
-				field:        typ.KeyField,
-				sources:      nonNilSources,
-				destinations: destForSelection,
-				selection:    &Selection{},
-				objectName:   typ.Name,
-			})...,
-		)
+		ExecuteWorkUnit(ws, &WorkUnit{
+			Ctx:          ctx,
+			field:        typ.KeyField,
+			sources:      nonNilSources,
+			destinations: destForSelection,
+			selection:    &Selection{},
+			objectName:   typ.Name,
+		})
 	}
 
-	return workUnits, nil
+	return nil
 }
 
 // shouldUseBatch determines whether we will execute this field as a batch

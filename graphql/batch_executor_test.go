@@ -421,20 +421,15 @@ type counterGoroutineScheduler struct {
 	count int64
 }
 
-func (q *counterGoroutineScheduler) Run(resolver graphql.UnitResolver, initialUnits ...*graphql.WorkUnit) {
-	q.runEnqueue(resolver, initialUnits...)
-
+func (q *counterGoroutineScheduler) Run() {
 	q.wg.Wait()
 }
 
-func (q *counterGoroutineScheduler) runEnqueue(resolver graphql.UnitResolver, units ...*graphql.WorkUnit) {
-	atomic.AddInt64(&q.count, int64(len(units)))
-	for _, unit := range units {
-		q.wg.Add(1)
-		go func(u *graphql.WorkUnit) {
-			defer q.wg.Done()
-			units := resolver(u)
-			q.runEnqueue(resolver, units...)
-		}(unit)
-	}
+func (q *counterGoroutineScheduler) Schedule(unit *graphql.WorkUnit) {
+	atomic.AddInt64(&q.count, 1)
+	q.wg.Add(1)
+	go func() {
+		defer q.wg.Done()
+		graphql.ExecuteWorkUnit(q, unit)
+	}()
 }
