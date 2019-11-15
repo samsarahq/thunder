@@ -88,6 +88,24 @@ func argsToJson(input []*ast.Argument, vars map[string]interface{}) (map[string]
 	return args, nil
 }
 
+func parseSelectionDirectives(directives []*ast.Directive) (SelectionFlags, error) {
+	var flags SelectionFlags
+
+	for _, directive := range directives {
+		switch directive.Name.Value {
+		case "defer":
+			if len(directive.Arguments) != 0 {
+				return SelectionFlags{}, NewClientError("unexpected arguments to defer")
+			}
+			flags.Defer = true
+		default:
+			return SelectionFlags{}, NewClientError("unknown directive %s", directive.Name.Value)
+		}
+	}
+
+	return flags, nil
+}
+
 // parseSelectionSet takes a grapqhl-go selection set and converts it to a
 // simplified *SelectionSet, bindings vars
 func parseSelectionSet(input *ast.SelectionSet, globalFragments map[string]*RawFragment, vars map[string]interface{}) (*RawSelectionSet, error) {
@@ -105,8 +123,9 @@ func parseSelectionSet(input *ast.SelectionSet, globalFragments map[string]*RawF
 				alias = selection.Alias.Value
 			}
 
-			if len(selection.Directives) != 0 {
-				return nil, NewClientError("directives not supported")
+			flags, err := parseSelectionDirectives(selection.Directives)
+			if err != nil {
+				return nil, err
 			}
 
 			args, err := argsToJson(selection.Arguments, vars)
@@ -123,6 +142,7 @@ func parseSelectionSet(input *ast.SelectionSet, globalFragments map[string]*RawF
 				Alias:        alias,
 				Name:         selection.Name.Value,
 				Args:         args,
+				Flags:        flags,
 				SelectionSet: selectionSet,
 			})
 

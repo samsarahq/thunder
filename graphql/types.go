@@ -146,6 +146,10 @@ type Schema struct {
 	Mutation Type
 }
 
+type SelectionFlags struct {
+	Defer bool
+}
+
 type RawSelectionSet struct {
 	Selections []*RawSelection
 	Fragments  []*RawFragment
@@ -155,6 +159,7 @@ type RawSelection struct {
 	Name         string
 	Alias        string
 	Args         map[string]interface{}
+	Flags        SelectionFlags
 	SelectionSet *RawSelectionSet
 }
 
@@ -206,6 +211,7 @@ type Selection struct {
 	Name         string
 	Alias        string
 	Args         interface{}
+	Flags        SelectionFlags
 	SelectionSet *SelectionSet
 }
 

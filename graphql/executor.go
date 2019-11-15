@@ -207,6 +207,7 @@ func prepareQuery(typ Type, selectionSet *RawSelectionSet, memo map[prepareQuery
 				Alias:        selection.Alias,
 				Name:         selection.Name,
 				Args:         parsed,
+				Flags:        selection.Flags,
 				SelectionSet: newChildSelectionSet,
 			})
 		}

@@ -14,11 +14,11 @@ func TestParseSupported(t *testing.T) {
 		alias: bar
 		alias: bar
 		baz(arg: 3) {
-			bah(x: 1, y: "123", z: true)
+			bah(x: 1, y: "123", z: true) @defer
 			hum(foo: {x: $var}, bug: [1, 2, [4, 5]])
 		}
 		... on Foo {
-			asd
+			asd @defer
 			... Bar
 		}
 	}
@@ -71,6 +71,9 @@ fragment Bar on Foo {
 												"y": "123",
 												"z": true,
 											},
+											Flags: SelectionFlags{
+												Defer: true,
+											},
 										},
 										{
 											Name:  "hum",
@@ -98,6 +101,9 @@ fragment Bar on Foo {
 											Name:  "asd",
 											Alias: "asd",
 											Args:  map[string]interface{}{},
+											Flags: SelectionFlags{
+												Defer: true,
+											},
 										},
 									},
 									Fragments: []*RawFragment{
@@ -212,7 +218,7 @@ func TestParseUnsupported(t *testing.T) {
 {
 	a @test
 }`, map[string]interface{}{})
-	if err == nil || err.Error() != "directives not supported" {
+	if err == nil || err.Error() != "unknown directive test" {
 		t.Error("expected directives to fail", err)
 	}
 
