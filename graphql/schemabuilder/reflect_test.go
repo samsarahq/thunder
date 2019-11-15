@@ -167,7 +167,7 @@ func TestExecuteGood(t *testing.T) {
 
 	e := graphql.NewExecutor(graphql.NewImmediateGoroutineScheduler())
 
-	result, err := e.Execute(ctx, builtSchema.Query, nil, q)
+	result, err := e.Execute(ctx, builtSchema.Query, q)
 	if err != nil {
 		t.Error(err)
 	}
@@ -364,7 +364,7 @@ func TestExecuteErrorNullReturn(t *testing.T) {
 	`, map[string]interface{}{"var": float64(3)})
 
 	e := graphql.NewExecutor(graphql.NewImmediateGoroutineScheduler())
-	_, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
+	_, err := e.Execute(context.Background(), builtSchema.Query, q)
 	if err == nil {
 		t.Error("expected error, but received nil")
 	}
@@ -390,7 +390,7 @@ func TestExecuteErrorBasic(t *testing.T) {
 	`, map[string]interface{}{"var": float64(3)})
 
 	e := graphql.NewExecutor(graphql.NewImmediateGoroutineScheduler())
-	_, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
+	_, err := e.Execute(context.Background(), builtSchema.Query, q)
 	if err == nil {
 		t.Error("expected error, but received nil")
 	}

@@ -69,7 +69,7 @@ func TestReactiveCacheResetsOnError(t *testing.T) {
 			return nil, nil
 		}
 		e := graphql.NewExecutor(graphql.NewImmediateGoroutineScheduler())
-		_, err := e.Execute(ctx, builtSchema.Query, nil, q)
+		_, err := e.Execute(ctx, builtSchema.Query, q)
 		require.Error(t, err)
 
 		require.True(t, runFinish.Inc(), "could not push finish channel")

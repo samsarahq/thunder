@@ -42,12 +42,12 @@ type ExecutorWrapper struct {
 	exactError bool
 }
 
-func (e *ExecutorWrapper) Execute(ctx context.Context, typ graphql.Type, source interface{}, query *graphql.Query) (interface{}, error) {
+func (e *ExecutorWrapper) Execute(ctx context.Context, typ graphql.Type, query *graphql.Query) (interface{}, error) {
 	var lastOutput interface{}
 	var lastErr error
 	runOnce := false
 	for _, executorAndName := range GetExecutors() {
-		output, err := executorAndName.Executor.Execute(ctx, typ, source, query)
+		output, err := executorAndName.Executor.Execute(ctx, typ, query)
 		if !runOnce {
 			lastOutput = output
 			lastErr = err

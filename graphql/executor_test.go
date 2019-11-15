@@ -130,7 +130,7 @@ func TestBasic(t *testing.T) {
 	}`, nil)
 
 	e := testgraphql.NewExecutorWrapper(t)
-	result, err := e.Execute(context.Background(), query, nil, q)
+	result, err := e.Execute(context.Background(), query, q)
 	if err != nil {
 		t.Error(err)
 	}
@@ -183,7 +183,7 @@ func TestRepeatedFragment(t *testing.T) {
 	`, nil)
 
 	e := testgraphql.NewExecutorWrapper(t)
-	_, err := e.Execute(context.Background(), query, nil, q)
+	_, err := e.Execute(context.Background(), query, q)
 	if err != nil {
 		t.Error(err)
 	}
@@ -253,7 +253,7 @@ func TestError(t *testing.T) {
 	`, map[string]interface{}{})
 
 	e := testgraphql.NewExecutorWrapper(t)
-	_, err := e.Execute(context.Background(), query, nil, q)
+	_, err := e.Execute(context.Background(), query, q)
 	if err == nil || err.Error() != "foo.error: test error" {
 		t.Error("expected test error")
 	}
@@ -271,7 +271,7 @@ func TestPanic(t *testing.T) {
 	`, nil)
 
 	e := testgraphql.NewExecutorWrapperWithoutExactErrorMatch(t)
-	_, err := e.Execute(context.Background(), query, nil, q)
+	_, err := e.Execute(context.Background(), query, q)
 	if err == nil || !strings.Contains(err.Error(), "test panic") {
 		t.Error("expected test panic")
 	}
@@ -335,7 +335,7 @@ func TestExecutorRuns(t *testing.T) {
 			e := testgraphql.NewExecutorWrapper(t)
 
 			ctx := context.Background()
-			res, err := e.Execute(ctx, schema.Query, nil, q)
+			res, err := e.Execute(ctx, schema.Query, q)
 			if tt.wantError != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.wantError)

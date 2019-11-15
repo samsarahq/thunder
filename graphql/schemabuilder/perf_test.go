@@ -47,7 +47,7 @@ func BenchmarkSimpleExecute(b *testing.B) {
 				done := make(chan struct{}, 0)
 				reactive.NewRerunner(ctx, func(ctx context.Context) (interface{}, error) {
 
-					_, err := e.Execute(ctx, builtSchema.Query, nil, q)
+					_, err := e.Execute(ctx, builtSchema.Query, q)
 					if err != nil {
 						b.Error(err)
 					}

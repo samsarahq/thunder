@@ -69,7 +69,7 @@ func TestUnionType(t *testing.T) {
 
 	e := testgraphql.NewExecutorWrapper(t)
 
-	result, err := e.Execute(ctx, builtSchema.Query, nil, q)
+	result, err := e.Execute(ctx, builtSchema.Query, q)
 	if err != nil {
 		t.Error(err)
 	}
@@ -200,7 +200,7 @@ func TestBadUnionNonOneHot(t *testing.T) {
 	for _, execWithName := range testgraphql.GetExecutors() {
 		t.Run(execWithName.Name, func(t *testing.T) {
 			e := execWithName.Executor
-			_, err := e.Execute(ctx, builtSchema.Query, nil, q)
+			_, err := e.Execute(ctx, builtSchema.Query, q)
 			if err == nil {
 				t.Error("expected err, received nil")
 			}
@@ -235,7 +235,7 @@ func TestUnionList(t *testing.T) {
 	q := graphql.MustParse(`{ list { ... on UnionPart1 { otherThing } ... on UnionPart2 { thing } } }`, map[string]interface{}{"var": float64(3)})
 
 	e := testgraphql.NewExecutorWrapper(t)
-	result, err := e.Execute(ctx, builtSchema.Query, nil, q)
+	result, err := e.Execute(ctx, builtSchema.Query, q)
 	if err != nil {
 		t.Errorf("expected no error, received %s", err.Error())
 	}
@@ -274,7 +274,7 @@ func TestUnionStruct(t *testing.T) {
 	q := graphql.MustParse(`{ wrapper { x {... on UnionPart1 { otherThing } ... on UnionPart2 { thing } } } }`, map[string]interface{}{"var": float64(3)})
 
 	e := testgraphql.NewExecutorWrapper(t)
-	result, err := e.Execute(ctx, builtSchema.Query, nil, q)
+	result, err := e.Execute(ctx, builtSchema.Query, q)
 	if err != nil {
 		t.Errorf("expected no error, received %s", err.Error())
 	}

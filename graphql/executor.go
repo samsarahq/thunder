@@ -259,7 +259,7 @@ func SafeExecuteResolver(ctx context.Context, field *Field, source, args interfa
 }
 
 type ExecutorRunner interface {
-	Execute(ctx context.Context, typ Type, source interface{}, query *Query) (interface{}, error)
+	Execute(ctx context.Context, typ Type, query *Query) (interface{}, error)
 }
 
 type resolveAndExecuteCacheKey struct {

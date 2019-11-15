@@ -37,7 +37,7 @@ func (s *Server) Execute(ctx context.Context, req *thunderpb.ExecuteRequest) (*t
 	gqlSelectionSet := convertSelectionSet(selectionSet)
 
 	gqlExec := graphql.NewExecutor(graphql.NewImmediateGoroutineScheduler())
-	res, err := gqlExec.Execute(context.Background(), s.schema.Query, nil, &graphql.Query{
+	res, err := gqlExec.Execute(context.Background(), s.schema.Query, &graphql.Query{
 		Kind:         "query",
 		Name:         "",
 		SelectionSet: gqlSelectionSet,

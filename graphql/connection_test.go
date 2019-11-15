@@ -730,7 +730,7 @@ func TestEmbeddedArgs(t *testing.T) {
 	    }`, nil)
 
 	e := testgraphql.NewExecutorWrapper(t)
-	val, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
+	val, err := e.Execute(context.Background(), builtSchema.Query, q)
 	assert.Nil(t, err)
 
 	assert.Equal(t, map[string]interface{}{
@@ -943,7 +943,7 @@ func TestPaginatedFilters(t *testing.T) {
 			}
 		}`, nil)
 	e := testgraphql.NewExecutorWrapper(t)
-	val, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
+	val, err := e.Execute(context.Background(), builtSchema.Query, q)
 	assert.Nil(t, err)
 	assert.Equal(t, map[string]interface{}{
 		"inner": map[string]interface{}{
@@ -1140,7 +1140,7 @@ func TestPaginatedSorts(t *testing.T) {
 
 	for _, q := range queries {
 		e := testgraphql.NewExecutorWrapper(t)
-		val, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
+		val, err := e.Execute(context.Background(), builtSchema.Query, q)
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]interface{}{
 			"inner": map[string]interface{}{
@@ -1215,7 +1215,7 @@ func TestPaginatedSorts(t *testing.T) {
 
 	for _, q := range queries {
 		e := testgraphql.NewExecutorWrapper(t)
-		val, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
+		val, err := e.Execute(context.Background(), builtSchema.Query, q)
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]interface{}{
 			"inner": map[string]interface{}{

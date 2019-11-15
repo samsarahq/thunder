@@ -391,7 +391,7 @@ func TestNonExpensiveExecution(t *testing.T) {
 			e := graphql.NewExecutor(c)
 
 			ctx := context.Background()
-			res, err := e.Execute(ctx, schema.Query, nil, q)
+			res, err := e.Execute(ctx, schema.Query, q)
 			if tt.wantError != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.wantError)

@@ -115,7 +115,7 @@ type cachePrepareKey struct {
 // or executing fields.  Any work that needs to be done is passed off to the
 // scheduler to handle managing concurrency of the request.
 // It must return a JSON marshallable response (or an error).
-func (e *Executor) Execute(ctx context.Context, typ Type, source interface{}, query *Query) (interface{}, error) {
+func (e *Executor) Execute(ctx context.Context, typ Type, query *Query) (interface{}, error) {
 	queryObject, ok := typ.(*Object)
 	if !ok {
 		return nil, fmt.Errorf("expected query or mutation object for execution, got: %s", typ.String())
@@ -128,39 +128,21 @@ func (e *Executor) Execute(ctx context.Context, typ Type, source interface{}, qu
 		return nil, err
 	}
 	selectionSet := selectionSetIface.(*SelectionSet)
-
-	topLevelSelections := Flatten(selectionSet)
+	// Dummy source value to bypass the nil check in resolveObjectBatch.
+	source := struct{}{}
 	topLevelRespWriter := newTopLevelOutputNode(query.Name)
-	initialSelectionWorkUnits := make([]*WorkUnit, 0, len(topLevelSelections))
-	writers := make(map[string]*outputNode)
-	for _, selection := range topLevelSelections {
-		field, ok := queryObject.Fields[selection.Name]
-		if !ok {
-			return nil, fmt.Errorf("invalid top-level selection %q", selection.Name)
-		}
 
-		writer := newOutputNode(topLevelRespWriter, selection.Alias)
-		writers[selection.Alias] = writer
-
-		initialSelectionWorkUnits = append(
-			initialSelectionWorkUnits,
-			&WorkUnit{
-				Ctx:          ctx,
-				sources:      []interface{}{source},
-				field:        field,
-				destinations: []*outputNode{writer},
-				selection:    selection,
-				objectName:   queryObject.Name,
-			},
-		)
+	units, err := resolveObjectBatch(ctx, []interface{}{source}, queryObject, selectionSet, []*outputNode{topLevelRespWriter})
+	if err != nil {
+		return nil, err
 	}
 
-	e.scheduler.Run(executeWorkUnit, initialSelectionWorkUnits...)
+	e.scheduler.Run(executeWorkUnit, units...)
 
 	if topLevelRespWriter.errRecorder.err != nil {
 		return nil, topLevelRespWriter.errRecorder.err
 	}
-	return outputNodeToJSON(writers), nil
+	return outputNodeToJSON(topLevelRespWriter.res), nil
 }
 
 // executeWorkUnit executes/resolves a work unit and checks the
@@ -226,21 +208,6 @@ func executeNonExpensiveWorkUnit(unit *WorkUnit) []*WorkUnit {
 		return nil
 	}
 	return unitChildren
-}
-
-// getWorkCacheKey gets the work cache key for the provided source.
-func getWorkCacheKey(src interface{}, field *Field, selection *Selection) resolveAndExecuteCacheKey {
-	value := reflect.ValueOf(src)
-	// cache the body of resolve and execute so that if the source doesn't change, we
-	// don't need to recompute
-	key := resolveAndExecuteCacheKey{field: field, source: src, selection: selection}
-	// some types can't be put in a map; for those, use a always different value
-	// as source
-	if value.IsValid() && !value.Type().Comparable() {
-		// TODO: Warn, or somehow prevent using type-system?
-		key.source = new(byte)
-	}
-	return key
 }
 
 // executeNonBatchWorkUnit resolves a non-batch field in our graphql response graph.
