@@ -363,8 +363,6 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 }
 
 // todo
-// concurrent execution
-//
 // defer
 //
 // failure boundaries, timeouts (?)
@@ -389,3 +387,5 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 // caching?
 //
 // analyze current schema, measure number of package transitions / expected plan depth(s)
+//
+// if, unless

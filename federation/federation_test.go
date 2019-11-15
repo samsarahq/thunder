@@ -126,8 +126,6 @@ func buildTestSchema2() *schemabuilder.Schema {
 
 	foo := schema.Object("Foo", Foo{})
 
-	// XXX: require schema.Key
-
 	foo.FieldFunc("s2ok", func(ctx context.Context, in *Foo) (int, error) {
 		return len(in.Name), nil
 	})
