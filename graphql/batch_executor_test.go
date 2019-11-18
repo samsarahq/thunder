@@ -3,8 +3,6 @@ package graphql_test
 import (
 	"context"
 	"errors"
-	"sync"
-	"sync/atomic"
 	"testing"
 
 	"github.com/samsarahq/thunder/batch"
@@ -14,6 +12,62 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestDeferredExecution(t *testing.T) {
+	barCh := make(chan struct{})
+
+	sb := schemabuilder.NewSchema()
+	query := sb.Query()
+	query.FieldFunc("foo", func() string {
+		return "foo"
+	}, schemabuilder.Expensive)
+	query.FieldFunc("bar", func() string {
+		<-barCh
+		return "bar"
+	}, schemabuilder.Expensive)
+	schema := sb.MustBuild()
+
+	c := graphql.NewImmediateGoroutineScheduler()
+	e := graphql.NewExecutor(c)
+
+	q := graphql.MustParse(`
+			{
+				foo: foo
+				bar: bar @defer
+			}`, nil)
+	ctx := context.Background()
+
+	outCh := make(chan interface{}, 2)
+	go func() {
+		err := e.DeferredExecute(ctx, schema.Query, q, outCh)
+		require.NoError(t, err)
+	}()
+
+	first := <-outCh
+	assert.Equal(t, internal.ParseJSON(`
+		{"foo": "foo", "bar": null}
+	`), internal.AsJSON(first))
+	barCh <- struct{}{}
+	second := <-outCh
+	assert.Equal(t, internal.ParseJSON(`
+		{"foo": "foo", "bar": "bar"}
+	`), internal.AsJSON(second))
+
+	/*
+		wantParsedJSON := internal.ParseJSON(tt.wantResultJSON)
+		gotJSON := internal.AsJSON(res)
+
+		require.Equal(
+			t,
+			wantParsedJSON,
+			gotJSON,
+			"Mismatch for expected vs actual response.  Want:\n%s\nGot:\n%s",
+			internal.MarshalJSON(wantParsedJSON),
+			internal.MarshalJSON(gotJSON),
+		)
+		require.Equal(t, tt.wantRuns, c.Counter(), "unexpected number of work units")
+	*/
+}
 
 func TestNonExpensiveExecution(t *testing.T) {
 	type Object struct {
@@ -387,7 +441,7 @@ func TestNonExpensiveExecution(t *testing.T) {
 
 			q := graphql.MustParse(tt.query, nil)
 
-			c := &counterGoroutineScheduler{}
+			c := graphql.NewImmediateGoroutineScheduler()
 			e := graphql.NewExecutor(c)
 
 			ctx := context.Background()
@@ -410,26 +464,7 @@ func TestNonExpensiveExecution(t *testing.T) {
 				internal.MarshalJSON(wantParsedJSON),
 				internal.MarshalJSON(gotJSON),
 			)
-			require.Equal(t, tt.wantRuns, c.count, "unexpected number of work units")
+			require.Equal(t, tt.wantRuns, c.Counter(), "unexpected number of work units")
 		})
 	}
-}
-
-type counterGoroutineScheduler struct {
-	wg sync.WaitGroup
-
-	count int64
-}
-
-func (q *counterGoroutineScheduler) Run() {
-	q.wg.Wait()
-}
-
-func (q *counterGoroutineScheduler) Schedule(unit *graphql.WorkUnit) {
-	atomic.AddInt64(&q.count, 1)
-	q.wg.Add(1)
-	go func() {
-		defer q.wg.Done()
-		graphql.ExecuteWorkUnit(q, unit)
-	}()
 }

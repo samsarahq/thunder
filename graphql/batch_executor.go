@@ -85,11 +85,12 @@ type UnitResolver func(WorkScheduler, *WorkUnit)
 // a bounded goroutine pool, or using unbounded goroutine generation for each
 // work unit.
 type WorkScheduler interface {
-	Run()
+	WaitEarly()
+	WaitAll()
 	Schedule(*WorkUnit)
 }
 
-func NewExecutor(scheduler WorkScheduler) ExecutorRunner {
+func NewExecutor(scheduler WorkScheduler) *Executor {
 	return &Executor{
 		scheduler: scheduler,
 	}
@@ -101,11 +102,7 @@ type Executor struct {
 	scheduler WorkScheduler
 }
 
-// Execute executes a query by traversing the GraphQL query graph and resolving
-// or executing fields.  Any work that needs to be done is passed off to the
-// scheduler to handle managing concurrency of the request.
-// It must return a JSON marshallable response (or an error).
-func (e *Executor) Execute(ctx context.Context, typ Type, query *Query) (interface{}, error) {
+func (e *Executor) executePrep(ctx context.Context, typ Type, query *Query) (*outputNode, error) {
 	queryObject, ok := typ.(*Object)
 	if !ok {
 		return nil, fmt.Errorf("expected query or mutation object for execution, got: %s", typ.String())
@@ -123,12 +120,50 @@ func (e *Executor) Execute(ctx context.Context, typ Type, query *Query) (interfa
 		return nil, err
 	}
 
-	e.scheduler.Run()
+	return topLevelRespWriter, nil
+}
 
+// Execute executes a query by traversing the GraphQL query graph and resolving
+// or executing fields.  Any work that needs to be done is passed off to the
+// scheduler to handle managing concurrency of the request.
+// It must return a JSON marshallable response (or an error).
+func (e *Executor) Execute(ctx context.Context, typ Type, query *Query) (interface{}, error) {
+	topLevelRespWriter, err := e.executePrep(ctx, typ, query)
+	if err != nil {
+		return nil, err
+	}
+
+	e.scheduler.WaitAll()
 	if topLevelRespWriter.errRecorder.err != nil {
 		return nil, topLevelRespWriter.errRecorder.err
 	}
-	return outputNodeToJSON(topLevelRespWriter.res), nil
+
+	return outputNodeToJSON(topLevelRespWriter.res, true), nil
+}
+
+// DeferredExecute executes a query by traversing the GraphQL query graph and resolving
+// or executing fields.  Any work that needs to be done is passed off to the
+// scheduler to handle managing concurrency of the request.
+// It must return a JSON marshallable response (or an error).
+func (e *Executor) DeferredExecute(ctx context.Context, typ Type, query *Query, out chan<- interface{}) error {
+	topLevelRespWriter, err := e.executePrep(ctx, typ, query)
+	if err != nil {
+		return err
+	}
+
+	e.scheduler.WaitEarly()
+	if topLevelRespWriter.errRecorder.err != nil {
+		return topLevelRespWriter.errRecorder.err
+	}
+	out <- outputNodeToJSON(topLevelRespWriter.res, false)
+
+	e.scheduler.WaitAll()
+	if topLevelRespWriter.errRecorder.err != nil {
+		return topLevelRespWriter.errRecorder.err
+	}
+	out <- outputNodeToJSON(topLevelRespWriter.res, true)
+
+	return nil
 }
 
 // ExecuteWorkUnit executes/resolves a work unit and checks the
@@ -282,7 +317,7 @@ func resolveListBatch(ctx context.Context, ws WorkScheduler, sources []interface
 		}
 		respList := make([]interface{}, slice.Len())
 		for i := 0; i < slice.Len(); i++ {
-			writer := newOutputNode(destinations[idx], strconv.Itoa(i))
+			writer := newOutputNode(destinations[idx], strconv.Itoa(i), false)
 			respList[i] = writer
 			flattenedResps = append(flattenedResps, writer)
 			flattenedSources = append(flattenedSources, slice.Index(i).Interface())
@@ -372,7 +407,7 @@ func resolveObjectBatch(ctx context.Context, ws WorkScheduler, sources []interfa
 
 		destForSelection := make([]*outputNode, 0, len(nonNilDestinations))
 		for idx, destMap := range nonNilDestinations {
-			filler := newOutputNode(originDestinations[idx], selection.Alias)
+			filler := newOutputNode(originDestinations[idx], selection.Alias, selection.Flags.Defer)
 			destForSelection = append(destForSelection, filler)
 			destMap[selection.Alias] = filler
 		}
@@ -386,6 +421,8 @@ func resolveObjectBatch(ctx context.Context, ws WorkScheduler, sources []interfa
 			selection:    selection,
 			objectName:   typ.Name,
 		}
+
+		// XXX: anything deferred must go through scheduler??
 
 		switch {
 		case shouldUseBatch(ctx, field):
@@ -420,7 +457,7 @@ func resolveObjectBatch(ctx context.Context, ws WorkScheduler, sources []interfa
 	if typ.KeyField != nil {
 		destForSelection := make([]*outputNode, 0, len(nonNilDestinations))
 		for idx, destMap := range nonNilDestinations {
-			filler := newOutputNode(originDestinations[idx], "__key")
+			filler := newOutputNode(originDestinations[idx], "__key", false)
 			destForSelection = append(destForSelection, filler)
 			destMap["__key"] = filler
 		}
