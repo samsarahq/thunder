@@ -32,18 +32,20 @@ func (r *immediateGoroutineScheduler) Counter() int64 {
 func (r *immediateGoroutineScheduler) Schedule(unit *WorkUnit) {
 	atomic.AddInt64(&r.counter, 1)
 
-	if len(unit.destinations) == 0 {
-		panic("no destinations")
-	}
+	deferred := false
 
-	for _, d := range unit.destinations {
-		if d.deferred != unit.destinations[0].deferred {
-			panic("inconsistent defer")
+	// XXX: how come destinations can have len 0??
+	if len(unit.destinations) > 0 {
+		for _, d := range unit.destinations {
+			if d.deferred != unit.destinations[0].deferred {
+				panic("inconsistent defer")
+			}
 		}
+		deferred = unit.destinations[0].deferred
 	}
 
 	wg := &r.wgEarly
-	if unit.destinations[0].deferred {
+	if deferred {
 		wg = &r.wgAll
 	}
 	wg.Add(1)

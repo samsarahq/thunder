@@ -133,6 +133,7 @@ func (e *Executor) Execute(ctx context.Context, typ Type, query *Query) (interfa
 		return nil, err
 	}
 
+	e.scheduler.WaitEarly()
 	e.scheduler.WaitAll()
 	if topLevelRespWriter.errRecorder.err != nil {
 		return nil, topLevelRespWriter.errRecorder.err
