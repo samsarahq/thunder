@@ -8,6 +8,7 @@
             {
               "fields": [
                 {
+                  "args": [],
                   "name": "__federation",
                   "type": {
                     "kind": "NON_NULL",
@@ -20,6 +21,7 @@
                   }
                 },
                 {
+                  "args": [],
                   "name": "id",
                   "type": {
                     "kind": "NON_NULL",
@@ -32,6 +34,7 @@
                   }
                 },
                 {
+                  "args": [],
                   "name": "s1baz",
                   "type": {
                     "kind": "NON_NULL",
@@ -44,6 +47,7 @@
                   }
                 }
               ],
+              "inputFields": [],
               "kind": "OBJECT",
               "name": "Bar",
               "possibleTypes": []
@@ -51,6 +55,28 @@
             {
               "fields": [
                 {
+                  "args": [
+                    {
+                      "name": "keys",
+                      "type": {
+                        "kind": "NON_NULL",
+                        "name": "",
+                        "ofType": {
+                          "kind": "LIST",
+                          "name": "",
+                          "ofType": {
+                            "kind": "NON_NULL",
+                            "name": "",
+                            "ofType": {
+                              "kind": "SCALAR",
+                              "name": "int64",
+                              "ofType": null
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ],
                   "name": "Bar",
                   "type": {
                     "kind": "NON_NULL",
@@ -71,6 +97,28 @@
                   }
                 },
                 {
+                  "args": [
+                    {
+                      "name": "keys",
+                      "type": {
+                        "kind": "NON_NULL",
+                        "name": "",
+                        "ofType": {
+                          "kind": "LIST",
+                          "name": "",
+                          "ofType": {
+                            "kind": "NON_NULL",
+                            "name": "",
+                            "ofType": {
+                              "kind": "SCALAR",
+                              "name": "string",
+                              "ofType": null
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ],
                   "name": "Foo",
                   "type": {
                     "kind": "NON_NULL",
@@ -91,6 +139,7 @@
                   }
                 }
               ],
+              "inputFields": [],
               "kind": "OBJECT",
               "name": "Federation",
               "possibleTypes": []
@@ -98,6 +147,7 @@
             {
               "fields": [
                 {
+                  "args": [],
                   "name": "__federation",
                   "type": {
                     "kind": "NON_NULL",
@@ -110,6 +160,7 @@
                   }
                 },
                 {
+                  "args": [],
                   "name": "name",
                   "type": {
                     "kind": "NON_NULL",
@@ -122,6 +173,7 @@
                   }
                 },
                 {
+                  "args": [],
                   "name": "s1hmm",
                   "type": {
                     "kind": "SCALAR",
@@ -130,6 +182,7 @@
                   }
                 },
                 {
+                  "args": [],
                   "name": "s1nest",
                   "type": {
                     "kind": "OBJECT",
@@ -138,6 +191,7 @@
                   }
                 },
                 {
+                  "args": [],
                   "name": "s2bar",
                   "type": {
                     "kind": "OBJECT",
@@ -146,6 +200,7 @@
                   }
                 },
                 {
+                  "args": [],
                   "name": "s2nest",
                   "type": {
                     "kind": "OBJECT",
@@ -154,6 +209,7 @@
                   }
                 },
                 {
+                  "args": [],
                   "name": "s2ok",
                   "type": {
                     "kind": "NON_NULL",
@@ -166,12 +222,14 @@
                   }
                 }
               ],
+              "inputFields": [],
               "kind": "OBJECT",
               "name": "Foo",
               "possibleTypes": []
             },
             {
               "fields": [],
+              "inputFields": [],
               "kind": "UNION",
               "name": "FooOrBar",
               "possibleTypes": [
@@ -189,13 +247,47 @@
             },
             {
               "fields": [],
+              "inputFields": [],
               "kind": "OBJECT",
               "name": "Mutation",
               "possibleTypes": []
             },
             {
+              "fields": [],
+              "inputFields": [
+                {
+                  "name": "a",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "int64",
+                      "ofType": null
+                    }
+                  }
+                },
+                {
+                  "name": "b",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "int64",
+                      "ofType": null
+                    }
+                  }
+                }
+              ],
+              "kind": "INPUT_OBJECT",
+              "name": "Pair_InputObject",
+              "possibleTypes": []
+            },
+            {
               "fields": [
                 {
+                  "args": [],
                   "name": "__federation",
                   "type": {
                     "kind": "NON_NULL",
@@ -208,6 +300,7 @@
                   }
                 },
                 {
+                  "args": [],
                   "name": "s1both",
                   "type": {
                     "kind": "NON_NULL",
@@ -228,6 +321,53 @@
                   }
                 },
                 {
+                  "args": [
+                    {
+                      "name": "foo",
+                      "type": {
+                        "kind": "NON_NULL",
+                        "name": "",
+                        "ofType": {
+                          "kind": "SCALAR",
+                          "name": "string",
+                          "ofType": null
+                        }
+                      }
+                    },
+                    {
+                      "name": "optional",
+                      "type": {
+                        "kind": "SCALAR",
+                        "name": "int64",
+                        "ofType": null
+                      }
+                    },
+                    {
+                      "name": "required",
+                      "type": {
+                        "kind": "NON_NULL",
+                        "name": "",
+                        "ofType": {
+                          "kind": "INPUT_OBJECT",
+                          "name": "Pair_InputObject",
+                          "ofType": null
+                        }
+                      }
+                    }
+                  ],
+                  "name": "s1echo",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "string",
+                      "ofType": null
+                    }
+                  }
+                },
+                {
+                  "args": [],
                   "name": "s1f",
                   "type": {
                     "kind": "OBJECT",
@@ -236,6 +376,7 @@
                   }
                 },
                 {
+                  "args": [],
                   "name": "s1fff",
                   "type": {
                     "kind": "NON_NULL",
@@ -256,6 +397,7 @@
                   }
                 },
                 {
+                  "args": [],
                   "name": "s2root",
                   "type": {
                     "kind": "NON_NULL",
@@ -268,24 +410,28 @@
                   }
                 }
               ],
+              "inputFields": [],
               "kind": "OBJECT",
               "name": "Query",
               "possibleTypes": []
             },
             {
               "fields": [],
+              "inputFields": [],
               "kind": "SCALAR",
               "name": "int",
               "possibleTypes": []
             },
             {
               "fields": [],
+              "inputFields": [],
               "kind": "SCALAR",
               "name": "int64",
               "possibleTypes": []
             },
             {
               "fields": [],
+              "inputFields": [],
               "kind": "SCALAR",
               "name": "string",
               "possibleTypes": []

@@ -48,6 +48,7 @@ func TestPlan(t *testing.T) {
 							name
 						}
 					}
+					s1echo(foo: "foo", pair: {a: 1, b: 3})
 					s1both {
 						... on Foo {
 							name
@@ -78,6 +79,7 @@ func TestPlan(t *testing.T) {
 							}
 							__federation
 						}
+						s1echo(foo: "foo", pair: {a: 1, b: 3})
 						s1both {
 							__typename
 							... on Bar {

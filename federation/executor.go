@@ -260,7 +260,8 @@ type executorContext struct {
 }
 
 func (ec *executorContext) setError(err error) {
-	if ec.err != nil {
+	// XXX: test
+	if ec.err == nil {
 		ec.err = err
 	}
 }

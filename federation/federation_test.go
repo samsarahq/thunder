@@ -43,6 +43,10 @@ type FooOrBar struct {
 	*Bar
 }
 
+type Pair struct {
+	A, B int64
+}
+
 func buildTestSchema1() *schemabuilder.Schema {
 	schema := schemabuilder.NewSchema()
 
@@ -61,6 +65,14 @@ func buildTestSchema1() *schemabuilder.Schema {
 				Name: "bob",
 			},
 		}
+	})
+
+	query.FieldFunc("s1echo", func(args struct {
+		Foo      string
+		Required Pair
+		Optional *int64
+	}) string {
+		return fmt.Sprintf("%s %v %v", args.Foo, args.Required, args.Optional)
 	})
 
 	foo := schema.Object("Foo", Foo{})
@@ -273,6 +285,7 @@ func TestExecutor(t *testing.T) {
 							name
 						}
 					}
+					s1echo(foo: "foo", required: {a: 1, b: 3})
 					s1both {
 						... on Foo {
 							name
@@ -319,6 +332,7 @@ func TestExecutor(t *testing.T) {
 						"name": "bob"
 					}
 				}],
+				"s1echo": "foo {1 3} <nil>",
 				"s1both": [{
 					"__typename": "Foo",
 					"name": "this is the foo",
@@ -343,11 +357,11 @@ func TestExecutor(t *testing.T) {
 	}
 }
 
-// TestExecutorConcurrency tests that plans that can run concurrently do run
+// TestConcurrency tests that plans that can run concurrently do run
 // concurrently.
 //
 // It's not a very exhaustive test.
-func TestExecutorConcurrency(t *testing.T) {
+func TestConcurrency(t *testing.T) {
 	type Foo struct {
 	}
 
