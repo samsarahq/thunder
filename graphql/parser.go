@@ -282,6 +282,9 @@ func detectConflicts(selectionSet *RawSelectionSet) error {
 					if !reflect.DeepEqual(other.Args, selection.Args) {
 						return NewClientError("same alias with different args")
 					}
+					if !reflect.DeepEqual(other.Flags, selection.Flags) {
+						return NewClientError("same alias with different flags")
+					}
 				} else {
 					selections[selection.Alias] = selection
 				}
@@ -507,6 +510,7 @@ func Flatten(selectionSet *SelectionSet) []*Selection {
 			Name:         selections[0].Name,
 			Alias:        selections[0].Alias,
 			Args:         selections[0].Args,
+			Flags:        selections[0].Flags,
 			SelectionSet: merged,
 		})
 	}
