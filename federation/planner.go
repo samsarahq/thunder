@@ -21,8 +21,8 @@ type PathStep struct {
 }
 
 type Plan struct {
-	PathStep []PathStep
-	Service  string
+	Path    []PathStep
+	Service string
 	// XXX: What are we using Type for here again? -- oh, it's for the __federation field...
 	Type         string
 	SelectionSet *SelectionSet
@@ -101,7 +101,7 @@ func (e *Executor) planObject(typ *graphql.Object, selectionSet *SelectionSet, s
 
 		if childPlan != nil {
 			for _, subPlan := range childPlan.After {
-				subPlan.PathStep = append(subPlan.PathStep, PathStep{Kind: KindField, Name: selection.Alias})
+				subPlan.Path = append(subPlan.Path, PathStep{Kind: KindField, Name: selection.Alias})
 				p.After = append(p.After, subPlan)
 			}
 		}
@@ -207,7 +207,7 @@ func (e *Executor) planUnion(typ *graphql.Union, selectionSet *SelectionSet, ser
 
 		// Make subplans conditional on the current type.
 		for _, subPlan := range concretePlan.After {
-			subPlan.PathStep = append(subPlan.PathStep, PathStep{Kind: KindType, Name: typ.Name})
+			subPlan.Path = append(subPlan.Path, PathStep{Kind: KindType, Name: typ.Name})
 			plan.After = append(plan.After, subPlan)
 		}
 	}
@@ -238,9 +238,9 @@ func (e *Executor) plan(typIface graphql.Type, selectionSet *SelectionSet, servi
 //
 // Building reverse plans is easier with append, this cleans up the mess.
 func reversePaths(p *Plan) {
-	for i := 0; i < len(p.PathStep)/2; i++ {
-		j := len(p.PathStep) - 1 - i
-		p.PathStep[i], p.PathStep[j] = p.PathStep[j], p.PathStep[i]
+	for i := 0; i < len(p.Path)/2; i++ {
+		j := len(p.Path) - 1 - i
+		p.Path[i], p.Path[j] = p.Path[j], p.Path[i]
 	}
 	for _, p := range p.After {
 		reversePaths(p)

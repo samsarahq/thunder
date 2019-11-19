@@ -66,10 +66,8 @@ func TestPlan(t *testing.T) {
 			`,
 			Output: []*Plan{
 				{
-					// Path:    nil,
-					PathStep: nil,
-					Service:  "schema1",
-					Type:     "Query",
+					Service: "schema1",
+					Type:    "Query",
 					SelectionSet: mustParse(`{
 						s1fff {
 							a: s1nest { b: s1nest { c: s1nest { __federation } } }
@@ -96,8 +94,7 @@ func TestPlan(t *testing.T) {
 					}`),
 					After: []*Plan{
 						{
-							//Path:    []string{"s1fff", "a", "b", "c"},
-							PathStep: []PathStep{
+							Path: []PathStep{
 								{Kind: KindField, Name: "s1fff"},
 								{Kind: KindField, Name: "a"},
 								{Kind: KindField, Name: "b"},
@@ -110,7 +107,7 @@ func TestPlan(t *testing.T) {
 							}`),
 						},
 						{
-							PathStep: []PathStep{
+							Path: []PathStep{
 								{Kind: KindField, Name: "s1fff"},
 							},
 							Type:    "Foo",
@@ -127,7 +124,7 @@ func TestPlan(t *testing.T) {
 							}`),
 							After: []*Plan{
 								{
-									PathStep: []PathStep{
+									Path: []PathStep{
 										{Kind: KindField, Name: "s2bar"},
 									},
 									Type:    "Bar",
@@ -139,7 +136,7 @@ func TestPlan(t *testing.T) {
 							},
 						},
 						{
-							PathStep: []PathStep{
+							Path: []PathStep{
 								{Kind: KindField, Name: "s1both"},
 								{Kind: KindType, Name: "Foo"},
 								{Kind: KindField, Name: "a"},
@@ -153,7 +150,7 @@ func TestPlan(t *testing.T) {
 							}`),
 						},
 						{
-							PathStep: []PathStep{
+							Path: []PathStep{
 								{Kind: KindField, Name: "s1both"},
 								{Kind: KindType, Name: "Foo"},
 							},
@@ -166,9 +163,8 @@ func TestPlan(t *testing.T) {
 					},
 				},
 				{
-					PathStep: nil,
-					Service:  "schema2",
-					Type:     "Query",
+					Service: "schema2",
+					Type:    "Query",
 					SelectionSet: mustParse(`{
 						s2root
 					}`),
@@ -195,7 +191,7 @@ func TestPlan(t *testing.T) {
 					}`),
 					After: []*Plan{
 						{
-							PathStep: []PathStep{
+							Path: []PathStep{
 								{Kind: KindField, Name: "s1addFoo"},
 							},
 							Type:    "Foo",

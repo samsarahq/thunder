@@ -284,8 +284,8 @@ func (ec *executorContext) execute(ctx context.Context, p *Plan, keys []interfac
 		subPlan := subPlan
 		var pf pathFollower
 		if p.Service != "no-such-service" {
-			if err := pf.extractTargets(res, subPlan.PathStep); err != nil {
-				return nil, fmt.Errorf("failed to follow path %v: %v", subPlan.PathStep, err)
+			if err := pf.extractTargets(res, subPlan.Path); err != nil {
+				return nil, fmt.Errorf("failed to follow path %v: %v", subPlan.Path, err)
 			}
 		} else {
 			pf.keys = nil
