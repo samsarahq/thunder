@@ -107,22 +107,24 @@ func convertSchema(schemas map[string]introspectionQueryResult) (*SchemaWithFede
 				return nil, fmt.Errorf("type %s not found among top-level types", t.Name)
 			}
 			return typ, nil
-		case "LIST", "NON_NULL":
+
+		case "LIST":
 			inner, err := convert(t.OfType)
 			if err != nil {
 				return nil, err
 			}
-			if t.Kind == "LIST" {
-				return &graphql.List{
-					Type: inner,
-				}, nil
-			} else {
-				return &graphql.NonNull{
-					Type: inner,
-				}, nil
-			}
+			return &graphql.List{
+				Type: inner,
+			}, nil
 
-			// xxx: ban duplicates so we can guarantee types below are same
+		case "NON_NULL":
+			inner, err := convert(t.OfType)
+			if err != nil {
+				return nil, err
+			}
+			return &graphql.NonNull{
+				Type: inner,
+			}, nil
 
 		default:
 			return nil, fmt.Errorf("unknown type kind %s", t.Kind)
