@@ -21,6 +21,12 @@ type Address struct {
 	City, Street string
 }
 
+type SearchResult struct {
+	schemabuilder.Union
+	*User
+	*Address
+}
+
 func schema() *schemabuilder.Schema {
 	schema := schemabuilder.NewSchema()
 
@@ -34,6 +40,22 @@ func schema() *schemabuilder.Schema {
 			{
 				Id:   2,
 				Name: "Bob",
+			},
+		}
+	})
+	query.FieldFunc("searchUsers", func(args struct{ Query string }) []*SearchResult {
+		return []*SearchResult{
+			{
+				User: &User{
+					Id:   3,
+					Name: args.Query + "-Person",
+				},
+			},
+			{
+				Address: &Address{
+					City:   "Searchcity",
+					Street: args.Query + " Square",
+				},
 			},
 		}
 	})

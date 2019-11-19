@@ -364,11 +364,7 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 }
 
 // todo
-// defer
-//
 // failure boundaries, timeouts (?)
-//
-// input types
 //
 // mutations
 //
@@ -378,15 +374,19 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 // test forward/backward schema rollout
 // validate incoming queries
 // xxx: schema migrations? moving fields?
+// do something about internal fields (__typename, __federation)
+//
+// tooling for schema management
+//
+// dependency sets
+// caching?
 //
 // clean up types in thunder/graphql, clean up flagging
 //
 // XXX: cache queries and plans? (late binding of args?) even better, cache selection sets downstream?
 // XXX: precompile queries and query plans???
-//
-// dependency sets
-// caching?
+// if, unless
 //
 // analyze current schema, measure number of package transitions / expected plan depth(s)
 //
-// if, unless
+// defer
