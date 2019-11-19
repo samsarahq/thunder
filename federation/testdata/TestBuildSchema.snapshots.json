@@ -246,7 +246,30 @@
               ]
             },
             {
-              "fields": [],
+              "fields": [
+                {
+                  "args": [
+                    {
+                      "name": "name",
+                      "type": {
+                        "kind": "NON_NULL",
+                        "name": "",
+                        "ofType": {
+                          "kind": "SCALAR",
+                          "name": "string",
+                          "ofType": null
+                        }
+                      }
+                    }
+                  ],
+                  "name": "s1addFoo",
+                  "type": {
+                    "kind": "OBJECT",
+                    "name": "Foo",
+                    "ofType": null
+                  }
+                }
+              ],
               "inputFields": [],
               "kind": "OBJECT",
               "name": "Mutation",

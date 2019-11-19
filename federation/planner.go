@@ -247,13 +247,23 @@ func reversePaths(p *Plan) {
 	}
 }
 
-func (e *Executor) Plan(query *graphql.RawSelectionSet) (*Plan, error) {
-	flattened, err := e.flatten(convert(query), e.schema.Schema.Query)
+func (e *Executor) Plan(query *graphql.Query) (*Plan, error) {
+	var schema graphql.Type
+	switch query.Kind {
+	case "query":
+		schema = e.schema.Schema.Query
+	case "mutation":
+		schema = e.schema.Schema.Mutation
+	default:
+		return nil, fmt.Errorf("unknown query kind %s", query.Kind)
+	}
+
+	flattened, err := e.flatten(convert(query.SelectionSet), schema)
 	if err != nil {
 		return nil, err
 	}
 
-	p, err := e.plan(e.schema.Schema.Query, flattened, "no-such-service")
+	p, err := e.plan(schema, flattened, "no-such-service")
 	if err != nil {
 		return nil, err
 	}

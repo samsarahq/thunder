@@ -364,9 +364,12 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 }
 
 // todo
-// failure boundaries, timeouts (?)
+//
+// NEEDED
 //
 // mutations
+//
+// http handler
 //
 // project. harden APIs
 // test malformed inputs
@@ -380,6 +383,15 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 //
 // dependency sets
 // caching?
+// tracing (hooks?)
+//
+// NICE TO HAVE
+//
+// use same types in federation/ and graphql/
+//
+// share flatten between federation/ and graphql/
+//
+// limit complexity in flatten
 //
 // clean up types in thunder/graphql, clean up flagging
 //
@@ -389,4 +401,8 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 //
 // analyze current schema, measure number of package transitions / expected plan depth(s)
 //
+// failure boundaries, timeouts (?)
+//
 // defer
+//
+// - swap out websocket implementation to hit HTTP paths

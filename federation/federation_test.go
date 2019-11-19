@@ -75,6 +75,14 @@ func buildTestSchema1() *schemabuilder.Schema {
 		return fmt.Sprintf("%s %v %v", args.Foo, args.Required, args.Optional)
 	})
 
+	mutation := schema.Mutation()
+
+	mutation.FieldFunc("s1addFoo", func(args struct{ Name string }) *Foo {
+		return &Foo{
+			Name: args.Name,
+		}
+	})
+
 	foo := schema.Object("Foo", Foo{})
 	foo.Federation(func(f *Foo) string {
 		return f.Name
@@ -234,7 +242,7 @@ func roundtripJson(t *testing.T, v interface{}) interface{} {
 }
 
 func assertExecuteEqual(ctx context.Context, t *testing.T, e *Executor, in, out string) {
-	plan, err := e.Plan(graphql.MustParse(in, map[string]interface{}{}).SelectionSet)
+	plan, err := e.Plan(graphql.MustParse(in, map[string]interface{}{}))
 	require.NoError(t, err)
 
 	res, err := e.Execute(ctx, plan)

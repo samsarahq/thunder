@@ -175,11 +175,44 @@ func TestPlan(t *testing.T) {
 				},
 			},
 		},
+		{
+			Name: "mutation",
+			Input: `mutation Test {
+				s1addFoo(name: "test") {
+					name
+					s2ok
+				}
+			}`,
+			Output: []*Plan{
+				{
+					Service: "schema1",
+					Type:    "Mutation",
+					SelectionSet: mustParse(`{
+						s1addFoo(name: "test") {
+							name
+							__federation
+						}
+					}`),
+					After: []*Plan{
+						{
+							PathStep: []PathStep{
+								{Kind: KindField, Name: "s1addFoo"},
+							},
+							Type:    "Foo",
+							Service: "schema2",
+							SelectionSet: mustParse(`{
+								s2ok
+							}`),
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.Name, func(t *testing.T) {
-			plan, err := e.Plan(graphql.MustParse(testCase.Input, map[string]interface{}{}).SelectionSet)
+			plan, err := e.Plan(graphql.MustParse(testCase.Input, map[string]interface{}{}))
 			require.NoError(t, err)
 			assert.Equal(t, testCase.Output, plan.After)
 		})
