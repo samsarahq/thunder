@@ -2,15 +2,12 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"net/http"
 
-	"github.com/davecgh/go-spew/spew"
 	"google.golang.org/grpc"
 
 	"github.com/samsarahq/thunder/federation"
-	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/thunderpb"
 )
 
@@ -34,65 +31,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	oldQuery := graphql.MustParse(`
-		{
-			users {
-				id
-				name
-				address { city street }
-				picture { url }
-			}
-		}
-	`, map[string]interface{}{})
-
-	plan, err := e.Plan(oldQuery)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// XXX: have to deal with multiple plans here
-	res, err := e.Execute(ctx, plan)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	spew.Dump(res)
-
-	http.Handle("/graphql", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var request struct {
-			Query     string                 `json:"query"`
-			Variables map[string]interface{} `json:"variables"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		query, err := graphql.Parse(request.Query, request.Variables)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		plan, err := e.Plan(query)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		resp, err := e.Execute(ctx, plan)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		resp = map[string]interface{}{
-			"data": resp,
-		}
-
-		json.NewEncoder(w).Encode(resp)
-	}))
-
 	http.Handle("/", http.FileServer(http.Dir(".")))
+	http.Handle("/graphql", federation.HTTPHandler(e))
 	http.ListenAndServe(":3000", nil)
 }

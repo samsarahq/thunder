@@ -368,8 +368,6 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 //
 // NEEDED
 //
-// http handler
-//
 // project. harden APIs
 // test malformed inputs
 // test incompatible schemas
@@ -407,3 +405,5 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 // defer
 //
 // - swap out websocket implementation to hit HTTP paths
+//
+// clean up 10 different APIs for creating / running queries
