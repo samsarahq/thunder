@@ -11,20 +11,14 @@ import (
 )
 
 type Server struct {
-	schema      *graphql.Schema
-	schemaBytes []byte
+	schema *graphql.Schema
 }
 
 func NewServer(schema *graphql.Schema) (*Server, error) {
-	introspectionSchema := introspection.BareIntrospectionSchema(schema)
-	bytes, err := introspection.RunIntrospectionQuery(introspectionSchema)
-	if err != nil {
-		return nil, fmt.Errorf("get introspection result: %v", err)
-	}
+	introspection.AddIntrospectionToSchema(schema)
 
 	return &Server{
-		schema:      schema,
-		schemaBytes: bytes,
+		schema: schema,
 	}, nil
 }
 
@@ -66,11 +60,5 @@ func (s *Server) Execute(ctx context.Context, req *thunderpb.ExecuteRequest) (*t
 
 	return &thunderpb.ExecuteResponse{
 		Result: bytes,
-	}, nil
-}
-
-func (s *Server) Schema(ctx context.Context, req *thunderpb.SchemaRequest) (*thunderpb.SchemaResponse, error) {
-	return &thunderpb.SchemaResponse{
-		Schema: s.schemaBytes,
 	}, nil
 }

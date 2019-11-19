@@ -21,7 +21,29 @@ type Executor struct {
 
 type ExecutorClient interface {
 	Execute(ctx context.Context, req *thunderpb.ExecuteRequest) (*thunderpb.ExecuteResponse, error)
-	Schema(ctx context.Context, req *thunderpb.SchemaRequest) (*thunderpb.SchemaResponse, error)
+}
+
+func fetchSchema(ctx context.Context, e ExecutorClient) ([]byte, error) {
+	query, err := graphql.Parse(introspection.IntrospectionQuery, map[string]interface{}{})
+	if err != nil {
+		return nil, err
+	}
+
+	selectionSet, err := marshalPbSelections(convert(query.SelectionSet))
+	if err != nil {
+		return nil, err
+	}
+
+	out, err := e.Execute(ctx, &thunderpb.ExecuteRequest{
+		Kind:         thunderpb.ExecuteRequest_QUERY,
+		Name:         "introspection",
+		SelectionSet: selectionSet,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return out.Result, nil
 }
 
 type GrpcExecutorClient struct {
@@ -32,10 +54,6 @@ func (c *GrpcExecutorClient) Execute(ctx context.Context, req *thunderpb.Execute
 	return c.Client.Execute(ctx, req)
 }
 
-func (c *GrpcExecutorClient) Schema(ctx context.Context, req *thunderpb.SchemaRequest) (*thunderpb.SchemaResponse, error) {
-	return c.Client.Schema(ctx, req)
-}
-
 type DirectExecutorClient struct {
 	Client thunderpb.ExecutorServer
 }
@@ -44,21 +62,17 @@ func (c *DirectExecutorClient) Execute(ctx context.Context, req *thunderpb.Execu
 	return c.Client.Execute(ctx, req)
 }
 
-func (c *DirectExecutorClient) Schema(ctx context.Context, req *thunderpb.SchemaRequest) (*thunderpb.SchemaResponse, error) {
-	return c.Client.Schema(ctx, req)
-}
-
 func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Executor, error) {
 	schemas := make(map[string]introspectionQueryResult)
 
 	for server, client := range executors {
-		schema, err := client.Schema(ctx, &thunderpb.SchemaRequest{})
+		schema, err := fetchSchema(ctx, client)
 		if err != nil {
 			return nil, fmt.Errorf("fetching schema %s: %v", server, err)
 		}
 
 		var iq introspectionQueryResult
-		if err := json.Unmarshal(schema.Schema, &iq); err != nil {
+		if err := json.Unmarshal(schema, &iq); err != nil {
 			return nil, fmt.Errorf("unmarshaling schema %s: %v", server, err)
 		}
 
@@ -71,21 +85,14 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Exe
 	}
 
 	introspectionSchema := introspection.BareIntrospectionSchema(types.Schema)
-	newServer, err := NewServer(introspectionSchema)
-	if err != nil {
-		return nil, err
-	}
+	newServer := &Server{schema: introspectionSchema}
 
 	executors["introspection"] = &DirectExecutorClient{Client: newServer}
 	server := "introspection"
-	client := executors[server]
-	schema, err := client.Schema(ctx, &thunderpb.SchemaRequest{})
-	if err != nil {
-		return nil, fmt.Errorf("fetching schema %s: %v", server, err)
-	}
+	schema, err := introspection.RunIntrospectionQuery(introspection.BareIntrospectionSchema(newServer.schema))
 
 	var iq introspectionQueryResult
-	if err := json.Unmarshal(schema.Schema, &iq); err != nil {
+	if err := json.Unmarshal(schema, &iq); err != nil {
 		return nil, fmt.Errorf("unmarshaling schema %s: %v", server, err)
 	}
 

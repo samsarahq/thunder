@@ -34,14 +34,6 @@ message ExecuteRequest {
 
 message ExecuteResponse { bytes result = 1; }
 
-message SchemaRequest {}
-
-message SchemaResponse {
-  // schema is the introspection query result.
-  bytes schema = 1;
-}
-
 service Executor {
   rpc Execute(ExecuteRequest) returns (ExecuteResponse) {}
-  rpc Schema(SchemaRequest) returns (SchemaResponse) {}
 }
