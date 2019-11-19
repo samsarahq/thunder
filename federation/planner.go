@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/samsarahq/thunder/graphql"
+	"github.com/samsarahq/thunder/thunderpb"
 )
 
 type StepKind int
@@ -23,6 +24,7 @@ type PathStep struct {
 type Plan struct {
 	Path    []PathStep
 	Service string
+	Kind    thunderpb.ExecuteRequest_Kind
 	// XXX: What are we using Type for here again? -- oh, it's for the __federation field...
 	Type         string
 	SelectionSet *SelectionSet
@@ -266,6 +268,15 @@ func (e *Executor) Plan(query *graphql.Query) (*Plan, error) {
 	p, err := e.plan(schema, flattened, "no-such-service")
 	if err != nil {
 		return nil, err
+	}
+
+	if query.Kind == "mutation" {
+		if len(p.After) > 1 {
+			return nil, errors.New("only support 1 mutation step to maintain ordering")
+		}
+		for _, p := range p.After {
+			p.Kind = thunderpb.ExecuteRequest_MUTATION
+		}
 	}
 
 	reversePaths(p)

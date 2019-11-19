@@ -356,6 +356,21 @@ func TestExecutor(t *testing.T) {
 				"s2root": "hello"
 			}`,
 		},
+		{
+			Name: "mutation",
+			Input: `mutation Test {
+				s1addFoo(name: "test") {
+					name
+					s2ok
+				}
+			}`,
+			Output: `{
+				"s1addFoo": {
+					"name": "test",
+					"s2ok": 4
+				}
+			}`,
+		},
 	}
 
 	for _, testCase := range testCases {

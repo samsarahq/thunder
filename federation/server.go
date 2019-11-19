@@ -36,10 +36,23 @@ func (s *Server) Execute(ctx context.Context, req *thunderpb.ExecuteRequest) (*t
 
 	gqlSelectionSet := convertSelectionSet(selectionSet)
 
+	var kind string
+	var schema graphql.Type
+	switch req.Kind {
+	case thunderpb.ExecuteRequest_QUERY:
+		kind = "query"
+		schema = s.schema.Query
+	case thunderpb.ExecuteRequest_MUTATION:
+		kind = "mutation"
+		schema = s.schema.Mutation
+	default:
+		return nil, fmt.Errorf("unknown kind %s", req.Kind)
+	}
+
 	gqlExec := graphql.NewExecutor(graphql.NewImmediateGoroutineScheduler())
-	res, err := gqlExec.Execute(context.Background(), s.schema.Query, &graphql.Query{
-		Kind:         "query",
-		Name:         "",
+	res, err := gqlExec.Execute(context.Background(), schema, &graphql.Query{
+		Kind:         kind,
+		Name:         req.Name,
 		SelectionSet: gqlSelectionSet,
 	})
 	if err != nil {

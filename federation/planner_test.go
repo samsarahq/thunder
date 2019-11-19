@@ -6,6 +6,7 @@ import (
 
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
+	"github.com/samsarahq/thunder/thunderpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -183,6 +184,7 @@ func TestPlan(t *testing.T) {
 				{
 					Service: "schema1",
 					Type:    "Mutation",
+					Kind:    thunderpb.ExecuteRequest_MUTATION,
 					SelectionSet: mustParse(`{
 						s1addFoo(name: "test") {
 							name

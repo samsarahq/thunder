@@ -112,7 +112,7 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Exe
 	}, nil
 }
 
-func (e *Executor) runOnService(ctx context.Context, service string, typName string, keys []interface{}, selectionSet *SelectionSet) ([]interface{}, error) {
+func (e *Executor) runOnService(ctx context.Context, service string, typName string, keys []interface{}, kind thunderpb.ExecuteRequest_Kind, selectionSet *SelectionSet) ([]interface{}, error) {
 	schema := e.Executors[service]
 
 	isRoot := keys == nil
@@ -149,6 +149,7 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 	}
 
 	resPb, err := schema.Execute(ctx, &thunderpb.ExecuteRequest{
+		Kind:         kind,
 		SelectionSet: marshaled,
 	})
 	if err != nil {
@@ -270,7 +271,7 @@ func (ec *executorContext) execute(ctx context.Context, p *Plan, keys []interfac
 	var res []interface{}
 	if p.Service != "no-such-service" {
 		var err error
-		res, err = ec.e.runOnService(ctx, p.Service, p.Type, keys, p.SelectionSet)
+		res, err = ec.e.runOnService(ctx, p.Service, p.Type, keys, p.Kind, p.SelectionSet)
 		if err != nil {
 			return nil, fmt.Errorf("run on service: %v", err)
 		}
@@ -367,8 +368,6 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 //
 // NEEDED
 //
-// mutations
-//
 // http handler
 //
 // project. harden APIs
@@ -384,6 +383,8 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 // dependency sets
 // caching?
 // tracing (hooks?)
+//
+// deal with rerunner, reactive.Cache
 //
 // NICE TO HAVE
 //

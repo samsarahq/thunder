@@ -45,7 +45,7 @@ func main() {
 		}
 	`, map[string]interface{}{})
 
-	plan, err := e.Plan(oldQuery.SelectionSet)
+	plan, err := e.Plan(oldQuery)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func main() {
 			return
 		}
 
-		plan, err := e.Plan(query.SelectionSet)
+		plan, err := e.Plan(query)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
