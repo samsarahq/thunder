@@ -22,7 +22,15 @@ message SelectionSet {
   repeated Fragment fragments = 2;
 }
 
-message ExecuteRequest { SelectionSet selectionSet = 1; }
+message ExecuteRequest { 
+  enum Kind {
+    QUERY = 0;
+    MUTATION = 1;
+  }
+  Kind kind = 1;
+  string name = 2;
+  SelectionSet selectionSet = 3; 
+}
 
 message ExecuteResponse { bytes result = 1; }
 
