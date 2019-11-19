@@ -21,12 +21,28 @@ func (e *errorRecorder) record(err error) {
 	})
 }
 
+type pathTracker struct {
+	parent *pathTracker
+	path   string
+}
+
+func (p *pathTracker) getPath() []string {
+	path := make([]string, 0)
+	cur := p
+	for cur != nil {
+		if cur.path != "" {
+			path = append(path, cur.path)
+		}
+		cur = cur.parent
+	}
+	return path
+}
+
 // newTopLevelOutputNode creates a top-level object writer, this should be
 // the object writer that starts the graphql query.
 func newTopLevelOutputNode(path string) *outputNode {
 	return &outputNode{
-		parent:      nil,
-		path:        path,
+		pathTracker: &pathTracker{path: path},
 		errRecorder: &errorRecorder{},
 	}
 }
@@ -36,15 +52,13 @@ func newTopLevelOutputNode(path string) *outputNode {
 // error information up the stack.
 func newOutputNode(parent *outputNode, path string) *outputNode {
 	return &outputNode{
-		parent:      parent,
-		path:        path,
+		pathTracker: &pathTracker{parent: parent.pathTracker, path: path},
 		errRecorder: parent.errRecorder,
 	}
 }
 
 type outputNode struct {
-	parent      *outputNode
-	path        string
+	pathTracker *pathTracker
 	res         interface{}
 	errRecorder *errorRecorder
 }
@@ -65,15 +79,7 @@ func (o *outputNode) Fail(err error) {
 
 // getPath traverses the parent list to get the current execution path.
 func (o *outputNode) getPath() []string {
-	path := make([]string, 0)
-	cur := o
-	for cur != nil {
-		if cur.path != "" {
-			path = append(path, cur.path)
-		}
-		cur = cur.parent
-	}
-	return path
+	return o.pathTracker.getPath()
 }
 
 // Unwraps the object writer JSON map to a "regular" JSON comparable type.
