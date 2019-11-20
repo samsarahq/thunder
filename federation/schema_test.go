@@ -8,6 +8,7 @@ import (
 	"github.com/samsarahq/go/snapshotter"
 	"github.com/samsarahq/thunder/graphql/introspection"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -53,4 +54,46 @@ func TestBuildSchema(t *testing.T) {
 
 	snapshotter.Snapshot("resulting schema", iq)
 	// XXX: test field -> service mapping
+}
+
+// TestIncompatibleTypeKinds tests that incompatible types are caught by the
+// schema merging.
+func TestIncompatibleTypeKinds(t *testing.T) {
+	// In s1, int is an object. In s2, int is a scalar. This is not allowed, as
+	// different kinds can not be merged.
+	type IntStruct struct{}
+	s1 := schemabuilder.NewSchema()
+	s1.Object("int", IntStruct{})
+	s1.Query().FieldFunc("intStruct", func() IntStruct { return IntStruct{} })
+
+	s2 := schemabuilder.NewSchema()
+	s2.Query().FieldFunc("intScalar", func() int { return 0 })
+
+	_, err := convertSchema(mustExtractSchemas(map[string]*schemabuilder.Schema{
+		"schema1": s1,
+		"schema2": s2,
+	}))
+	assert.EqualError(t, err, "conflicting kinds for typ int")
+}
+
+// TestIncompatibleInputTypesConflictingTypes tests that incompatible input types
+// are caught by the schema merging.
+func TestIncompatibleInputTypesConflictingTypes(t *testing.T) {
+	s1 := schemabuilder.NewSchema()
+	{
+		type InputStruct struct{ Foo string }
+		s1.Query().FieldFunc("f", func(args struct{ I InputStruct }) string { return "" })
+	}
+
+	s2 := schemabuilder.NewSchema()
+	{
+		type InputStruct struct{ Foo int32 }
+		s2.Query().FieldFunc("f", func(args struct{ I InputStruct }) string { return "" })
+	}
+
+	_, err := convertSchema(mustExtractSchemas(map[string]*schemabuilder.Schema{
+		"schema1": s1,
+		"schema2": s2,
+	}))
+	assert.EqualError(t, err, "typ InputStruct_InputObject field foo has incompatible types string! and int32!: scalars must be identical")
 }

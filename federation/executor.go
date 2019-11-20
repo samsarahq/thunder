@@ -376,10 +376,10 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 // NEEDED
 //
 // test incompatible schemas
-//   mismatches type kinds
 //   incompatible input types
 //   incompatible field types
 //   bad schemas (missing fields, etc)
+//   missing __federation
 // validate incoming queries
 //   run against type checker
 //
@@ -397,6 +397,8 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 // add tracing (hooks?)
 // add dependency set hooks
 // add caching hooks
+//
+// support enums
 //
 // deal with rerunner, reactive.Cache
 //

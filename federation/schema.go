@@ -45,6 +45,76 @@ type introspectionQueryResult struct {
 	} `json:"__schema"`
 }
 
+// mergeInputFieldTypes takes the type of a field from two different schemas and
+// computes a compatible type, if possible.
+//
+// Two types must be identical, besides non-nil flags, to be compatible. If one
+// type is non-nil but the other is not, the combined typed will be non-nil.
+func mergeInputFieldTypes(a, b graphql.Type) (graphql.Type, error) {
+	// If either a or b is non-nil, unwrap it, recurse, and mark the resulting
+	// type as non-nil.
+	aNonNil := false
+	if specific, ok := a.(*graphql.NonNull); ok {
+		aNonNil = true
+		a = specific.Type
+	}
+	bNonNil := false
+	if specific, ok := b.(*graphql.NonNull); ok {
+		bNonNil = true
+		b = specific.Type
+	}
+	if aNonNil || bNonNil {
+		merged, err := mergeInputFieldTypes(a, b)
+		if err != nil {
+			return nil, err
+		}
+		return &graphql.NonNull{Type: merged}, nil
+	}
+
+	// If the type is nilable, recursively assert that the input types are
+	// compatible.
+	switch a := a.(type) {
+	case *graphql.Scalar:
+		// Scalars must be identical.
+		b, ok := b.(*graphql.Scalar)
+		if !ok {
+			return nil, errors.New("both types must be scalar")
+		}
+		if a != b {
+			return nil, errors.New("scalars must be identical")
+		}
+		return a, nil
+
+	case *graphql.List:
+		// Lists must be compatible but don't have to be identical.
+		b, ok := b.(*graphql.List)
+		if !ok {
+			return nil, errors.New("both types must be list")
+		}
+		inner, err := mergeInputFieldTypes(a.Type, b.Type)
+		if err != nil {
+			return nil, err
+		}
+		return &graphql.List{Type: inner}, nil
+
+	case *graphql.InputObject:
+		// InputObjects must be identical. The types might be different on the
+		// servers and will be merged when their fields are merged, but the type
+		// names of the fields must be equal.
+		b, ok := b.(*graphql.InputObject)
+		if !ok {
+			return nil, errors.New("both types must be input object")
+		}
+		if a != b {
+			return nil, errors.New("input objects must be identical")
+		}
+		return a, nil
+
+	default:
+		return nil, errors.New("unknown type kind")
+	}
+}
+
 func convertSchema(schemas map[string]introspectionQueryResult) (*SchemaWithFederationInfo, error) {
 	all := make(map[string]graphql.Type)
 	fieldInfos := make(map[*graphql.Field]*FieldInfo)
@@ -137,16 +207,24 @@ func convertSchema(schemas map[string]introspectionQueryResult) (*SchemaWithFede
 			case "INPUT_OBJECT":
 				obj := all[typ.Name].(*graphql.InputObject)
 				for _, field := range typ.InputFields {
-					_, ok := obj.InputFields[field.Name]
-					if !ok {
-						typ, err := convert(field.Type)
-						if err != nil {
-							return nil, fmt.Errorf("service %s typ %s field %s has bad typ: %v",
-								service, typ, field.Name, err)
-						}
+					here, err := convert(field.Type)
+					if err != nil {
+						return nil, fmt.Errorf("service %s typ %s field %s has bad typ: %v",
+							service, typ.Name, field.Name, err)
+					}
 
+					current, ok := obj.InputFields[field.Name]
+					if !ok {
 						// XXX check this is an input type
-						obj.InputFields[field.Name] = typ
+						obj.InputFields[field.Name] = here
+					} else {
+						// XXX: handle missing non-null fields
+						merged, err := mergeInputFieldTypes(current, here)
+						if err != nil {
+							return nil, fmt.Errorf("typ %s field %s has incompatible types %s and %s: %s",
+								typ.Name, field.Name, current, here, err)
+						}
+						obj.InputFields[field.Name] = merged
 					}
 				}
 
