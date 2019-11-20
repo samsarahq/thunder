@@ -45,7 +45,7 @@ func collectTypes(typ graphql.Type, types map[graphql.Type]string) error {
 	return nil
 }
 
-func (e *Executor) applies(obj *graphql.Object, fragment *Fragment) (bool, error) {
+func (e *Executor) applies(obj *graphql.Object, fragment *graphql.RawFragment) (bool, error) {
 	switch typ := e.types[fragment.On].(type) {
 	case *graphql.Object:
 		return typ.Name == obj.Name, nil
@@ -61,7 +61,7 @@ func (e *Executor) applies(obj *graphql.Object, fragment *Fragment) (bool, error
 
 // xxx: limit complexity of flattened result?
 
-func (e *Executor) flatten(selectionSet *SelectionSet, typ graphql.Type) (*SelectionSet, error) {
+func (e *Executor) flatten(selectionSet *graphql.RawSelectionSet, typ graphql.Type) (*graphql.RawSelectionSet, error) {
 	switch typ := typ.(type) {
 	case *graphql.NonNull:
 		return e.flatten(selectionSet, typ.Type)
@@ -71,14 +71,14 @@ func (e *Executor) flatten(selectionSet *SelectionSet, typ graphql.Type) (*Selec
 
 	case *graphql.Object:
 		// XXX: type check?
-		selections := make([]*Selection, 0, len(selectionSet.Selections))
+		selections := make([]*graphql.RawSelection, 0, len(selectionSet.Selections))
 		// XXX: test that we flatten recursively??
 		for _, selection := range selectionSet.Selections {
 			if selection.Name == "__typename" {
 				if selection.SelectionSet != nil || len(selection.Args) != 0 {
 					return nil, fmt.Errorf("typename takes no selection or args")
 				}
-				selections = append(selections, &Selection{
+				selections = append(selections, &graphql.RawSelection{
 					Name:         selection.Name,
 					Alias:        selection.Alias,
 					Args:         map[string]interface{}{},
@@ -95,7 +95,7 @@ func (e *Executor) flatten(selectionSet *SelectionSet, typ graphql.Type) (*Selec
 			if err != nil {
 				return nil, err
 			}
-			selections = append(selections, &Selection{
+			selections = append(selections, &graphql.RawSelection{
 				Name:         selection.Name,
 				Alias:        selection.Alias,
 				Args:         selection.Args,
@@ -120,7 +120,7 @@ func (e *Executor) flatten(selectionSet *SelectionSet, typ graphql.Type) (*Selec
 			selections = append(selections, flattened.Selections...)
 		}
 
-		return &SelectionSet{
+		return &graphql.RawSelectionSet{
 			Selections: selections,
 		}, nil
 
@@ -128,16 +128,16 @@ func (e *Executor) flatten(selectionSet *SelectionSet, typ graphql.Type) (*Selec
 
 	case *graphql.Union:
 		// XXX: all these selections must be on on __typename. type check?
-		selections := make([]*Selection, len(selectionSet.Selections))
+		selections := make([]*graphql.RawSelection, len(selectionSet.Selections))
 		copy(selections, selectionSet.Selections)
 
-		fragments := make([]*Fragment, 0, len(typ.Types))
+		fragments := make([]*graphql.RawFragment, 0, len(typ.Types))
 		for _, obj := range typ.Types {
 			plan, err := e.flatten(selectionSet, obj)
 			if err != nil {
 				return nil, err
 			}
-			fragments = append(fragments, &Fragment{
+			fragments = append(fragments, &graphql.RawFragment{
 				On:           obj.Name,
 				SelectionSet: plan,
 			})
@@ -146,7 +146,7 @@ func (e *Executor) flatten(selectionSet *SelectionSet, typ graphql.Type) (*Selec
 			return fragments[a].On < fragments[b].On
 		})
 
-		return &SelectionSet{
+		return &graphql.RawSelectionSet{
 			Selections: selections,
 			Fragments:  fragments,
 		}, nil

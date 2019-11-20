@@ -27,15 +27,15 @@ type Plan struct {
 	Kind    thunderpb.ExecuteRequest_Kind
 	// XXX: What are we using Type for here again? -- oh, it's for the __federation field...
 	Type         string
-	SelectionSet *SelectionSet
+	SelectionSet *graphql.RawSelectionSet
 	After        []*Plan
 }
 
-func (e *Executor) planObject(typ *graphql.Object, selectionSet *SelectionSet, service string) (*Plan, error) {
+func (e *Executor) planObject(typ *graphql.Object, selectionSet *graphql.RawSelectionSet, service string) (*Plan, error) {
 	p := &Plan{
 		Type:         typ.Name,
 		Service:      service,
-		SelectionSet: &SelectionSet{},
+		SelectionSet: &graphql.RawSelectionSet{},
 		After:        nil,
 	}
 
@@ -45,8 +45,8 @@ func (e *Executor) planObject(typ *graphql.Object, selectionSet *SelectionSet, s
 	// - refactor to return array of subplans with preferential treatment for given service?
 	// eh whatever.
 
-	var localSelections []*Selection
-	selectionsByService := make(map[string][]*Selection)
+	var localSelections []*graphql.RawSelection
+	selectionsByService := make(map[string][]*graphql.RawSelection)
 
 	// Assert that we are working with a flattened query.
 	if len(selectionSet.Fragments) > 0 {
@@ -90,7 +90,7 @@ func (e *Executor) planObject(typ *graphql.Object, selectionSet *SelectionSet, s
 			}
 		}
 
-		newSelection := &Selection{
+		newSelection := &graphql.RawSelection{
 			Alias: selection.Alias,
 			Name:  selection.Name,
 			Args:  selection.Args,
@@ -125,7 +125,7 @@ func (e *Executor) planObject(typ *graphql.Object, selectionSet *SelectionSet, s
 		// what other fields we might want to resolve after?
 		// nah, just go with default... and consider being able to stick with
 		// the same a bonus
-		subPlan, err := e.plan(typ, &SelectionSet{Selections: selections}, other)
+		subPlan, err := e.plan(typ, &graphql.RawSelectionSet{Selections: selections}, other)
 		if err != nil {
 			return nil, fmt.Errorf("planning for %s: %v", other, err)
 		}
@@ -144,7 +144,7 @@ func (e *Executor) planObject(typ *graphql.Object, selectionSet *SelectionSet, s
 			}
 		}
 		if !hasKey {
-			p.SelectionSet.Selections = append(p.SelectionSet.Selections, &Selection{
+			p.SelectionSet.Selections = append(p.SelectionSet.Selections, &graphql.RawSelection{
 				Name:  "__federation",
 				Alias: "__federation",
 				Args:  map[string]interface{}{},
@@ -156,12 +156,12 @@ func (e *Executor) planObject(typ *graphql.Object, selectionSet *SelectionSet, s
 
 }
 
-func (e *Executor) planUnion(typ *graphql.Union, selectionSet *SelectionSet, service string) (*Plan, error) {
+func (e *Executor) planUnion(typ *graphql.Union, selectionSet *graphql.RawSelectionSet, service string) (*Plan, error) {
 	plan := &Plan{
 		// XXX: only include __typename if needed for dispatching? ie. len(types) > 1 and len(fragments) > 0?
 		// XXX: ensure __typename doesn't conflict with another field?
-		SelectionSet: &SelectionSet{
-			Selections: []*Selection{
+		SelectionSet: &graphql.RawSelectionSet{
+			Selections: []*graphql.RawSelection{
 				{
 					Name:  "__typename",
 					Alias: "__typename",
@@ -202,7 +202,7 @@ func (e *Executor) planUnion(typ *graphql.Union, selectionSet *SelectionSet, ser
 		}
 
 		// Query the fields known to the current with a local fragment.
-		plan.SelectionSet.Fragments = append(plan.SelectionSet.Fragments, &Fragment{
+		plan.SelectionSet.Fragments = append(plan.SelectionSet.Fragments, &graphql.RawFragment{
 			On:           typ.Name,
 			SelectionSet: concretePlan.SelectionSet,
 		})
@@ -217,7 +217,7 @@ func (e *Executor) planUnion(typ *graphql.Union, selectionSet *SelectionSet, ser
 	return plan, nil
 }
 
-func (e *Executor) plan(typIface graphql.Type, selectionSet *SelectionSet, service string) (*Plan, error) {
+func (e *Executor) plan(typIface graphql.Type, selectionSet *graphql.RawSelectionSet, service string) (*Plan, error) {
 	switch typ := typIface.(type) {
 	case *graphql.NonNull:
 		return e.plan(typ.Type, selectionSet, service)
@@ -260,7 +260,7 @@ func (e *Executor) Plan(query *graphql.Query) (*Plan, error) {
 		return nil, fmt.Errorf("unknown query kind %s", query.Kind)
 	}
 
-	flattened, err := e.flatten(convert(query.SelectionSet), schema)
+	flattened, err := e.flatten(query.SelectionSet, schema)
 	if err != nil {
 		return nil, err
 	}

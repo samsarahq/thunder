@@ -29,7 +29,7 @@ func fetchSchema(ctx context.Context, e ExecutorClient) ([]byte, error) {
 		return nil, err
 	}
 
-	selectionSet, err := marshalPbSelections(convert(query.SelectionSet))
+	selectionSet, err := marshalPbSelections(query.SelectionSet)
 	if err != nil {
 		return nil, err
 	}
@@ -119,21 +119,21 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Exe
 	}, nil
 }
 
-func (e *Executor) runOnService(ctx context.Context, service string, typName string, keys []interface{}, kind thunderpb.ExecuteRequest_Kind, selectionSet *SelectionSet) ([]interface{}, error) {
+func (e *Executor) runOnService(ctx context.Context, service string, typName string, keys []interface{}, kind thunderpb.ExecuteRequest_Kind, selectionSet *graphql.RawSelectionSet) ([]interface{}, error) {
 	schema := e.Executors[service]
 
 	isRoot := keys == nil
 
 	if !isRoot {
 		// XXX: halp
-		selectionSet = &SelectionSet{
-			Selections: []*Selection{
+		selectionSet = &graphql.RawSelectionSet{
+			Selections: []*graphql.RawSelection{
 				{
 					Name:  "__federation",
 					Alias: "__federation",
 					Args:  map[string]interface{}{},
-					SelectionSet: &SelectionSet{
-						Selections: []*Selection{
+					SelectionSet: &graphql.RawSelectionSet{
+						Selections: []*graphql.RawSelection{
 							{
 								Name:  typName,
 								Alias: typName,
@@ -375,15 +375,25 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 //
 // NEEDED
 //
-// project. harden APIs
+// harden APIs
 // test malformed inputs
+//   queries
+//   schemas
+//   ?
+//   do something about internal fields (__typename, __federation)
 // test incompatible schemas
-// test forward/backward schema rollout
+//   mismatches type kinds
+//   incompatible input types
+//   incompatible field types
 // validate incoming queries
-// xxx: schema migrations? moving fields?
-// do something about internal fields (__typename, __federation)
+//   run against type checker
+//
 //
 // tooling for schema management
+//   track all schema(s)
+//   take least common denominator
+//   tests
+// xxx: schema migrations? moving fields?
 //
 // dependency sets
 // caching?
@@ -392,8 +402,6 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 // deal with rerunner, reactive.Cache
 //
 // NICE TO HAVE
-//
-// use same types in federation/ and graphql/
 //
 // share flatten between federation/ and graphql/
 //

@@ -28,8 +28,6 @@ func (s *Server) Execute(ctx context.Context, req *thunderpb.ExecuteRequest) (*t
 		return nil, err
 	}
 
-	gqlSelectionSet := convertSelectionSet(selectionSet)
-
 	var kind string
 	var schema graphql.Type
 	switch req.Kind {
@@ -47,7 +45,7 @@ func (s *Server) Execute(ctx context.Context, req *thunderpb.ExecuteRequest) (*t
 	res, err := gqlExec.Execute(context.Background(), schema, &graphql.Query{
 		Kind:         kind,
 		Name:         req.Name,
-		SelectionSet: gqlSelectionSet,
+		SelectionSet: selectionSet,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("executing query: %v", err)

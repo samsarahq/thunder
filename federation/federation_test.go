@@ -168,8 +168,8 @@ func buildTestSchema2() *schemabuilder.Schema {
 	return schema
 }
 
-func mustParse(s string) *SelectionSet {
-	return convert(graphql.MustParse(s, map[string]interface{}{}).SelectionSet)
+func mustParse(s string) *graphql.RawSelectionSet {
+	return graphql.MustParse(s, map[string]interface{}{}).SelectionSet
 }
 
 func TestMustParse(t *testing.T) {
@@ -186,14 +186,14 @@ func TestMustParse(t *testing.T) {
 		}
 	`)
 
-	expected := &SelectionSet{
-		Selections: []*Selection{
+	expected := &graphql.RawSelectionSet{
+		Selections: []*graphql.RawSelection{
 			{
 				Name:  "fff",
 				Alias: "fff",
 				Args:  map[string]interface{}{},
-				SelectionSet: &SelectionSet{
-					Selections: []*Selection{
+				SelectionSet: &graphql.RawSelectionSet{
+					Selections: []*graphql.RawSelection{
 						{
 							Name:  "hmm",
 							Alias: "hmm",
@@ -208,8 +208,8 @@ func TestMustParse(t *testing.T) {
 							Name:  "bar",
 							Alias: "bar",
 							Args:  map[string]interface{}{},
-							SelectionSet: &SelectionSet{
-								Selections: []*Selection{
+							SelectionSet: &graphql.RawSelectionSet{
+								Selections: []*graphql.RawSelection{
 									{
 										Name:  "id",
 										Alias: "id",
