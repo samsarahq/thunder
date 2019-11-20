@@ -378,14 +378,10 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 // test incompatible schemas
 //   incompatible input types
 //   incompatible field types
-//   bad schemas (missing fields, etc)
+//   bad schemas (errors paths in merge)
 //   missing __federation
 // validate incoming queries
 //   run against type checker
-//
-// error handling
-//   downstream server failure
-//   downstream server timeout
 //
 // tooling for schema management
 //   track all schema(s)
@@ -393,6 +389,12 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 //   test adding field
 //   test moving field between services
 //   live schema updates (while running)
+//
+// error handling
+//   downstream server failure
+//   downstream server timeout
+//
+// union, enum, ... merging
 //
 // add tracing (hooks?)
 // add dependency set hooks

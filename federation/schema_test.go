@@ -95,5 +95,21 @@ func TestIncompatibleInputTypesConflictingTypes(t *testing.T) {
 		"schema1": s1,
 		"schema2": s2,
 	}))
-	assert.EqualError(t, err, "typ InputStruct_InputObject field foo has incompatible types string! and int32!: scalars must be identical")
+	assert.EqualError(t, err, "service schema2 typ InputStruct_InputObject: field foo has incompatible types string! and int32!: scalars must be identical")
+}
+
+// TestIncompatibleInputsConflictingTypes tests that incompatible input fields
+// are caught by the schema merging.
+func TestIncompatibleInputsConflictingTypes(t *testing.T) {
+	s1 := schemabuilder.NewSchema()
+	s1.Query().FieldFunc("f", func(args struct{ Foo string }) string { return "" })
+
+	s2 := schemabuilder.NewSchema()
+	s2.Query().FieldFunc("f", func(args struct{ Foo int32 }) string { return "" })
+
+	_, _ = convertSchema(mustExtractSchemas(map[string]*schemabuilder.Schema{
+		"schema1": s1,
+		"schema2": s2,
+	}))
+	// assert.EqualError(t, err, "typ InputStruct_InputObject field foo has incompatible types string! and int32!: scalars must be identical")
 }
