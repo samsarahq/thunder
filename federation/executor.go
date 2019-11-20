@@ -375,50 +375,54 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 //
 // NEEDED
 //
-// harden APIs
-// test malformed inputs
-//   queries
-//   schemas
-//   ?
-//   do something about internal fields (__typename, __federation)
 // test incompatible schemas
 //   mismatches type kinds
 //   incompatible input types
 //   incompatible field types
+//   bad schemas (missing fields, etc)
 // validate incoming queries
 //   run against type checker
 //
+// error handling
+//   downstream server failure
+//   downstream server timeout
 //
 // tooling for schema management
 //   track all schema(s)
 //   take least common denominator
-//   tests
-// xxx: schema migrations? moving fields?
+//   test adding field
+//   test moving field between services
+//   live schema updates (while running)
 //
-// dependency sets
-// caching?
-// tracing (hooks?)
+// add tracing (hooks?)
+// add dependency set hooks
+// add caching hooks
 //
 // deal with rerunner, reactive.Cache
 //
 // NICE TO HAVE
 //
-// share flatten between federation/ and graphql/
+// maybe: failure boundaries, propagate nil(s)
 //
+// do something about internal fields (__typename, __federation)
+//   track if we added field, if so, remove it from result, otherwise keep it
+//
+// share flatten between federation/ and graphql/
 // limit complexity in flatten
 //
-// clean up types in thunder/graphql, clean up flagging
+// move execution-related fields of graphql.Field (similar to FieldInfo)
+// let FieldInfo pick resolver, threads, etc. at runtime (to get rid of batch feature flags)
 //
-// XXX: cache queries and plans? (late binding of args?) even better, cache selection sets downstream?
-// XXX: precompile queries and query plans???
-// if, unless
+// late-bind arguments in queries, so we can re-use parsed queries
+// precompile queries and query plans???
+// support @if, @unless
 //
 // analyze current schema, measure number of package transitions / expected plan depth(s)
 //
-// failure boundaries, timeouts (?)
+// @defer
 //
-// defer
+// swap out websocket implementation to hit HTTP paths
 //
-// - swap out websocket implementation to hit HTTP paths
+// simplify executor, schema, and HTTP handler APIs
 //
-// clean up 10 different APIs for creating / running queries
+// extract out dependency set client and server
