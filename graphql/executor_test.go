@@ -13,6 +13,7 @@ import (
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 	"github.com/samsarahq/thunder/internal"
 	"github.com/samsarahq/thunder/internal/testgraphql"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -293,6 +294,28 @@ func TestPanic(t *testing.T) {
 	if !strings.Contains(err.Error(), "executor_test.go") {
 		t.Error("expected stacktrace")
 	}
+}
+
+func TestSelectionType(t *testing.T) {
+	query := makeQuery(nil)
+
+	q := graphql.MustParse(`
+		{
+			a {
+				fieldWithArgs(arg: 1)
+			}
+		}
+	`, nil)
+
+	if err := graphql.PrepareQuery(context.Background(), query, q.SelectionSet); err != nil {
+		t.Error(err)
+	}
+
+	e := testgraphql.NewExecutorWrapperWithoutExactErrorMatch(t)
+	_, err := e.Execute(context.Background(), query, nil, q)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]interface{}{"arg": float64(1)}, q.SelectionSet.Selections[0].SelectionSet.Selections[0].UnparsedArgs)
+	assert.Equal(t, "A", q.SelectionSet.Selections[0].SelectionSet.Selections[0].ParentType)
 }
 
 // TODO: Verify caching and concurrency

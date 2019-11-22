@@ -189,6 +189,13 @@ type Selection struct {
 	// The parsed flag is used to make sure the args for this Selection are only
 	// parsed once.
 	parsed bool
+
+	// UnparsedArgs are the original json map[string]interface{} arguments.
+	// This field is only available able after PrepareQuery has been called.
+	UnparsedArgs map[string]interface{}
+
+	// ParentType is the type that this field hangs off of.
+	ParentType string
 }
 
 // A Fragment represents a reusable part of a GraphQL query

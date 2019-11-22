@@ -72,7 +72,7 @@ func valueToJson(value ast.Value, vars map[string]interface{}) (interface{}, err
 
 // argsToJson converts a graphql-go ast argument list to a json.Marshal-style
 // map[string]interface{}
-func argsToJson(input []*ast.Argument, vars map[string]interface{}) (interface{}, error) {
+func argsToJson(input []*ast.Argument, vars map[string]interface{}) (map[string]interface{}, error) {
 	args := make(map[string]interface{})
 	for _, arg := range input {
 		name := arg.Name.Value
@@ -122,7 +122,7 @@ func parseSelectionSet(input *ast.SelectionSet, globalFragments map[string]*Frag
 			selections = append(selections, &Selection{
 				Alias:        alias,
 				Name:         selection.Name.Value,
-				Args:         args,
+				UnparsedArgs: args,
 				SelectionSet: selectionSet,
 			})
 
@@ -259,7 +259,7 @@ func detectConflicts(selectionSet *SelectionSet) error {
 					if other.Name != selection.Name {
 						return NewClientError("same alias with different name")
 					}
-					if !reflect.DeepEqual(other.Args, selection.Args) {
+					if !reflect.DeepEqual(other.UnparsedArgs, selection.UnparsedArgs) {
 						return NewClientError("same alias with different args")
 					}
 				} else {
@@ -486,7 +486,7 @@ func Flatten(selectionSet *SelectionSet) []*Selection {
 		flattened = append(flattened, &Selection{
 			Name:         selections[0].Name,
 			Alias:        selections[0].Alias,
-			Args:         selections[0].Args,
+			UnparsedArgs: selections[0].UnparsedArgs,
 			SelectionSet: merged,
 		})
 	}

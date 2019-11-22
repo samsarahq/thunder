@@ -40,25 +40,25 @@ fragment Bar on Foo {
 		SelectionSet: &SelectionSet{
 			Selections: []*Selection{
 				{
-					Name:  "foo",
-					Alias: "foo",
-					Args:  map[string]interface{}{},
+					Name:         "foo",
+					Alias:        "foo",
+					UnparsedArgs: map[string]interface{}{},
 					SelectionSet: &SelectionSet{
 						Selections: []*Selection{
 							{
-								Name:  "bar",
-								Alias: "alias",
-								Args:  map[string]interface{}{},
+								Name:         "bar",
+								Alias:        "alias",
+								UnparsedArgs: map[string]interface{}{},
 							},
 							{
-								Name:  "bar",
-								Alias: "alias",
-								Args:  map[string]interface{}{},
+								Name:         "bar",
+								Alias:        "alias",
+								UnparsedArgs: map[string]interface{}{},
 							},
 							{
 								Name:  "baz",
 								Alias: "baz",
-								Args: map[string]interface{}{
+								UnparsedArgs: map[string]interface{}{
 									"arg": float64(3),
 								},
 								SelectionSet: &SelectionSet{
@@ -66,7 +66,7 @@ fragment Bar on Foo {
 										{
 											Name:  "bah",
 											Alias: "bah",
-											Args: map[string]interface{}{
+											UnparsedArgs: map[string]interface{}{
 												"x": float64(1),
 												"y": "123",
 												"z": true,
@@ -75,7 +75,7 @@ fragment Bar on Foo {
 										{
 											Name:  "hum",
 											Alias: "hum",
-											Args: map[string]interface{}{
+											UnparsedArgs: map[string]interface{}{
 												"foo": map[string]interface{}{
 													"x": "var value!!",
 												},
@@ -95,9 +95,9 @@ fragment Bar on Foo {
 								SelectionSet: &SelectionSet{
 									Selections: []*Selection{
 										{
-											Name:  "asd",
-											Alias: "asd",
-											Args:  map[string]interface{}{},
+											Name:         "asd",
+											Alias:        "asd",
+											UnparsedArgs: map[string]interface{}{},
 										},
 									},
 									Fragments: []*Fragment{
@@ -106,9 +106,9 @@ fragment Bar on Foo {
 											SelectionSet: &SelectionSet{
 												Selections: []*Selection{
 													{
-														Name:  "zxc",
-														Alias: "zxc",
-														Args:  map[string]interface{}{},
+														Name:         "zxc",
+														Alias:        "zxc",
+														UnparsedArgs: map[string]interface{}{},
 													},
 												},
 											},
@@ -120,9 +120,9 @@ fragment Bar on Foo {
 					},
 				},
 				{
-					Name:  "xyz",
-					Alias: "xyz",
-					Args:  map[string]interface{}{},
+					Name:         "xyz",
+					Alias:        "xyz",
+					UnparsedArgs: map[string]interface{}{},
 				},
 			},
 		},
@@ -149,9 +149,9 @@ mutation foo($var: bar) {
 		SelectionSet: &SelectionSet{
 			Selections: []*Selection{
 				{
-					Name:  "baz",
-					Alias: "baz",
-					Args:  map[string]interface{}{},
+					Name:         "baz",
+					Alias:        "baz",
+					UnparsedArgs: map[string]interface{}{},
 				},
 			},
 		},
@@ -270,7 +270,7 @@ query Operation($x: int64 = 2) {
 		t.Error("expected default value to be used, but received", err)
 	}
 
-	args := query.SelectionSet.Selections[0].Args.(map[string]interface{})
+	args := query.SelectionSet.Selections[0].UnparsedArgs
 
 	if len := len(args); len != 1 {
 		t.Errorf("expected 1 argument, received %d", len)
