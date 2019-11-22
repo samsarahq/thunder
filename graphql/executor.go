@@ -135,7 +135,7 @@ func PrepareQuery(ctx context.Context, typ Type, selectionSet *SelectionSet) err
 		}
 		for _, selection := range selectionSet.Selections {
 			if selection.Name == "__typename" {
-				if !isNilArgs(selection.Args) {
+				if !isNilArgs(selection.UnparsedArgs) {
 					return NewClientError(`error parsing args for "__typename": no args expected`)
 				}
 				if selection.SelectionSet != nil {
@@ -155,7 +155,7 @@ func PrepareQuery(ctx context.Context, typ Type, selectionSet *SelectionSet) err
 		}
 		for _, selection := range selectionSet.Selections {
 			if selection.Name == "__typename" {
-				if !isNilArgs(selection.Args) {
+				if !isNilArgs(selection.UnparsedArgs) {
 					return NewClientError(`error parsing args for "__typename": no args expected`)
 				}
 				if selection.SelectionSet != nil {
@@ -171,13 +171,15 @@ func PrepareQuery(ctx context.Context, typ Type, selectionSet *SelectionSet) err
 
 			// Only parse args once for a given selection.
 			if !selection.parsed {
-				parsed, err := field.ParseArguments(selection.Args)
+				selection.parsed = true
+				parsed, err := field.ParseArguments(selection.UnparsedArgs)
 				if err != nil {
 					return NewClientError(`error parsing args for "%s": %s`, selection.Name, err)
 				}
 				selection.Args = parsed
-				selection.parsed = true
 			}
+
+			selection.ParentType = typ.Name
 
 			if err := PrepareQuery(ctx, field.Type, selection.SelectionSet); err != nil {
 				return err
