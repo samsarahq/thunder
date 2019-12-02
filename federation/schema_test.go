@@ -98,6 +98,28 @@ func TestIncompatibleInputTypesConflictingTypes(t *testing.T) {
 	assert.EqualError(t, err, "service schema2 typ InputStruct_InputObject: field foo has incompatible types string! and int32!: scalars must be identical")
 }
 
+// TestIncompatibleInputTypesMissingNonNullField tests that incompatible input types
+// are caught by the schema merging.
+func TestIncompatibleInputTypesMissingNonNullField(t *testing.T) {
+	s1 := schemabuilder.NewSchema()
+	{
+		type InputStruct struct{ Foo string }
+		s1.Query().FieldFunc("f", func(args struct{ I InputStruct }) string { return "" })
+	}
+
+	s2 := schemabuilder.NewSchema()
+	{
+		type InputStruct struct{}
+		s2.Query().FieldFunc("f", func(args struct{ I InputStruct }) string { return "" })
+	}
+
+	_, err := convertSchema(mustExtractSchemas(map[string]*schemabuilder.Schema{
+		"schema1": s1,
+		"schema2": s2,
+	}))
+	assert.EqualError(t, err, "service schema2 typ InputStruct_InputObject: new field foo is non-null: string!")
+}
+
 // TestIncompatibleInputsConflictingTypes tests that incompatible input fields
 // are caught by the schema merging.
 func TestIncompatibleInputsConflictingTypes(t *testing.T) {
@@ -107,9 +129,9 @@ func TestIncompatibleInputsConflictingTypes(t *testing.T) {
 	s2 := schemabuilder.NewSchema()
 	s2.Query().FieldFunc("f", func(args struct{ Foo int32 }) string { return "" })
 
-	_, _ = convertSchema(mustExtractSchemas(map[string]*schemabuilder.Schema{
+	_, err := convertSchema(mustExtractSchemas(map[string]*schemabuilder.Schema{
 		"schema1": s1,
 		"schema2": s2,
 	}))
-	// assert.EqualError(t, err, "typ InputStruct_InputObject field foo has incompatible types string! and int32!: scalars must be identical")
+	assert.EqualError(t, err, "service schema2 field f input: field map[foo:string!] has incompatible types string! and int32!: scalars must be identical")
 }

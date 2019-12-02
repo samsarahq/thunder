@@ -141,7 +141,7 @@ func mergeObjectFieldTypes(a, b graphql.Type) (graphql.Type, error) {
 		b = specific.Type
 	}
 	if aNonNil || bNonNil {
-		merged, err := mergeInputFieldTypes(a, b)
+		merged, err := mergeObjectFieldTypes(a, b)
 		if err != nil {
 			return nil, err
 		}
@@ -253,29 +253,52 @@ func lookupTypeRef(t *introspectionTypeRef, all map[string]graphql.Type) (graphq
 	}
 }
 
-func mergeInputFields(fields map[string]graphql.Type, source []introspectionInputField, all map[string]graphql.Type) error {
+func parseInputFields(source []introspectionInputField, all map[string]graphql.Type) (map[string]graphql.Type, error) {
+	fields := make(map[string]graphql.Type)
+
 	for _, field := range source {
 		here, err := lookupTypeRef(field.Type, all)
 		if err != nil {
-			return fmt.Errorf("field %s has bad typ: %v",
+			return nil, fmt.Errorf("field %s has bad typ: %v",
 				field.Name, err)
 		}
+		// XXX check this is an input type
+		fields[field.Name] = here
+	}
 
-		current, ok := fields[field.Name]
+	return fields, nil
+}
+
+func mergeInputFields(a, b map[string]graphql.Type) (map[string]graphql.Type, error) {
+	merged := make(map[string]graphql.Type)
+	for name, here := range b {
+		current, ok := a[name]
 		if !ok {
-			// XXX check this is an input type
-			fields[field.Name] = here
-		} else {
-			// XXX: handle missing non-null fields
-			merged, err := mergeInputFieldTypes(current, here)
-			if err != nil {
-				return fmt.Errorf("field %s has incompatible types %s and %s: %s",
-					field.Name, current, here, err)
+			if _, ok := here.(*graphql.NonNull); ok {
+				return nil, fmt.Errorf("new field %s is non-null: %s", name, here)
 			}
-			fields[field.Name] = merged
+			merged[name] = here
+		} else {
+			m, err := mergeInputFieldTypes(current, here)
+			if err != nil {
+				return nil, fmt.Errorf("field %s has incompatible types %s and %s: %s",
+					a, current, here, err)
+			}
+			merged[name] = m
 		}
 	}
-	return nil
+	for name, here := range a {
+		_, ok := b[name]
+		if ok {
+			// already done above
+		} else {
+			if _, ok := here.(*graphql.NonNull); ok {
+				return nil, fmt.Errorf("new field %s is non-null: %s", name, here)
+			}
+			merged[name] = here
+		}
+	}
+	return merged, nil
 }
 
 func convertSchema(schemas map[string]introspectionQueryResult) (*SchemaWithFederationInfo, error) {
@@ -334,41 +357,69 @@ func convertSchema(schemas map[string]introspectionQueryResult) (*SchemaWithFede
 
 	fieldInfos := make(map[*graphql.Field]*FieldInfo)
 
+	seenInput := make(map[string]bool)
+
 	for _, service := range schemaNames {
 		schema := schemas[service]
 		for _, typ := range schema.Schema.Types {
 			switch typ.Kind {
 			case "INPUT_OBJECT":
 				obj := all[typ.Name].(*graphql.InputObject)
-				if err := mergeInputFields(obj.InputFields, typ.InputFields, all); err != nil {
+				parsed, err := parseInputFields(typ.InputFields, all)
+				if err != nil {
 					return nil, fmt.Errorf("service %s typ %s: %v", service, typ.Name, err)
+				}
+
+				if !seenInput[typ.Name] {
+					obj.InputFields = parsed
+					seenInput[typ.Name] = true
+				} else {
+					merged, err := mergeInputFields(obj.InputFields, parsed)
+					if err != nil {
+						return nil, fmt.Errorf("service %s typ %s: %v", service, typ.Name, err)
+					}
+					obj.InputFields = merged
 				}
 
 			case "OBJECT":
 				obj := all[typ.Name].(*graphql.Object)
 
 				for _, field := range typ.Fields {
+					typ, err := lookupTypeRef(field.Type, all)
+					if err != nil {
+						return nil, fmt.Errorf("service %s typ %s field %s has bad typ: %v",
+							service, typ, field.Name, err)
+					}
+
+					parsed, err := parseInputFields(field.Args, all)
+					if err != nil {
+						return nil, fmt.Errorf("service %s field %s input: %v", service, field.Name, err)
+					}
+
 					f, ok := obj.Fields[field.Name]
 					if !ok {
-						typ, err := lookupTypeRef(field.Type, all)
-						if err != nil {
-							return nil, fmt.Errorf("service %s typ %s field %s has bad typ: %v",
-								service, typ, field.Name, err)
-						}
-
 						f = &graphql.Field{
-							Args: map[string]graphql.Type{}, // xxx
-							Type: typ,                       // XXX
+							Args: parsed, // xxx
+							Type: typ,    // XXX
 						}
 						obj.Fields[field.Name] = f
 						fieldInfos[f] = &FieldInfo{
 							Service:  service,
 							Services: map[string]bool{},
 						}
-
-						if err := mergeInputFields(f.Args, field.Args, all); err != nil {
+					} else {
+						merged, err := mergeInputFields(f.Args, parsed)
+						if err != nil {
 							return nil, fmt.Errorf("service %s field %s input: %v", service, field.Name, err)
 						}
+						f.Args = merged
+
+						respMerged, err := mergeObjectFieldTypes(f.Type, typ)
+						if err != nil {
+							return nil, fmt.Errorf("service %s typ %s field %s has bad typ: %v",
+								service, typ, field.Name, err)
+						}
+						f.Type = respMerged
 					}
 
 					// XXX check consistent types
