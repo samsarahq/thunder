@@ -201,6 +201,68 @@ func TestRepeatedFragment(t *testing.T) {
 	}
 }
 
+func TestFlatten(t *testing.T) {
+	type Args struct {
+		Value int
+	}
+
+	assert.Equal(t,
+		[]*graphql.Selection{
+			{
+				Name:  "a",
+				Alias: "b",
+				Args: &Args{
+					Value: 2,
+				},
+				SelectionSet: &graphql.SelectionSet{
+					// Flatten needs to be run on every level. On a subsequent run,
+					// these foo's would also get flattened.
+					Selections: []*graphql.Selection{{
+						Name:         "foo",
+						UnparsedArgs: map[string]interface{}{},
+						ParentType:   "A",
+					}, {
+						Name:         "foo",
+						UnparsedArgs: map[string]interface{}{},
+						ParentType:   "A",
+					}},
+				},
+			},
+		},
+		graphql.Flatten(&graphql.SelectionSet{
+			Selections: []*graphql.Selection{
+				{
+					Name:  "a",
+					Alias: "b",
+					Args: &Args{
+						Value: 2,
+					},
+					SelectionSet: &graphql.SelectionSet{
+						Selections: []*graphql.Selection{{
+							Name:         "foo",
+							UnparsedArgs: map[string]interface{}{},
+							ParentType:   "A",
+						}},
+					},
+				},
+				{
+					Name:  "a",
+					Alias: "b",
+					Args: &Args{
+						Value: 2,
+					},
+					SelectionSet: &graphql.SelectionSet{
+						Selections: []*graphql.Selection{{
+							Name:         "foo",
+							UnparsedArgs: map[string]interface{}{},
+							ParentType:   "A",
+						}},
+					},
+				},
+			},
+		}))
+}
+
 /*
 func TestMissingField(t *testing.T) {
 	q := MustParse(`

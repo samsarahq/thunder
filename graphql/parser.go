@@ -487,6 +487,7 @@ func Flatten(selectionSet *SelectionSet) []*Selection {
 			Name:         selections[0].Name,
 			Alias:        selections[0].Alias,
 			UnparsedArgs: selections[0].UnparsedArgs,
+			Args:         selections[0].Args,
 			SelectionSet: merged,
 		})
 	}
