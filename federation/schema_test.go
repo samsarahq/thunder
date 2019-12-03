@@ -2,34 +2,37 @@ package federation
 
 import (
 	"encoding/json"
-	"log"
 	"testing"
 
 	"github.com/samsarahq/go/snapshotter"
+	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/introspection"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func mustExtractSchema(schema *schemabuilder.Schema) introspectionQueryResult {
-	bytes, err := introspection.ComputeSchemaJSON(*schema)
-	if err != nil {
-		log.Fatal(err)
-	}
+func extractSchema(t *testing.T, schema *graphql.Schema) introspectionQueryResult {
+	bytes, err := introspection.RunIntrospectionQuery(introspection.BareIntrospectionSchema(schema))
+	require.NoError(t, err)
 	var iq introspectionQueryResult
-	if err := json.Unmarshal(bytes, &iq); err != nil {
-		log.Fatal(err)
-	}
+	err = json.Unmarshal(bytes, &iq)
+	require.NoError(t, err)
 	return iq
 }
 
-func mustExtractSchemas(schemas map[string]*schemabuilder.Schema) map[string]introspectionQueryResult {
+func extractSchemas(t *testing.T, schemas map[string]*schemabuilder.Schema) map[string]introspectionQueryResult {
 	out := make(map[string]introspectionQueryResult)
 	for k, v := range schemas {
-		out[k] = mustExtractSchema(v)
+		out[k] = extractSchema(t, v.MustBuild())
 	}
 	return out
+}
+
+func extractConvertedSchemas(t *testing.T, schemas map[string]*schemabuilder.Schema) introspectionQueryResult {
+	combined, err := convertSchema(extractSchemas(t, schemas))
+	assert.NoError(t, err)
+	return extractSchema(t, combined.Schema)
 }
 
 func TestBuildSchema(t *testing.T) {
@@ -38,7 +41,7 @@ func TestBuildSchema(t *testing.T) {
 		"schema2": buildTestSchema2(),
 	}
 
-	types, err := convertSchema(mustExtractSchemas(schemas))
+	types, err := convertSchema(extractSchemas(t, schemas))
 	require.NoError(t, err)
 
 	introspection.AddIntrospectionToSchema(types.Schema)
@@ -69,7 +72,7 @@ func TestIncompatibleTypeKinds(t *testing.T) {
 	s2 := schemabuilder.NewSchema()
 	s2.Query().FieldFunc("intScalar", func() int { return 0 })
 
-	_, err := convertSchema(mustExtractSchemas(map[string]*schemabuilder.Schema{
+	_, err := convertSchema(extractSchemas(t, map[string]*schemabuilder.Schema{
 		"schema1": s1,
 		"schema2": s2,
 	}))
@@ -91,7 +94,7 @@ func TestIncompatibleInputTypesConflictingTypes(t *testing.T) {
 		s2.Query().FieldFunc("f", func(args struct{ I InputStruct }) string { return "" })
 	}
 
-	_, err := convertSchema(mustExtractSchemas(map[string]*schemabuilder.Schema{
+	_, err := convertSchema(extractSchemas(t, map[string]*schemabuilder.Schema{
 		"schema1": s1,
 		"schema2": s2,
 	}))
@@ -113,7 +116,7 @@ func TestIncompatibleInputTypesMissingNonNullField(t *testing.T) {
 		s2.Query().FieldFunc("f", func(args struct{ I InputStruct }) string { return "" })
 	}
 
-	_, err := convertSchema(mustExtractSchemas(map[string]*schemabuilder.Schema{
+	_, err := convertSchema(extractSchemas(t, map[string]*schemabuilder.Schema{
 		"schema1": s1,
 		"schema2": s2,
 	}))
@@ -129,9 +132,72 @@ func TestIncompatibleInputsConflictingTypes(t *testing.T) {
 	s2 := schemabuilder.NewSchema()
 	s2.Query().FieldFunc("f", func(args struct{ Foo int32 }) string { return "" })
 
-	_, err := convertSchema(mustExtractSchemas(map[string]*schemabuilder.Schema{
+	_, err := convertSchema(extractSchemas(t, map[string]*schemabuilder.Schema{
 		"schema1": s1,
 		"schema2": s2,
 	}))
 	assert.EqualError(t, err, "service schema2 field f input: field map[foo:string!] has incompatible types string! and int32!: scalars must be identical")
+}
+
+// TestMergeNonNilNonNilField tests that a non-nil field combined with a non-nil
+// field is non-nil in the combined schema.
+func TestMergeNonNilNonNilField(t *testing.T) {
+	s1 := schemabuilder.NewSchema()
+	s1.Query().FieldFunc("f", func(args struct{}) string { return "" })
+
+	s2 := schemabuilder.NewSchema()
+	s2.Query().FieldFunc("f", func(args struct{}) string { return "" })
+
+	combined := extractConvertedSchemas(t, map[string]*schemabuilder.Schema{
+		"schema1": s1,
+		"schema2": s2,
+	})
+
+	s3 := schemabuilder.NewSchema()
+	s3.Query().FieldFunc("f", func(args struct{}) string { return "" })
+	expected := extractSchema(t, s3.MustBuild())
+
+	assert.Equal(t, expected, combined)
+}
+
+// TestMergeNonNilNilField tests that a non-nil field combined with a nilable
+// field is nilable in the combined schema.
+func TestMergeNonNilNilField(t *testing.T) {
+	s1 := schemabuilder.NewSchema()
+	s1.Query().FieldFunc("f", func(args struct{}) *string { return nil })
+
+	s2 := schemabuilder.NewSchema()
+	s2.Query().FieldFunc("f", func(args struct{}) string { return "" })
+
+	combined := extractConvertedSchemas(t, map[string]*schemabuilder.Schema{
+		"schema1": s1,
+		"schema2": s2,
+	})
+
+	s3 := schemabuilder.NewSchema()
+	s3.Query().FieldFunc("f", func(args struct{}) *string { return nil })
+	expected := extractSchema(t, s3.MustBuild())
+
+	assert.Equal(t, expected, combined)
+}
+
+// TestMergeNonNilNilArgument tests that a non-nil argument combined with a
+// nilable field is not nilable in the combined schema.
+func TestMergeNonNilNilArgument(t *testing.T) {
+	s1 := schemabuilder.NewSchema()
+	s1.Query().FieldFunc("f", func(args struct{ X string }) string { return "" })
+
+	s2 := schemabuilder.NewSchema()
+	s2.Query().FieldFunc("f", func(args struct{ X *string }) string { return "" })
+
+	combined := extractConvertedSchemas(t, map[string]*schemabuilder.Schema{
+		"schema1": s1,
+		"schema2": s2,
+	})
+
+	s3 := schemabuilder.NewSchema()
+	s3.Query().FieldFunc("f", func(args struct{ X string }) string { return "" })
+	expected := extractSchema(t, s3.MustBuild())
+
+	assert.Equal(t, expected, combined)
 }

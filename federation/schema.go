@@ -129,7 +129,7 @@ func mergeInputFieldTypes(a, b graphql.Type) (graphql.Type, error) {
 
 func mergeObjectFieldTypes(a, b graphql.Type) (graphql.Type, error) {
 	// If either a or b is non-nil, unwrap it, recurse, and mark the resulting
-	// type as nilable.
+	// type as non-nil if both types are non-nil.
 	aNonNil := false
 	if specific, ok := a.(*graphql.NonNull); ok {
 		aNonNil = true
@@ -144,6 +144,9 @@ func mergeObjectFieldTypes(a, b graphql.Type) (graphql.Type, error) {
 		merged, err := mergeObjectFieldTypes(a, b)
 		if err != nil {
 			return nil, err
+		}
+		if aNonNil && bNonNil {
+			merged = &graphql.NonNull{Type: merged}
 		}
 		return merged, nil
 	}

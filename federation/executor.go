@@ -378,8 +378,6 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 // test incompatible schemas
 //   bad schemas (errors paths in merge)
 //   missing __federation
-// test compatible schemas
-//   test against expected schema
 // validate incoming queries
 //   run against type checker
 //
