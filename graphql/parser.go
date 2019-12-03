@@ -122,7 +122,7 @@ func parseSelectionSet(input *ast.SelectionSet, globalFragments map[string]*Frag
 			selections = append(selections, &Selection{
 				Alias:        alias,
 				Name:         selection.Name.Value,
-				UnparsedArgs: args,
+				Args: args,
 				SelectionSet: selectionSet,
 			})
 
@@ -259,7 +259,7 @@ func detectConflicts(selectionSet *SelectionSet) error {
 					if other.Name != selection.Name {
 						return NewClientError("same alias with different name")
 					}
-					if !reflect.DeepEqual(other.UnparsedArgs, selection.UnparsedArgs) {
+					if !reflect.DeepEqual(other.Args, selection.Args) {
 						return NewClientError("same alias with different args")
 					}
 				} else {
@@ -486,7 +486,7 @@ func Flatten(selectionSet *SelectionSet) []*Selection {
 		flattened = append(flattened, &Selection{
 			Name:         selections[0].Name,
 			Alias:        selections[0].Alias,
-			UnparsedArgs: selections[0].UnparsedArgs,
+			Args: selections[0].Args,
 			SelectionSet: merged,
 		})
 	}

@@ -190,8 +190,8 @@ type Selection struct {
 	// parsed once.
 	parsed bool
 
-	// UnparsedArgs are the original json map[string]interface{} arguments.
-	// This field is only available able after PrepareQuery has been called.
+	// Args are the original json map[string]interface{} arguments.
+	// This field is only available after PrepareQuery has been called.
 	UnparsedArgs map[string]interface{}
 
 	// ParentType is the type that this field hangs off of.
