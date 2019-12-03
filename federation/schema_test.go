@@ -29,8 +29,8 @@ func extractSchemas(t *testing.T, schemas map[string]*schemabuilder.Schema) map[
 	return out
 }
 
-func extractConvertedSchemas(t *testing.T, schemas map[string]*schemabuilder.Schema) introspectionQueryResult {
-	combined, err := convertSchema(extractSchemas(t, schemas))
+func extractConvertedSchemas(t *testing.T, schemas map[string]*schemabuilder.Schema, mode MergeMode) introspectionQueryResult {
+	combined, err := convertSchema(extractSchemas(t, schemas), mode)
 	assert.NoError(t, err)
 	return extractSchema(t, combined.Schema)
 }
@@ -41,7 +41,7 @@ func TestBuildSchema(t *testing.T) {
 		"schema2": buildTestSchema2(),
 	}
 
-	types, err := convertSchema(extractSchemas(t, schemas))
+	types, err := convertSchema(extractSchemas(t, schemas), Union)
 	require.NoError(t, err)
 
 	introspection.AddIntrospectionToSchema(types.Schema)
@@ -75,7 +75,7 @@ func TestIncompatibleTypeKinds(t *testing.T) {
 	_, err := convertSchema(extractSchemas(t, map[string]*schemabuilder.Schema{
 		"schema1": s1,
 		"schema2": s2,
-	}))
+	}), Union)
 	assert.EqualError(t, err, "conflicting kinds for typ int")
 }
 
@@ -97,7 +97,7 @@ func TestIncompatibleInputTypesConflictingTypes(t *testing.T) {
 	_, err := convertSchema(extractSchemas(t, map[string]*schemabuilder.Schema{
 		"schema1": s1,
 		"schema2": s2,
-	}))
+	}), Union)
 	assert.EqualError(t, err, "service schema2 typ InputStruct_InputObject: field foo has incompatible types string! and int32!: scalars must be identical")
 }
 
@@ -119,7 +119,7 @@ func TestIncompatibleInputTypesMissingNonNullField(t *testing.T) {
 	_, err := convertSchema(extractSchemas(t, map[string]*schemabuilder.Schema{
 		"schema1": s1,
 		"schema2": s2,
-	}))
+	}), Union)
 	assert.EqualError(t, err, "service schema2 typ InputStruct_InputObject: new field foo is non-null: string!")
 }
 
@@ -135,7 +135,7 @@ func TestIncompatibleInputsConflictingTypes(t *testing.T) {
 	_, err := convertSchema(extractSchemas(t, map[string]*schemabuilder.Schema{
 		"schema1": s1,
 		"schema2": s2,
-	}))
+	}), Union)
 	assert.EqualError(t, err, "service schema2 field f input: field map[foo:string!] has incompatible types string! and int32!: scalars must be identical")
 }
 
@@ -151,7 +151,7 @@ func TestMergeNonNilNonNilField(t *testing.T) {
 	combined := extractConvertedSchemas(t, map[string]*schemabuilder.Schema{
 		"schema1": s1,
 		"schema2": s2,
-	})
+	}, Union)
 
 	s3 := schemabuilder.NewSchema()
 	s3.Query().FieldFunc("f", func(args struct{}) string { return "" })
@@ -172,7 +172,7 @@ func TestMergeNonNilNilField(t *testing.T) {
 	combined := extractConvertedSchemas(t, map[string]*schemabuilder.Schema{
 		"schema1": s1,
 		"schema2": s2,
-	})
+	}, Union)
 
 	s3 := schemabuilder.NewSchema()
 	s3.Query().FieldFunc("f", func(args struct{}) *string { return nil })
@@ -193,10 +193,32 @@ func TestMergeNonNilNilArgument(t *testing.T) {
 	combined := extractConvertedSchemas(t, map[string]*schemabuilder.Schema{
 		"schema1": s1,
 		"schema2": s2,
-	})
+	}, Union)
 
 	s3 := schemabuilder.NewSchema()
 	s3.Query().FieldFunc("f", func(args struct{ X string }) string { return "" })
+	expected := extractSchema(t, s3.MustBuild())
+
+	assert.Equal(t, expected, combined)
+}
+
+// TestIntersectionNewField tests that a new field is not included in the
+// intersection of two schemas.
+func TestIntersectionNewField(t *testing.T) {
+	s1 := schemabuilder.NewSchema()
+	s1.Query().FieldFunc("a", func() string { return "" })
+	s1.Query().FieldFunc("b", func() string { return "" })
+
+	s2 := schemabuilder.NewSchema()
+	s2.Query().FieldFunc("a", func() string { return "" })
+
+	combined := extractConvertedSchemas(t, map[string]*schemabuilder.Schema{
+		"schema1": s1,
+		"schema2": s2,
+	}, Intersection)
+
+	s3 := schemabuilder.NewSchema()
+	s3.Query().FieldFunc("a", func() string { return "" })
 	expected := extractSchema(t, s3.MustBuild())
 
 	assert.Equal(t, expected, combined)

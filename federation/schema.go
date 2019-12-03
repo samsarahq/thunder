@@ -301,10 +301,19 @@ func mergeInputFields(a, b map[string]graphql.Type) (map[string]graphql.Type, er
 			merged[name] = here
 		}
 	}
+	// XXX: when we compute an intersection, should we not include any new input fields?
+	// XXX: or do we mark them optional?
 	return merged, nil
 }
 
-func convertSchema(schemas map[string]introspectionQueryResult) (*SchemaWithFederationInfo, error) {
+type MergeMode int
+
+const (
+	Intersection MergeMode = iota
+	Union
+)
+
+func convertSchema(schemas map[string]introspectionQueryResult, mode MergeMode) (*SchemaWithFederationInfo, error) {
 	all := make(map[string]graphql.Type)
 	typeKinds := make(map[string]string)
 
@@ -430,6 +439,18 @@ func convertSchema(schemas map[string]introspectionQueryResult) (*SchemaWithFede
 					fieldInfos[f].Services[service] = true
 				}
 
+				if mode == Intersection {
+					seenFields := make(map[string]bool)
+					for _, field := range typ.Fields {
+						seenFields[field.Name] = true
+					}
+					for name := range obj.Fields {
+						if !seenFields[name] {
+							delete(obj.Fields, name)
+						}
+					}
+				}
+
 			case "UNION":
 				union := all[typ.Name].(*graphql.Union)
 
@@ -443,6 +464,9 @@ func convertSchema(schemas map[string]introspectionQueryResult) (*SchemaWithFede
 					}
 					union.Types[typ.Name] = typ
 				}
+
+				// XXX: for (merged) unions, make sure we only send possible types
+				// to each service
 			}
 		}
 	}

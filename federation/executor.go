@@ -79,7 +79,7 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Exe
 		schemas[server] = iq
 	}
 
-	types, err := convertSchema(schemas)
+	types, err := convertSchema(schemas, Union)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +97,7 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Exe
 	}
 
 	schemas[server] = iq
-	types, err = convertSchema(schemas)
+	types, err = convertSchema(schemas, Union)
 	if err != nil {
 		return nil, err
 	}
