@@ -8,6 +8,39 @@ import (
 	"github.com/samsarahq/thunder/graphql"
 )
 
+// MergeMode controls how to combine two different schemas. Union is used for
+// two independent services, Intersection for two different versions of the same
+// service.
+type MergeMode string
+
+const (
+	// Union computes a schema that is supported by the two services combined.
+	//
+	// A Union is used to to combine the schema of two independent services.
+	// The proxy will split a GraphQL query to ask each service the fields
+	// it knows about.
+	//
+	// Two schemas must be compatible: Any overlapping types (eg. a field that
+	// is implemented by both services, or two input types) must be compatible.
+	// In practice, this means types must be identical except for non-nil
+	// modifiers.
+	Union MergeMode = "union"
+
+	// Intersection computes a schema that is supported by both services.
+	//
+	// An Intersection is used to combine two schemas of different versions
+	// of the same service. During a deploy, only of two versions might be
+	// available, and so queries must be compatible with both schemas.
+	//
+	// Intersection computes a schema that can be executed by both services.
+	// It only includes types and fields (etc.) exported by both services.
+	// Overlapping types must be compatible as in a Union merge.
+	//
+	// One surprise might be that newly added ENUM values or UNION types might
+	// be returned by the merged schema.
+	Intersection MergeMode = "intersection"
+)
+
 type introspectionTypeRef struct {
 	Kind   string                `json:"kind"`
 	Name   string                `json:"name"`
@@ -57,9 +90,9 @@ type introspectionQueryResult struct {
 	Schema introspectionSchema `json:"__schema"`
 }
 
-func mergeInputFieldTypeRefs(a, b *introspectionTypeRef) (*introspectionTypeRef, error) {
-	// If either a or b is non-nil, unwrap it, recurse, and mark the resulting
-	// type as non-nil.
+func mergeTypeRefs(a, b *introspectionTypeRef, isInput bool) (*introspectionTypeRef, error) {
+	// If either a or b is non-nil, unwrap it, recurse, and maybe mark the
+	// resulting type as non-nil.
 	aNonNil := false
 	if a.Kind == "NON_NULL" {
 		aNonNil = true
@@ -71,74 +104,30 @@ func mergeInputFieldTypeRefs(a, b *introspectionTypeRef) (*introspectionTypeRef,
 		b = b.OfType
 	}
 	if aNonNil || bNonNil {
-		merged, err := mergeInputFieldTypeRefs(a, b)
+		merged, err := mergeTypeRefs(a, b, isInput)
 		if err != nil {
 			return nil, err
 		}
-		return &introspectionTypeRef{Kind: "NON_NULL", OfType: merged}, nil
-	}
 
-	if a.Kind != b.Kind {
-		return nil, fmt.Errorf("kinds %s and %s differ", a.Name, b.Kind)
-	}
+		// Input types are non-nil if either type is non-nil, as one service
+		// will always want an input. Output types are non-nil if both
+		// types are non-nil, as we can only guarantee non-nil values if both
+		// services play along.
+		resultNonNil := isInput || (aNonNil && bNonNil)
 
-	// Otherwise, recursively assert that the input types are compatible.
-	switch a.Kind {
-	case "SCALAR", "ENUM", "INPUT_OBJECT":
-		// Scalars must be identical.
-		if a.Name != b.Name {
-			return nil, errors.New("types must be identical")
-		}
-		return &introspectionTypeRef{
-			Kind: a.Kind,
-			Name: a.Name,
-		}, nil
-
-	case "LIST":
-		// Lists must be compatible but don't have to be identical.
-		inner, err := mergeInputFieldTypeRefs(a.OfType, b.OfType)
-		if err != nil {
-			return nil, err
-		}
-		return &introspectionTypeRef{Kind: "LIST", OfType: inner}, nil
-
-	default:
-		return nil, errors.New("unknown type kind")
-	}
-}
-
-func mergeFieldTypeRefs(a, b *introspectionTypeRef) (*introspectionTypeRef, error) {
-	// If either a or b is non-nil, unwrap it, recurse, and mark the resulting
-	// type as non-nil if both types are non-nil.
-	aNonNil := false
-	if a.Kind == "NON_NULL" {
-		aNonNil = true
-		a = a.OfType
-	}
-	bNonNil := false
-	if b.Kind == "NON_NULL" {
-		bNonNil = true
-		b = b.OfType
-	}
-	if aNonNil || bNonNil {
-		merged, err := mergeFieldTypeRefs(a, b)
-		if err != nil {
-			return nil, err
-		}
-		if aNonNil && bNonNil {
+		if resultNonNil {
 			return &introspectionTypeRef{Kind: "NON_NULL", OfType: merged}, nil
 		}
 		return merged, nil
 	}
 
+	// Otherwise, recursively assert that the input types are compatible.
 	if a.Kind != b.Kind {
 		return nil, fmt.Errorf("kinds %s and %s differ", a.Name, b.Kind)
 	}
-
-	// Otherwise, recursively assert that the input types are compatible.
 	switch a.Kind {
-	case "SCALAR", "ENUM", "UNION", "OBJECT":
-		// Scalars must be identical.
+	// Basic types must be identical.
+	case "SCALAR", "ENUM", "INPUT_OBJECT", "UNION", "OBJECT":
 		if a.Name != b.Name {
 			return nil, errors.New("types must be identical")
 		}
@@ -147,9 +136,9 @@ func mergeFieldTypeRefs(a, b *introspectionTypeRef) (*introspectionTypeRef, erro
 			Name: a.Name,
 		}, nil
 
+	// Recursive must be compatible but don't have to be identical.
 	case "LIST":
-		// Lists must be compatible but don't have to be identical.
-		inner, err := mergeFieldTypeRefs(a.OfType, b.OfType)
+		inner, err := mergeTypeRefs(a.OfType, b.OfType, isInput)
 		if err != nil {
 			return nil, err
 		}
@@ -162,7 +151,7 @@ func mergeFieldTypeRefs(a, b *introspectionTypeRef) (*introspectionTypeRef, erro
 
 // XXX: for types missing __federation, take intersection?
 
-func mergeInputFieldRefs(a, b []introspectionInputField) ([]introspectionInputField, error) {
+func mergeInputFields(a, b []introspectionInputField, mode MergeMode) ([]introspectionInputField, error) {
 	types := make(map[string][]introspectionInputField)
 	for _, a := range a {
 		types[a.Name] = append(types[a.Name], a)
@@ -183,10 +172,12 @@ func mergeInputFieldRefs(a, b []introspectionInputField) ([]introspectionInputFi
 			if p[0].Type.Kind == "NON_NULL" {
 				return nil, fmt.Errorf("new field %s is non-null: %v", name, p[0].Type)
 			}
-			merged = append(merged, p[0])
+			if mode == Union {
+				merged = append(merged, p[0])
+			}
 			continue
 		}
-		m, err := mergeInputFieldTypeRefs(p[0].Type, p[1].Type)
+		m, err := mergeTypeRefs(p[0].Type, p[1].Type, true)
 		if err != nil {
 			return nil, fmt.Errorf("field %s has incompatible types %s and %s: %v", name, p[0].Type, p[1].Type, err)
 		}
@@ -196,8 +187,6 @@ func mergeInputFieldRefs(a, b []introspectionInputField) ([]introspectionInputFi
 		})
 	}
 
-	// XXX: when we compute an intersection, should we not include any new input fields?
-	// XXX: or do we mark them optional?
 	return merged, nil
 }
 
@@ -225,11 +214,11 @@ func mergeFields(a, b []introspectionField, mode MergeMode) ([]introspectionFiel
 			continue
 		}
 
-		typ, err := mergeFieldTypeRefs(p[0].Type, p[1].Type)
+		typ, err := mergeTypeRefs(p[0].Type, p[1].Type, false)
 		if err != nil {
 			return nil, fmt.Errorf("field %s has incompatible types %v and %v: %v", name, p[0], p[1], err)
 		}
-		args, err := mergeInputFieldRefs(p[0].Args, p[1].Args)
+		args, err := mergeInputFields(p[0].Args, p[1].Args, mode)
 		if err != nil {
 			return nil, fmt.Errorf("field %s has incompatible arguments: %v", name, err)
 		}
@@ -244,12 +233,35 @@ func mergeFields(a, b []introspectionField, mode MergeMode) ([]introspectionFiel
 	return merged, nil
 }
 
-type MergeMode int
+func mergePossibleTypes(a, b []*introspectionTypeRef, mode MergeMode) ([]*introspectionTypeRef, error) {
+	types := make(map[string][]*introspectionTypeRef)
+	for _, a := range a {
+		types[a.Name] = append(types[a.Name], a)
+	}
+	for _, b := range b {
+		types[b.Name] = append(types[b.Name], b)
+	}
+	names := make([]string, 0, len(types))
+	for name := range types {
+		names = append(names, name)
+	}
+	sort.Strings(names)
 
-const (
-	Intersection MergeMode = iota
-	Union
-)
+	merged := make([]*introspectionTypeRef, 0, len(names))
+	for _, name := range names {
+		p := types[name]
+		if len(p) == 1 {
+			if mode == Union {
+				merged = append(merged, p[0])
+			}
+			continue
+		}
+
+		merged = append(merged, p[0])
+	}
+
+	return merged, nil
+}
 
 func mergeTypes(a, b introspectionType, mode MergeMode) (*introspectionType, error) {
 	if a.Kind != b.Kind {
@@ -263,7 +275,7 @@ func mergeTypes(a, b introspectionType, mode MergeMode) (*introspectionType, err
 
 	switch a.Kind {
 	case "INPUT_OBJECT":
-		inputFields, err := mergeInputFieldRefs(a.InputFields, b.InputFields)
+		inputFields, err := mergeInputFields(a.InputFields, b.InputFields, mode)
 		if err != nil {
 			return nil, fmt.Errorf("merging input fields: %v", err)
 		}
@@ -277,32 +289,16 @@ func mergeTypes(a, b introspectionType, mode MergeMode) (*introspectionType, err
 		merged.Fields = fields
 
 	case "UNION":
-		all := make(map[string]struct{})
-		for _, a := range a.PossibleTypes {
-			all[a.Name] = struct{}{}
-		}
-		for _, b := range b.PossibleTypes {
-			all[b.Name] = struct{}{}
-		}
-		names := make([]string, 0, len(all))
-		for name := range all {
-			names = append(names, name)
-		}
-		sort.Strings(names)
-		possibleTypes := make([]*introspectionTypeRef, 0, len(names))
-		for _, name := range names {
-			possibleTypes = append(possibleTypes, &introspectionTypeRef{
-				Kind: "OBJECT",
-				Name: name,
-			})
+		possibleTypes, err := mergePossibleTypes(a.PossibleTypes, b.PossibleTypes, mode)
+		if err != nil {
+			return nil, fmt.Errorf("merging possible types: %v", err)
 		}
 		merged.PossibleTypes = possibleTypes
-		// XXX: for (merged) unions, make sure we only send possible types
-		// to each service
 
 	case "SCALAR":
 
 	case "ENUM":
+		// XXX: merge values
 
 	default:
 		return nil, fmt.Errorf("unknown kind %s", a.Kind)
@@ -330,8 +326,11 @@ func mergeSchemas(a, b *introspectionQueryResult, mode MergeMode) (*introspectio
 	for _, name := range names {
 		p := types[name]
 		if len(p) == 1 {
-			// XXX: skip in intersection?
-			merged = append(merged, p[0])
+			// For new objects, hide all fields. Otherwise we might end up
+			// sending awkward queries to a service.
+			if mode == Union {
+				merged = append(merged, p[0])
+			}
 			continue
 		}
 		m, err := mergeTypes(p[0], p[1], mode)
@@ -577,18 +576,3 @@ func convertSchema(schemas map[string]introspectionQueryResult, mode MergeMode) 
 		Fields: fieldInfos,
 	}, nil
 }
-
-// schema.Extend()
-
-// XXX: any types you return you must have the definition for...
-//
-//   how do we enforce that?? some compile time check that crosses package
-//   boundaries and spots Object() (or whatever) calls that are automatic in some
-//   package and not in another?
-//
-//   could not do magic anymore and require an explicit "schema.Object" call for
-//   any types returned... maybe with schema.AutoObject("") to handle automatic
-//   cases?
-//
-// XXX: could not allow schemabuilder auto objects outside of packages? seems nice.
-// }

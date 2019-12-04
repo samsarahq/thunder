@@ -428,3 +428,20 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 // simplify executor, schema, and HTTP handler APIs
 //
 // extract out dependency set client and server
+
+// XXX
+//
+// schema.Extend()
+//
+// XXX: any types you return you must have the definition for...
+//
+//   how do we enforce that?? some compile time check that crosses package
+//   boundaries and spots Object() (or whatever) calls that are automatic in some
+//   package and not in another?
+//
+//   could not do magic anymore and require an explicit "schema.Object" call for
+//   any types returned... maybe with schema.AutoObject("") to handle automatic
+//   cases?
+//
+// XXX: could not allow schemabuilder auto objects outside of packages? seems nice.
+// }
