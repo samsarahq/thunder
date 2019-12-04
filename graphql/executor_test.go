@@ -214,6 +214,7 @@ func TestFlatten(t *testing.T) {
 				Args: &Args{
 					Value: 2,
 				},
+				ParentType: "Query",
 				SelectionSet: &graphql.SelectionSet{
 					// Flatten needs to be run on every level. On a subsequent run,
 					// these foo's would also get flattened.
@@ -237,6 +238,7 @@ func TestFlatten(t *testing.T) {
 					Args: &Args{
 						Value: 2,
 					},
+					ParentType: "Query",
 					SelectionSet: &graphql.SelectionSet{
 						Selections: []*graphql.Selection{{
 							Name:         "foo",
@@ -251,6 +253,7 @@ func TestFlatten(t *testing.T) {
 					Args: &Args{
 						Value: 2,
 					},
+					ParentType: "Query",
 					SelectionSet: &graphql.SelectionSet{
 						Selections: []*graphql.Selection{{
 							Name:         "foo",
