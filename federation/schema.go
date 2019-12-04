@@ -8,20 +8,26 @@ import (
 	"github.com/samsarahq/thunder/graphql"
 )
 
-type FieldInfo struct {
-	Service  string
-	Services map[string]bool
-}
-
-type SchemaWithFederationInfo struct {
-	Schema *graphql.Schema
-	Fields map[*graphql.Field]*FieldInfo
-}
-
 type introspectionTypeRef struct {
 	Kind   string                `json:"kind"`
 	Name   string                `json:"name"`
 	OfType *introspectionTypeRef `json:"ofType"`
+}
+
+func (t *introspectionTypeRef) String() string {
+	if t == nil {
+		return "<nil>"
+	}
+	switch t.Kind {
+	case "SCALAR", "ENUM", "UNION", "OBJECT", "INPUT_OBJECT":
+		return t.Name
+	case "NON_NULL":
+		return t.OfType.String() + "!"
+	case "LIST":
+		return "[" + t.OfType.String() + "]"
+	default:
+		return fmt.Sprintf("<kind=%s name=%s ofType%s>", t.Kind, t.Name, t.OfType)
+	}
 }
 
 type introspectionInputField struct {
@@ -29,96 +35,125 @@ type introspectionInputField struct {
 	Type *introspectionTypeRef `json:"type"`
 }
 
-type introspectionQueryResult struct {
-	Schema struct {
-		Types []struct {
-			Name   string `json:"name"`
-			Kind   string `json:"kind"`
-			Fields []struct {
-				Name string                    `json:"name"`
-				Type *introspectionTypeRef     `json:"type"`
-				Args []introspectionInputField `json:"args"`
-			} `json:"fields"`
-			InputFields   []introspectionInputField `json:"inputFields"`
-			PossibleTypes []*introspectionTypeRef   `json:"possibleTypes"`
-		} `json:"types"`
-	} `json:"__schema"`
+type introspectionField struct {
+	Name string                    `json:"name"`
+	Type *introspectionTypeRef     `json:"type"`
+	Args []introspectionInputField `json:"args"`
 }
 
-// mergeInputFieldTypes takes the type of a field from two different schemas and
-// computes a compatible type, if possible.
-//
-// Two types must be identical, besides non-nil flags, to be compatible. If one
-// type is non-nil but the other is not, the combined typed will be non-nil.
-func mergeInputFieldTypes(a, b graphql.Type) (graphql.Type, error) {
+type introspectionType struct {
+	Name          string                    `json:"name"`
+	Kind          string                    `json:"kind"`
+	Fields        []introspectionField      `json:"fields"`
+	InputFields   []introspectionInputField `json:"inputFields"`
+	PossibleTypes []*introspectionTypeRef   `json:"possibleTypes"`
+}
+
+type introspectionSchema struct {
+	Types []introspectionType `json:"types"`
+}
+
+type introspectionQueryResult struct {
+	Schema introspectionSchema `json:"__schema"`
+}
+
+func mergeInputFieldTypeRefs(a, b *introspectionTypeRef) (*introspectionTypeRef, error) {
 	// If either a or b is non-nil, unwrap it, recurse, and mark the resulting
 	// type as non-nil.
 	aNonNil := false
-	if specific, ok := a.(*graphql.NonNull); ok {
+	if a.Kind == "NON_NULL" {
 		aNonNil = true
-		a = specific.Type
+		a = a.OfType
 	}
 	bNonNil := false
-	if specific, ok := b.(*graphql.NonNull); ok {
+	if b.Kind == "NON_NULL" {
 		bNonNil = true
-		b = specific.Type
+		b = b.OfType
 	}
 	if aNonNil || bNonNil {
-		merged, err := mergeInputFieldTypes(a, b)
+		merged, err := mergeInputFieldTypeRefs(a, b)
 		if err != nil {
 			return nil, err
 		}
-		return &graphql.NonNull{Type: merged}, nil
+		return &introspectionTypeRef{Kind: "NON_NULL", OfType: merged}, nil
+	}
+
+	if a.Kind != b.Kind {
+		return nil, fmt.Errorf("kinds %s and %s differ", a.Name, b.Kind)
 	}
 
 	// Otherwise, recursively assert that the input types are compatible.
-	switch a := a.(type) {
-	case *graphql.Scalar:
+	switch a.Kind {
+	case "SCALAR", "ENUM", "INPUT_OBJECT":
 		// Scalars must be identical.
-		b, ok := b.(*graphql.Scalar)
-		if !ok {
-			return nil, errors.New("both types must be scalar")
+		if a.Name != b.Name {
+			return nil, errors.New("types must be identical")
 		}
-		if a != b {
-			return nil, errors.New("scalars must be identical")
-		}
-		return a, nil
+		return &introspectionTypeRef{
+			Kind: a.Kind,
+			Name: a.Name,
+		}, nil
 
-	case *graphql.Enum:
-		// Enums must be identical.
-		b, ok := b.(*graphql.Enum)
-		if !ok {
-			return nil, errors.New("both types must be enum")
-		}
-		if a != b {
-			return nil, errors.New("enums must be identical")
-		}
-		return a, nil
-
-	case *graphql.List:
+	case "LIST":
 		// Lists must be compatible but don't have to be identical.
-		b, ok := b.(*graphql.List)
-		if !ok {
-			return nil, errors.New("both types must be list")
-		}
-		inner, err := mergeInputFieldTypes(a.Type, b.Type)
+		inner, err := mergeInputFieldTypeRefs(a.OfType, b.OfType)
 		if err != nil {
 			return nil, err
 		}
-		return &graphql.List{Type: inner}, nil
+		return &introspectionTypeRef{Kind: "LIST", OfType: inner}, nil
 
-	case *graphql.InputObject:
-		// InputObjects must be identical. The types might be different on the
-		// servers and will be merged when their fields are merged, but the type
-		// names of the fields must be equal.
-		b, ok := b.(*graphql.InputObject)
-		if !ok {
-			return nil, errors.New("both types must be input object")
+	default:
+		return nil, errors.New("unknown type kind")
+	}
+}
+
+func mergeFieldTypeRefs(a, b *introspectionTypeRef) (*introspectionTypeRef, error) {
+	// If either a or b is non-nil, unwrap it, recurse, and mark the resulting
+	// type as non-nil if both types are non-nil.
+	aNonNil := false
+	if a.Kind == "NON_NULL" {
+		aNonNil = true
+		a = a.OfType
+	}
+	bNonNil := false
+	if b.Kind == "NON_NULL" {
+		bNonNil = true
+		b = b.OfType
+	}
+	if aNonNil || bNonNil {
+		merged, err := mergeFieldTypeRefs(a, b)
+		if err != nil {
+			return nil, err
 		}
-		if a != b {
-			return nil, errors.New("input objects must be identical")
+		if aNonNil && bNonNil {
+			return &introspectionTypeRef{Kind: "NON_NULL", OfType: merged}, nil
 		}
-		return a, nil
+		return merged, nil
+	}
+
+	if a.Kind != b.Kind {
+		return nil, fmt.Errorf("kinds %s and %s differ", a.Name, b.Kind)
+	}
+
+	// Otherwise, recursively assert that the input types are compatible.
+	switch a.Kind {
+	case "SCALAR", "ENUM", "UNION", "OBJECT":
+		// Scalars must be identical.
+		if a.Name != b.Name {
+			return nil, errors.New("types must be identical")
+		}
+		return &introspectionTypeRef{
+			Kind: a.Kind,
+			Name: a.Name,
+		}, nil
+
+	case "LIST":
+		// Lists must be compatible but don't have to be identical.
+		inner, err := mergeFieldTypeRefs(a.OfType, b.OfType)
+		if err != nil {
+			return nil, err
+		}
+		return &introspectionTypeRef{Kind: "LIST", OfType: inner}, nil
 
 	default:
 		return nil, errors.New("unknown type kind")
@@ -127,96 +162,190 @@ func mergeInputFieldTypes(a, b graphql.Type) (graphql.Type, error) {
 
 // XXX: for types missing __federation, take intersection?
 
-func mergeObjectFieldTypes(a, b graphql.Type) (graphql.Type, error) {
-	// If either a or b is non-nil, unwrap it, recurse, and mark the resulting
-	// type as non-nil if both types are non-nil.
-	aNonNil := false
-	if specific, ok := a.(*graphql.NonNull); ok {
-		aNonNil = true
-		a = specific.Type
+func mergeInputFieldRefs(a, b []introspectionInputField) ([]introspectionInputField, error) {
+	types := make(map[string][]introspectionInputField)
+	for _, a := range a {
+		types[a.Name] = append(types[a.Name], a)
 	}
-	bNonNil := false
-	if specific, ok := b.(*graphql.NonNull); ok {
-		bNonNil = true
-		b = specific.Type
+	for _, b := range b {
+		types[b.Name] = append(types[b.Name], b)
 	}
-	if aNonNil || bNonNil {
-		merged, err := mergeObjectFieldTypes(a, b)
+	names := make([]string, 0, len(types))
+	for name := range types {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	merged := make([]introspectionInputField, 0, len(names))
+	for _, name := range names {
+		p := types[name]
+		if len(p) == 1 {
+			if p[0].Type.Kind == "NON_NULL" {
+				return nil, fmt.Errorf("new field %s is non-null: %v", name, p[0].Type)
+			}
+			merged = append(merged, p[0])
+			continue
+		}
+		m, err := mergeInputFieldTypeRefs(p[0].Type, p[1].Type)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("field %s has incompatible types %s and %s: %v", name, p[0].Type, p[1].Type, err)
 		}
-		if aNonNil && bNonNil {
-			merged = &graphql.NonNull{Type: merged}
-		}
-		return merged, nil
+		merged = append(merged, introspectionInputField{
+			Name: name,
+			Type: m,
+		})
 	}
 
-	// Otherwise, recursively assert that the types are compatible.
-	switch a := a.(type) {
-	case *graphql.Scalar:
-		// Scalars must be identical.
-		b, ok := b.(*graphql.Scalar)
-		if !ok {
-			return nil, errors.New("both types must be scalar")
-		}
-		if a != b {
-			return nil, errors.New("scalars must be identical")
-		}
-		return a, nil
+	// XXX: when we compute an intersection, should we not include any new input fields?
+	// XXX: or do we mark them optional?
+	return merged, nil
+}
 
-	case *graphql.Enum:
-		// Enums must be identical.
-		b, ok := b.(*graphql.Enum)
-		if !ok {
-			return nil, errors.New("both types must be enum")
-		}
-		if a != b {
-			return nil, errors.New("enums must be identical")
-		}
-		return a, nil
+func mergeFields(a, b []introspectionField, mode MergeMode) ([]introspectionField, error) {
+	types := make(map[string][]introspectionField)
+	for _, a := range a {
+		types[a.Name] = append(types[a.Name], a)
+	}
+	for _, b := range b {
+		types[b.Name] = append(types[b.Name], b)
+	}
+	names := make([]string, 0, len(types))
+	for name := range types {
+		names = append(names, name)
+	}
+	sort.Strings(names)
 
-	case *graphql.List:
-		// Lists must be compatible but don't have to be identical.
-		b, ok := b.(*graphql.List)
-		if !ok {
-			return nil, errors.New("both types must be list")
+	merged := make([]introspectionField, 0, len(names))
+	for _, name := range names {
+		p := types[name]
+		if len(p) == 1 {
+			if mode == Union {
+				merged = append(merged, p[0])
+			}
+			continue
 		}
-		inner, err := mergeObjectFieldTypes(a.Type, b.Type)
+
+		typ, err := mergeFieldTypeRefs(p[0].Type, p[1].Type)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("field %s has incompatible types %v and %v: %v", name, p[0], p[1], err)
 		}
-		return &graphql.List{Type: inner}, nil
+		args, err := mergeInputFieldRefs(p[0].Args, p[1].Args)
+		if err != nil {
+			return nil, fmt.Errorf("field %s has incompatible arguments: %v", name, err)
+		}
 
-	case *graphql.Object:
-		// Objects must be identical. The types might be different on the
-		// servers and will be merged when their fields are merged, but the type
-		// names of the fields must be equal.
-		b, ok := b.(*graphql.Object)
-		if !ok {
-			return nil, errors.New("both types must be object")
-		}
-		if a != b {
-			return nil, errors.New("objects must be identical")
-		}
-		return a, nil
+		merged = append(merged, introspectionField{
+			Name: name,
+			Type: typ,
+			Args: args,
+		})
+	}
 
-	case *graphql.Union:
-		// Unions must be identical. The types might be different on the
-		// servers and will be merged when their fields are merged, but the type
-		// names of the fields must be equal.
-		b, ok := b.(*graphql.Union)
-		if !ok {
-			return nil, errors.New("both types must be union")
+	return merged, nil
+}
+
+type MergeMode int
+
+const (
+	Intersection MergeMode = iota
+	Union
+)
+
+func mergeTypes(a, b introspectionType, mode MergeMode) (*introspectionType, error) {
+	if a.Kind != b.Kind {
+		return nil, fmt.Errorf("conflicting kinds %s and %s", a.Kind, b.Kind)
+	}
+
+	merged := introspectionType{
+		Name: a.Name,
+		Kind: a.Kind,
+	}
+
+	switch a.Kind {
+	case "INPUT_OBJECT":
+		inputFields, err := mergeInputFieldRefs(a.InputFields, b.InputFields)
+		if err != nil {
+			return nil, fmt.Errorf("merging input fields: %v", err)
 		}
-		if a != b {
-			return nil, errors.New("unions must be identical")
+		merged.InputFields = inputFields
+
+	case "OBJECT":
+		fields, err := mergeFields(a.Fields, b.Fields, mode)
+		if err != nil {
+			return nil, fmt.Errorf("merging fields: %v", err)
 		}
-		return a, nil
+		merged.Fields = fields
+
+	case "UNION":
+		all := make(map[string]struct{})
+		for _, a := range a.PossibleTypes {
+			all[a.Name] = struct{}{}
+		}
+		for _, b := range b.PossibleTypes {
+			all[b.Name] = struct{}{}
+		}
+		names := make([]string, 0, len(all))
+		for name := range all {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		possibleTypes := make([]*introspectionTypeRef, 0, len(names))
+		for _, name := range names {
+			possibleTypes = append(possibleTypes, &introspectionTypeRef{
+				Kind: "OBJECT",
+				Name: name,
+			})
+		}
+		merged.PossibleTypes = possibleTypes
+		// XXX: for (merged) unions, make sure we only send possible types
+		// to each service
+
+	case "SCALAR":
+
+	case "ENUM":
 
 	default:
-		return nil, errors.New("unknown type kind")
+		return nil, fmt.Errorf("unknown kind %s", a.Kind)
 	}
 
+	return &merged, nil
+}
+
+func mergeSchemas(a, b *introspectionQueryResult, mode MergeMode) (*introspectionQueryResult, error) {
+	// XXX: should we surface orphaned types? complain about them?
+	types := make(map[string][]introspectionType)
+	for _, a := range a.Schema.Types {
+		types[a.Name] = append(types[a.Name], a)
+	}
+	for _, b := range b.Schema.Types {
+		types[b.Name] = append(types[b.Name], b)
+	}
+	names := make([]string, 0, len(types))
+	for name := range types {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	merged := make([]introspectionType, 0, len(names))
+	for _, name := range names {
+		p := types[name]
+		if len(p) == 1 {
+			// XXX: skip in intersection?
+			merged = append(merged, p[0])
+			continue
+		}
+		m, err := mergeTypes(p[0], p[1], mode)
+		if err != nil {
+			return nil, fmt.Errorf("can't merge type %s: %v", name, err)
+		}
+		merged = append(merged, *m)
+	}
+
+	return &introspectionQueryResult{
+		Schema: introspectionSchema{
+			Types: merged,
+		},
+	}, nil
 }
 
 func lookupTypeRef(t *introspectionTypeRef, all map[string]graphql.Type) (graphql.Type, error) {
@@ -272,209 +401,178 @@ func parseInputFields(source []introspectionInputField, all map[string]graphql.T
 	return fields, nil
 }
 
-func mergeInputFields(a, b map[string]graphql.Type) (map[string]graphql.Type, error) {
-	merged := make(map[string]graphql.Type)
-	for name, here := range b {
-		current, ok := a[name]
-		if !ok {
-			if _, ok := here.(*graphql.NonNull); ok {
-				return nil, fmt.Errorf("new field %s is non-null: %s", name, here)
-			}
-			merged[name] = here
-		} else {
-			m, err := mergeInputFieldTypes(current, here)
-			if err != nil {
-				return nil, fmt.Errorf("field %s has incompatible types %s and %s: %s",
-					a, current, here, err)
-			}
-			merged[name] = m
-		}
-	}
-	for name, here := range a {
-		_, ok := b[name]
-		if ok {
-			// already done above
-		} else {
-			if _, ok := here.(*graphql.NonNull); ok {
-				return nil, fmt.Errorf("new field %s is non-null: %s", name, here)
-			}
-			merged[name] = here
-		}
-	}
-	// XXX: when we compute an intersection, should we not include any new input fields?
-	// XXX: or do we mark them optional?
-	return merged, nil
-}
-
-type MergeMode int
-
-const (
-	Intersection MergeMode = iota
-	Union
-)
-
-func convertSchema(schemas map[string]introspectionQueryResult, mode MergeMode) (*SchemaWithFederationInfo, error) {
+func parseSchema(schema *introspectionQueryResult) (map[string]graphql.Type, error) {
 	all := make(map[string]graphql.Type)
-	typeKinds := make(map[string]string)
+
+	for _, typ := range schema.Schema.Types {
+		if _, ok := all[typ.Name]; ok {
+			return nil, fmt.Errorf("duplicate type %s", typ.Name)
+		}
+
+		switch typ.Kind {
+		case "OBJECT":
+			all[typ.Name] = &graphql.Object{
+				Name: typ.Name,
+			}
+
+		case "INPUT_OBJECT":
+			all[typ.Name] = &graphql.InputObject{
+				Name: typ.Name,
+			}
+
+		case "SCALAR":
+			all[typ.Name] = &graphql.Scalar{
+				Type: typ.Name,
+			}
+
+		case "UNION":
+			all[typ.Name] = &graphql.Union{
+				Name: typ.Name,
+			}
+
+		default:
+			return nil, fmt.Errorf("unknown type kind %s", typ.Kind)
+		}
+	}
 
 	// XXX: should we surface orphaned types? complain about them?
 
+	// Initialize barebone types
+	for _, typ := range schema.Schema.Types {
+		switch typ.Kind {
+		case "OBJECT":
+			fields := make(map[string]*graphql.Field)
+			for _, field := range typ.Fields {
+				fieldTyp, err := lookupTypeRef(field.Type, all)
+				if err != nil {
+					return nil, fmt.Errorf("typ %s field %s has bad typ: %v",
+						typ.Name, field.Name, err)
+				}
+
+				parsed, err := parseInputFields(field.Args, all)
+				if err != nil {
+					return nil, fmt.Errorf("field %s input: %v", field.Name, err)
+				}
+
+				fields[field.Name] = &graphql.Field{
+					Args: parsed,   // xxx
+					Type: fieldTyp, // XXX
+				}
+			}
+
+			all[typ.Name].(*graphql.Object).Fields = fields
+
+		case "INPUT_OBJECT":
+			parsed, err := parseInputFields(typ.InputFields, all)
+			if err != nil {
+				return nil, fmt.Errorf("typ %s: %v", typ.Name, err)
+			}
+
+			all[typ.Name].(*graphql.InputObject).InputFields = parsed
+
+		case "UNION":
+			types := make(map[string]*graphql.Object)
+			for _, other := range typ.PossibleTypes {
+				if other.Kind != "OBJECT" {
+					return nil, fmt.Errorf("typ %s has possible typ not OBJECT: %v", typ.Name, other)
+				}
+				typ, ok := all[other.Name].(*graphql.Object)
+				if !ok {
+					return nil, fmt.Errorf("typ %s possible typ %s does not refer to obj", typ.Name, other.Name)
+				}
+				types[typ.Name] = typ
+			}
+
+			all[typ.Name].(*graphql.Union).Types = types
+
+			// XXX: for (merged) unions, make sure we only send possible types
+			// to each service
+
+		case "SCALAR":
+			// pass
+
+		default:
+			return nil, fmt.Errorf("unknown type kind %s", typ.Kind)
+		}
+	}
+
+	return all, nil
+}
+
+/*
+type ServiceSchemas map[string]introspectionQueryResult
+
+type ServicesSchemas map[string]ServiceSchemas
+*/
+
+type FieldInfo struct {
+	Service  string
+	Services map[string]bool
+}
+
+type SchemaWithFederationInfo struct {
+	Schema *graphql.Schema
+	Fields map[*graphql.Field]*FieldInfo
+}
+
+func convertSchema(schemas map[string]introspectionQueryResult, mode MergeMode) (*SchemaWithFederationInfo, error) {
 	schemaNames := make([]string, 0, len(schemas))
 	for name := range schemas {
 		schemaNames = append(schemaNames, name)
 	}
 	sort.Strings(schemaNames)
 
+	var merged *introspectionQueryResult
+	first := true
+
 	// Initialize barebone types
 	for _, service := range schemaNames {
 		schema := schemas[service]
-		for _, typ := range schema.Schema.Types {
-			if kind, ok := typeKinds[typ.Name]; ok {
-				if kind != typ.Kind {
-					return nil, fmt.Errorf("conflicting kinds for typ %s", typ.Name)
-				}
-				continue
-			}
-			typeKinds[typ.Name] = typ.Kind
-
-			switch typ.Kind {
-			case "OBJECT":
-				all[typ.Name] = &graphql.Object{
-					Name:   typ.Name,
-					Fields: make(map[string]*graphql.Field),
-				}
-
-			case "INPUT_OBJECT":
-				all[typ.Name] = &graphql.InputObject{
-					Name:        typ.Name,
-					InputFields: make(map[string]graphql.Type),
-				}
-
-			case "SCALAR":
-				all[typ.Name] = &graphql.Scalar{
-					Type: typ.Name,
-				}
-
-			case "UNION":
-				all[typ.Name] = &graphql.Union{
-					Name:  typ.Name,
-					Types: make(map[string]*graphql.Object),
-				}
-
-			default:
-				return nil, fmt.Errorf("unknown type kind %s", typ.Kind)
+		if first {
+			merged = &schema
+			first = false
+		} else {
+			var err error
+			merged, err = mergeSchemas(merged, &schema, mode)
+			if err != nil {
+				return nil, fmt.Errorf("merging %s: %v", service, err)
 			}
 		}
 	}
 
+	types, err := parseSchema(merged)
+	if err != nil {
+		return nil, err
+	}
+
 	fieldInfos := make(map[*graphql.Field]*FieldInfo)
 
-	seenInput := make(map[string]bool)
-
 	for _, service := range schemaNames {
-		schema := schemas[service]
-		for _, typ := range schema.Schema.Types {
-			switch typ.Kind {
-			case "INPUT_OBJECT":
-				obj := all[typ.Name].(*graphql.InputObject)
-				parsed, err := parseInputFields(typ.InputFields, all)
-				if err != nil {
-					return nil, fmt.Errorf("service %s typ %s: %v", service, typ.Name, err)
-				}
-
-				if !seenInput[typ.Name] {
-					obj.InputFields = parsed
-					seenInput[typ.Name] = true
-				} else {
-					merged, err := mergeInputFields(obj.InputFields, parsed)
-					if err != nil {
-						return nil, fmt.Errorf("service %s typ %s: %v", service, typ.Name, err)
-					}
-					obj.InputFields = merged
-				}
-
-			case "OBJECT":
-				obj := all[typ.Name].(*graphql.Object)
+		for _, typ := range schemas[service].Schema.Types {
+			if typ.Kind == "OBJECT" {
+				obj := types[typ.Name].(*graphql.Object)
 
 				for _, field := range typ.Fields {
-					typ, err := lookupTypeRef(field.Type, all)
-					if err != nil {
-						return nil, fmt.Errorf("service %s typ %s field %s has bad typ: %v",
-							service, typ, field.Name, err)
-					}
+					f := obj.Fields[field.Name]
 
-					parsed, err := parseInputFields(field.Args, all)
-					if err != nil {
-						return nil, fmt.Errorf("service %s field %s input: %v", service, field.Name, err)
-					}
-
-					f, ok := obj.Fields[field.Name]
+					info, ok := fieldInfos[f]
 					if !ok {
-						f = &graphql.Field{
-							Args: parsed, // xxx
-							Type: typ,    // XXX
-						}
-						obj.Fields[field.Name] = f
-						fieldInfos[f] = &FieldInfo{
+						info = &FieldInfo{
 							Service:  service,
 							Services: map[string]bool{},
 						}
-					} else {
-						merged, err := mergeInputFields(f.Args, parsed)
-						if err != nil {
-							return nil, fmt.Errorf("service %s field %s input: %v", service, field.Name, err)
-						}
-						f.Args = merged
-
-						respMerged, err := mergeObjectFieldTypes(f.Type, typ)
-						if err != nil {
-							return nil, fmt.Errorf("service %s typ %s field %s has bad typ: %v",
-								service, typ, field.Name, err)
-						}
-						f.Type = respMerged
+						fieldInfos[f] = info
 					}
-
-					// XXX check consistent types
-
-					fieldInfos[f].Services[service] = true
+					info.Services[service] = true
 				}
-
-				if mode == Intersection {
-					seenFields := make(map[string]bool)
-					for _, field := range typ.Fields {
-						seenFields[field.Name] = true
-					}
-					for name := range obj.Fields {
-						if !seenFields[name] {
-							delete(obj.Fields, name)
-						}
-					}
-				}
-
-			case "UNION":
-				union := all[typ.Name].(*graphql.Union)
-
-				for _, other := range typ.PossibleTypes {
-					if other.Kind != "OBJECT" {
-						return nil, fmt.Errorf("service %s typ %s has possible typ not OBJECT: %v", service, typ.Name, other)
-					}
-					typ, ok := all[other.Name].(*graphql.Object)
-					if !ok {
-						return nil, fmt.Errorf("service %s typ %s possible typ %s does not refer to obj", service, typ.Name, other.Name)
-					}
-					union.Types[typ.Name] = typ
-				}
-
-				// XXX: for (merged) unions, make sure we only send possible types
-				// to each service
 			}
 		}
 	}
 
 	return &SchemaWithFederationInfo{
 		Schema: &graphql.Schema{
-			Query:    all["Query"],    // XXX
-			Mutation: all["Mutation"], // XXX
+			Query:    types["Query"],    // XXX
+			Mutation: types["Mutation"], // XXX
 		},
 		Fields: fieldInfos,
 	}, nil

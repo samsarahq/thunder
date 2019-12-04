@@ -76,7 +76,7 @@ func TestIncompatibleTypeKinds(t *testing.T) {
 		"schema1": s1,
 		"schema2": s2,
 	}), Union)
-	assert.EqualError(t, err, "conflicting kinds for typ int")
+	assert.EqualError(t, err, "merging schema2: can't merge type int: conflicting kinds OBJECT and SCALAR")
 }
 
 // TestIncompatibleInputTypesConflictingTypes tests that incompatible input types
@@ -98,7 +98,7 @@ func TestIncompatibleInputTypesConflictingTypes(t *testing.T) {
 		"schema1": s1,
 		"schema2": s2,
 	}), Union)
-	assert.EqualError(t, err, "service schema2 typ InputStruct_InputObject: field foo has incompatible types string! and int32!: scalars must be identical")
+	assert.EqualError(t, err, "merging schema2: can't merge type InputStruct_InputObject: merging input fields: field foo has incompatible types string! and int32!: types must be identical")
 }
 
 // TestIncompatibleInputTypesMissingNonNullField tests that incompatible input types
@@ -120,7 +120,7 @@ func TestIncompatibleInputTypesMissingNonNullField(t *testing.T) {
 		"schema1": s1,
 		"schema2": s2,
 	}), Union)
-	assert.EqualError(t, err, "service schema2 typ InputStruct_InputObject: new field foo is non-null: string!")
+	assert.EqualError(t, err, "merging schema2: can't merge type InputStruct_InputObject: merging input fields: new field foo is non-null: string!")
 }
 
 // TestIncompatibleInputsConflictingTypes tests that incompatible input fields
@@ -136,7 +136,7 @@ func TestIncompatibleInputsConflictingTypes(t *testing.T) {
 		"schema1": s1,
 		"schema2": s2,
 	}), Union)
-	assert.EqualError(t, err, "service schema2 field f input: field map[foo:string!] has incompatible types string! and int32!: scalars must be identical")
+	assert.EqualError(t, err, "merging schema2: can't merge type Query: merging fields: field f has incompatible arguments: field foo has incompatible types string! and int32!: types must be identical")
 }
 
 // TestMergeNonNilNonNilField tests that a non-nil field combined with a non-nil

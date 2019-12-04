@@ -375,18 +375,18 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 //
 // NEEDED
 //
-// test incompatible schemas
-//   bad schemas (errors paths in merge)
-//   missing __federation
-// validate incoming queries
-//   run against type checker
-//
 // tooling for schema management
 //   track all schema(s)
 //   take least common denominator
 //   test adding field
 //   test moving field between services
 //   live schema updates (while running)
+//
+// test incompatible schemas
+//   bad schemas (errors paths in merge)
+//   missing __federation
+// validate incoming queries
+//   run against type checker
 //
 // error handling
 //   downstream server failure
