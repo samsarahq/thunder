@@ -269,8 +269,11 @@ func mergeTypes(a, b introspectionType, mode MergeMode) (*introspectionType, err
 	}
 
 	merged := introspectionType{
-		Name: a.Name,
-		Kind: a.Kind,
+		Name:          a.Name,
+		Kind:          a.Kind,
+		Fields:        []introspectionField{},
+		InputFields:   []introspectionInputField{},
+		PossibleTypes: []*introspectionTypeRef{},
 	}
 
 	switch a.Kind {
@@ -498,45 +501,61 @@ func parseSchema(schema *introspectionQueryResult) (map[string]graphql.Type, err
 	return all, nil
 }
 
-/*
-type ServiceSchemas map[string]introspectionQueryResult
+// serviceSchemas is a map from service name and version to query.
+type serviceSchemas map[string]map[string]*introspectionQueryResult
 
-type ServicesSchemas map[string]ServiceSchemas
-*/
-
-type FieldInfo struct {
-	Service  string
-	Services map[string]bool
-}
-
-type SchemaWithFederationInfo struct {
-	Schema *graphql.Schema
-	Fields map[*graphql.Field]*FieldInfo
-}
-
-func convertSchema(schemas map[string]introspectionQueryResult, mode MergeMode) (*SchemaWithFederationInfo, error) {
-	schemaNames := make([]string, 0, len(schemas))
-	for name := range schemas {
-		schemaNames = append(schemaNames, name)
+func mergeSchemaSlice(schemas []*introspectionQueryResult, mode MergeMode) (*introspectionQueryResult, error) {
+	if len(schemas) == 0 {
+		return nil, errors.New("no schemas")
 	}
-	sort.Strings(schemaNames)
-
-	var merged *introspectionQueryResult
-	first := true
-
-	// Initialize barebone types
-	for _, service := range schemaNames {
-		schema := schemas[service]
-		if first {
-			merged = &schema
-			first = false
-		} else {
-			var err error
-			merged, err = mergeSchemas(merged, &schema, mode)
-			if err != nil {
-				return nil, fmt.Errorf("merging %s: %v", service, err)
-			}
+	merged := schemas[0]
+	for _, schema := range schemas[1:] {
+		var err error
+		merged, err = mergeSchemas(merged, schema, mode)
+		if err != nil {
+			return nil, err
 		}
+	}
+	return merged, nil
+}
+
+func convertVersionedSchemas(schemas serviceSchemas) (*SchemaWithFederationInfo, error) {
+	serviceNames := make([]string, 0, len(schemas))
+	for service := range schemas {
+		serviceNames = append(serviceNames, service)
+	}
+	sort.Strings(serviceNames)
+
+	serviceSchemasByName := make(map[string]*introspectionQueryResult)
+
+	var serviceSchemas []*introspectionQueryResult
+	for _, service := range serviceNames {
+		versions := schemas[service]
+
+		versionNames := make([]string, 0, len(versions))
+		for version := range versions {
+			versionNames = append(versionNames, version)
+		}
+		sort.Strings(versionNames)
+
+		var versionSchemas []*introspectionQueryResult
+		for _, version := range versionNames {
+			versionSchemas = append(versionSchemas, versions[version])
+		}
+
+		serviceSchema, err := mergeSchemaSlice(versionSchemas, Intersection)
+		if err != nil {
+			return nil, err
+		}
+
+		serviceSchemasByName[service] = serviceSchema
+
+		serviceSchemas = append(serviceSchemas, serviceSchema)
+	}
+
+	merged, err := mergeSchemaSlice(serviceSchemas, Union)
+	if err != nil {
+		return nil, err
 	}
 
 	types, err := parseSchema(merged)
@@ -544,10 +563,14 @@ func convertSchema(schemas map[string]introspectionQueryResult, mode MergeMode) 
 		return nil, err
 	}
 
+	// XXX: the way we compute fieldInfos here is a bit of a lie.
+	// we might include a field that a merge step has removed.
+	// it might be better to track when merging what service(s)
+	// a field is available on.
 	fieldInfos := make(map[*graphql.Field]*FieldInfo)
 
-	for _, service := range schemaNames {
-		for _, typ := range schemas[service].Schema.Types {
+	for _, service := range serviceNames {
+		for _, typ := range serviceSchemasByName[service].Schema.Types {
 			if typ.Kind == "OBJECT" {
 				obj := types[typ.Name].(*graphql.Object)
 
@@ -575,4 +598,24 @@ func convertSchema(schemas map[string]introspectionQueryResult, mode MergeMode) 
 		},
 		Fields: fieldInfos,
 	}, nil
+}
+
+type FieldInfo struct {
+	Service  string
+	Services map[string]bool
+}
+
+type SchemaWithFederationInfo struct {
+	Schema *graphql.Schema
+	Fields map[*graphql.Field]*FieldInfo
+}
+
+func convertSchema(schemas map[string]*introspectionQueryResult) (*SchemaWithFederationInfo, error) {
+	versionedSchemas := make(serviceSchemas)
+	for service, schema := range schemas {
+		versionedSchemas[service] = map[string]*introspectionQueryResult{
+			"": schema,
+		}
+	}
+	return convertVersionedSchemas(versionedSchemas)
 }

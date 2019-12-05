@@ -63,7 +63,7 @@ func (c *DirectExecutorClient) Execute(ctx context.Context, req *thunderpb.Execu
 }
 
 func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Executor, error) {
-	schemas := make(map[string]introspectionQueryResult)
+	schemas := make(map[string]*introspectionQueryResult)
 
 	for server, client := range executors {
 		schema, err := fetchSchema(ctx, client)
@@ -76,10 +76,10 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Exe
 			return nil, fmt.Errorf("unmarshaling schema %s: %v", server, err)
 		}
 
-		schemas[server] = iq
+		schemas[server] = &iq
 	}
 
-	types, err := convertSchema(schemas, Union)
+	types, err := convertSchema(schemas)
 	if err != nil {
 		return nil, err
 	}
@@ -96,8 +96,8 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Exe
 		return nil, fmt.Errorf("unmarshaling schema %s: %v", server, err)
 	}
 
-	schemas[server] = iq
-	types, err = convertSchema(schemas, Union)
+	schemas[server] = &iq
+	types, err = convertSchema(schemas)
 	if err != nil {
 		return nil, err
 	}
@@ -376,10 +376,7 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 // NEEDED
 //
 // tooling for schema management
-//   track all schema(s)
-//   take least common denominator
 //   test adding field
-//   test moving field between services
 //   live schema updates (while running)
 //
 // test incompatible schemas
