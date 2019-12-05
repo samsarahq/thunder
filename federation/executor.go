@@ -375,31 +375,32 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 //
 // NEEDED
 //
-// tooling for schema management
-//   test adding field
-//   live schema updates (while running)
-//
-// test incompatible schemas
-//   bad schemas (errors paths in merge)
-//   missing __federation
-// validate incoming queries
-//   run against type checker
-//
 // error handling
 //   downstream server failure
+//      bubbles up error
+//      kills other requests
 //   downstream server timeout
+//      eventually terminated
+//      maybe: no further requests?
 //
-// union, enum, ... merging
+// proxy loads schemas from disk or s3 or individual services
+//
+// test incompatible schemas
+//   missing __federation
 //
 // add tracing (hooks?)
 // add dependency set hooks
 // add caching hooks
+//   maybe having access to the ctx at the RPC layer is enough?
 //
-// support enums
+// validate incoming queries
+//   run against type checker
 //
 // deal with rerunner, reactive.Cache
 //
 // NICE TO HAVE
+//
+// pass through descriptions
 //
 // maybe: failure boundaries, propagate nil(s)
 //
@@ -411,6 +412,7 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 //
 // move execution-related fields of graphql.Field (similar to FieldInfo)
 // let FieldInfo pick resolver, threads, etc. at runtime (to get rid of batch feature flags)
+// move Enum and Scalar mapping stuff out of schema?
 //
 // late-bind arguments in queries, so we can re-use parsed queries
 // precompile queries and query plans???

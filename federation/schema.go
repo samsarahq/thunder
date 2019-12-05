@@ -74,12 +74,17 @@ type introspectionField struct {
 	Args []introspectionInputField `json:"args"`
 }
 
+type introspectionEnumValue struct {
+	Name string `json:"name"`
+}
+
 type introspectionType struct {
 	Name          string                    `json:"name"`
 	Kind          string                    `json:"kind"`
 	Fields        []introspectionField      `json:"fields"`
 	InputFields   []introspectionInputField `json:"inputFields"`
 	PossibleTypes []*introspectionTypeRef   `json:"possibleTypes"`
+	EnumValues    []introspectionEnumValue  `json:"enumValues"`
 }
 
 type introspectionSchema struct {
@@ -263,6 +268,36 @@ func mergePossibleTypes(a, b []*introspectionTypeRef, mode MergeMode) ([]*intros
 	return merged, nil
 }
 
+func mergeEnumValues(a, b []introspectionEnumValue, mode MergeMode) ([]introspectionEnumValue, error) {
+	types := make(map[string][]introspectionEnumValue)
+	for _, a := range a {
+		types[a.Name] = append(types[a.Name], a)
+	}
+	for _, b := range b {
+		types[b.Name] = append(types[b.Name], b)
+	}
+	names := make([]string, 0, len(types))
+	for name := range types {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	merged := make([]introspectionEnumValue, 0, len(names))
+	for _, name := range names {
+		p := types[name]
+		if len(p) == 1 {
+			if mode == Union {
+				merged = append(merged, p[0])
+			}
+			continue
+		}
+
+		merged = append(merged, p[0])
+	}
+
+	return merged, nil
+}
+
 func mergeTypes(a, b introspectionType, mode MergeMode) (*introspectionType, error) {
 	if a.Kind != b.Kind {
 		return nil, fmt.Errorf("conflicting kinds %s and %s", a.Kind, b.Kind)
@@ -274,6 +309,7 @@ func mergeTypes(a, b introspectionType, mode MergeMode) (*introspectionType, err
 		Fields:        []introspectionField{},
 		InputFields:   []introspectionInputField{},
 		PossibleTypes: []*introspectionTypeRef{},
+		EnumValues:    []introspectionEnumValue{},
 	}
 
 	switch a.Kind {
@@ -298,10 +334,14 @@ func mergeTypes(a, b introspectionType, mode MergeMode) (*introspectionType, err
 		}
 		merged.PossibleTypes = possibleTypes
 
-	case "SCALAR":
-
 	case "ENUM":
-		// XXX: merge values
+		enumValues, err := mergeEnumValues(a.EnumValues, b.EnumValues, mode)
+		if err != nil {
+			return nil, fmt.Errorf("merging enum values: %v", err)
+		}
+		merged.EnumValues = enumValues
+
+	case "SCALAR":
 
 	default:
 		return nil, fmt.Errorf("unknown kind %s", a.Kind)
@@ -350,13 +390,28 @@ func mergeSchemas(a, b *introspectionQueryResult, mode MergeMode) (*introspectio
 	}, nil
 }
 
+func mergeSchemaSlice(schemas []*introspectionQueryResult, mode MergeMode) (*introspectionQueryResult, error) {
+	if len(schemas) == 0 {
+		return nil, errors.New("no schemas")
+	}
+	merged := schemas[0]
+	for _, schema := range schemas[1:] {
+		var err error
+		merged, err = mergeSchemas(merged, schema, mode)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return merged, nil
+}
+
 func lookupTypeRef(t *introspectionTypeRef, all map[string]graphql.Type) (graphql.Type, error) {
 	if t == nil {
 		return nil, errors.New("malformed typeref")
 	}
 
 	switch t.Kind {
-	case "SCALAR", "OBJECT", "UNION", "INPUT_OBJECT":
+	case "SCALAR", "OBJECT", "UNION", "INPUT_OBJECT", "ENUM":
 		// XXX: enforce type?
 		typ, ok := all[t.Name]
 		if !ok {
@@ -432,6 +487,11 @@ func parseSchema(schema *introspectionQueryResult) (map[string]graphql.Type, err
 				Name: typ.Name,
 			}
 
+		case "ENUM":
+			all[typ.Name] = &graphql.Enum{
+				Type: typ.Name,
+			}
+
 		default:
 			return nil, fmt.Errorf("unknown type kind %s", typ.Kind)
 		}
@@ -490,6 +550,19 @@ func parseSchema(schema *introspectionQueryResult) (map[string]graphql.Type, err
 			// XXX: for (merged) unions, make sure we only send possible types
 			// to each service
 
+		case "ENUM":
+			// XXX: introspection relies on the EnumValues map.
+			reverseMap := make(map[interface{}]string)
+			values := make([]string, 0, len(typ.EnumValues))
+			for _, value := range typ.EnumValues {
+				values = append(values, value.Name)
+				reverseMap[value.Name] = value.Name
+			}
+
+			enum := all[typ.Name].(*graphql.Enum)
+			enum.Values = values
+			enum.ReverseMap = reverseMap
+
 		case "SCALAR":
 			// pass
 
@@ -504,19 +577,14 @@ func parseSchema(schema *introspectionQueryResult) (map[string]graphql.Type, err
 // serviceSchemas is a map from service name and version to query.
 type serviceSchemas map[string]map[string]*introspectionQueryResult
 
-func mergeSchemaSlice(schemas []*introspectionQueryResult, mode MergeMode) (*introspectionQueryResult, error) {
-	if len(schemas) == 0 {
-		return nil, errors.New("no schemas")
-	}
-	merged := schemas[0]
-	for _, schema := range schemas[1:] {
-		var err error
-		merged, err = mergeSchemas(merged, schema, mode)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return merged, nil
+type FieldInfo struct {
+	Service  string
+	Services map[string]bool
+}
+
+type SchemaWithFederationInfo struct {
+	Schema *graphql.Schema
+	Fields map[*graphql.Field]*FieldInfo
 }
 
 func convertVersionedSchemas(schemas serviceSchemas) (*SchemaWithFederationInfo, error) {
@@ -598,16 +666,6 @@ func convertVersionedSchemas(schemas serviceSchemas) (*SchemaWithFederationInfo,
 		},
 		Fields: fieldInfos,
 	}, nil
-}
-
-type FieldInfo struct {
-	Service  string
-	Services map[string]bool
-}
-
-type SchemaWithFederationInfo struct {
-	Schema *graphql.Schema
-	Fields map[*graphql.Field]*FieldInfo
 }
 
 func convertSchema(schemas map[string]*introspectionQueryResult) (*SchemaWithFederationInfo, error) {

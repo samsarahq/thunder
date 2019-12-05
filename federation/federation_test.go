@@ -29,6 +29,8 @@ func makeExecutors(schemas map[string]*schemabuilder.Schema) (map[string]Executo
 	return executors, nil
 }
 
+type Enum int
+
 type Foo struct {
 	Name string
 }
@@ -75,6 +77,10 @@ func buildTestSchema1() *schemabuilder.Schema {
 		return fmt.Sprintf("%s %v %v", args.Foo, args.Required, args.Optional)
 	})
 
+	schema.Enum(Enum(1), map[string]Enum{
+		"one": 1,
+	})
+
 	mutation := schema.Mutation()
 
 	mutation.FieldFunc("s1addFoo", func(args struct{ Name string }) *Foo {
@@ -96,6 +102,9 @@ func buildTestSchema1() *schemabuilder.Schema {
 	})
 	foo.FieldFunc("s1nest", func(f *Foo) *Foo {
 		return f
+	})
+	foo.FieldFunc("s1enum", func(f *Foo) Enum {
+		return Enum(1)
 	})
 
 	schema.Federation().FieldFunc("Bar", func(args struct{ Keys []int64 }) []*Bar {
@@ -281,6 +290,7 @@ func TestExecutor(t *testing.T) {
 					s1fff {
 						a: s1nest { b: s1nest { c: s1nest { s2ok } } }
 						s1hmm
+						s1enum
 						s2ok
 						s2bar {
 							id
@@ -313,6 +323,7 @@ func TestExecutor(t *testing.T) {
 				"s1fff": [{
 					"a": {"b": {"c": {"s2ok": 5}}},
 					"s1hmm": "jimbo!!!",
+					"s1enum": "one",
 					"s2ok": 5,
 					"s2bar": {
 						"id": 14,
@@ -328,6 +339,7 @@ func TestExecutor(t *testing.T) {
 				{
 					"a": {"b": {"c": {"s2ok": 3}}},
 					"s1hmm": "bob!!!",
+					"s1enum": "one",
 					"s2ok": 3,
 					"s2bar": {
 						"id": 10,

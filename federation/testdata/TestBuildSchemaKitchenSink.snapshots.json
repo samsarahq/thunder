@@ -6,6 +6,7 @@
         "__schema": {
           "types": [
             {
+              "enumValues": [],
               "fields": [
                 {
                   "args": [],
@@ -53,6 +54,19 @@
               "possibleTypes": []
             },
             {
+              "enumValues": [
+                {
+                  "name": "one"
+                }
+              ],
+              "fields": [],
+              "inputFields": [],
+              "kind": "ENUM",
+              "name": "Enum",
+              "possibleTypes": []
+            },
+            {
+              "enumValues": [],
               "fields": [
                 {
                   "args": [
@@ -145,6 +159,7 @@
               "possibleTypes": []
             },
             {
+              "enumValues": [],
               "fields": [
                 {
                   "args": [],
@@ -168,6 +183,19 @@
                     "ofType": {
                       "kind": "SCALAR",
                       "name": "string",
+                      "ofType": null
+                    }
+                  }
+                },
+                {
+                  "args": [],
+                  "name": "s1enum",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "ENUM",
+                      "name": "Enum",
                       "ofType": null
                     }
                   }
@@ -228,6 +256,7 @@
               "possibleTypes": []
             },
             {
+              "enumValues": [],
               "fields": [],
               "inputFields": [],
               "kind": "UNION",
@@ -246,6 +275,7 @@
               ]
             },
             {
+              "enumValues": [],
               "fields": [
                 {
                   "args": [
@@ -276,6 +306,7 @@
               "possibleTypes": []
             },
             {
+              "enumValues": [],
               "fields": [],
               "inputFields": [
                 {
@@ -308,6 +339,7 @@
               "possibleTypes": []
             },
             {
+              "enumValues": [],
               "fields": [
                 {
                   "args": [],
@@ -439,6 +471,7 @@
               "possibleTypes": []
             },
             {
+              "enumValues": [],
               "fields": [],
               "inputFields": [],
               "kind": "SCALAR",
@@ -446,6 +479,7 @@
               "possibleTypes": []
             },
             {
+              "enumValues": [],
               "fields": [],
               "inputFields": [],
               "kind": "SCALAR",
@@ -453,6 +487,7 @@
               "possibleTypes": []
             },
             {
+              "enumValues": [],
               "fields": [],
               "inputFields": [],
               "kind": "SCALAR",

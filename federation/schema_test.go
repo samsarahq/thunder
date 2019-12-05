@@ -37,194 +37,31 @@ func extractConvertedSchemas(t *testing.T, schemas map[string]*schemabuilder.Sch
 	return extractSchema(t, combined.Schema)
 }
 
-func TestBuildSchema(t *testing.T) {
-	schemas := map[string]*schemabuilder.Schema{
-		"schema1": buildTestSchema1(),
-		"schema2": buildTestSchema2(),
-	}
-
-	types, err := convertSchema(extractSchemas(t, schemas))
-	require.NoError(t, err)
-
-	introspection.AddIntrospectionToSchema(types.Schema)
-	out, err := introspection.RunIntrospectionQuery(types.Schema)
-	require.NoError(t, err)
-
-	var iq introspectionQueryResult
-	err = json.Unmarshal(out, &iq)
-	require.NoError(t, err)
-
-	snapshotter := snapshotter.New(t)
-	defer snapshotter.Verify()
-
-	snapshotter.Snapshot("resulting schema", iq)
-	// XXX: test field -> service mapping
-}
-
-// TestIncompatibleTypeKinds tests that incompatible types are caught by the
-// schema merging.
-func TestIncompatibleTypeKinds(t *testing.T) {
-	// In s1, int is an object. In s2, int is a scalar. This is not allowed, as
-	// different kinds can not be merged.
-	type IntStruct struct{}
-	s1 := schemabuilder.NewSchema()
-	s1.Object("int", IntStruct{})
-	s1.Query().FieldFunc("intStruct", func() IntStruct { return IntStruct{} })
-
-	s2 := schemabuilder.NewSchema()
-	s2.Query().FieldFunc("intScalar", func() int { return 0 })
-
+func assertSchemaUnionError(t *testing.T, a, b *schemabuilder.Schema, msg string) {
 	_, err := convertSchema(extractSchemas(t, map[string]*schemabuilder.Schema{
-		"schema1": s1,
-		"schema2": s2,
+		"schema1": a,
+		"schema2": b,
 	}))
-	assert.EqualError(t, err, "can't merge type int: conflicting kinds OBJECT and SCALAR")
+	assert.EqualError(t, err, msg)
 }
 
-// TestIncompatibleInputTypesConflictingTypes tests that incompatible input types
-// are caught by the schema merging.
-func TestIncompatibleInputTypesConflictingTypes(t *testing.T) {
-	s1 := schemabuilder.NewSchema()
-	{
-		type InputStruct struct{ Foo string }
-		s1.Query().FieldFunc("f", func(args struct{ I InputStruct }) string { return "" })
-	}
-
-	s2 := schemabuilder.NewSchema()
-	{
-		type InputStruct struct{ Foo int32 }
-		s2.Query().FieldFunc("f", func(args struct{ I InputStruct }) string { return "" })
-	}
-
-	_, err := convertSchema(extractSchemas(t, map[string]*schemabuilder.Schema{
-		"schema1": s1,
-		"schema2": s2,
-	}))
-	assert.EqualError(t, err, "can't merge type InputStruct_InputObject: merging input fields: field foo has incompatible types string! and int32!: types must be identical")
-}
-
-// TestIncompatibleInputTypesMissingNonNullField tests that incompatible input types
-// are caught by the schema merging.
-func TestIncompatibleInputTypesMissingNonNullField(t *testing.T) {
-	s1 := schemabuilder.NewSchema()
-	{
-		type InputStruct struct{ Foo string }
-		s1.Query().FieldFunc("f", func(args struct{ I InputStruct }) string { return "" })
-	}
-
-	s2 := schemabuilder.NewSchema()
-	{
-		type InputStruct struct{}
-		s2.Query().FieldFunc("f", func(args struct{ I InputStruct }) string { return "" })
-	}
-
-	_, err := convertSchema(extractSchemas(t, map[string]*schemabuilder.Schema{
-		"schema1": s1,
-		"schema2": s2,
-	}))
-	assert.EqualError(t, err, "can't merge type InputStruct_InputObject: merging input fields: new field foo is non-null: string!")
-}
-
-// TestIncompatibleInputsConflictingTypes tests that incompatible input fields
-// are caught by the schema merging.
-func TestIncompatibleInputsConflictingTypes(t *testing.T) {
-	s1 := schemabuilder.NewSchema()
-	s1.Query().FieldFunc("f", func(args struct{ Foo string }) string { return "" })
-
-	s2 := schemabuilder.NewSchema()
-	s2.Query().FieldFunc("f", func(args struct{ Foo int32 }) string { return "" })
-
-	_, err := convertSchema(extractSchemas(t, map[string]*schemabuilder.Schema{
-		"schema1": s1,
-		"schema2": s2,
-	}))
-	assert.EqualError(t, err, "can't merge type Query: merging fields: field f has incompatible arguments: field foo has incompatible types string! and int32!: types must be identical")
-}
-
-// TestMergeNonNilNonNilField tests that a non-nil field combined with a non-nil
-// field is non-nil in the combined schema.
-func TestMergeNonNilNonNilField(t *testing.T) {
-	s1 := schemabuilder.NewSchema()
-	s1.Query().FieldFunc("f", func(args struct{}) string { return "" })
-
-	s2 := schemabuilder.NewSchema()
-	s2.Query().FieldFunc("f", func(args struct{}) string { return "" })
-
+func assertSchemaUnionEq(t *testing.T, a, b, c *schemabuilder.Schema) {
 	combined := extractConvertedSchemas(t, map[string]*schemabuilder.Schema{
-		"schema1": s1,
-		"schema2": s2,
+		"schema1": a,
+		"schema2": b,
 	})
-
-	s3 := schemabuilder.NewSchema()
-	s3.Query().FieldFunc("f", func(args struct{}) string { return "" })
-	expected := extractSchema(t, s3.MustBuild())
-
+	expected := extractSchema(t, c.MustBuild())
 	assert.Equal(t, expected, combined)
 }
 
-// TestMergeNonNilNilField tests that a non-nil field combined with a nilable
-// field is nilable in the combined schema.
-func TestMergeNonNilNilField(t *testing.T) {
-	s1 := schemabuilder.NewSchema()
-	s1.Query().FieldFunc("f", func(args struct{}) *string { return nil })
-
-	s2 := schemabuilder.NewSchema()
-	s2.Query().FieldFunc("f", func(args struct{}) string { return "" })
-
-	combined := extractConvertedSchemas(t, map[string]*schemabuilder.Schema{
-		"schema1": s1,
-		"schema2": s2,
-	})
-
-	s3 := schemabuilder.NewSchema()
-	s3.Query().FieldFunc("f", func(args struct{}) *string { return nil })
-	expected := extractSchema(t, s3.MustBuild())
-
-	assert.Equal(t, expected, combined)
-}
-
-// TestMergeNonNilNilArgument tests that a non-nil argument combined with a
-// nilable field is not nilable in the combined schema.
-func TestMergeNonNilNilArgument(t *testing.T) {
-	s1 := schemabuilder.NewSchema()
-	s1.Query().FieldFunc("f", func(args struct{ X string }) string { return "" })
-
-	s2 := schemabuilder.NewSchema()
-	s2.Query().FieldFunc("f", func(args struct{ X *string }) string { return "" })
-
-	combined := extractConvertedSchemas(t, map[string]*schemabuilder.Schema{
-		"schema1": s1,
-		"schema2": s2,
-	})
-
-	s3 := schemabuilder.NewSchema()
-	s3.Query().FieldFunc("f", func(args struct{ X string }) string { return "" })
-	expected := extractSchema(t, s3.MustBuild())
-
-	assert.Equal(t, expected, combined)
-}
-
-// TestIntersectionNewField tests that a new field is not included in the
-// intersection of two schemas.
-func TestIntersectionNewField(t *testing.T) {
-	s1 := schemabuilder.NewSchema()
-	s1.Query().FieldFunc("a", func() string { return "" })
-	s1.Query().FieldFunc("b", func() string { return "" })
-
-	s2 := schemabuilder.NewSchema()
-	s2.Query().FieldFunc("a", func() string { return "" })
-
+func assertSchemaIntersectionEq(t *testing.T, a, b, c *schemabuilder.Schema) {
 	combined, _ := extractConvertedVersionedSchemas(t, map[string]map[string]*schemabuilder.Schema{
 		"": map[string]*schemabuilder.Schema{
-			"s1": s1,
-			"s2": s2,
+			"schema1": a,
+			"schema2": b,
 		},
 	})
-
-	s3 := schemabuilder.NewSchema()
-	s3.Query().FieldFunc("a", func() string { return "" })
-	expected := extractSchema(t, s3.MustBuild())
-
+	expected := extractSchema(t, c.MustBuild())
 	assert.Equal(t, expected, combined)
 }
 
@@ -275,9 +112,320 @@ func extractConvertedVersionedSchemas(t *testing.T, schemas map[string]map[strin
 	return extractSchema(t, merged.Schema), getFieldServiceMaps(t, merged)
 }
 
-// TestMoveField tests that moving a field from one service to another
+func TestBuildSchemaKitchenSink(t *testing.T) {
+	schemas := map[string]*schemabuilder.Schema{
+		"schema1": buildTestSchema1(),
+		"schema2": buildTestSchema2(),
+	}
+
+	types, err := convertSchema(extractSchemas(t, schemas))
+	require.NoError(t, err)
+
+	introspection.AddIntrospectionToSchema(types.Schema)
+	out, err := introspection.RunIntrospectionQuery(types.Schema)
+	require.NoError(t, err)
+
+	var iq introspectionQueryResult
+	err = json.Unmarshal(out, &iq)
+	require.NoError(t, err)
+
+	snapshotter := snapshotter.New(t)
+	defer snapshotter.Verify()
+
+	snapshotter.Snapshot("resulting schema", iq)
+	// XXX: test field -> service mapping
+}
+
+// TestIncompatibleTypeKinds tests that incompatible types are caught by the
+// schema merging.
+func TestIncompatibleTypeKinds(t *testing.T) {
+	// In s1, int is an object. In s2, int is a scalar. This is not allowed, as
+	// different kinds can not be merged.
+	type IntStruct struct{}
+	s1 := schemabuilder.NewSchema()
+	s1.Object("int", IntStruct{})
+	s1.Query().FieldFunc("intStruct", func() IntStruct { return IntStruct{} })
+
+	s2 := schemabuilder.NewSchema()
+	s2.Query().FieldFunc("intScalar", func() int { return 0 })
+
+	assertSchemaUnionError(t, s1, s2, "can't merge type int: conflicting kinds OBJECT and SCALAR")
+}
+
+// TestIncompatibleInputTypesConflictingTypes tests that incompatible input types
+// are caught by the schema merging.
+func TestIncompatibleInputTypesConflictingTypes(t *testing.T) {
+	s1 := schemabuilder.NewSchema()
+	{
+		type InputStruct struct{ Foo string }
+		s1.Query().FieldFunc("f", func(args struct{ I InputStruct }) string { return "" })
+	}
+
+	s2 := schemabuilder.NewSchema()
+	{
+		type InputStruct struct{ Foo int32 }
+		s2.Query().FieldFunc("f", func(args struct{ I InputStruct }) string { return "" })
+	}
+
+	assertSchemaUnionError(t, s1, s2, "can't merge type InputStruct_InputObject: merging input fields: field foo has incompatible types string! and int32!: types must be identical")
+}
+
+// TestIncompatibleInputTypesMissingNonNullField tests that incompatible input types
+// are caught by the schema merging.
+func TestIncompatibleInputTypesMissingNonNullField(t *testing.T) {
+	s1 := schemabuilder.NewSchema()
+	{
+		type InputStruct struct{ Foo string }
+		s1.Query().FieldFunc("f", func(args struct{ I InputStruct }) string { return "" })
+	}
+
+	s2 := schemabuilder.NewSchema()
+	{
+		type InputStruct struct{}
+		s2.Query().FieldFunc("f", func(args struct{ I InputStruct }) string { return "" })
+	}
+
+	assertSchemaUnionError(t, s1, s2, "can't merge type InputStruct_InputObject: merging input fields: new field foo is non-null: string!")
+}
+
+// TestIncompatibleInputsConflictingTypes tests that incompatible input fields
+// are caught by the schema merging.
+func TestIncompatibleInputsConflictingTypes(t *testing.T) {
+	s1 := schemabuilder.NewSchema()
+	s1.Query().FieldFunc("f", func(args struct{ Foo string }) string { return "" })
+
+	s2 := schemabuilder.NewSchema()
+	s2.Query().FieldFunc("f", func(args struct{ Foo int32 }) string { return "" })
+
+	assertSchemaUnionError(t, s1, s2, "can't merge type Query: merging fields: field f has incompatible arguments: field foo has incompatible types string! and int32!: types must be identical")
+}
+
+// TestMergeNonNilNonNilField tests that a non-nil field combined with a non-nil
+// field is non-nil in the combined schema.
+func TestMergeNonNilNonNilField(t *testing.T) {
+	s1 := schemabuilder.NewSchema()
+	s1.Query().FieldFunc("f", func(args struct{}) string { return "" })
+
+	s2 := schemabuilder.NewSchema()
+	s2.Query().FieldFunc("f", func(args struct{}) string { return "" })
+
+	s3 := schemabuilder.NewSchema()
+	s3.Query().FieldFunc("f", func(args struct{}) string { return "" })
+
+	assertSchemaUnionEq(t, s1, s2, s3)
+}
+
+// TestMergeNonNilNilField tests that a non-nil field combined with a nilable
+// field is nilable in the combined schema.
+func TestMergeNonNilNilField(t *testing.T) {
+	s1 := schemabuilder.NewSchema()
+	s1.Query().FieldFunc("f", func(args struct{}) *string { return nil })
+
+	s2 := schemabuilder.NewSchema()
+	s2.Query().FieldFunc("f", func(args struct{}) string { return "" })
+
+	s3 := schemabuilder.NewSchema()
+	s3.Query().FieldFunc("f", func(args struct{}) *string { return nil })
+
+	assertSchemaUnionEq(t, s1, s2, s3)
+}
+
+// TestMergeNonNilNilArgument tests that a non-nil argument combined with a
+// nilable field is not nilable in the combined schema.
+func TestMergeNonNilNilArgument(t *testing.T) {
+	s1 := schemabuilder.NewSchema()
+	s1.Query().FieldFunc("f", func(args struct{ X string }) string { return "" })
+
+	s2 := schemabuilder.NewSchema()
+	s2.Query().FieldFunc("f", func(args struct{ X *string }) string { return "" })
+
+	s3 := schemabuilder.NewSchema()
+	s3.Query().FieldFunc("f", func(args struct{ X string }) string { return "" })
+
+	assertSchemaUnionEq(t, s1, s2, s3)
+}
+
+// TestIntersectionNewField tests that a new field is not included in the
+// intersection of two schemas.
+func TestIntersectionNewField(t *testing.T) {
+	s1 := schemabuilder.NewSchema()
+	s1.Query().FieldFunc("a", func() string { return "" })
+	s1.Query().FieldFunc("b", func() string { return "" })
+
+	s2 := schemabuilder.NewSchema()
+	s2.Query().FieldFunc("a", func() string { return "" })
+
+	s3 := schemabuilder.NewSchema()
+	s3.Query().FieldFunc("a", func() string { return "" })
+
+	assertSchemaIntersectionEq(t, s1, s2, s3)
+}
+
+// TestMergeUnionUnion tests that merging union types takes the union of their
+// types.
+func TestMergeUnionUnion(t *testing.T) {
+	type Foo struct {
+		Name string
+	}
+	type Bar struct {
+		Id int64
+	}
+	type Baz struct {
+		Address string
+	}
+
+	s1 := schemabuilder.NewSchema()
+	{
+		type Union struct {
+			schemabuilder.Union
+			*Foo
+			*Bar
+		}
+		s1.Query().FieldFunc("f", func() Union { return Union{} })
+	}
+
+	s2 := schemabuilder.NewSchema()
+	{
+		type Union struct {
+			schemabuilder.Union
+			*Foo
+			*Baz
+		}
+		s2.Query().FieldFunc("f", func() Union { return Union{} })
+	}
+
+	s3 := schemabuilder.NewSchema()
+	{
+		type Union struct {
+			schemabuilder.Union
+			*Foo
+			*Bar
+			*Baz
+		}
+		s3.Query().FieldFunc("f", func() Union { return Union{} })
+	}
+
+	assertSchemaUnionEq(t, s1, s2, s3)
+}
+
+// TestMergeUnionIntersection tests that merging union types takes the union of their
+// types.
+func TestMergeUnionIntersection(t *testing.T) {
+	type Foo struct {
+		Name string
+	}
+	type Bar struct {
+		Id int64
+	}
+	type Baz struct {
+		Address string
+	}
+
+	s1 := schemabuilder.NewSchema()
+	{
+		type Union struct {
+			schemabuilder.Union
+			*Foo
+			*Bar
+		}
+		s1.Query().FieldFunc("f", func() Union { return Union{} })
+	}
+
+	s2 := schemabuilder.NewSchema()
+	{
+		type Union struct {
+			schemabuilder.Union
+			*Foo
+			*Baz
+		}
+		s2.Query().FieldFunc("f", func() Union { return Union{} })
+	}
+
+	s3 := schemabuilder.NewSchema()
+	{
+		type Union struct {
+			schemabuilder.Union
+			*Foo
+		}
+		s3.Query().FieldFunc("f", func() Union { return Union{} })
+	}
+
+	assertSchemaIntersectionEq(t, s1, s2, s3)
+}
+
+// TestMergeEnumUnion tests that merging union types takes the union of their
+// values.
+func TestMergeEnumUnion(t *testing.T) {
+	type Enum int32
+
+	s1 := schemabuilder.NewSchema()
+	{
+		s1.Enum(Enum(0), map[string]Enum{
+			"zero": 0,
+			"one":  1,
+		})
+		s1.Query().FieldFunc("f", func() Enum { return Enum(1) })
+	}
+
+	s2 := schemabuilder.NewSchema()
+	{
+		s2.Enum(Enum(0), map[string]Enum{
+			"zero": 0,
+			"two":  2,
+		})
+		s2.Query().FieldFunc("f", func() Enum { return Enum(1) })
+	}
+
+	s3 := schemabuilder.NewSchema()
+	{
+		s3.Enum(Enum(0), map[string]Enum{
+			"zero": 0,
+			"one":  1,
+			"two":  2,
+		})
+		s3.Query().FieldFunc("f", func() Enum { return Enum(1) })
+	}
+
+	assertSchemaUnionEq(t, s1, s2, s3)
+}
+
+// TestMergeEnumIntersection tests that merging union types takes the union of their
+// values.
+func TestMergeEnumIntersection(t *testing.T) {
+	type Enum int32
+
+	s1 := schemabuilder.NewSchema()
+	{
+		s1.Enum(Enum(0), map[string]Enum{
+			"zero": 0,
+			"one":  1,
+		})
+		s1.Query().FieldFunc("f", func() Enum { return Enum(1) })
+	}
+
+	s2 := schemabuilder.NewSchema()
+	{
+		s2.Enum(Enum(0), map[string]Enum{
+			"zero": 0,
+			"two":  2,
+		})
+		s2.Query().FieldFunc("f", func() Enum { return Enum(1) })
+	}
+
+	s3 := schemabuilder.NewSchema()
+	{
+		s3.Enum(Enum(0), map[string]Enum{
+			"zero": 0,
+		})
+		s3.Query().FieldFunc("f", func() Enum { return Enum(1) })
+	}
+
+	assertSchemaIntersectionEq(t, s1, s2, s3)
+}
+
+// TestSchemaMoveField tests that moving a field from one service to another
 // over the course of two deploys behaves sanely.
-func TestMoveField(t *testing.T) {
+func TestSchemaMoveField(t *testing.T) {
 	// In this test, a field "a" move from service s1 to service s2. At the
 	// start, only s1 has the field. Then we deploy it to s2, let that deploy
 	// stabilize, remove it from s1, and let that deploy stabilize.
@@ -373,6 +521,153 @@ func TestMoveField(t *testing.T) {
 	assert.Equal(t, map[string][]string{
 		"Query.a": []string{"s2"},
 	}, fieldServices)
+}
 
-	// Done.
+// TestSchemaAddField tests adding a new field to a service.
+func TestSchemaAddField(t *testing.T) {
+	// In this test, a field "b" is added to service s1.
+
+	// s1old has a field "a".
+	s1old := schemabuilder.NewSchema()
+	s1old.Query().FieldFunc("a", func() string { return "" })
+
+	// s1new has both "a" and "b".
+	s1new := schemabuilder.NewSchema()
+	s1new.Query().FieldFunc("a", func() string { return "" })
+	s1new.Query().FieldFunc("b", func() string { return "" })
+
+	// s2 has a field "c".
+	s2 := schemabuilder.NewSchema()
+	s2.Query().FieldFunc("c", func() string { return "" })
+
+	// before has "a" and "c".
+	before := schemabuilder.NewSchema()
+	before.Query().FieldFunc("a", func() string { return "" })
+	before.Query().FieldFunc("c", func() string { return "" })
+	builtBefore := extractSchema(t, before.MustBuild())
+
+	// after has "a", "b", and "c".
+	after := schemabuilder.NewSchema()
+	after.Query().FieldFunc("a", func() string { return "" })
+	after.Query().FieldFunc("b", func() string { return "" })
+	after.Query().FieldFunc("c", func() string { return "" })
+	builtAfter := extractSchema(t, after.MustBuild())
+
+	// Initial state, s1 has field a and s2 has field c.
+	combined, fieldServices := extractConvertedVersionedSchemas(t, map[string]map[string]*schemabuilder.Schema{
+		"s1": map[string]*schemabuilder.Schema{
+			"old": s1old,
+		},
+		"s2": map[string]*schemabuilder.Schema{
+			"only": s2,
+		},
+	})
+	assert.Equal(t, builtBefore, combined)
+	assert.Equal(t, map[string][]string{
+		"Query.a": []string{"s1"},
+		"Query.c": []string{"s2"},
+	}, fieldServices)
+
+	// Add field b to s1. Should not yet be exposed in schema.
+	combined, fieldServices = extractConvertedVersionedSchemas(t, map[string]map[string]*schemabuilder.Schema{
+		"s1": map[string]*schemabuilder.Schema{
+			"old": s1old,
+			"new": s1new,
+		},
+		"s2": map[string]*schemabuilder.Schema{
+			"only": s2,
+		},
+	})
+	assert.Equal(t, builtBefore, combined)
+	assert.Equal(t, map[string][]string{
+		"Query.a": []string{"s1"},
+		"Query.c": []string{"s2"},
+	}, fieldServices)
+
+	// Let s1 stabilize. New field should now be visible.
+	combined, fieldServices = extractConvertedVersionedSchemas(t, map[string]map[string]*schemabuilder.Schema{
+		"s1": map[string]*schemabuilder.Schema{
+			"new": s1new,
+		},
+		"s2": map[string]*schemabuilder.Schema{
+			"only": s2,
+		},
+	})
+	assert.Equal(t, builtAfter, combined)
+	assert.Equal(t, map[string][]string{
+		"Query.a": []string{"s1"},
+		"Query.b": []string{"s1"},
+		"Query.c": []string{"s2"},
+	}, fieldServices)
+}
+
+// TestSchemaRemoveField tests removing an existing field from a service.
+func TestSchemaRemoveField(t *testing.T) {
+	// In this test, a field "a" is removed from service s1.
+
+	// s1old has a field "a".
+	s1old := schemabuilder.NewSchema()
+	s1old.Query().FieldFunc("a", func() string { return "" })
+
+	// s1new has no field.
+	s1new := schemabuilder.NewSchema()
+
+	// s2 has a field "b".
+	s2 := schemabuilder.NewSchema()
+	s2.Query().FieldFunc("b", func() string { return "" })
+
+	// before has "a" and "b".
+	before := schemabuilder.NewSchema()
+	before.Query().FieldFunc("a", func() string { return "" })
+	before.Query().FieldFunc("b", func() string { return "" })
+	builtBefore := extractSchema(t, before.MustBuild())
+
+	// after has "b".
+	after := schemabuilder.NewSchema()
+	after.Query().FieldFunc("b", func() string { return "" })
+	builtAfter := extractSchema(t, after.MustBuild())
+
+	// Initial state, s1 has field a and s2 has field b.
+	combined, fieldServices := extractConvertedVersionedSchemas(t, map[string]map[string]*schemabuilder.Schema{
+		"s1": map[string]*schemabuilder.Schema{
+			"old": s1old,
+		},
+		"s2": map[string]*schemabuilder.Schema{
+			"only": s2,
+		},
+	})
+	assert.Equal(t, builtBefore, combined)
+	assert.Equal(t, map[string][]string{
+		"Query.a": []string{"s1"},
+		"Query.b": []string{"s2"},
+	}, fieldServices)
+
+	// Remove field from s1. Should immediately disappear from schema.
+	combined, fieldServices = extractConvertedVersionedSchemas(t, map[string]map[string]*schemabuilder.Schema{
+		"s1": map[string]*schemabuilder.Schema{
+			"old": s1old,
+			"new": s1new,
+		},
+		"s2": map[string]*schemabuilder.Schema{
+			"only": s2,
+		},
+	})
+	assert.Equal(t, builtAfter, combined)
+	assert.Equal(t, map[string][]string{
+		"Query.b": []string{"s2"},
+	}, fieldServices)
+
+	// Let s1 stabilize.
+	combined, fieldServices = extractConvertedVersionedSchemas(t, map[string]map[string]*schemabuilder.Schema{
+		"s1": map[string]*schemabuilder.Schema{
+			"new": s1new,
+		},
+		"s2": map[string]*schemabuilder.Schema{
+			"only": s2,
+		},
+	})
+	assert.Equal(t, builtAfter, combined)
+	assert.Equal(t, map[string][]string{
+		"Query.b": []string{"s2"},
+	}, fieldServices)
 }
