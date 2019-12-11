@@ -9,6 +9,7 @@ import (
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/introspection"
 	"github.com/samsarahq/thunder/thunderpb"
+	"golang.org/x/sync/errgroup"
 )
 
 type Executor struct {
@@ -260,30 +261,12 @@ func (pf *pathFollower) extractTargets(node interface{}, path []PathStep) error 
 	return nil
 }
 
-type executorContext struct {
-	e *Executor
-
-	outputMu sync.Mutex
-	cancel   context.CancelFunc
-	wg       sync.WaitGroup
-	err      error
-}
-
-func (ec *executorContext) setError(err error) {
-	// XXX: test
-	if ec.err == nil {
-		ec.cancel()
-		ec.err = err
-	}
-}
-
-func (ec *executorContext) execute(ctx context.Context, p *Plan, keys []interface{}) ([]interface{}, error) {
+func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) ([]interface{}, error) {
 	var res []interface{}
 	if p.Service != "no-such-service" {
 		var err error
-		res, err = ec.e.runOnService(ctx, p.Service, p.Type, keys, p.Kind, p.SelectionSet)
+		res, err = e.runOnService(ctx, p.Service, p.Type, keys, p.Kind, p.SelectionSet)
 		if err != nil {
-			// XXX: why doesn't this call ec.setError? consistency please!!
 			return nil, fmt.Errorf("run on service: %v", err)
 		}
 	} else {
@@ -291,6 +274,10 @@ func (ec *executorContext) execute(ctx context.Context, p *Plan, keys []interfac
 			map[string]interface{}{},
 		}
 	}
+
+	g, ctx := errgroup.WithContext(ctx)
+
+	var resMu sync.Mutex
 
 	for _, subPlan := range p.After {
 		subPlan := subPlan
@@ -306,39 +293,39 @@ func (ec *executorContext) execute(ctx context.Context, p *Plan, keys []interfac
 			}
 		}
 
-		// XXX: go
-		ec.wg.Add(1)
-		go func() {
-			defer ec.wg.Done()
-
-			results, err := ec.execute(ctx, subPlan, pf.keys)
-
-			ec.outputMu.Lock()
-			defer ec.outputMu.Unlock()
-
+		g.Go(func() error {
+			// XXX: include the path in the error. might be tricky
+			// to reconstruct path unless we include it in results
+			// (and leave err nil)
+			results, err := e.execute(ctx, subPlan, pf.keys)
 			if err != nil {
-				ec.setError(fmt.Errorf("executing sub plan: %v", err))
-				return
+				return fmt.Errorf("executing sub plan: %v", err)
 			}
 
 			if len(results) != len(pf.targets) {
-				ec.setError(fmt.Errorf("got %d results for %d targets", len(results), len(pf.targets)))
-				return
+				return fmt.Errorf("got %d results for %d targets", len(results), len(pf.targets))
 			}
+
+			resMu.Lock()
+			defer resMu.Unlock()
 
 			for i, target := range pf.targets {
 				result, ok := results[i].(map[string]interface{})
 				if !ok {
-					ec.setError(fmt.Errorf("result is not an object: %v", result))
-					return
+					return fmt.Errorf("result is not an object: %v", result)
 				}
 				for k, v := range result {
 					target[k] = v
 				}
 			}
-		}()
+
+			return nil
+		})
 	}
 
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
 	return res, nil
 }
 
@@ -357,21 +344,9 @@ func deleteKey(v interface{}, k string) {
 }
 
 func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
-	ec := executorContext{
-		e: e,
-	}
-
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	ec.cancel = cancel
-	r, err := ec.execute(ctx, p, nil)
+	r, err := e.execute(ctx, p, nil)
 	if err != nil {
 		return nil, err
-	}
-	ec.wg.Wait()
-	if ec.err != nil {
-		return nil, ec.err
 	}
 
 	res := r[0]
@@ -385,9 +360,6 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 //
 // proxy loads schemas from disk or s3 or individual services
 //
-// test incompatible schemas
-//   missing __federation
-//
 // add auth (hooks?)
 // add tracing (hooks?)
 // add dependency set hooks
@@ -397,6 +369,9 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 // validate incoming queries
 //   run against type checker
 //
+// test incompatible schemas
+//   missing __federation or badly typed __federation
+//
 // support hiding introspection schema
 //   option: expose introspection... per-request?? yuck.
 //
@@ -404,9 +379,11 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 //
 // service preference / ordering (to allow for default to legacy?)
 //
-// maybe???: let __federation api specify which fields it needs as keys?
-//
 // NICE TO HAVE
+//
+// report path of errors
+//
+// maybe???: let __federation api specify which fields it needs as keys?
 //
 // normalize tests
 // planner fine-grained tests
