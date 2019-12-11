@@ -6,7 +6,6 @@ import (
 
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
-	"github.com/samsarahq/thunder/thunderpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -69,6 +68,7 @@ func TestPlan(t *testing.T) {
 				{
 					Service: "schema1",
 					Type:    "Query",
+					Kind:    "query",
 					SelectionSet: mustParse(`{
 						s1fff {
 							a: s1nest { b: s1nest { c: s1nest { __federation } } }
@@ -102,6 +102,7 @@ func TestPlan(t *testing.T) {
 								{Kind: KindField, Name: "c"},
 							},
 							Type:    "Foo",
+							Kind:    "query",
 							Service: "schema2",
 							SelectionSet: mustParse(`{
 								s2ok
@@ -112,6 +113,7 @@ func TestPlan(t *testing.T) {
 								{Kind: KindField, Name: "s1fff"},
 							},
 							Type:    "Foo",
+							Kind:    "query",
 							Service: "schema2",
 							SelectionSet: mustParse(`{
 								s2ok
@@ -129,6 +131,7 @@ func TestPlan(t *testing.T) {
 										{Kind: KindField, Name: "s2bar"},
 									},
 									Type:    "Bar",
+									Kind:    "query",
 									Service: "schema1",
 									SelectionSet: mustParse(`{
 										s1baz
@@ -145,6 +148,7 @@ func TestPlan(t *testing.T) {
 								{Kind: KindField, Name: "c"},
 							},
 							Type:    "Foo",
+							Kind:    "query",
 							Service: "schema2",
 							SelectionSet: mustParse(`{
 								s2ok
@@ -156,6 +160,7 @@ func TestPlan(t *testing.T) {
 								{Kind: KindType, Name: "Foo"},
 							},
 							Type:    "Foo",
+							Kind:    "query",
 							Service: "schema2",
 							SelectionSet: mustParse(`{
 								s2ok
@@ -166,6 +171,7 @@ func TestPlan(t *testing.T) {
 				{
 					Service: "schema2",
 					Type:    "Query",
+					Kind:    "query",
 					SelectionSet: mustParse(`{
 						s2root
 					}`),
@@ -184,7 +190,7 @@ func TestPlan(t *testing.T) {
 				{
 					Service: "schema1",
 					Type:    "Mutation",
-					Kind:    thunderpb.ExecuteRequest_MUTATION,
+					Kind:    "mutation",
 					SelectionSet: mustParse(`{
 						s1addFoo(name: "test") {
 							name
@@ -197,6 +203,7 @@ func TestPlan(t *testing.T) {
 								{Kind: KindField, Name: "s1addFoo"},
 							},
 							Type:    "Foo",
+							Kind:    "query",
 							Service: "schema2",
 							SelectionSet: mustParse(`{
 								s2ok

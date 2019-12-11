@@ -12,9 +12,164 @@ import (
 	"github.com/samsarahq/thunder/thunderpb"
 )
 
+func marshalQuery(query *graphql.Query) (*thunderpb.Query, error) {
+	selectionSet, err := marshalPbSelections(query.SelectionSet)
+	if err != nil {
+		return nil, err
+	}
+	return &thunderpb.Query{
+		Name:         query.Name,
+		Kind:         query.Kind,
+		SelectionSet: selectionSet,
+	}, nil
+}
+
+func unmarshalQuery(query *thunderpb.Query) (*graphql.Query, error) {
+	selectionSet, err := unmarshalPbSelectionSet(query.SelectionSet)
+	if err != nil {
+		return nil, err
+	}
+	return &graphql.Query{
+		Name:         query.Name,
+		Kind:         query.Kind,
+		SelectionSet: selectionSet,
+	}, nil
+}
+
+func unmarshalPbSelectionSet(selectionSet *thunderpb.SelectionSet) (*graphql.RawSelectionSet, error) {
+	if selectionSet == nil {
+		return nil, nil
+	}
+
+	selections := make([]*graphql.RawSelection, 0, len(selectionSet.Selections))
+	for _, selection := range selectionSet.Selections {
+		children, err := unmarshalPbSelectionSet(selection.SelectionSet)
+		if err != nil {
+			return nil, err
+		}
+
+		var args map[string]interface{}
+		if len(selection.Arguments) != 0 {
+			if err := json.Unmarshal(selection.Arguments, &args); err != nil {
+				return nil, err
+			}
+		}
+
+		selections = append(selections, &graphql.RawSelection{
+			Name:         selection.Name,
+			Alias:        selection.Alias,
+			SelectionSet: children,
+			Args:         args,
+		})
+	}
+
+	fragments := make([]*graphql.RawFragment, 0, len(selectionSet.Fragments))
+	for _, fragment := range selectionSet.Fragments {
+		selections, err := unmarshalPbSelectionSet(fragment.SelectionSet)
+		if err != nil {
+			return nil, err
+		}
+		fragments = append(fragments, &graphql.RawFragment{
+			On:           fragment.On,
+			SelectionSet: selections,
+		})
+	}
+
+	return &graphql.RawSelectionSet{
+		Selections: selections,
+		Fragments:  fragments,
+	}, nil
+}
+
+func marshalPbSelections(selectionSet *graphql.RawSelectionSet) (*thunderpb.SelectionSet, error) {
+	if selectionSet == nil {
+		return nil, nil
+	}
+
+	selections := make([]*thunderpb.Selection, 0, len(selectionSet.Selections))
+	for _, selection := range selectionSet.Selections {
+		children, err := marshalPbSelections(selection.SelectionSet)
+		if err != nil {
+			return nil, err
+		}
+
+		var args []byte
+		if selection.Args != nil {
+			var err error
+			args, err = json.Marshal(selection.Args)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		selections = append(selections, &thunderpb.Selection{
+			Name:         selection.Name,
+			Alias:        selection.Alias,
+			SelectionSet: children,
+			Arguments:    args,
+		})
+	}
+
+	fragments := make([]*thunderpb.Fragment, 0, len(selectionSet.Fragments))
+	for _, fragment := range selectionSet.Fragments {
+		selections, err := marshalPbSelections(fragment.SelectionSet)
+		if err != nil {
+			return nil, err
+		}
+		fragments = append(fragments, &thunderpb.Fragment{
+			On:           fragment.On,
+			SelectionSet: selections,
+		})
+	}
+
+	return &thunderpb.SelectionSet{
+		Selections: selections,
+		Fragments:  fragments,
+	}, nil
+}
+
+type GrpcExecutorClient struct {
+	Client thunderpb.ExecutorClient
+}
+
+func (c *GrpcExecutorClient) Execute(ctx context.Context, req *graphql.Query) ([]byte, error) {
+	marshaled, err := marshalQuery(req)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.Client.Execute(ctx, &thunderpb.ExecuteRequest{
+		Query: marshaled,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp.Result, nil
+}
+
+type DirectExecutorClient struct {
+	Client thunderpb.ExecutorServer
+}
+
+func (c *DirectExecutorClient) Execute(ctx context.Context, req *graphql.Query) ([]byte, error) {
+	marshaled, err := marshalQuery(req)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.Client.Execute(ctx, &thunderpb.ExecuteRequest{
+		Query: marshaled,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp.Result, nil
+}
+
 type Server struct {
 	schema *graphql.Schema
 }
+
+// Server must implement thunderpb.ExecutorServer.
+var _ thunderpb.ExecutorServer = &Server{}
 
 func NewServer(schema *graphql.Schema) (*Server, error) {
 	introspection.AddIntrospectionToSchema(schema)
@@ -25,22 +180,19 @@ func NewServer(schema *graphql.Schema) (*Server, error) {
 }
 
 func (s *Server) Execute(ctx context.Context, req *thunderpb.ExecuteRequest) (*thunderpb.ExecuteResponse, error) {
-	selectionSet, err := unmarshalPbSelectionSet(req.SelectionSet)
+	query, err := unmarshalQuery(req.Query)
 	if err != nil {
 		return nil, err
 	}
 
-	var kind string
 	var schema graphql.Type
-	switch req.Kind {
-	case thunderpb.ExecuteRequest_QUERY:
-		kind = "query"
+	switch query.Kind {
+	case "query":
 		schema = s.schema.Query
-	case thunderpb.ExecuteRequest_MUTATION:
-		kind = "mutation"
+	case "mutation":
 		schema = s.schema.Mutation
 	default:
-		return nil, fmt.Errorf("unknown kind %s", req.Kind)
+		return nil, fmt.Errorf("unknown kind %s", query.Kind)
 	}
 
 	// XXX: junk to have reactive.Cache work
@@ -55,11 +207,7 @@ func (s *Server) Execute(ctx context.Context, req *thunderpb.ExecuteRequest) (*t
 		}()
 
 		gqlExec := graphql.NewExecutor(graphql.NewImmediateGoroutineScheduler())
-		res, err := gqlExec.Execute(ctx, schema, &graphql.Query{
-			Kind:         kind,
-			Name:         req.Name,
-			SelectionSet: selectionSet,
-		})
+		res, err := gqlExec.Execute(ctx, schema, query)
 		if err != nil {
 			return nil, fmt.Errorf("executing query: %v", err)
 		}

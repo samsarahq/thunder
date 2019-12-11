@@ -15,6 +15,7 @@
 		Selection
 		Fragment
 		SelectionSet
+		Query
 		ExecuteRequest
 		ExecuteResponse
 */

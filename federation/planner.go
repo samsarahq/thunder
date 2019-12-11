@@ -6,7 +6,6 @@ import (
 	"sort"
 
 	"github.com/samsarahq/thunder/graphql"
-	"github.com/samsarahq/thunder/thunderpb"
 )
 
 type StepKind int
@@ -24,7 +23,7 @@ type PathStep struct {
 type Plan struct {
 	Path    []PathStep
 	Service string
-	Kind    thunderpb.ExecuteRequest_Kind
+	Kind    string
 	// XXX: What are we using Type for here again? -- oh, it's for the __federation field...
 	Type         string
 	SelectionSet *graphql.RawSelectionSet
@@ -37,6 +36,7 @@ func (e *Executor) planObject(typ *graphql.Object, selectionSet *graphql.RawSele
 		Service:      service,
 		SelectionSet: &graphql.RawSelectionSet{},
 		After:        nil,
+		Kind:         "query",
 	}
 
 	// XXX: pass in sub-path (and sub-plan slice?) to make sub-plan munging simpler?
@@ -169,6 +169,7 @@ func (e *Executor) planUnion(typ *graphql.Union, selectionSet *graphql.RawSelect
 				},
 			},
 		},
+		Kind: "query",
 	}
 
 	for _, selection := range selectionSet.Selections {
@@ -275,7 +276,7 @@ func (e *Executor) planRoot(query *graphql.Query) (*Plan, error) {
 			return nil, errors.New("only support 1 mutation step to maintain ordering")
 		}
 		for _, p := range p.After {
-			p.Kind = thunderpb.ExecuteRequest_MUTATION
+			p.Kind = "mutation"
 		}
 	}
 

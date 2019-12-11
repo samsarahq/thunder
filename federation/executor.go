@@ -8,9 +8,20 @@ import (
 
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/introspection"
-	"github.com/samsarahq/thunder/thunderpb"
 	"golang.org/x/sync/errgroup"
 )
+
+type ExecutorClient interface {
+	Execute(ctx context.Context, req *graphql.Query) ([]byte, error)
+}
+
+func fetchSchema(ctx context.Context, e ExecutorClient) ([]byte, error) {
+	query, err := graphql.Parse(introspection.IntrospectionQuery, map[string]interface{}{})
+	if err != nil {
+		return nil, err
+	}
+	return e.Execute(ctx, query)
+}
 
 type Executor struct {
 	Executors           map[string]ExecutorClient
@@ -77,7 +88,7 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Exe
 	}, nil
 }
 
-func (e *Executor) runOnService(ctx context.Context, service string, typName string, keys []interface{}, kind thunderpb.ExecuteRequest_Kind, selectionSet *graphql.RawSelectionSet) ([]interface{}, error) {
+func (e *Executor) runOnService(ctx context.Context, service string, typName string, keys []interface{}, kind string, selectionSet *graphql.RawSelectionSet) ([]interface{}, error) {
 	schema := e.Executors[service]
 
 	isRoot := keys == nil
@@ -108,22 +119,17 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 		}
 	}
 
-	marshaled, err := marshalPbSelections(selectionSet)
-	if err != nil {
-		return nil, fmt.Errorf("marshaling selections: %v", err)
-	}
-
 	// XXX: make sure that if this hangs we're still good?
-	resPb, err := schema.Execute(ctx, &thunderpb.ExecuteRequest{
+	bytes, err := schema.Execute(ctx, &graphql.Query{
 		Kind:         kind,
-		SelectionSet: marshaled,
+		SelectionSet: selectionSet,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("execute remotely: %v", err)
 	}
 
 	var res interface{}
-	if err := json.Unmarshal(resPb.Result, &res); err != nil {
+	if err := json.Unmarshal(bytes, &res); err != nil {
 		return nil, fmt.Errorf("unmarshal res: %v", err)
 	}
 
@@ -300,7 +306,12 @@ func deleteKey(v interface{}, k string) {
 	}
 }
 
-func (e *Executor) executeRoot(ctx context.Context, p *Plan) (interface{}, error) {
+func (e *Executor) Execute(ctx context.Context, q *graphql.Query) (interface{}, error) {
+	p, err := e.planRoot(q)
+	if err != nil {
+		return nil, err
+	}
+
 	r, err := e.execute(ctx, p, nil)
 	if err != nil {
 		return nil, err
@@ -309,15 +320,6 @@ func (e *Executor) executeRoot(ctx context.Context, p *Plan) (interface{}, error
 	res := r[0]
 	deleteKey(res, "__federation")
 	return res, nil
-}
-
-func (e *Executor) Execute(ctx context.Context, q *graphql.Query) (interface{}, error) {
-	p, err := e.planRoot(q)
-	if err != nil {
-		return nil, err
-	}
-
-	return e.executeRoot(ctx, p)
 }
 
 // todo
