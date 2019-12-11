@@ -24,6 +24,9 @@ const (
 	// is implemented by both services, or two input types) must be compatible.
 	// In practice, this means types must be identical except for non-nil
 	// modifiers.
+	//
+	// XXX: take intersection on ENUM values to not confuse a service with a
+	// type it doesn't support?
 	Union MergeMode = "union"
 
 	// Intersection computes a schema that is supported by both services.

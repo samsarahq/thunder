@@ -155,6 +155,7 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 		return nil, fmt.Errorf("marshaling selections: %v", err)
 	}
 
+	// XXX: make sure that if this hangs we're still good?
 	resPb, err := schema.Execute(ctx, &thunderpb.ExecuteRequest{
 		Kind:         kind,
 		SelectionSet: marshaled,
@@ -263,6 +264,7 @@ type executorContext struct {
 	e *Executor
 
 	outputMu sync.Mutex
+	cancel   context.CancelFunc
 	wg       sync.WaitGroup
 	err      error
 }
@@ -270,6 +272,7 @@ type executorContext struct {
 func (ec *executorContext) setError(err error) {
 	// XXX: test
 	if ec.err == nil {
+		ec.cancel()
 		ec.err = err
 	}
 }
@@ -280,6 +283,7 @@ func (ec *executorContext) execute(ctx context.Context, p *Plan, keys []interfac
 		var err error
 		res, err = ec.e.runOnService(ctx, p.Service, p.Type, keys, p.Kind, p.SelectionSet)
 		if err != nil {
+			// XXX: why doesn't this call ec.setError? consistency please!!
 			return nil, fmt.Errorf("run on service: %v", err)
 		}
 	} else {
@@ -357,6 +361,10 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 		e: e,
 	}
 
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	ec.cancel = cancel
 	r, err := ec.execute(ctx, p, nil)
 	if err != nil {
 		return nil, err
@@ -375,28 +383,31 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 //
 // NEEDED
 //
-// error handling
-//   downstream server failure
-//      bubbles up error
-//      kills other requests
-//   downstream server timeout
-//      eventually terminated
-//      maybe: no further requests?
-//
 // proxy loads schemas from disk or s3 or individual services
 //
 // test incompatible schemas
 //   missing __federation
 //
+// add auth (hooks?)
 // add tracing (hooks?)
 // add dependency set hooks
 // add caching hooks
 //   maybe having access to the ctx at the RPC layer is enough?
 //
+// deal with rerunner, reactive.Cache
+//   instantiate a basic one in in server.go?
+//
 // validate incoming queries
 //   run against type checker
 //
-// deal with rerunner, reactive.Cache
+// support hiding introspection schema
+//   option: expose introspection... per-request?? yuck.
+//
+// clean up code
+//
+// service preference / ordering (to allow for default to legacy?)
+//
+// maybe???: let __federation api specify which fields it needs as keys?
 //
 // NICE TO HAVE
 //

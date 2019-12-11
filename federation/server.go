@@ -42,7 +42,7 @@ func (s *Server) Execute(ctx context.Context, req *thunderpb.ExecuteRequest) (*t
 	}
 
 	gqlExec := graphql.NewExecutor(graphql.NewImmediateGoroutineScheduler())
-	res, err := gqlExec.Execute(context.Background(), schema, &graphql.Query{
+	res, err := gqlExec.Execute(ctx, schema, &graphql.Query{
 		Kind:         kind,
 		Name:         req.Name,
 		SelectionSet: selectionSet,

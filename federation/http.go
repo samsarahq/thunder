@@ -83,7 +83,7 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.executor.Execute(ctx, plan)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
 

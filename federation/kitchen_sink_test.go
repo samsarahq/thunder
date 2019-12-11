@@ -2,7 +2,6 @@ package federation
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -13,21 +12,6 @@ import (
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 )
-
-func makeExecutors(schemas map[string]*schemabuilder.Schema) (map[string]ExecutorClient, error) {
-	executors := make(map[string]ExecutorClient)
-
-	for name, schema := range schemas {
-		srv, err := NewServer(schema.MustBuild())
-		if err != nil {
-			return nil, err
-		}
-
-		executors[name] = &DirectExecutorClient{Client: srv}
-	}
-
-	return executors, nil
-}
 
 type Enum int
 
@@ -241,29 +225,6 @@ func TestMustParse(t *testing.T) {
 	assert.Equal(t, expected, query)
 }
 
-func roundtripJson(t *testing.T, v interface{}) interface{} {
-	bytes, err := json.Marshal(v)
-	require.NoError(t, err)
-	var r interface{}
-	err = json.Unmarshal(bytes, &r)
-	require.NoError(t, err)
-	return r
-}
-
-func assertExecuteEqual(ctx context.Context, t *testing.T, e *Executor, in, out string) {
-	plan, err := e.Plan(graphql.MustParse(in, map[string]interface{}{}))
-	require.NoError(t, err)
-
-	res, err := e.Execute(ctx, plan)
-	require.NoError(t, err)
-
-	var expected interface{}
-	err = json.Unmarshal([]byte(out), &expected)
-	require.NoError(t, err)
-
-	assert.Equal(t, expected, roundtripJson(t, res))
-}
-
 func TestExecutor(t *testing.T) {
 	ctx := context.Background()
 
@@ -390,106 +351,4 @@ func TestExecutor(t *testing.T) {
 			assertExecuteEqual(ctx, t, e, testCase.Input, testCase.Output)
 		})
 	}
-}
-
-// TestConcurrency tests that plans that can run concurrently do run
-// concurrently.
-//
-// It's not a very exhaustive test.
-func TestConcurrency(t *testing.T) {
-	type Foo struct {
-	}
-
-	var running chan chan struct{}
-
-	makeSchema := func(prefix string) *schemabuilder.Schema {
-		schema := schemabuilder.NewSchema()
-		schema.Query().FieldFunc(prefix+"foo", func() *Foo {
-			return &Foo{}
-		})
-
-		foo := schema.Object("Foo", Foo{})
-		foo.Federation(func(*Foo) string {
-			return ""
-		})
-		foo.FieldFunc(prefix+"instant", func(f *Foo) *Foo {
-			return f
-		})
-		foo.FieldFunc(prefix+"wait", func(f *Foo) *Foo {
-			// xxx: store path in Foo by concatenating field name funcs and then
-			// use that to record exec order?
-			release := <-running
-			<-release
-			return f
-		})
-		foo.FieldFunc(prefix+"echo", func(f *Foo) string {
-			return "echo"
-		})
-
-		schema.Federation().FieldFunc("Foo", func(args struct{ Keys []string }) []*Foo {
-			foos := make([]*Foo, 0, len(args.Keys))
-			for range args.Keys {
-				foos = append(foos, &Foo{})
-			}
-			return foos
-		})
-
-		return schema
-	}
-
-	ctx := context.Background()
-
-	// todo: assert specific invocation traces?
-
-	execs, err := makeExecutors(map[string]*schemabuilder.Schema{
-		"schema1": makeSchema("s1"),
-		"schema2": makeSchema("s2"),
-	})
-	require.NoError(t, err)
-
-	e, err := NewExecutor(ctx, execs)
-	require.NoError(t, err)
-
-	running = make(chan chan struct{}, 0)
-	go func() {
-		release := make(chan struct{}, 0)
-		for i := 0; i < 3; i++ {
-			running <- release
-		}
-		close(release)
-	}()
-
-	assertExecuteEqual(ctx, t, e, `
-		{
-			s1foo {
-				s1instant {
-					s2wait {
-						s2echo
-					}
-				}
-				s2instant {
-					s1wait {
-						s1echo
-					}
-				}
-			}
-			s2foo {
-				s1wait {
-					s1echo
-				}
-			}
-		}
-	`, `
-		{
-			"s1foo": {
-				"s1instant": {"s2wait": {"s2echo": "echo"}},
-				"s2instant": {"s1wait": {"s1echo": "echo"}}
-			},
-			"s2foo": {
-				"s1wait": {"s1echo": "echo"}
-			}
-		}
-	`)
-
-	// xxx: test and verify concurrency limit?
 }
