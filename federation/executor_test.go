@@ -53,10 +53,65 @@ func assertExecuteEqual(ctx context.Context, t *testing.T, e *Executor, in, out 
 
 func assertExecuteError(ctx context.Context, t *testing.T, e *Executor, in, errMsg string) {
 	plan, err := e.Plan(graphql.MustParse(in, map[string]interface{}{}))
-	require.NoError(t, err)
+	if err != nil {
+		require.EqualError(t, err, errMsg)
+		return
+	}
 
 	_, err = e.Execute(ctx, plan)
 	require.EqualError(t, err, errMsg)
+}
+
+// TestExecutorOneMutate tests that a single mutate is supported.
+func TestExecutorOneMutate(t *testing.T) {
+	s1 := schemabuilder.NewSchema()
+	s1.Mutation().FieldFunc("orderMatters", func(ctx context.Context) (string, error) {
+		return "ok", nil
+	})
+
+	ctx := context.Background()
+	execs, err := makeExecutors(map[string]*schemabuilder.Schema{
+		"s1": s1,
+	})
+	require.NoError(t, err)
+
+	e, err := NewExecutor(ctx, execs)
+	require.NoError(t, err)
+	assertExecuteEqual(ctx, t, e, `
+		mutation Foo {
+			orderMatters
+		}
+	`, `
+		{"orderMatters": "ok"}
+	`)
+}
+
+// TestExecutorTwoMutates tests that two mutates fail.
+func TestExecutorTwoMutates(t *testing.T) {
+	s1 := schemabuilder.NewSchema()
+	s1.Mutation().FieldFunc("s1", func(ctx context.Context) (string, error) {
+		return "ok", nil
+	})
+	s2 := schemabuilder.NewSchema()
+	s2.Mutation().FieldFunc("s2", func(ctx context.Context) (string, error) {
+		return "ok", nil
+	})
+
+	ctx := context.Background()
+	execs, err := makeExecutors(map[string]*schemabuilder.Schema{
+		"s1": s1,
+		"s2": s2,
+	})
+	require.NoError(t, err)
+
+	e, err := NewExecutor(ctx, execs)
+	require.NoError(t, err)
+	assertExecuteError(ctx, t, e, `
+		mutation Foo {
+			s1
+			s2
+		}
+	`, "only support 1 mutation step to maintain ordering")
 }
 
 // TestExecutorHasReactiveCache tests that a reactive.Cache works.

@@ -408,6 +408,10 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 //
 // NICE TO HAVE
 //
+// normalize tests
+// planner fine-grained tests
+// executor fine-grained tests
+//
 // pass through descriptions
 //
 // maybe: failure boundaries, propagate nil(s)
