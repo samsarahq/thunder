@@ -261,7 +261,7 @@ func (e *Executor) planRoot(query *graphql.Query) (*Plan, error) {
 		return nil, fmt.Errorf("unknown query kind %s", query.Kind)
 	}
 
-	flattened, err := e.flatten(query.SelectionSet, schema)
+	flattened, err := e.flattener.flatten(query.SelectionSet, schema)
 	if err != nil {
 		return nil, err
 	}

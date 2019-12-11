@@ -24,11 +24,10 @@ func fetchSchema(ctx context.Context, e ExecutorClient) ([]byte, error) {
 }
 
 type Executor struct {
-	Executors           map[string]ExecutorClient
-	IntrospectionSchema *graphql.Schema
+	Executors map[string]ExecutorClient
 
-	schema *SchemaWithFederationInfo
-	types  map[string]graphql.Type
+	schema    *SchemaWithFederationInfo
+	flattener *flattener
 }
 
 func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Executor, error) {
@@ -54,37 +53,31 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Exe
 	}
 
 	introspectionSchema := introspection.BareIntrospectionSchema(types.Schema)
-	newServer := &Server{schema: introspectionSchema}
+	introspectionServer := &Server{schema: introspectionSchema}
 
-	executors["introspection"] = &DirectExecutorClient{Client: newServer}
-	server := "introspection"
-	schema, err := introspection.RunIntrospectionQuery(introspection.BareIntrospectionSchema(newServer.schema))
+	executors["introspection"] = &DirectExecutorClient{Client: introspectionServer}
+	schema, err := introspection.RunIntrospectionQuery(introspection.BareIntrospectionSchema(introspectionServer.schema))
 
 	var iq introspectionQueryResult
 	if err := json.Unmarshal(schema, &iq); err != nil {
-		return nil, fmt.Errorf("unmarshaling schema %s: %v", server, err)
+		return nil, fmt.Errorf("unmarshaling introspection schema: %v", err)
 	}
 
-	schemas[server] = &iq
+	schemas["introspection"] = &iq
 	types, err = convertSchema(schemas)
 	if err != nil {
 		return nil, err
 	}
 
-	allTypes := make(map[graphql.Type]string)
-	if err := collectTypes(types.Schema.Query, allTypes); err != nil {
+	flattener, err := newFlattener(types.Schema)
+	if err != nil {
 		return nil, err
-	}
-	reversedTypes := make(map[string]graphql.Type)
-	for typ, name := range allTypes {
-		reversedTypes[name] = typ
 	}
 
 	return &Executor{
-		Executors:           executors,
-		schema:              types,
-		IntrospectionSchema: introspectionSchema,
-		types:               reversedTypes,
+		Executors: executors,
+		schema:    types,
+		flattener: flattener,
 	}, nil
 }
 
