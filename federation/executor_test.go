@@ -38,10 +38,7 @@ func roundtripJson(t *testing.T, v interface{}) interface{} {
 }
 
 func assertExecuteEqual(ctx context.Context, t *testing.T, e *Executor, in, out string) {
-	plan, err := e.Plan(graphql.MustParse(in, map[string]interface{}{}))
-	require.NoError(t, err)
-
-	res, err := e.Execute(ctx, plan)
+	res, err := e.Execute(ctx, graphql.MustParse(in, map[string]interface{}{}))
 	require.NoError(t, err)
 
 	var expected interface{}
@@ -52,13 +49,7 @@ func assertExecuteEqual(ctx context.Context, t *testing.T, e *Executor, in, out 
 }
 
 func assertExecuteError(ctx context.Context, t *testing.T, e *Executor, in, errMsg string) {
-	plan, err := e.Plan(graphql.MustParse(in, map[string]interface{}{}))
-	if err != nil {
-		require.EqualError(t, err, errMsg)
-		return
-	}
-
-	_, err = e.Execute(ctx, plan)
+	_, err := e.Execute(ctx, graphql.MustParse(in, map[string]interface{}{}))
 	require.EqualError(t, err, errMsg)
 }
 

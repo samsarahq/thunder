@@ -249,7 +249,7 @@ func reversePaths(p *Plan) {
 	}
 }
 
-func (e *Executor) Plan(query *graphql.Query) (*Plan, error) {
+func (e *Executor) planRoot(query *graphql.Query) (*Plan, error) {
 	var schema graphql.Type
 	switch query.Kind {
 	case "query":

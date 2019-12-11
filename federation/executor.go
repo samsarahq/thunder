@@ -20,49 +20,6 @@ type Executor struct {
 	types  map[string]graphql.Type
 }
 
-type ExecutorClient interface {
-	Execute(ctx context.Context, req *thunderpb.ExecuteRequest) (*thunderpb.ExecuteResponse, error)
-}
-
-func fetchSchema(ctx context.Context, e ExecutorClient) ([]byte, error) {
-	query, err := graphql.Parse(introspection.IntrospectionQuery, map[string]interface{}{})
-	if err != nil {
-		return nil, err
-	}
-
-	selectionSet, err := marshalPbSelections(query.SelectionSet)
-	if err != nil {
-		return nil, err
-	}
-
-	out, err := e.Execute(ctx, &thunderpb.ExecuteRequest{
-		Kind:         thunderpb.ExecuteRequest_QUERY,
-		Name:         "introspection",
-		SelectionSet: selectionSet,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return out.Result, nil
-}
-
-type GrpcExecutorClient struct {
-	Client thunderpb.ExecutorClient
-}
-
-func (c *GrpcExecutorClient) Execute(ctx context.Context, req *thunderpb.ExecuteRequest) (*thunderpb.ExecuteResponse, error) {
-	return c.Client.Execute(ctx, req)
-}
-
-type DirectExecutorClient struct {
-	Client thunderpb.ExecutorServer
-}
-
-func (c *DirectExecutorClient) Execute(ctx context.Context, req *thunderpb.ExecuteRequest) (*thunderpb.ExecuteResponse, error) {
-	return c.Client.Execute(ctx, req)
-}
-
 func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Executor, error) {
 	schemas := make(map[string]*introspectionQueryResult)
 
@@ -343,7 +300,7 @@ func deleteKey(v interface{}, k string) {
 	}
 }
 
-func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
+func (e *Executor) executeRoot(ctx context.Context, p *Plan) (interface{}, error) {
 	r, err := e.execute(ctx, p, nil)
 	if err != nil {
 		return nil, err
@@ -352,6 +309,15 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 	res := r[0]
 	deleteKey(res, "__federation")
 	return res, nil
+}
+
+func (e *Executor) Execute(ctx context.Context, q *graphql.Query) (interface{}, error) {
+	p, err := e.planRoot(q)
+	if err != nil {
+		return nil, err
+	}
+
+	return e.executeRoot(ctx, p)
 }
 
 // todo

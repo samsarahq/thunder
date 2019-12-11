@@ -210,7 +210,7 @@ func TestPlan(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.Name, func(t *testing.T) {
-			plan, err := e.Plan(graphql.MustParse(testCase.Input, map[string]interface{}{}))
+			plan, err := e.planRoot(graphql.MustParse(testCase.Input, map[string]interface{}{}))
 			require.NoError(t, err)
 			assert.Equal(t, testCase.Output, plan.After)
 		})
