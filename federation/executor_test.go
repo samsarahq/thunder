@@ -8,6 +8,7 @@ import (
 
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
+	"github.com/samsarahq/thunder/reactive"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -56,6 +57,41 @@ func assertExecuteError(ctx context.Context, t *testing.T, e *Executor, in, errM
 
 	_, err = e.Execute(ctx, plan)
 	require.EqualError(t, err, errMsg)
+}
+
+// TestExecutorHasReactiveCache tests that a reactive.Cache works.
+func TestExecutorHasReactiveCache(t *testing.T) {
+	schema := schemabuilder.NewSchema()
+	schema.Query().FieldFunc("testCache", func(ctx context.Context) (string, error) {
+		count := 0
+		for i := 0; i < 2; i++ {
+			v, err := reactive.Cache(ctx, "", func(ctx context.Context) (interface{}, error) {
+				count++
+				return "", nil
+			})
+			assert.NoError(t, err)
+			assert.Equal(t, v, "")
+		}
+		assert.Equal(t, 1, count)
+		return "", nil
+	})
+
+	ctx := context.Background()
+
+	execs, err := makeExecutors(map[string]*schemabuilder.Schema{
+		"schema": schema,
+	})
+	require.NoError(t, err)
+
+	e, err := NewExecutor(ctx, execs)
+	require.NoError(t, err)
+	assertExecuteEqual(ctx, t, e, `
+		{
+			testCache
+		}
+	`, `
+		{"testCache": ""}
+	`)
 }
 
 // TestExecutorCancelsLeakedContext tests that a context kept around will be canceled.

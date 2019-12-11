@@ -394,9 +394,6 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 // add caching hooks
 //   maybe having access to the ctx at the RPC layer is enough?
 //
-// deal with rerunner, reactive.Cache
-//   instantiate a basic one in in server.go?
-//
 // validate incoming queries
 //   run against type checker
 //
@@ -417,6 +414,7 @@ func (e *Executor) Execute(ctx context.Context, p *Plan) (interface{}, error) {
 //
 // do something about internal fields (__typename, __federation)
 //   track if we added field, if so, remove it from result, otherwise keep it
+//   should be easy to do in plan, we already have postprocessor?
 //
 // share flatten between federation/ and graphql/
 // limit complexity in flatten

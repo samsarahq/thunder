@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/introspection"
+	"github.com/samsarahq/thunder/reactive"
 	"github.com/samsarahq/thunder/thunderpb"
 )
 
@@ -41,22 +43,38 @@ func (s *Server) Execute(ctx context.Context, req *thunderpb.ExecuteRequest) (*t
 		return nil, fmt.Errorf("unknown kind %s", req.Kind)
 	}
 
-	gqlExec := graphql.NewExecutor(graphql.NewImmediateGoroutineScheduler())
-	res, err := gqlExec.Execute(ctx, schema, &graphql.Query{
-		Kind:         kind,
-		Name:         req.Name,
-		SelectionSet: selectionSet,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("executing query: %v", err)
-	}
+	// XXX: junk to have reactive.Cache work
+	done := make(chan struct{}, 0)
+	var r *thunderpb.ExecuteResponse
+	var e error
+	rerunner := reactive.NewRerunner(ctx, func(ctx context.Context) (ret interface{}, err error) {
+		defer func() {
+			r, _ = ret.(*thunderpb.ExecuteResponse)
+			e = err
+			close(done)
+		}()
 
-	bytes, err := json.Marshal(res)
-	if err != nil {
-		return nil, err
-	}
+		gqlExec := graphql.NewExecutor(graphql.NewImmediateGoroutineScheduler())
+		res, err := gqlExec.Execute(ctx, schema, &graphql.Query{
+			Kind:         kind,
+			Name:         req.Name,
+			SelectionSet: selectionSet,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("executing query: %v", err)
+		}
 
-	return &thunderpb.ExecuteResponse{
-		Result: bytes,
-	}, nil
+		bytes, err := json.Marshal(res)
+		if err != nil {
+			return nil, err
+		}
+
+		return &thunderpb.ExecuteResponse{
+			Result: bytes,
+		}, nil
+	}, time.Hour, false)
+	<-done
+
+	rerunner.Stop()
+	return r, e
 }
