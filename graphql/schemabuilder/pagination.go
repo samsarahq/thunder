@@ -655,12 +655,16 @@ func (c *connectionContext) getConnection(ctx context.Context, out []reflect.Val
 		return Connection{}, nil
 	}
 
-	if !c.IsExternallyManaged() {
+	if !c.IsExternallyManaged() || c.PostProcessOptions.ApplyTextFilter {
 		var err error
 		nodes, err = c.applyTextFilter(ctx, nodes, args)
 		if err != nil {
 			return Connection{}, err
 		}
+	}
+
+	if !c.IsExternallyManaged() {
+		var err error
 		nodes, err = c.applySort(ctx, nodes, args)
 		if err != nil {
 			return Connection{}, err
@@ -679,8 +683,8 @@ func (c *connectionContext) getConnection(ctx context.Context, out []reflect.Val
 	}
 
 	// If the pagination is externally managed, thunder isn't going to handle setting page
-	// information or reducing the edges.
-	if c.IsExternallyManaged() {
+	// information or reducing the edges, unless it is explicitly instructed to.
+	if c.IsExternallyManaged() && !c.PostProcessOptions.SetPageInfo {
 		// XXX: We might want to handle the case where the externally managed result set is of
 		// incorrect size (too big) and error.
 		if err := connection.externallySetPageInfo(out[1].Interface().(PaginationInfo)); err != nil {
