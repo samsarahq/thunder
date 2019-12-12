@@ -831,7 +831,7 @@ func TestEmbeddedFail(t *testing.T) {
 	inner := schema.Object("inner", Inner{})
 	item := schema.Object("item", Item{})
 	item.Key("id")
-	inner.PaginateFieldFunc("innerConnection", func(args EmbeddedArgs) ([]Item, schemabuilder.PaginationInfo, error) {
+	inner.FieldFunc("innerConnection", func(args EmbeddedArgs) ([]Item, schemabuilder.PaginationInfo, error) {
 		retList := make([]Item, 5)
 		retList[0] = Item{Id: 1}
 		retList[1] = Item{Id: 2}
@@ -844,13 +844,12 @@ func TestEmbeddedFail(t *testing.T) {
 				HasPrevPage:    false,
 				TotalCountFunc: func() int64 { return int64(5) },
 			}, nil
-	})
+	}, schemabuilder.Paginated)
 
-	badMethodStr := "bad method inner on type schemabuilder.query:"
 	_, err := schema.Build()
-	if err != nil && err.Error() != fmt.Sprintf("%s if pagination args are embedded then pagination info must be included as a return value", badMethodStr) {
-		t.Errorf("bad error: %v", err)
-	}
+	require.NotNil(t, err)
+	badMethodStr := "bad method inner on type schemabuilder.query:"
+	require.Equal(t, err.Error(), fmt.Sprintf("%s if pagination args are embedded then pagination info must be included as a return value", badMethodStr))
 }
 
 func TestPaginatedFilters(t *testing.T) {
