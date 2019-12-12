@@ -819,6 +819,297 @@ func TestEmbeddedArgs(t *testing.T) {
 
 }
 
+func TestEmbeddedArgsWithFilter(t *testing.T) {
+	schema := schemabuilder.NewSchema()
+	type Inner struct {
+	}
+
+	query := schema.Query()
+	query.FieldFunc("inner", func() Inner {
+		return Inner{}
+	})
+
+	inner := schema.Object("inner", Inner{})
+	item := schema.Object("item", Item{})
+	item.Key("id")
+	inner.FieldFunc("innerConnectionWithFilter", func(args EmbeddedArgs) ([]Item, schemabuilder.PaginationInfo, schemabuilder.PostProcessOptions, error) {
+		retList := make([]Item, 5)
+		retList[0] = Item{Id: 1, FilterText: "odd"}
+		retList[1] = Item{Id: 2, FilterText: "even"}
+		retList[2] = Item{Id: 3, FilterText: "odd"}
+		retList[3] = Item{Id: 4, FilterText: "even"}
+		retList[4] = Item{Id: 5, FilterText: "odd"}
+		return retList,
+			schemabuilder.PaginationInfo{
+				HasNextPage:    true,
+				HasPrevPage:    false,
+				TotalCountFunc: func() int64 { return int64(6) },
+			},
+			schemabuilder.PostProcessOptions{ApplyTextFilter: true}, nil
+	},
+		schemabuilder.Paginated, schemabuilder.FilterField("oddity", func(item Item) string {
+			return item.FilterText
+		},
+		))
+	builtSchema := schema.MustBuild()
+	q := graphql.MustParse(`
+		{
+			inner {
+				innerConnectionWithFilter(filterText: "odd", filterTextFields: ["oddity"], first: 5, after: "", additional: "jk") {
+					totalCount
+					edges {
+						node {
+							id
+						}
+						cursor
+					}
+					pageInfo {
+						hasNextPage
+						hasPrevPage
+						startCursor
+						endCursor
+					}
+				}
+			}
+	    }`, nil)
+
+	if err := graphql.PrepareQuery(context.Background(), builtSchema.Query, q.SelectionSet); err != nil {
+		t.Error(err)
+	}
+	e := testgraphql.NewExecutorWrapper(t)
+	val, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
+	assert.Nil(t, err)
+
+	assert.Equal(t, map[string]interface{}{
+		"inner": map[string]interface{}{
+			"innerConnectionWithFilter": map[string]interface{}{
+				"totalCount": float64(6),
+				"edges": []interface{}{
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": float64(1),
+							"id":    float64(1),
+						},
+						"cursor": "MQ==",
+					},
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": float64(3),
+							"id":    float64(3),
+						},
+						"cursor": "Mw==",
+					},
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": float64(5),
+							"id":    float64(5),
+						},
+						"cursor": "NQ==",
+					},
+				},
+				"pageInfo": map[string]interface{}{
+					"hasNextPage": true,
+					"hasPrevPage": false,
+					"startCursor": "MQ==",
+					"endCursor":   "NQ==",
+				},
+			},
+		},
+	}, internal.AsJSON(val))
+}
+
+func TestEmbeddedArgsWithPageInfo(t *testing.T) {
+	schema := schemabuilder.NewSchema()
+	type Inner struct {
+	}
+
+	query := schema.Query()
+	query.FieldFunc("inner", func() Inner {
+		return Inner{}
+	})
+
+	inner := schema.Object("inner", Inner{})
+	item := schema.Object("item", Item{})
+	item.Key("id")
+	inner.FieldFunc("innerConnection", func(args EmbeddedArgs) ([]Item, schemabuilder.PaginationInfo, schemabuilder.PostProcessOptions, error) {
+		retList := make([]Item, 5)
+		retList[0] = Item{Id: 1}
+		retList[1] = Item{Id: 2}
+		retList[2] = Item{Id: 3}
+		retList[3] = Item{Id: 4}
+		retList[4] = Item{Id: 5}
+		return retList,
+			schemabuilder.PaginationInfo{},
+			schemabuilder.PostProcessOptions{SetPageInfo: true}, nil
+	},
+		schemabuilder.Paginated, schemabuilder.FilterField("oddity", func(item Item) string {
+			return item.FilterText
+		},
+		))
+	builtSchema := schema.MustBuild()
+	q := graphql.MustParse(`
+		{
+			inner {
+				innerConnection(first: 3, after: "", additional: "jk") {
+					totalCount
+					edges {
+						node {
+							id
+						}
+						cursor
+					}
+					pageInfo {
+						hasNextPage
+						hasPrevPage
+						startCursor
+						endCursor
+					}
+				}
+			}
+	    }`, nil)
+
+	if err := graphql.PrepareQuery(context.Background(), builtSchema.Query, q.SelectionSet); err != nil {
+		t.Error(err)
+	}
+	e := testgraphql.NewExecutorWrapper(t)
+	val, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
+	assert.Nil(t, err)
+
+	assert.Equal(t, map[string]interface{}{
+		"inner": map[string]interface{}{
+			"innerConnection": map[string]interface{}{
+				"totalCount": float64(5),
+				"edges": []interface{}{
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": float64(1),
+							"id":    float64(1),
+						},
+						"cursor": "MQ==",
+					},
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": float64(2),
+							"id":    float64(2),
+						},
+						"cursor": "Mg==",
+					},
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": float64(3),
+							"id":    float64(3),
+						},
+						"cursor": "Mw==",
+					},
+				},
+				"pageInfo": map[string]interface{}{
+					"hasNextPage": true,
+					"hasPrevPage": false,
+					"startCursor": "MQ==",
+					"endCursor":   "Mw==",
+				},
+			},
+		},
+	}, internal.AsJSON(val))
+}
+
+func TestEmbeddedArgsWithFilterAndPageInfo(t *testing.T) {
+	schema := schemabuilder.NewSchema()
+	type Inner struct {
+	}
+
+	query := schema.Query()
+	query.FieldFunc("inner", func() Inner {
+		return Inner{}
+	})
+
+	inner := schema.Object("inner", Inner{})
+	item := schema.Object("item", Item{})
+	item.Key("id")
+	inner.FieldFunc("innerConnectionWithFilter", func(args EmbeddedArgs) ([]Item, schemabuilder.PaginationInfo, schemabuilder.PostProcessOptions, error) {
+		retList := make([]Item, 7)
+		retList[0] = Item{Id: 1, FilterText: "odd"}
+		retList[1] = Item{Id: 2, FilterText: "even"}
+		retList[2] = Item{Id: 3, FilterText: "odd"}
+		retList[3] = Item{Id: 4, FilterText: "even"}
+		retList[4] = Item{Id: 5, FilterText: "odd"}
+		retList[5] = Item{Id: 6, FilterText: "even"}
+		retList[6] = Item{Id: 7, FilterText: "odd"}
+		return retList,
+			schemabuilder.PaginationInfo{},
+			schemabuilder.PostProcessOptions{ApplyTextFilter: true, SetPageInfo: true}, nil
+	},
+		schemabuilder.Paginated, schemabuilder.FilterField("oddity", func(item Item) string {
+			return item.FilterText
+		},
+		))
+	builtSchema := schema.MustBuild()
+	q := graphql.MustParse(`
+		{
+			inner {
+				innerConnectionWithFilter(filterText: "odd", filterTextFields: ["oddity"], first: 3, after: "", additional: "jk") {
+					totalCount
+					edges {
+						node {
+							id
+						}
+						cursor
+					}
+					pageInfo {
+						hasNextPage
+						hasPrevPage
+						startCursor
+						endCursor
+					}
+				}
+			}
+	    }`, nil)
+
+	if err := graphql.PrepareQuery(context.Background(), builtSchema.Query, q.SelectionSet); err != nil {
+		t.Error(err)
+	}
+	e := testgraphql.NewExecutorWrapper(t)
+	val, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
+	assert.Nil(t, err)
+
+	assert.Equal(t, map[string]interface{}{
+		"inner": map[string]interface{}{
+			"innerConnectionWithFilter": map[string]interface{}{
+				"totalCount": float64(4),
+				"edges": []interface{}{
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": float64(1),
+							"id":    float64(1),
+						},
+						"cursor": "MQ==",
+					},
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": float64(3),
+							"id":    float64(3),
+						},
+						"cursor": "Mw==",
+					},
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": float64(5),
+							"id":    float64(5),
+						},
+						"cursor": "NQ==",
+					},
+				},
+				"pageInfo": map[string]interface{}{
+					"hasNextPage": true,
+					"hasPrevPage": false,
+					"startCursor": "MQ==",
+					"endCursor":   "NQ==",
+				},
+			},
+		},
+	}, internal.AsJSON(val))
+}
+
 func TestEmbeddedFail(t *testing.T) {
 	schema := schemabuilder.NewSchema()
 	type Inner struct {
