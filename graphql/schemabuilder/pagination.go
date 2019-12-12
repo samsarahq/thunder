@@ -183,6 +183,8 @@ type connectionContext struct {
 	Key string
 	// Whether or not the FieldFunc returns PageInfo (overrides thunder's auto-populated PageInfo).
 	ReturnsPageInfo bool
+	// The post process options returned by the resolver.
+	PostProcessOptions PostProcessOptions
 	// The index of PaginationArgs in the arguments provided to the FieldFunc.
 	PaginationArgsIndex int
 	// The GraphQL fields for filtered text to be resolved.
@@ -1223,6 +1225,7 @@ func (c *connectionContext) extractReturnAndErr(ctx context.Context, out []refle
 		}
 	} else {
 		paginationArgs = reflect.ValueOf(args).Field(c.PaginationArgsIndex).Interface().(PaginationArgs)
+		c.PostProcessOptions = out[2].Interface().(PostProcessOptions)
 	}
 
 	result, err := c.getConnection(ctx, out, paginationArgs)
