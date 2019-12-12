@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/samsarahq/thunder/batch"
@@ -848,8 +849,7 @@ func TestEmbeddedFail(t *testing.T) {
 
 	_, err := schema.Build()
 	require.NotNil(t, err)
-	badMethodStr := "bad method inner on type schemabuilder.query:"
-	require.Equal(t, err.Error(), fmt.Sprintf("%s if pagination args are embedded then pagination info must be included as a return value", badMethodStr))
+	require.True(t, strings.HasSuffix(err.Error(), "returns a PaginationInfo not followed by a PaginationPostProcessOptions"))
 }
 
 func TestPaginatedFilters(t *testing.T) {
@@ -1279,23 +1279,25 @@ func TestConnectionManual(t *testing.T) {
 		return []Item{{Id: 1}, {Id: 2}, {Id: 3}, {Id: 4}, {Id: 5}}, nil
 	}, schemabuilder.Paginated)
 
-	inner.FieldFunc("innerConnectionWithCtxAndErrorManual", func(ctx context.Context, args ManualArgs) ([]Item, schemabuilder.PaginationInfo, error) {
+	inner.FieldFunc("innerConnectionWithCtxAndErrorManual", func(ctx context.Context, args ManualArgs) ([]Item, schemabuilder.PaginationInfo, schemabuilder.PostProcessOptions, error) {
 		var info schemabuilder.PaginationInfo
+		var options schemabuilder.PostProcessOptions
 		info.TotalCountFunc = func() int64 { return 5 }
 		info.HasNextPage = true
 		info.HasPrevPage = false
-		return []Item{{Id: 1}, {Id: 2}, {Id: 3}}, info, nil
+		return []Item{{Id: 1}, {Id: 2}, {Id: 3}}, info, options, nil
 	}, schemabuilder.Paginated)
 
 	shouldUseFallback := true
 	inner.ManualPaginationWithFallback("innerConnectionWithCtxAndErrorManualAndFallback",
-		func(ctx context.Context, args ManualArgs) ([]Item, schemabuilder.PaginationInfo, error) {
+		func(ctx context.Context, args ManualArgs) ([]Item, schemabuilder.PaginationInfo, schemabuilder.PostProcessOptions, error) {
 			var info schemabuilder.PaginationInfo
+			var options schemabuilder.PostProcessOptions
 			info.TotalCountFunc = func() int64 { return 5 }
 			info.HasNextPage = true
 			info.HasPrevPage = false
 			info.Pages = []string{}
-			return []Item{{Id: 1}, {Id: 2}, {Id: 3}}, info, nil
+			return []Item{{Id: 1}, {Id: 2}, {Id: 3}}, info, options, nil
 		},
 		func(ctx context.Context, args Args) ([]Item, error) {
 			return []Item{{Id: 1}, {Id: 2}, {Id: 3}, {Id: 4}, {Id: 5}}, nil
@@ -1306,13 +1308,14 @@ func TestConnectionManual(t *testing.T) {
 		schemabuilder.Paginated)
 
 	inner.ManualPaginationWithFallback("manualPaginationAndFallbackWithFiltersAndSorts",
-		func(ctx context.Context, args ManualArgs) ([]Item, schemabuilder.PaginationInfo, error) {
+		func(ctx context.Context, args ManualArgs) ([]Item, schemabuilder.PaginationInfo, schemabuilder.PostProcessOptions, error) {
 			var info schemabuilder.PaginationInfo
+			var options schemabuilder.PostProcessOptions
 			info.TotalCountFunc = func() int64 { return 5 }
 			info.HasNextPage = true
 			info.HasPrevPage = false
 			info.Pages = []string{}
-			return []Item{{Id: 1}, {Id: 2}, {Id: 3}}, info, nil
+			return []Item{{Id: 1}, {Id: 2}, {Id: 3}}, info, options, nil
 		},
 		func(ctx context.Context, args Args) ([]Item, error) {
 			return []Item{{Id: 1}, {Id: 2}, {Id: 3}, {Id: 4}, {Id: 5}}, nil
