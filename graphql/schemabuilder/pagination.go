@@ -149,6 +149,20 @@ type PaginationInfo struct {
 	Pages          []string
 }
 
+// PostProcessOptions is used to instruct Thunder to perform additional operations on the output
+// in the case of manually paginated resolvers.
+// This struct should be returned as the second result from a manually-paginated field func.
+type PostProcessOptions struct {
+	// Whether or not Thunder should apply filtering on the output. This flag can
+	// be used by externally managed resolvers when they decide to fall back to Thunder's
+	// filtering based on the query arguments.
+	ApplyTextFilter bool
+	// Whether or not Thunder should set the Page Info's fields based on the output.
+	// An exception to this are start and end cursors, which will be set by Thunder
+	// regardless of the SetPageInfo flag.
+	SetPageInfo bool
+}
+
 func (i PaginationInfo) TotalCount() (int64, error) {
 	if i.TotalCountFunc == nil {
 		return 0, errors.New("must set TotalCountFunc on PaginationInfo")
