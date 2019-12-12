@@ -1009,6 +1009,11 @@ func (c *connectionContext) parsePaginatedReturnSignature(m *method) (err error)
 	if len(out) > 0 && out[0] == reflect.TypeOf(PaginationInfo{}) {
 		c.ReturnsPageInfo = true
 		out = out[1:]
+		if len(out) == 0 || out[0] != reflect.TypeOf(PostProcessOptions{}) {
+			err = fmt.Errorf("%s returns a PaginationInfo not followed by a PaginationPostProcessOptions", c.funcType)
+			return
+		}
+		out = out[1:]
 	}
 
 	if len(out) > 0 && out[0] == errType {
