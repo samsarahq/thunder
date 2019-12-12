@@ -694,7 +694,7 @@ func TestEmbeddedArgs(t *testing.T) {
 	inner := schema.Object("inner", Inner{})
 	item := schema.Object("item", Item{})
 	item.Key("id")
-	inner.PaginateFieldFunc("innerConnection", func(args EmbeddedArgs) ([]Item, schemabuilder.PaginationInfo, error) {
+	inner.PaginateFieldFunc("innerConnection", func(args EmbeddedArgs) ([]Item, schemabuilder.PaginationInfo, schemabuilder.PostProcessOptions, error) {
 		retList := make([]Item, 5)
 		retList[0] = Item{Id: 1}
 		retList[1] = Item{Id: 2}
@@ -706,7 +706,7 @@ func TestEmbeddedArgs(t *testing.T) {
 				HasNextPage:    true,
 				HasPrevPage:    false,
 				TotalCountFunc: func() int64 { return int64(5) },
-			}, nil
+			}, schemabuilder.PostProcessOptions{}, nil
 	})
 	builtSchema := schema.MustBuild()
 	q := graphql.MustParse(`
