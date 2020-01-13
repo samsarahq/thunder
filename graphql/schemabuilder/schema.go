@@ -137,6 +137,9 @@ func (s *Schema) Build() (*graphql.Schema, error) {
 		typeCache:    make(map[reflect.Type]cachedType, 0),
 	}
 
+	s.Object("Query", query{})
+	s.Object("Mutation", mutation{})
+
 	for _, object := range s.objects {
 		typ := reflect.TypeOf(object.Type)
 		if typ.Kind() != reflect.Struct {
