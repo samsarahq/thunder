@@ -1,0 +1,331 @@
+[
+  {
+    "Name": "resulting schema",
+    "Values": [
+      {
+        "__schema": {
+          "types": [
+            {
+              "enumValues": [],
+              "fields": [
+                {
+                  "args": [],
+                  "name": "id",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "int64",
+                      "ofType": null
+                    }
+                  }
+                },
+                {
+                  "args": [],
+                  "name": "s1baz",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "string",
+                      "ofType": null
+                    }
+                  }
+                }
+              ],
+              "inputFields": [],
+              "kind": "OBJECT",
+              "name": "Bar",
+              "possibleTypes": []
+            },
+            {
+              "enumValues": [
+                {
+                  "name": "one"
+                }
+              ],
+              "fields": [],
+              "inputFields": [],
+              "kind": "ENUM",
+              "name": "Enum",
+              "possibleTypes": []
+            },
+            {
+              "enumValues": [],
+              "fields": [
+                {
+                  "args": [],
+                  "name": "name",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "string",
+                      "ofType": null
+                    }
+                  }
+                },
+                {
+                  "args": [],
+                  "name": "s1enum",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "ENUM",
+                      "name": "Enum",
+                      "ofType": null
+                    }
+                  }
+                },
+                {
+                  "args": [],
+                  "name": "s1hmm",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "string",
+                    "ofType": null
+                  }
+                },
+                {
+                  "args": [],
+                  "name": "s1nest",
+                  "type": {
+                    "kind": "OBJECT",
+                    "name": "Foo",
+                    "ofType": null
+                  }
+                }
+              ],
+              "inputFields": [],
+              "kind": "OBJECT",
+              "name": "Foo",
+              "possibleTypes": []
+            },
+            {
+              "enumValues": [],
+              "fields": [],
+              "inputFields": [],
+              "kind": "UNION",
+              "name": "FooOrBar",
+              "possibleTypes": [
+                {
+                  "kind": "OBJECT",
+                  "name": "Bar",
+                  "ofType": null
+                },
+                {
+                  "kind": "OBJECT",
+                  "name": "Foo",
+                  "ofType": null
+                }
+              ]
+            },
+            {
+              "enumValues": [],
+              "fields": [
+                {
+                  "args": [
+                    {
+                      "name": "name",
+                      "type": {
+                        "kind": "NON_NULL",
+                        "name": "",
+                        "ofType": {
+                          "kind": "SCALAR",
+                          "name": "string",
+                          "ofType": null
+                        }
+                      }
+                    }
+                  ],
+                  "name": "s1addFoo",
+                  "type": {
+                    "kind": "OBJECT",
+                    "name": "Foo",
+                    "ofType": null
+                  }
+                }
+              ],
+              "inputFields": [],
+              "kind": "OBJECT",
+              "name": "Mutation",
+              "possibleTypes": []
+            },
+            {
+              "enumValues": [],
+              "fields": [],
+              "inputFields": [
+                {
+                  "name": "a",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "int64",
+                      "ofType": null
+                    }
+                  }
+                },
+                {
+                  "name": "b",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "int64",
+                      "ofType": null
+                    }
+                  }
+                }
+              ],
+              "kind": "INPUT_OBJECT",
+              "name": "Pair_InputObject",
+              "possibleTypes": []
+            },
+            {
+              "enumValues": [],
+              "fields": [
+                {
+                  "args": [],
+                  "name": "s1both",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "LIST",
+                      "name": "",
+                      "ofType": {
+                        "kind": "NON_NULL",
+                        "name": "",
+                        "ofType": {
+                          "kind": "UNION",
+                          "name": "FooOrBar",
+                          "ofType": null
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "args": [
+                    {
+                      "name": "foo",
+                      "type": {
+                        "kind": "NON_NULL",
+                        "name": "",
+                        "ofType": {
+                          "kind": "SCALAR",
+                          "name": "string",
+                          "ofType": null
+                        }
+                      }
+                    },
+                    {
+                      "name": "optional",
+                      "type": {
+                        "kind": "SCALAR",
+                        "name": "int64",
+                        "ofType": null
+                      }
+                    },
+                    {
+                      "name": "required",
+                      "type": {
+                        "kind": "NON_NULL",
+                        "name": "",
+                        "ofType": {
+                          "kind": "INPUT_OBJECT",
+                          "name": "Pair_InputObject",
+                          "ofType": null
+                        }
+                      }
+                    }
+                  ],
+                  "name": "s1echo",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "string",
+                      "ofType": null
+                    }
+                  }
+                },
+                {
+                  "args": [],
+                  "name": "s1f",
+                  "type": {
+                    "kind": "OBJECT",
+                    "name": "Foo",
+                    "ofType": null
+                  }
+                },
+                {
+                  "args": [],
+                  "name": "s1fff",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "LIST",
+                      "name": "",
+                      "ofType": {
+                        "kind": "NON_NULL",
+                        "name": "",
+                        "ofType": {
+                          "kind": "OBJECT",
+                          "name": "Foo",
+                          "ofType": null
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "args": [],
+                  "name": "s2root",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "string",
+                      "ofType": null
+                    }
+                  }
+                }
+              ],
+              "inputFields": [],
+              "kind": "OBJECT",
+              "name": "Query",
+              "possibleTypes": []
+            },
+            {
+              "enumValues": [],
+              "fields": [],
+              "inputFields": [],
+              "kind": "SCALAR",
+              "name": "int64",
+              "possibleTypes": []
+            },
+            {
+              "enumValues": [],
+              "fields": [],
+              "inputFields": [],
+              "kind": "SCALAR",
+              "name": "string",
+              "possibleTypes": []
+            }
+          ]
+        }
+      }
+    ]
+  }
+]
