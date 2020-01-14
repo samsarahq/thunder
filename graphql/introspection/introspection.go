@@ -112,20 +112,20 @@ func (s *introspection) registerType(schema *schemabuilder.Schema) {
 		}
 	})
 
-	object.FieldFunc("name", func(t Type) string {
+	object.FieldFunc("name", func(t Type) *string {
 		switch t := t.Inner.(type) {
 		case *graphql.Object:
-			return t.Name
+			return &t.Name
 		case *graphql.Union:
-			return t.Name
+			return &t.Name
 		case *graphql.Scalar:
-			return t.Type
+			return &t.Type
 		case *graphql.Enum:
-			return t.Type
+			return &t.Type
 		case *graphql.InputObject:
-			return t.Name
+			return &t.Name
 		default:
-			return ""
+			return nil
 		}
 	})
 
