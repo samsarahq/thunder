@@ -24,7 +24,7 @@
                   "name": "batteryLevel",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "SCALAR",
                       "name": "int64",
@@ -40,7 +40,7 @@
                   "name": "name",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "SCALAR",
                       "name": "string",
@@ -56,7 +56,7 @@
                   "name": "uuid",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "SCALAR",
                       "name": "string",
@@ -104,7 +104,7 @@
                   "name": "sayHi",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "SCALAR",
                       "name": "bool",
@@ -131,13 +131,13 @@
                   "name": "edges",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "LIST",
-                      "name": "",
+                      "name": null,
                       "ofType": {
                         "kind": "NON_NULL",
-                        "name": "",
+                        "name": null,
                         "ofType": {
                           "kind": "OBJECT",
                           "name": "NonNullUserEdge",
@@ -155,7 +155,7 @@
                   "name": "pageInfo",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "OBJECT",
                       "name": "PageInfo",
@@ -171,7 +171,7 @@
                   "name": "totalCount",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "SCALAR",
                       "name": "int64",
@@ -198,7 +198,7 @@
                   "name": "cursor",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "SCALAR",
                       "name": "string",
@@ -214,10 +214,10 @@
                   "name": "node",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "NON_NULL",
-                      "name": "",
+                      "name": null,
                       "ofType": {
                         "kind": "OBJECT",
                         "name": "user",
@@ -245,7 +245,7 @@
                   "name": "endCursor",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "SCALAR",
                       "name": "string",
@@ -261,7 +261,7 @@
                   "name": "hasNextPage",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "SCALAR",
                       "name": "bool",
@@ -277,7 +277,7 @@
                   "name": "hasPrevPage",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "SCALAR",
                       "name": "bool",
@@ -293,13 +293,13 @@
                   "name": "pages",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "LIST",
-                      "name": "",
+                      "name": null,
                       "ofType": {
                         "kind": "NON_NULL",
-                        "name": "",
+                        "name": null,
                         "ofType": {
                           "kind": "SCALAR",
                           "name": "string",
@@ -317,7 +317,7 @@
                   "name": "startCursor",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "SCALAR",
                       "name": "string",
@@ -356,7 +356,7 @@
                   "name": "me",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "OBJECT",
                       "name": "user",
@@ -372,7 +372,7 @@
                   "name": "noone",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "OBJECT",
                       "name": "user",
@@ -442,10 +442,10 @@
                       "name": "filterTextFields",
                       "type": {
                         "kind": "LIST",
-                        "name": "",
+                        "name": null,
                         "ofType": {
                           "kind": "NON_NULL",
-                          "name": "",
+                          "name": null,
                           "ofType": {
                             "kind": "SCALAR",
                             "name": "string",
@@ -501,7 +501,7 @@
                   "name": "usersConnection",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "OBJECT",
                       "name": "NonNullUserConnection",
@@ -547,10 +547,10 @@
                       "name": "filterTextFields",
                       "type": {
                         "kind": "LIST",
-                        "name": "",
+                        "name": null,
                         "ofType": {
                           "kind": "NON_NULL",
-                          "name": "",
+                          "name": null,
                           "ofType": {
                             "kind": "SCALAR",
                             "name": "string",
@@ -606,7 +606,7 @@
                   "name": "usersConnectionPtr",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "OBJECT",
                       "name": "UserConnection",
@@ -622,13 +622,13 @@
                   "name": "usersUuid",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "LIST",
-                      "name": "",
+                      "name": null,
                       "ofType": {
                         "kind": "NON_NULL",
-                        "name": "",
+                        "name": null,
                         "ofType": {
                           "kind": "SCALAR",
                           "name": "string",
@@ -646,7 +646,7 @@
                   "name": "viewer",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "OBJECT",
                       "name": "user",
@@ -696,13 +696,13 @@
                   "name": "edges",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "LIST",
-                      "name": "",
+                      "name": null,
                       "ofType": {
                         "kind": "NON_NULL",
-                        "name": "",
+                        "name": null,
                         "ofType": {
                           "kind": "OBJECT",
                           "name": "UserEdge",
@@ -720,7 +720,7 @@
                   "name": "pageInfo",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "OBJECT",
                       "name": "PageInfo",
@@ -736,7 +736,7 @@
                   "name": "totalCount",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "SCALAR",
                       "name": "int64",
@@ -763,7 +763,7 @@
                   "name": "cursor",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "SCALAR",
                       "name": "string",
@@ -779,7 +779,7 @@
                   "name": "node",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "OBJECT",
                       "name": "user",
@@ -815,7 +815,7 @@
                   "name": "name",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "SCALAR",
                       "name": "string",
@@ -829,7 +829,7 @@
                   "name": "uuid",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "SCALAR",
                       "name": "string",
@@ -855,7 +855,7 @@
                   "name": "name",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "SCALAR",
                       "name": "string",
@@ -871,7 +871,7 @@
                   "name": "speed",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "SCALAR",
                       "name": "int64",
@@ -887,7 +887,7 @@
                   "name": "uuid",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "SCALAR",
                       "name": "string",
@@ -973,13 +973,13 @@
                   "name": "friends",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "LIST",
-                      "name": "",
+                      "name": null,
                       "ofType": {
                         "kind": "NON_NULL",
-                        "name": "",
+                        "name": null,
                         "ofType": {
                           "kind": "OBJECT",
                           "name": "user",
@@ -997,7 +997,7 @@
                       "name": "enumfield",
                       "type": {
                         "kind": "NON_NULL",
-                        "name": "",
+                        "name": null,
                         "ofType": {
                           "kind": "ENUM",
                           "name": "enumType",
@@ -1031,7 +1031,7 @@
                       "name": "other",
                       "type": {
                         "kind": "NON_NULL",
-                        "name": "",
+                        "name": null,
                         "ofType": {
                           "kind": "SCALAR",
                           "name": "string",
@@ -1046,7 +1046,7 @@
                   "name": "greet",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "SCALAR",
                       "name": "string",
@@ -1074,7 +1074,7 @@
                   "name": "name",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "SCALAR",
                       "name": "string",
@@ -1090,7 +1090,7 @@
                   "name": "uuid",
                   "type": {
                     "kind": "NON_NULL",
-                    "name": "",
+                    "name": null,
                     "ofType": {
                       "kind": "SCALAR",
                       "name": "string",
