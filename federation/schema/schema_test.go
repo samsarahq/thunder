@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/samsarahq/go/snapshotter"
+	"github.com/samsarahq/thunder/federation"
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/introspection"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
@@ -65,12 +66,11 @@ func assertSchemaIntersectionEq(t *testing.T, a, b, c *schemabuilder.Schema) {
 	assert.Equal(t, expected, combined)
 }
 
-
 func getFieldServiceMaps(t *testing.T, s *SchemaWithFederationInfo) map[string][]string {
 	types := make(map[graphql.Type]string)
-	err := collectTypes(s.Schema.Query, types)
+	err := federation.CollectTypes(s.Schema.Query, types)
 	require.NoError(t, err)
-	err = collectTypes(s.Schema.Mutation, types)
+	err = federation.CollectTypes(s.Schema.Mutation, types)
 	require.NoError(t, err)
 
 	fieldServices := make(map[string][]string)
@@ -113,7 +113,6 @@ func extractConvertedVersionedSchemas(t *testing.T, schemas map[string]map[strin
 	return extractSchema(t, merged.Schema), getFieldServiceMaps(t, merged)
 }
 
-
 func TestBuildSchemaKitchenSink(t *testing.T) {
 	schemas := map[string]*schemabuilder.Schema{
 		"schema1": buildTestSchema1(),
@@ -137,8 +136,6 @@ func TestBuildSchemaKitchenSink(t *testing.T) {
 	snapshotter.Snapshot("resulting schema", iq)
 	// XXX: test field -> service mapping
 }
-
-
 
 // TestIncompatibleTypeKinds tests that incompatible types are caught by the
 // schema merging.
@@ -716,13 +713,11 @@ func buildTestSchemaBar() *schemabuilder.Schema {
 	return schema
 }
 
-
 func TestBuildSchema(t *testing.T) {
 	schemas := map[string]*schemabuilder.Schema{
 		"schema1": buildTestSchemaFoo(),
 		"schema2": buildTestSchemaBar(),
 	}
-
 
 	types, err := convertSchema(extractSchemas(t, schemas))
 	require.NoError(t, err)
@@ -749,7 +744,10 @@ func TestSchemaUnionInputFields(t *testing.T) {
 		return user.Id
 	})
 	q := s1.Query()
-	q.FieldFunc("user", func(args struct{ Id int64; Number1 *int64 }) *User {
+	q.FieldFunc("user", func(args struct {
+		Id      int64
+		Number1 *int64
+	}) *User {
 		return &User{
 			Id: args.Id,
 		}
@@ -762,7 +760,10 @@ func TestSchemaUnionInputFields(t *testing.T) {
 		return user.Id
 	})
 	q2 := s2.Query()
-	q2.FieldFunc("user", func(args struct{ Id int64; Number2 *int64 }) *User {
+	q2.FieldFunc("user", func(args struct {
+		Id      int64
+		Number2 *int64
+	}) *User {
 		return &User{
 			Id: args.Id,
 		}
@@ -775,14 +776,17 @@ func TestSchemaUnionInputFields(t *testing.T) {
 		return user.Id
 	})
 	q3 := s3.Query()
-	q3.FieldFunc("user", func(args struct{ Id int64; Number1 *int64; Number2 *int64 }) *User {
+	q3.FieldFunc("user", func(args struct {
+		Id      int64
+		Number1 *int64
+		Number2 *int64
+	}) *User {
 		return &User{
 			Id: int64(1),
 		}
 	})
 	assertSchemaUnionEq(t, s1, s2, s3)
 }
-
 
 // TestSchemaIntersectionInputFields merges two schemas, getting the intersection of two sets of input fields
 func TestSchemaIntersectionInputFields(t *testing.T) {
@@ -797,7 +801,7 @@ func TestSchemaIntersectionInputFields(t *testing.T) {
 		return user.Id
 	})
 	q := s1.Query()
-	q.FieldFunc("user", func(args struct{ Id int64}) *User {
+	q.FieldFunc("user", func(args struct{ Id int64 }) *User {
 		return &User{
 			Id: args.Id,
 		}
@@ -810,11 +814,13 @@ func TestSchemaIntersectionInputFields(t *testing.T) {
 		return user.Id
 	})
 	q2 := s2.Query()
-	q2.FieldFunc("user", func(args struct{ Id int64; Number *int64 }) *User {
+	q2.FieldFunc("user", func(args struct {
+		Id     int64
+		Number *int64
+	}) *User {
 		return &User{
 			Id: args.Id,
 		}
 	})
 	assertSchemaIntersectionEq(t, s1, s2, s1)
 }
-
