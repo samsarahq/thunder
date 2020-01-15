@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-sql-driver/mysql"
+	"github.com/gogo/protobuf/proto"
 )
 
 // Valuer fulfills the sql/driver.Valuer interface which deserializes our
@@ -23,6 +24,17 @@ var marshalerType = reflect.TypeOf((*marshaler)(nil)).Elem()
 
 func nonPointerMarshal(d *Descriptor, val reflect.Value) (reflect.Value, bool) {
 	if !d.Ptr && reflect.PtrTo(d.Type).Implements(marshalerType) {
+		v := reflect.New(d.Type)
+		v.Elem().Set(val)
+		return v, true
+	}
+	return val, false
+}
+
+var protoMessageType = reflect.TypeOf((*proto.Message)(nil)).Elem()
+
+func nonPointerProtoMessage(d *Descriptor, val reflect.Value) (reflect.Value, bool) {
+	if !d.Ptr && reflect.PtrTo(d.Type).Implements(protoMessageType) {
 		v := reflect.New(d.Type)
 		v.Elem().Set(val)
 		return v, true
@@ -81,6 +93,12 @@ func (f Valuer) Value() (driver.Value, error) {
 		}
 		if iface, ok := i.(encoding.BinaryMarshaler); ok {
 			return iface.MarshalBinary()
+		}
+		if v, ok := nonPointerProtoMessage(f.Descriptor, f.value); ok {
+			return proto.Marshal(v.Interface().(proto.Message))
+		}
+		if iface, ok := i.(proto.Message); ok {
+			return proto.Marshal(iface)
 		}
 	case f.Tags.Contains("string"):
 		if iface, ok := i.(encoding.TextMarshaler); ok {
@@ -238,6 +256,9 @@ func (s *Scanner) Scan(src interface{}) error {
 		}
 		if iface, ok := i.(encoding.BinaryUnmarshaler); ok {
 			return iface.UnmarshalBinary(b)
+		}
+		if iface, ok := i.(proto.Message); ok {
+			return proto.Unmarshal(b, iface)
 		}
 	case s.Tags.Contains("string"):
 		if str, ok := src.(string); ok {
