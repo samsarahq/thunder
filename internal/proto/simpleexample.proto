@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package proto;
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+option go_package = "github.com/samsarahq/thunder/internal/proto";
+
+// Enforce that we won't generate marshal/unmarshal methods.
+option (gogoproto.unmarshaler_all) = false;
+option (gogoproto.marshaler_all) = false;
+
+message SimpleExampleEvent {
+  string table = 1;
+}
