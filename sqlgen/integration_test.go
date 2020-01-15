@@ -26,6 +26,7 @@ func setup() (*testfixtures.TestDatabase, *DB, error) {
 			uuid          VARCHAR(255),
 			mood          VARCHAR(255),
 			proto         BLOB,
+			simple_proto  BLOB,
 			implicit_null VARCHAR(255)
 		)
 	`); err != nil {
@@ -51,8 +52,9 @@ type User struct {
 	Name         string
 	Uuid         testfixtures.CustomType
 	Mood         *testfixtures.CustomType
-	Proto        proto.ExampleEvent `sql:",binary"`
-	ImplicitNull string             `sql:",implicitnull"`
+	Proto        proto.ExampleEvent       `sql:",binary"`
+	SimpleProto  proto.SimpleExampleEvent `sql:",binary"`
+	ImplicitNull string                   `sql:",implicitnull"`
 }
 
 type JustId struct {

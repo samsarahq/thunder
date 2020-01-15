@@ -231,6 +231,8 @@ func TestField_ValidateSQLType(t *testing.T) {
 		{In: &ifaceBinaryMarshal{}, Tags: []string{"binary"}, Error: false},
 		{In: proto.ExampleEvent{}, Tags: []string{"binary"}, Error: false},
 		{In: &proto.ExampleEvent{}, Tags: []string{"binary"}, Error: false},
+		{In: proto.SimpleExampleEvent{}, Tags: []string{"binary"}, Error: false},
+		{In: &proto.SimpleExampleEvent{}, Tags: []string{"binary"}, Error: false},
 	}
 
 	for _, c := range cases {
@@ -259,8 +261,38 @@ func TestField_SupportsProtobuf(t *testing.T) {
 		assert.Equal(t, event, got.Interface())
 	})
 
-	t.Run("pointer", func(t *testing.T) {
+	t.Run("non-pointer", func(t *testing.T) {
 		event := proto.ExampleEvent{Table: "users"}
+		descriptor := fields.New(reflect.TypeOf(event), []string{"binary"})
+		valuer := descriptor.Valuer(reflect.ValueOf(event))
+		b, err := valuer.Value()
+		assert.NoError(t, err)
+
+		got := reflect.New(reflect.TypeOf(event))
+		scanner := descriptor.Scanner()
+		scanner.Target(got)
+		scanner.Scan(b)
+		assert.Equal(t, event, got.Elem().Interface())
+	})
+}
+
+func TestField_SupportsProtobufWithoutMarshalMethods(t *testing.T) {
+	t.Run("pointer", func(t *testing.T) {
+		event := &proto.SimpleExampleEvent{Table: "users"}
+		descriptor := fields.New(reflect.TypeOf(event), []string{"binary"})
+		valuer := descriptor.Valuer(reflect.ValueOf(event))
+		b, err := valuer.Value()
+		assert.NoError(t, err)
+
+		got := reflect.New(reflect.TypeOf(event)).Elem()
+		scanner := descriptor.Scanner()
+		scanner.Target(got)
+		scanner.Scan(b)
+		assert.Equal(t, event, got.Interface())
+	})
+
+	t.Run("non-pointer", func(t *testing.T) {
+		event := proto.SimpleExampleEvent{Table: "users"}
 		descriptor := fields.New(reflect.TypeOf(event), []string{"binary"})
 		valuer := descriptor.Valuer(reflect.ValueOf(event))
 		b, err := valuer.Value()
