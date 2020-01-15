@@ -1,7 +1,6 @@
 package fields
 
-// These interfaces specifically supports gogo/protobuf - though there are other libraries
-// that implement them as well.
+// These interfaces supports any type that implements Marshal/Unmarshal methods.
 
 type marshaler interface {
 	Marshal() ([]byte, error)
