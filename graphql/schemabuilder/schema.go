@@ -175,3 +175,15 @@ func (s *Schema) MustBuild() *graphql.Schema {
 	}
 	return built
 }
+
+
+type federation struct{}
+
+// Federation returns an object struct for exposing federated objects.
+func (s *Schema) Federation() *Object {
+	q := s.Query()
+	if _, ok := q.Methods["__federation"]; !ok {
+		q.FieldFunc("__federation", func() federation { return federation{} })
+	}
+	return s.Object("Federation", federation{})
+}

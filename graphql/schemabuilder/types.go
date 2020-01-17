@@ -344,3 +344,7 @@ type Methods map[string]*method
 type Union struct{}
 
 var unionType = reflect.TypeOf(Union{})
+
+func (s *Object) Federation(f interface{}) {
+	s.FieldFunc("__federation", f)
+}
