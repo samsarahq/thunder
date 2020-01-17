@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/samsarahq/go/snapshotter"
-	"github.com/samsarahq/thunder/federation"
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/introspection"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
@@ -68,9 +67,9 @@ func assertSchemaIntersectionEq(t *testing.T, a, b, c *schemabuilder.Schema) {
 
 func getFieldServiceMaps(t *testing.T, s *SchemaWithFederationInfo) map[string][]string {
 	types := make(map[graphql.Type]string)
-	err := federation.CollectTypes(s.Schema.Query, types)
+	err := CollectTypes(s.Schema.Query, types)
 	require.NoError(t, err)
-	err = federation.CollectTypes(s.Schema.Mutation, types)
+	err = CollectTypes(s.Schema.Mutation, types)
 	require.NoError(t, err)
 
 	fieldServices := make(map[string][]string)
