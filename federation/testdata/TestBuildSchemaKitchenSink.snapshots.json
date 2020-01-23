@@ -10,6 +10,19 @@
               "fields": [
                 {
                   "args": [],
+                  "name": "__federation",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "int64",
+                      "ofType": null
+                    }
+                  }
+                },
+                {
+                  "args": [],
                   "name": "id",
                   "type": {
                     "kind": "NON_NULL",
@@ -56,6 +69,112 @@
               "enumValues": [],
               "fields": [
                 {
+                  "args": [
+                    {
+                      "name": "keys",
+                      "type": {
+                        "kind": "NON_NULL",
+                        "name": "",
+                        "ofType": {
+                          "kind": "LIST",
+                          "name": "",
+                          "ofType": {
+                            "kind": "NON_NULL",
+                            "name": "",
+                            "ofType": {
+                              "kind": "SCALAR",
+                              "name": "int64",
+                              "ofType": null
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "name": "Bar",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "LIST",
+                      "name": "",
+                      "ofType": {
+                        "kind": "NON_NULL",
+                        "name": "",
+                        "ofType": {
+                          "kind": "OBJECT",
+                          "name": "Bar",
+                          "ofType": null
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "args": [
+                    {
+                      "name": "keys",
+                      "type": {
+                        "kind": "NON_NULL",
+                        "name": "",
+                        "ofType": {
+                          "kind": "LIST",
+                          "name": "",
+                          "ofType": {
+                            "kind": "NON_NULL",
+                            "name": "",
+                            "ofType": {
+                              "kind": "SCALAR",
+                              "name": "string",
+                              "ofType": null
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "name": "Foo",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "LIST",
+                      "name": "",
+                      "ofType": {
+                        "kind": "NON_NULL",
+                        "name": "",
+                        "ofType": {
+                          "kind": "OBJECT",
+                          "name": "Foo",
+                          "ofType": null
+                        }
+                      }
+                    }
+                  }
+                }
+              ],
+              "inputFields": [],
+              "kind": "OBJECT",
+              "name": "Federation",
+              "possibleTypes": []
+            },
+            {
+              "enumValues": [],
+              "fields": [
+                {
+                  "args": [],
+                  "name": "__federation",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "string",
+                      "ofType": null
+                    }
+                  }
+                },
+                {
                   "args": [],
                   "name": "name",
                   "type": {
@@ -97,6 +216,50 @@
                     "kind": "OBJECT",
                     "name": "Foo",
                     "ofType": null
+                  }
+                },
+                {
+                  "args": [],
+                  "name": "s2bar",
+                  "type": {
+                    "kind": "OBJECT",
+                    "name": "Bar",
+                    "ofType": null
+                  }
+                },
+                {
+                  "args": [],
+                  "name": "s2nest",
+                  "type": {
+                    "kind": "OBJECT",
+                    "name": "Foo",
+                    "ofType": null
+                  }
+                },
+                {
+                  "args": [],
+                  "name": "s2ok",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "int",
+                      "ofType": null
+                    }
+                  }
+                },
+                {
+                  "args": [],
+                  "name": "s2ok2",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "int",
+                      "ofType": null
+                    }
                   }
                 }
               ],
@@ -191,6 +354,19 @@
             {
               "enumValues": [],
               "fields": [
+                {
+                  "args": [],
+                  "name": "__federation",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "OBJECT",
+                      "name": "Federation",
+                      "ofType": null
+                    }
+                  }
+                },
                 {
                   "args": [],
                   "name": "s1both",
@@ -305,6 +481,14 @@
               "inputFields": [],
               "kind": "OBJECT",
               "name": "Query",
+              "possibleTypes": []
+            },
+            {
+              "enumValues": [],
+              "fields": [],
+              "inputFields": [],
+              "kind": "SCALAR",
+              "name": "int",
               "possibleTypes": []
             },
             {

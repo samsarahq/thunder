@@ -17,7 +17,7 @@ const (
 
 // PathStep defines where in the plan this part of the query came from
 type PathStep struct {
-	Kind StepKind //KindType indicates a selectons type and KindField indicates a union type
+	Kind StepKind // KindType indicates a selection type and KindField indicates a union type
 	Name string   // Name of the previous steps this plan is nested on
 }
 
