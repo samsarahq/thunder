@@ -26,61 +26,13 @@ func marshalQuery(query *graphql.Query) (*thunderpb.Query, error) {
 }
 
 func unmarshalQuery(query *thunderpb.Query) (*graphql.Query, error) {
-	selectionSet, err := unmarshalPbSelectionSet(query.SelectionSet)
-	if err != nil {
-		return nil, err
-	}
 	return &graphql.Query{
 		Name:         query.Name,
 		Kind:         query.Kind,
-		SelectionSet: selectionSet,
+		SelectionSet: query.SelectionSet,
 	}, nil
 }
 
-func unmarshalPbSelectionSet(selectionSet *thunderpb.SelectionSet) (*graphql.RawSelectionSet, error) {
-	if selectionSet == nil {
-		return nil, nil
-	}
-
-	selections := make([]*graphql.RawSelection, 0, len(selectionSet.Selections))
-	for _, selection := range selectionSet.Selections {
-		children, err := unmarshalPbSelectionSet(selection.SelectionSet)
-		if err != nil {
-			return nil, err
-		}
-
-		var args map[string]interface{}
-		if len(selection.Arguments) != 0 {
-			if err := json.Unmarshal(selection.Arguments, &args); err != nil {
-				return nil, err
-			}
-		}
-
-		selections = append(selections, &graphql.RawSelection{
-			Name:         selection.Name,
-			Alias:        selection.Alias,
-			SelectionSet: children,
-			Args:         args,
-		})
-	}
-
-	fragments := make([]*graphql.RawFragment, 0, len(selectionSet.Fragments))
-	for _, fragment := range selectionSet.Fragments {
-		selections, err := unmarshalPbSelectionSet(fragment.SelectionSet)
-		if err != nil {
-			return nil, err
-		}
-		fragments = append(fragments, &graphql.RawFragment{
-			On:           fragment.On,
-			SelectionSet: selections,
-		})
-	}
-
-	return &graphql.RawSelectionSet{
-		Selections: selections,
-		Fragments:  fragments,
-	}, nil
-}
 
 func marshalPbSelections(selectionSet *graphql.RawSelectionSet) (*thunderpb.SelectionSet, error) {
 	if selectionSet == nil {
