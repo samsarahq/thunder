@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	. "github.com/samsarahq/thunder/graphql"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestParseSupported(t *testing.T) {
@@ -280,3 +281,26 @@ query Operation($x: int64 = 2) {
 		t.Errorf("expected 2, received %v", val)
 	}
 }
+
+
+func TestSkippedFragment(t *testing.T) {
+	parsed, err := Parse(`query Test($something: bool) {
+		something @skip(if: $something) {
+			...Frag
+		}
+		something @include(if: $something) {
+			...Frag
+		}
+	}
+	fragment Frag on Something { somethingElse }`, map[string]interface{}{"something": true})
+
+	if err != nil {
+		t.Errorf("expected no error, received %s", err.Error())
+	}
+
+	assert.Equal(t,parsed.Selections[0].Directives[0].Name, "skip")
+	assert.Equal(t,parsed.Selections[0].Directives[0].Args, map[string]interface{}{"if": true})
+	assert.Equal(t,parsed.Selections[1].Directives[0].Name, "include")
+	assert.Equal(t,parsed.Selections[1].Directives[0].Args, map[string]interface{}{"if": true})
+}
+

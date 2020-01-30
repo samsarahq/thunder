@@ -105,11 +105,11 @@ func parseSelectionSet(input *ast.SelectionSet, globalFragments map[string]*Frag
 				alias = selection.Alias.Value
 			}
 
-			if len(selection.Directives) != 0 {
-				return nil, NewClientError("directives not supported")
-			}
-
 			args, err := argsToJson(selection.Arguments, vars)
+			if err != nil {
+				return nil, err
+			}
+			directives, err := parseDirectives(selection.Directives, vars)
 			if err != nil {
 				return nil, err
 			}
@@ -124,30 +124,31 @@ func parseSelectionSet(input *ast.SelectionSet, globalFragments map[string]*Frag
 				Name:         selection.Name.Value,
 				UnparsedArgs: args,
 				SelectionSet: selectionSet,
+				Directives:   directives,
 			})
 
 		case *ast.FragmentSpread:
 			name := selection.Name.Value
-
-			if len(selection.Directives) != 0 {
-				return nil, NewClientError("directives not supported")
-			}
-
 			fragment, found := globalFragments[name]
 			if !found {
 				return nil, NewClientError("unknown fragment")
 			}
 
+			directives, err := parseDirectives(selection.Directives, vars)
+			if err != nil {
+				return nil, err
+			}
+			fragment.Directives  = directives
+
 			fragments = append(fragments, fragment)
 
 		case *ast.InlineFragment:
 			on := selection.TypeCondition.Name.Value
-
-			if len(selection.Directives) != 0 {
-				return nil, NewClientError("directives not supported")
-			}
-
 			selectionSet, err := parseSelectionSet(selection.SelectionSet, globalFragments, vars)
+			if err != nil {
+				return nil, err
+			}
+			directives, err := parseDirectives(selection.Directives, vars)
 			if err != nil {
 				return nil, err
 			}
@@ -155,6 +156,7 @@ func parseSelectionSet(input *ast.SelectionSet, globalFragments map[string]*Frag
 			fragments = append(fragments, &Fragment{
 				On:           on,
 				SelectionSet: selectionSet,
+				Directives: directives,
 			})
 		}
 	}
@@ -230,6 +232,23 @@ func detectCyclesAndUnusedFragments(selectionSet *SelectionSet, globalFragments 
 	}
 	return nil
 }
+
+func parseDirectives(directives []*ast.Directive, vars map[string]interface{}) ([]*Directive, error) {
+	d := make([]*Directive, 0, len(directives))
+	for _, directive := range directives {
+		args, err := argsToJson(directive.Arguments, vars)
+		if err != nil {
+			return nil, err
+		}
+
+		d = append(d, &Directive{
+			Name: directive.Name.Value,
+			Args: args,
+		})
+	}
+	return d, nil
+}
+
 
 // detectConflicts finds conflicts
 //
@@ -462,7 +481,10 @@ func Flatten(selectionSet *SelectionSet) []*Selection {
 			grouped[selection.Alias] = append(grouped[selection.Alias], selection)
 		}
 		for _, fragment := range selectionSet.Fragments {
-			visit(fragment.SelectionSet)
+			ok, err := shouldIncludeNode(fragment.Directives)
+			if err != nil && ok {
+				visit(fragment.SelectionSet)
+			}
 		}
 
 		state[selectionSet] = visited
