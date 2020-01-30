@@ -121,6 +121,10 @@ func (e *Executor) Execute(ctx context.Context, typ Type, source interface{}, qu
 	initialSelectionWorkUnits := make([]*WorkUnit, 0, len(topLevelSelections))
 	writers := make(map[string]*outputNode)
 	for _, selection := range topLevelSelections {
+		ok, err := shouldIncludeNode(selection.Directives)
+		if err != nil || !ok {
+			continue
+		}
 		field, ok := queryObject.Fields[selection.Name]
 		if !ok {
 			return nil, fmt.Errorf("invalid top-level selection %q", selection.Name)
@@ -449,6 +453,13 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 
 	// for every selection, resolve the value or schedule an work unit for the field
 	for _, selection := range selections {
+		if ok, err := shouldIncludeNode(selection.Directives); err != nil {
+			return nil, nestPathError(selection.Alias, err)
+		} else if !ok {
+			continue
+		}
+
+
 		if selection.Name == "__typename" {
 			for idx := range nonNilDestinations {
 				nonNilDestinations[idx][selection.Alias] = typ.Name
@@ -534,3 +545,5 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 func shouldUseBatch(ctx context.Context, field *Field) bool {
 	return field.Batch && field.UseBatchFunc(ctx)
 }
+
+
