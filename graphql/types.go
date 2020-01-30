@@ -185,6 +185,7 @@ type Selection struct {
 	Alias        string
 	Args         interface{}
 	SelectionSet *SelectionSet
+	Directives   []*Directive
 
 	// The parsed flag is used to make sure the args for this Selection are only
 	// parsed once.
@@ -206,4 +207,10 @@ type Selection struct {
 type Fragment struct {
 	On           string
 	SelectionSet *SelectionSet
+	Directives   []*Directive
+}
+
+type Directive struct {
+	Name string
+	Args interface{}
 }
