@@ -210,14 +210,6 @@ func TestParseUnsupported(t *testing.T) {
 
 	_, err = Parse(`
 {
-	a @test
-}`, map[string]interface{}{})
-	if err == nil || err.Error() != "directives not supported" {
-		t.Error("expected directives to fail", err)
-	}
-
-	_, err = Parse(`
-{
 	a(x: 1, x: 1)
 }`, map[string]interface{}{})
 	if err == nil || err.Error() != "duplicate arg" {

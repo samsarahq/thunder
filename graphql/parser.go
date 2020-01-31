@@ -70,6 +70,22 @@ func valueToJson(value ast.Value, vars map[string]interface{}) (interface{}, err
 	}
 }
 
+func parseDirectives(directives []*ast.Directive, vars map[string]interface{}) ([]*Directive, error) {
+	d := make([]*Directive, 0, len(directives))
+	for _, directive := range directives {
+		args, err := argsToJson(directive.Arguments, vars)
+		if err != nil {
+			return nil, err
+		}
+
+		d = append(d, &Directive{
+			Name: directive.Name.Value,
+			Args: args,
+		})
+	}
+	return d, nil
+}
+
 // argsToJson converts a graphql-go ast argument list to a json.Marshal-style
 // map[string]interface{}
 func argsToJson(input []*ast.Argument, vars map[string]interface{}) (map[string]interface{}, error) {
@@ -105,8 +121,9 @@ func parseSelectionSet(input *ast.SelectionSet, globalFragments map[string]*Frag
 				alias = selection.Alias.Value
 			}
 
-			if len(selection.Directives) != 0 {
-				return nil, NewClientError("directives not supported")
+			directives, err := parseDirectives(selection.Directives, vars)
+			if err != nil {
+				return nil, err
 			}
 
 			args, err := argsToJson(selection.Arguments, vars)
@@ -119,23 +136,32 @@ func parseSelectionSet(input *ast.SelectionSet, globalFragments map[string]*Frag
 				return nil, err
 			}
 
-			selections = append(selections, &Selection{
+			newSelection := &Selection{
 				Alias:        alias,
 				Name:         selection.Name.Value,
 				UnparsedArgs: args,
 				SelectionSet: selectionSet,
-			})
+			}
+
+			if len(selection.Directives) > 0 {
+				newSelection.Directives = directives
+			}
+			selections = append(selections, newSelection)
 
 		case *ast.FragmentSpread:
 			name := selection.Name.Value
 
-			if len(selection.Directives) != 0 {
-				return nil, NewClientError("directives not supported")
+			directives, err := parseDirectives(selection.Directives, vars)
+			if err != nil {
+				return nil, err
 			}
 
 			fragment, found := globalFragments[name]
 			if !found {
 				return nil, NewClientError("unknown fragment")
+			}
+			if (len(directives) > 0) {
+				fragment.Directives = directives
 			}
 
 			fragments = append(fragments, fragment)
@@ -143,8 +169,9 @@ func parseSelectionSet(input *ast.SelectionSet, globalFragments map[string]*Frag
 		case *ast.InlineFragment:
 			on := selection.TypeCondition.Name.Value
 
-			if len(selection.Directives) != 0 {
-				return nil, NewClientError("directives not supported")
+			directives, err := parseDirectives(selection.Directives, vars)
+			if err != nil {
+				return nil, err
 			}
 
 			selectionSet, err := parseSelectionSet(selection.SelectionSet, globalFragments, vars)
@@ -152,10 +179,16 @@ func parseSelectionSet(input *ast.SelectionSet, globalFragments map[string]*Frag
 				return nil, err
 			}
 
-			fragments = append(fragments, &Fragment{
-				On:           on,
+			newFragment := &Fragment{
+				On: on,
 				SelectionSet: selectionSet,
-			})
+			}
+
+			if (len(directives) > 0) {
+				newFragment.Directives = directives
+			}
+
+			fragments = append(fragments, newFragment)
 		}
 	}
 
@@ -461,7 +494,13 @@ func Flatten(selectionSet *SelectionSet) []*Selection {
 		for _, selection := range selectionSet.Selections {
 			grouped[selection.Alias] = append(grouped[selection.Alias], selection)
 		}
+
 		for _, fragment := range selectionSet.Fragments {
+			// Apply the directive on the fragment to every sub selection
+			// to ensure it gets applied after the query is flattened
+			for _, selection := range fragment.SelectionSet.Selections {
+				selection.Directives = fragment.Directives
+			}
 			visit(fragment.SelectionSet)
 		}
 
