@@ -185,6 +185,7 @@ type Selection struct {
 	Alias        string
 	Args         interface{}
 	SelectionSet *SelectionSet
+	Directives   []*Directive
 
 	// The parsed flag is used to make sure the args for this Selection are only
 	// parsed once.
@@ -206,4 +207,18 @@ type Selection struct {
 type Fragment struct {
 	On           string
 	SelectionSet *SelectionSet
+	Directives   []*Directive
+}
+
+// A Directive can be attached to a field or fragment inclusion, and can
+// affect execution of the query in any way the server desires.
+//
+// The selections
+//     users @skip(if:true)
+//     drivers @include(if:true)
+// would skip the users selection and keep the drivers selection depending
+// on the argument passed into the directive
+type Directive struct {
+	Name string
+	Args interface{}
 }
