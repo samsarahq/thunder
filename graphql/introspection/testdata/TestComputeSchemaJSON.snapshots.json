@@ -4,7 +4,50 @@
     "Values": [
       {
         "__schema": {
-          "directives": [],
+          "directives": [
+            {
+              "args": [
+                {
+                  "defaultValue": null,
+                  "description": "Included when true.",
+                  "name": "if",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "bool",
+                    "ofType": null
+                  }
+                }
+              ],
+              "description": "Directs the executor to include this field or fragment only when the `if` argument is true.",
+              "locations": [
+                "FIELD",
+                "FRAGMENT_SPREAD",
+                "INLINE_FRAGMENT"
+              ],
+              "name": "include"
+            },
+            {
+              "args": [
+                {
+                  "defaultValue": null,
+                  "description": "Skipped when true.",
+                  "name": "if",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "bool",
+                    "ofType": null
+                  }
+                }
+              ],
+              "description": "Directs the executor to skip this field or fragment only when the `if` argument is true.",
+              "locations": [
+                "FIELD",
+                "FRAGMENT_SPREAD",
+                "INLINE_FRAGMENT"
+              ],
+              "name": "skip"
+            }
+          ],
           "mutationType": {
             "name": "Mutation"
           },
