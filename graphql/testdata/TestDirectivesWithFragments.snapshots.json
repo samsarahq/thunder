@@ -1,0 +1,37 @@
+[
+  {
+    "Name": "batchExecutor:Directive with fragment on top level",
+    "Values": [
+      {}
+    ]
+  },
+  {
+    "Name": "batchExecutor:Directive with fragment nested",
+    "Values": [
+      {
+        "items": [
+          {
+            "__key": 1,
+            "id": 1
+          },
+          {
+            "__key": 2,
+            "id": 2
+          },
+          {
+            "__key": 3,
+            "id": 3
+          },
+          {
+            "__key": 4,
+            "id": 4
+          },
+          {
+            "__key": 5,
+            "id": 5
+          }
+        ]
+      }
+    ]
+  }
+]
