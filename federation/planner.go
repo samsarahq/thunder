@@ -74,15 +74,15 @@ type Planner struct {
 // When we send the subquery to service2 it should look like the example below
 // {
 // 	__federation {
-// 		fooById(id: $id) {
+// 	  Foo(id: $id) {
 //      __typename
-// 			name
+// 		  name
 // 		}
-// 	}
-// }
+// 	  }
+// }  
 // "__federation" becomes the root query that the subquery is nested under,
-// "fooById" is the federated object type that we need to refetch,
-// and "__typename" lets us know what type the object is.
+// "Foo" is the federated object type that we need to refetch,
+// and "__typename" lets gateway know what type the object is.
 
 func printPlan(rootPlan *Plan) {
 	for _, plan := range rootPlan.After {
@@ -90,6 +90,7 @@ func printPlan(rootPlan *Plan) {
 			fmt.Println("service: ", plan.Service)
 			fmt.Println(selection.Name)
 			printSelections(selection.SelectionSet)
+
 			fmt.Println("")
 		}
 		for _, subPlan := range plan.After {
@@ -100,8 +101,12 @@ func printPlan(rootPlan *Plan) {
 
 func printSelections(selectionSet *graphql.SelectionSet) {
 	if selectionSet != nil {
+		fmt.Println(" selections")
 		for _, subSelection := range selectionSet.Selections {
 			fmt.Println(" ", subSelection.Name)
+			if (subSelection.Args != nil) {
+				fmt.Println("   args ", subSelection.Args)
+			}
 			printSelections(subSelection.SelectionSet)
 		}
 		fmt.Println(" fragments")
@@ -175,10 +180,14 @@ func (e *Planner) planObject(typ *graphql.Object, selectionSet *graphql.Selectio
 			Alias:        selection.Alias,
 			Name:         selection.Name,
 			Args:         selection.Args,
-			SelectionSet: selection.SelectionSet,
 			UnparsedArgs: selection.UnparsedArgs,
 			ParentType:   selection.ParentType,
 		}
+
+		if childPlan != nil {
+			selectionCopy.SelectionSet = childPlan.SelectionSet
+		}
+
 		p.SelectionSet.Selections = append(p.SelectionSet.Selections, selectionCopy)
 
 		if childPlan != nil {
@@ -227,7 +236,7 @@ func (e *Planner) planObject(typ *graphql.Object, selectionSet *graphql.Selectio
 			p.SelectionSet.Selections = append(p.SelectionSet.Selections, &graphql.Selection{
 				Name:  "__federation",
 				Alias: "__federation",
-				Args:  map[string]interface{}{},
+				UnparsedArgs: map[string]interface{}{},
 			})
 		}
 	}
@@ -246,7 +255,7 @@ func (e *Planner) planUnion(typ *graphql.Union, selectionSet *graphql.SelectionS
 				{
 					Name:  "__typename",
 					Alias: "__typename",
-					Args:  map[string]interface{}{},
+					UnparsedArgs: map[string]interface{}{},
 				},
 			},
 		},
