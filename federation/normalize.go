@@ -218,7 +218,17 @@ func (f *flattener) flatten(selectionSet *graphql.SelectionSet, typ graphql.Type
 				fieldTyp = &graphql.Scalar{Type: "string"}
 			} else {
 				field, ok := typ.Fields[selection.Name]
+				// fmt.Println(typ.Fields.Keys)
+				for name, _ := range typ.Fields {
+					// fmt.Println(name, selection.Name)
+					if (selection.Name == "email" && name == "email") {
+						fmt.Println( typ.Fields[selection.Name], !ok)
+					}
+				}
+
+
 				if !ok {
+					fmt.Println(selection.Name)
 					return nil, fmt.Errorf("unknown field %s on typ %s", selection.Name, typ.Name)
 				}
 				fieldTyp = field.Type

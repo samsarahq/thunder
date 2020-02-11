@@ -336,6 +336,7 @@ func TestPlanner(t *testing.T) {
 			plan, err := e.planRoot(graphql.MustParse(testCase.Input, map[string]interface{}{}))
 			require.NoError(t, err)
 			assert.Equal(t, testCase.Output, plan.After)
+			printPlan(plan)
 		})
 	}
 

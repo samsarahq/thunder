@@ -111,6 +111,7 @@ type Executor struct {
 // scheduler to handle managing concurrency of the request.
 // It must return a JSON marshallable response (or an error).
 func (e *Executor) Execute(ctx context.Context, typ Type, source interface{}, query *Query) (interface{}, error) {
+
 	queryObject, ok := typ.(*Object)
 	if !ok {
 		return nil, fmt.Errorf("expected query or mutation object for execution, got: %s", typ.String())
@@ -143,6 +144,7 @@ func (e *Executor) Execute(ctx context.Context, typ Type, source interface{}, qu
 	}
 
 	e.scheduler.Run(executeWorkUnit, initialSelectionWorkUnits...)
+
 
 	if topLevelRespWriter.errRecorder.err != nil {
 		return nil, topLevelRespWriter.errRecorder.err

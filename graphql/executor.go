@@ -134,6 +134,8 @@ func PrepareQuery(ctx context.Context, typ Type, selectionSet *SelectionSet) err
 			}
 		}
 		for _, selection := range selectionSet.Selections {
+
+
 			if selection.Name == "__typename" {
 				if !isNilArgs(selection.UnparsedArgs) {
 					return NewClientError(`error parsing args for "__typename": no args expected`)
@@ -154,6 +156,7 @@ func PrepareQuery(ctx context.Context, typ Type, selectionSet *SelectionSet) err
 			return NewClientError("object field must have selections")
 		}
 		for _, selection := range selectionSet.Selections {
+
 			if selection.Name == "__typename" {
 				if !isNilArgs(selection.UnparsedArgs) {
 					return NewClientError(`error parsing args for "__typename": no args expected`)
@@ -166,12 +169,14 @@ func PrepareQuery(ctx context.Context, typ Type, selectionSet *SelectionSet) err
 
 			field, ok := typ.Fields[selection.Name]
 			if !ok {
+				// fmt.Println("YOO", typ.Fields)
 				return NewClientError(`unknown field "%s"`, selection.Name)
 			}
 
 			// Only parse args once for a given selection.
 			if !selection.parsed {
 				selection.parsed = true
+				// fmt.Println("args  unparsed", selection.UnparsedArgs)
 				parsed, err := field.ParseArguments(selection.UnparsedArgs)
 				if err != nil {
 					return NewClientError(`error parsing args for "%s": %s`, selection.Name, err)
@@ -181,6 +186,7 @@ func PrepareQuery(ctx context.Context, typ Type, selectionSet *SelectionSet) err
 
 			selection.ParentType = typ.Name
 
+			// fmt.Println(selection.UnparsedArgs, selection.Name)
 			if err := PrepareQuery(ctx, field.Type, selection.SelectionSet); err != nil {
 				return err
 			}

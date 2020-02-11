@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/samsarahq/thunder/graphql"
+	// "github.com/samsarahq/thunder/graphql/schemabuilder"
 )
 
 const queryString string = "query"
@@ -60,6 +61,35 @@ type Planner struct {
 	flattener *flattener                //flattener knows how to combine all the fragments on a query into a singel query
 }
 
+// func extractSchema(t *testing.T, schema *graphql.Schema) *introspectionQueryResult {
+// 	bytes, err := introspection.RunIntrospectionQuery(introspection.BareIntrospectionSchema(schema))
+// 	// require.NoError(t, err)
+// 	var iq introspectionQueryResult
+// 	// err = json.Unmarshal(bytes, &iq)
+// 	// require.NoError(t, err)
+// 	return &iq
+// }
+
+// func newPlanner(schemas map[string]map[string]*schemabuilder.Schema) (*Planner, error){
+// 	builtSchemas := make(serviceSchemas)
+// 	for service, versions := range schemas {
+// 		builtSchemas[service] = make(map[string]*introspectionQueryResult)
+// 		for version, schema := range versions {
+// 			builtSchemas[service][version] = extractSchema(t, schema.MustBuild())
+// 		}
+// 	}
+// 	merged, err := convertVersionedSchemas(builtSchemas)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	f, err := newFlattener(merged.Schema)
+// 	return &Planner{
+// 		flattener: f,
+// 		schema:    merged,
+// 	}, nil
+// }
+
 // Executing a subquery
 //
 // When a subquery is run on a seperate graphql server, we want the subquery to be nested
@@ -100,8 +130,12 @@ func printPlan(rootPlan *Plan) {
 
 func printSelections(selectionSet *graphql.SelectionSet) {
 	if selectionSet != nil {
+		fmt.Println(" selections")
 		for _, subSelection := range selectionSet.Selections {
 			fmt.Println(" ", subSelection.Name)
+			if (subSelection.Args != nil) {
+				fmt.Println("   args ", subSelection.Args)
+			}
 			printSelections(subSelection.SelectionSet)
 		}
 		fmt.Println(" fragments")
@@ -109,6 +143,10 @@ func printSelections(selectionSet *graphql.SelectionSet) {
 			printSelections(subFragment.SelectionSet)
 		}
 	}
+}
+
+func (e* Planner)cleanSelectionSet(selectionSet *graphql.SelectionSet){
+
 }
 
 func (e *Planner) planObject(typ *graphql.Object, selectionSet *graphql.SelectionSet, service string) (*Plan, error) {
@@ -164,22 +202,35 @@ func (e *Planner) planObject(typ *graphql.Object, selectionSet *graphql.Selectio
 		field := typ.Fields[selection.Name]
 		var childPlan *Plan
 		if selection.SelectionSet != nil {
+
 			var err error
 			childPlan, err = e.plan(field.Type, selection.SelectionSet, service)
+
 			if err != nil {
 				return nil, fmt.Errorf("planning for %s: %v", selection.Name, err)
 			}
 		}
 
-		selectionCopy := &graphql.Selection{
-			Alias:        selection.Alias,
-			Name:         selection.Name,
-			Args:         selection.Args,
-			SelectionSet: selection.SelectionSet,
-			UnparsedArgs: selection.UnparsedArgs,
-			ParentType:   selection.ParentType,
-		}
-		p.SelectionSet.Selections = append(p.SelectionSet.Selections, selectionCopy)
+		// if (childPlan)
+		// printSelections(childPlan.SelectionSet)
+
+
+
+			selectionCopy := &graphql.Selection{
+				Alias:        selection.Alias,
+				Name:         selection.Name,
+				Args:         selection.Args,
+			}
+
+			if childPlan != nil {
+				selectionCopy.SelectionSet = childPlan.SelectionSet
+			}
+
+			p.SelectionSet.Selections = append(p.SelectionSet.Selections, selectionCopy)
+
+
+
+
 
 		if childPlan != nil {
 			for _, subPlan := range childPlan.After {
@@ -202,15 +253,20 @@ func (e *Planner) planObject(typ *graphql.Object, selectionSet *graphql.Selectio
 	// Create a plan for all selections that can be resolved in other graphql queries
 	for _, other := range otherServices {
 		selections := selectionsByService[other]
+
 		needKey = true
 
 		subPlan, err := e.plan(typ, &graphql.SelectionSet{Selections: selections}, other)
+
 		if err != nil {
 			return nil, fmt.Errorf("planning for %s: %v", other, err)
 		}
 
 		p.After = append(p.After, subPlan)
+
+
 	}
+
 
 	// knows how to resolve it, and we can take the results from that subquery and stitch it into the final response
 	// "__federation" indicates a seperate subplan that will be dispatched to a graphql server
@@ -224,6 +280,7 @@ func (e *Planner) planObject(typ *graphql.Object, selectionSet *graphql.Selectio
 			}
 		}
 		if !hasKey {
+			//THIS IS WRONG IDK HOW TO FIX IT YET
 			p.SelectionSet.Selections = append(p.SelectionSet.Selections, &graphql.Selection{
 				Name:  "__federation",
 				Alias: "__federation",
