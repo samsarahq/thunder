@@ -45,7 +45,7 @@ func runAndValidateQueryResults(t *testing.T, ctx context.Context, e *Executor, 
 }
 
 
-func TestExecutorWithFederatedObject(t *testing.T) {
+func createExecutorWithFederatedObjects() (*Executor, error) {
 	// The first schema has a user object with an id and orgId
 	type User struct {
 		Id int64
@@ -85,9 +85,17 @@ func TestExecutorWithFederatedObject(t *testing.T) {
 		"s1": s1,
 		"s2": s2,
 	})
-	require.NoError(t, err)
+	if err != nil {
+		return nil, err
+	}
 
-	e, err := NewExecutor(ctx, execs)
+	return NewExecutor(ctx, execs)
+}
+
+
+func TestExecutorWithFederatedObject(t *testing.T) {
+	
+	e, err := createExecutorWithFederatedObjects()
 	require.NoError(t, err)
 
 	query := `
@@ -114,6 +122,9 @@ func TestExecutorWithFederatedObject(t *testing.T) {
 		]
 	}
 `
+	// Validates that we were able to execute the query on multiple 
+	// schemas and correctly stitch the results back together 
+	ctx := context.Background()
 	runAndValidateQueryResults(t, ctx, e, query, out)
 }
 
