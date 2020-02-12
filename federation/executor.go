@@ -22,37 +22,12 @@ type Executor struct {
 
 
 func fetchSchema(ctx context.Context, e ExecutorClient) ([]byte, error) {
-	// query, err := graphql.Parse(introspection.IntrospectionQuery, map[string]interface{}{})
-	// if err != nil {
-	// 	return nil, err
-	// }
-
 	query, err := graphql.Parse(introspection.IntrospectionQuery, map[string]interface{}{})
 	if err != nil {
 		return nil, err
 	}
 
-
-
-
-	// if err := graphql.PrepareQuery(context.Background(), graphql.Schema.Query, query.SelectionSet); err != nil {
-	// 	return nil, err
-	// }
-
 	return e.Execute(ctx, query)
-
-
-	// if err := graphql.PrepareQuery(context.Background(),	e.Client.Schema.Query, 	e.Client.Schema.SelectionSet); err != nil {
-	// 	return nil, err
-	// }
-
-	// executor := graphql.NewExecutor(graphql.NewImmediateGoroutineScheduler())
-	// value, err := executor.Execute(context.Background(), schema.Query, nil, query)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// return e.Execute(ctx, query)
 }
 
 func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Executor, error) {
@@ -106,8 +81,6 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Exe
 	return &Executor{
 		Executors: executors,
 		planner: planner,
-		// schema:    types,
-		// flattener: flattener,
 	}, nil
 
 
@@ -118,7 +91,6 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 
 	isRoot := keys == nil
 	if !isRoot {
-		// XXX: halp
 		selectionSet = &graphql.SelectionSet{
 			Selections: []*graphql.Selection{
 				{
@@ -131,7 +103,6 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 								Name:  typName,
 								Alias: typName,
 								Args: map[string]interface{}{
-									// xxx: do we need to marshal these differently? rely on schema handling of scalars?
 									"keys": keys,
 								},
 								SelectionSet: selectionSet,
@@ -144,7 +115,7 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 	}
 
 
-	// XXX: make sure that if this hangs we're still good?
+	// TODO: make sure that if this hangs we're still good?
 	bytes, err := schema.Execute(ctx, &graphql.Query{
 		Kind:         kind,
 		SelectionSet: selectionSet,
@@ -215,7 +186,6 @@ func (pf *pathFollower) extractTargets(node interface{}, path []PathStep) error 
 
 	obj, ok := node.(map[string]interface{})
 	if !ok {
-		// XXX: always do this? only if nullable?
 		return nil
 	}
 
@@ -283,12 +253,9 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) ([]
 		}
 
 		g.Go(func() error {
-			// XXX: include the path in the error. might be tricky
-			// to reconstruct path unless we include it in results
-			// (and leave err nil)
 			results, err := e.execute(ctx, subPlan, pf.keys)
 			if err != nil {
-				return fmt.Errorf("executing sub plan: %v", err)
+				return fmt.Errorf("executing sub plan on service %v error: %v", p.Service, err)
 			}
 
 			if len(results) != len(pf.targets) {
@@ -340,8 +307,6 @@ func (e *Executor) Execute(ctx context.Context, q *graphql.Query) (interface{}, 
 	if err != nil {
 		return nil, err
 	}
-
-	printPlan(p)
 
 	r, err := e.execute(ctx, p, nil)
 	if err != nil {
