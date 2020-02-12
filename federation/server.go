@@ -154,12 +154,10 @@ type DirectExecutorClient struct {
 }
 
 func (c *DirectExecutorClient) Execute(ctx context.Context, req *graphql.Query) ([]byte, error) {
-	// fmt.Println("TYGUHOIPJ:KO")
 	marshaled, err := marshalQuery(req)
 	if err != nil {
 		return nil, err
 	}
-	// fmt.Println(marshaled)
 	resp, err := c.Client.Execute(ctx, &thunderpb.ExecuteRequest{
 		Query: marshaled,
 	})
@@ -208,7 +206,7 @@ func (s *Server) Execute(ctx context.Context, req *thunderpb.ExecuteRequest) (*t
 		return nil, err
 	}
 
-	// XXX: junk to have reactive.Cache work
+	// Run subquery with the reactive cache
 	done := make(chan struct{}, 0)
 	var r *thunderpb.ExecuteResponse
 	var e error

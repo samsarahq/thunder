@@ -17,42 +17,16 @@ type ExecutorClient interface {
 
 type Executor struct {
 	Executors map[string]ExecutorClient
-	planner *Planner
+	planner   *Planner
 }
 
-
 func fetchSchema(ctx context.Context, e ExecutorClient) ([]byte, error) {
-	// query, err := graphql.Parse(introspection.IntrospectionQuery, map[string]interface{}{})
-	// if err != nil {
-	// 	return nil, err
-	// }
-
 	query, err := graphql.Parse(introspection.IntrospectionQuery, map[string]interface{}{})
 	if err != nil {
 		return nil, err
 	}
 
-
-
-
-	// if err := graphql.PrepareQuery(context.Background(), graphql.Schema.Query, query.SelectionSet); err != nil {
-	// 	return nil, err
-	// }
-
 	return e.Execute(ctx, query)
-
-
-	// if err := graphql.PrepareQuery(context.Background(),	e.Client.Schema.Query, 	e.Client.Schema.SelectionSet); err != nil {
-	// 	return nil, err
-	// }
-
-	// executor := graphql.NewExecutor(graphql.NewImmediateGoroutineScheduler())
-	// value, err := executor.Execute(context.Background(), schema.Query, nil, query)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// return e.Execute(ctx, query)
 }
 
 func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Executor, error) {
@@ -82,7 +56,6 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Exe
 	executors["introspection"] = &DirectExecutorClient{Client: introspectionServer}
 	schema, err := introspection.RunIntrospectionQuery(introspection.BareIntrospectionSchema(introspectionServer.schema))
 
-
 	var iq introspectionQueryResult
 	if err := json.Unmarshal(schema, &iq); err != nil {
 		return nil, fmt.Errorf("unmarshaling introspection schema: %v", err)
@@ -100,16 +73,13 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Exe
 	}
 
 	planner := &Planner{
-		schema: types,
+		schema:    types,
 		flattener: flattener,
 	}
 	return &Executor{
 		Executors: executors,
-		planner: planner,
-		// schema:    types,
-		// flattener: flattener,
+		planner:   planner,
 	}, nil
-
 
 }
 
@@ -118,7 +88,6 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 
 	isRoot := keys == nil
 	if !isRoot {
-		// XXX: halp
 		selectionSet = &graphql.SelectionSet{
 			Selections: []*graphql.Selection{
 				{
@@ -131,7 +100,6 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 								Name:  typName,
 								Alias: typName,
 								Args: map[string]interface{}{
-									// xxx: do we need to marshal these differently? rely on schema handling of scalars?
 									"keys": keys,
 								},
 								SelectionSet: selectionSet,
@@ -143,8 +111,7 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 		}
 	}
 
-
-	// XXX: make sure that if this hangs we're still good?
+	// TODO: make sure that if this hangs we're still good?
 	bytes, err := schema.Execute(ctx, &graphql.Query{
 		Kind:         kind,
 		SelectionSet: selectionSet,
@@ -159,7 +126,6 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 		return nil, fmt.Errorf("unmarshal res: %v", err)
 	}
 
-	// for root:
 	var results []interface{}
 	if !isRoot {
 		root, ok := res.(map[string]interface{})
@@ -215,7 +181,6 @@ func (pf *pathFollower) extractTargets(node interface{}, path []PathStep) error 
 
 	obj, ok := node.(map[string]interface{})
 	if !ok {
-		// XXX: always do this? only if nullable?
 		return nil
 	}
 
@@ -246,7 +211,6 @@ func (pf *pathFollower) extractTargets(node interface{}, path []PathStep) error 
 
 	return nil
 }
-
 
 func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) ([]interface{}, error) {
 	var res []interface{}
@@ -317,9 +281,7 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) ([]
 	}
 	return res, nil
 
-
 }
-
 
 func deleteKey(v interface{}, k string) {
 	switch v := v.(type) {
