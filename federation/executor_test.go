@@ -3,10 +3,12 @@ package federation
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
+	"github.com/samsarahq/thunder/reactive"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -209,4 +211,122 @@ func TestExecutorWithFederatedObject(t *testing.T) {
 			runAndValidateQueryResults(t, ctx, e, testCase.Query, testCase.Output)
 		})
 	}
+}
+
+
+
+func TestExecutorFailures(t *testing.T) {
+	schema := schemabuilder.NewSchema()
+	schema.Query().FieldFunc("fail", func(ctx context.Context) (string, error) {
+		return "", errors.New("somethings broken")
+	})
+
+	ctx := context.Background()
+	execs, err := makeExecutors(map[string]*schemabuilder.Schema{
+		"schema": schema,
+	})
+	require.NoError(t, err)
+	e, err := NewExecutor(ctx, execs)
+	require.NoError(t, err)
+	assertExecuteError(ctx,t,e,`
+		{
+			fail
+		}
+	`,"executing sub plan: run on service: execute remotely: executing query: fail: somethings broken")
+}
+
+func assertExecuteError(ctx context.Context, t *testing.T, e *Executor, in, errMsg string) {
+	_, err := e.Execute(ctx, graphql.MustParse(in, map[string]interface{}{}))
+	require.EqualError(t, err, errMsg)
+}
+
+
+// TestExecutorCancelsOnFailure tests that a failing sub-query cancels
+// other in-flight sub-queries.
+func TestExecutorCancelsOnFailure(t *testing.T) {
+	// s1 will fail, and expect s2 to be canceled in turn.
+	s2started := make(chan struct{}, 0)
+	s2canceled := make(chan struct{}, 0)
+
+	s1 := schemabuilder.NewSchema()
+	s1.Query().FieldFunc("fail", func(ctx context.Context) (string, error) {
+		<-s2started
+		return "", errors.New("fail")
+	})
+
+	s2 := schemabuilder.NewSchema()
+	s2.Query().FieldFunc("wait", func(ctx context.Context) (string, error) {
+		close(s2started)
+		<-ctx.Done()
+		assert.EqualError(t, ctx.Err(), "context canceled")
+		close(s2canceled)
+		return "", ctx.Err()
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	execs, err := makeExecutors(map[string]*schemabuilder.Schema{
+		"s1": s1,
+		"s2": s2,
+	})
+	require.NoError(t, err)
+
+	e, err := NewExecutor(ctx, execs)
+	require.NoError(t, err)
+	assertExecuteError(ctx, t, e, `
+		{
+			fail
+			wait
+		}
+	`, "executing sub plan: run on service: execute remotely: executing query: fail: fail")
+
+	// Make sure s2 was actually canceled.
+	<-s2canceled
+}
+
+func assertExecuteEqual(ctx context.Context, t *testing.T, e *Executor, in, out string) {
+	res, err := e.Execute(ctx, graphql.MustParse(in, map[string]interface{}{}))
+	require.NoError(t, err)
+
+	var expected interface{}
+	err = json.Unmarshal([]byte(out), &expected)
+	require.NoError(t, err)
+
+	assert.Equal(t, expected, roundtripJson(t, res))
+}
+
+// TestExecutorHasReactiveCache tests that a reactive.Cache works.
+func TestExecutorHasReactiveCache(t *testing.T) {
+	schema := schemabuilder.NewSchema()
+	schema.Query().FieldFunc("testCache", func(ctx context.Context) (string, error) {
+		count := 0
+		for i := 0; i < 2; i++ {
+			v, err := reactive.Cache(ctx, "", func(ctx context.Context) (interface{}, error) {
+				count++
+				return "", nil
+			})
+			assert.NoError(t, err)
+			assert.Equal(t, v, "")
+		}
+		assert.Equal(t, 1, count)
+		return "", nil
+	})
+
+	ctx := context.Background()
+
+	execs, err := makeExecutors(map[string]*schemabuilder.Schema{
+		"schema": schema,
+	})
+	require.NoError(t, err)
+
+	e, err := NewExecutor(ctx, execs)
+	require.NoError(t, err)
+	assertExecuteEqual(ctx, t, e, `
+		{
+			testCache
+		}
+	`, `
+		{"testCache": ""}
+	`)
 }
