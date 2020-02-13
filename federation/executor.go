@@ -15,12 +15,12 @@ type ExecutorClient interface {
 	Execute(ctx context.Context, req *graphql.Query) ([]byte, error)
 }
 
-// Executor has a map of all the executor clients such that it can execute a 
+// Executor has a map of all the executor clients such that it can execute a
 // subquery on any of the federated servers.
 // The planner allows it to coordinate the subqueries being sent to the federated servers
 type Executor struct {
 	Executors map[string]ExecutorClient
-	planner   *Planner  
+	planner   *Planner
 }
 
 func fetchSchema(ctx context.Context, e ExecutorClient) ([]byte, error) {
@@ -77,7 +77,7 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Exe
 		return nil, err
 	}
 
-	// The planner is aware of the merged schema and what executors 
+	// The planner is aware of the merged schema and what executors
 	// know about what fields
 	planner := &Planner{
 		schema:    types,
@@ -230,7 +230,7 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) ([]
 		}
 	} else {
 		var err error
-		// Eexecutes that part of the plan (the subquery) on one of the federated gqlservers
+		// Executes that part of the plan (the subquery) on one of the federated gqlservers
 		res, err = e.runOnService(ctx, p.Service, p.Type, keys, p.Kind, p.SelectionSet)
 
 		if err != nil {
@@ -309,8 +309,6 @@ func (e *Executor) Execute(ctx context.Context, q *graphql.Query) (interface{}, 
 	if err != nil {
 		return nil, err
 	}
-
-	printPlan(p)
 
 	r, err := e.execute(ctx, p, nil)
 	if err != nil {
