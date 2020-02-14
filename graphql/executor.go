@@ -169,6 +169,19 @@ func PrepareQuery(ctx context.Context, typ Type, selectionSet *SelectionSet) err
 				return NewClientError(`unknown field "%s"`, selection.Name)
 			}
 
+			// fmt.Println("ARGS", selection.Args, selection.Args == nil)
+			if (selection.Args != nil) {
+				// // fmt.Println(selection.Args)
+				// parsed, err := field.ParseArguments(selection.Args)
+				// fmt.Println(parsed, err)
+				// // fmt.Println(len(selection.Args))
+				selection.parsed = true
+				parsed, err := field.ParseArguments(selection.Args)
+				if err != nil {
+					return NewClientError(`error parsing args for "%s": %s`, selection.Name, err)
+				}
+				selection.Args = parsed
+			}
 			// Only parse args once for a given selection.
 			if !selection.parsed {
 				selection.parsed = true
@@ -178,6 +191,7 @@ func PrepareQuery(ctx context.Context, typ Type, selectionSet *SelectionSet) err
 				}
 				selection.Args = parsed
 			}
+			// fmt.Println("ARGS", selection.Args)
 
 			selection.ParentType = typ.Name
 

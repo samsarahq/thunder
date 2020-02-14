@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"reflect"
 
 	"github.com/samsarahq/thunder/graphql"
 )
@@ -233,10 +234,28 @@ func (e *Planner) planObject(typ *graphql.Object, selectionSet *graphql.Selectio
 			}
 		}
 		if !hasKey {
+			fmt.Println("TYPE:", typ, typ.Name, reflect.TypeOf(typ), typ.Description, typ.FederatedKeys)
+			fmt.Println(otherServices)
+			// for _, service := ramge otherServices {
+				
+			// }
 			p.SelectionSet.Selections = append(p.SelectionSet.Selections, &graphql.Selection{
 				Name:  "__federation",
 				Alias: "__federation",
 				UnparsedArgs: map[string]interface{}{},
+				// SelectionSet: map[string]interface{}{}
+				SelectionSet: &graphql.SelectionSet{
+					Selections: []*graphql.Selection{
+						{
+							Name:  "id",
+							Alias: "id",
+						},
+						{
+							Name:  "orgId",
+							Alias: "orgId",
+						},
+					},
+				},
 			})
 		}
 	}

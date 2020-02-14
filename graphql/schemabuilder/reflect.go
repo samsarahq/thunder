@@ -53,6 +53,8 @@ type graphQLFieldInfo struct {
 	// OptionalInputField indicates that this field should be treated as an optional
 	// field on graphQL input args.
 	OptionalInputField bool
+
+	FederatedKeys []string
 }
 
 // parseGraphQLFieldInfo parses a struct field and returns a struct with the
@@ -87,6 +89,7 @@ func parseGraphQLFieldInfo(field reflect.StructField) (*graphQLFieldInfo, error)
 			}
 		}
 	}
+	// fmt.Println(field.Name)
 	return &graphQLFieldInfo{Name: name, KeyField: key, OptionalInputField: optional}, nil
 }
 

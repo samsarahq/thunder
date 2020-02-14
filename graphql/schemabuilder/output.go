@@ -30,11 +30,13 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 	var description string
 	var methods Methods
 	var objectKey string
+	var objectFederatedKeys []string
 	if object, ok := sb.objects[typ]; ok {
 		name = object.Name
 		description = object.Description
 		methods = object.Methods
 		objectKey = object.key
+		objectFederatedKeys = object.FederatedKeys
 	}
 
 	if name == "" {
@@ -83,6 +85,21 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 			}
 			object.KeyField = built
 		}
+
+		
+		
+		// if (object.Name == "User") {
+		// 	fmt.Println("VHBJNK", object.Name, object.FederatedKeys)
+		// }
+		// if fieldInfo.FederatedKeys {
+		// 	// object.FederatedKeys = 
+		// }
+		
+
+		// //BuildFEderatedFeilds
+		// built, _ := sb.buildField(field)
+		// object.KeyField = built
+
 	}
 
 	var names []string
@@ -146,6 +163,25 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 		}
 		object.KeyField = keyPtr
 	}
+
+
+	// Parses federated fields and adds it to the struct
+	if (len(objectFederatedKeys) > 0 ) {
+		federatedKeys := make([]*graphql.Field, len(objectFederatedKeys))
+		for i, key := range objectFederatedKeys {
+			keyPtr, ok := object.Fields[key]
+			if !ok {
+				return fmt.Errorf("key field doesn't exist on object")
+			}
+			if !isScalarType(keyPtr.Type) {
+				return fmt.Errorf("bad type %s: key type must be scalar, got %s", typ, keyPtr.Type.String())
+			}
+			federatedKeys[i] = keyPtr
+		}
+		object.FederatedKeys = federatedKeys
+		fmt.Println("OBECJT", object.Name, object.FederatedKeys)
+	}
+
 
 	return nil
 }

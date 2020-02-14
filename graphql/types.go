@@ -51,6 +51,7 @@ type Object struct {
 	Description string
 	KeyField    *Field
 	Fields      map[string]*Field
+	FederatedKeys []*Field
 }
 
 func (o *Object) isType() {}

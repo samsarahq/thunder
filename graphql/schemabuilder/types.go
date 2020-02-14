@@ -14,6 +14,7 @@ type Object struct {
 	Methods     Methods // Deprecated, use FieldFunc instead.
 
 	key string
+	FederatedKeys []string
 }
 
 type paginationObject struct {
@@ -274,6 +275,11 @@ func (s *Object) ManualPaginationWithFallback(name string, manualPaginatedFunc i
 func (s *Object) Key(f string) {
 	s.key = f
 }
+
+func (s *Object) AddFederatedKey(f string) {
+	s.FederatedKeys = []string{"id", "orgId"}
+}
+
 
 type method struct {
 	MarkedNonNullable bool

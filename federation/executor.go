@@ -97,6 +97,7 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 
 	isRoot := keys == nil
 	if !isRoot {
+		fmt.Println("KEYS", keys, typName)
 		selectionSet = &graphql.SelectionSet{
 			Selections: []*graphql.Selection{
 				{
@@ -112,6 +113,7 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 									"keys": keys,
 								},
 								SelectionSet: selectionSet,
+								// parsed: true,
 							},
 						},
 					},
@@ -120,11 +122,16 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 		}
 	}
 
+	// if err := graphql.PrepareQuery(context.Background(), schema, selectionSet); err != nil {
+	// 	return nil, err
+	// }
+
 	// TODO: make sure that if this hangs we're still good?
 	bytes, err := schema.Execute(ctx, &graphql.Query{
 		Kind:         kind,
 		SelectionSet: selectionSet,
 	})
+
 
 	if err != nil {
 		return nil, fmt.Errorf("execute remotely: %v", err)
@@ -224,6 +231,7 @@ func (pf *pathFollower) extractTargets(node interface{}, path []PathStep) error 
 func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) ([]interface{}, error) {
 	var res []interface{}
 
+	// fmt.Println("jere")
 	if p.Service == gatewayCoordinatorServiceName {
 		res = []interface{}{
 			map[string]interface{}{},
@@ -232,7 +240,8 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) ([]
 		var err error
 		// Eexecutes that part of the plan (the subquery) on one of the federated gqlservers
 		res, err = e.runOnService(ctx, p.Service, p.Type, keys, p.Kind, p.SelectionSet)
-
+		// fmt.Println(res, p.Service)
+		// printSelections(p.SelectionSet)
 		if err != nil {
 			return nil, fmt.Errorf("run on service: %v", err)
 		}
@@ -286,6 +295,7 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) ([]
 	if err := g.Wait(); err != nil {
 		return nil, err
 	}
+	fmt.Println(res)
 	return res, nil
 
 }
@@ -310,7 +320,7 @@ func (e *Executor) Execute(ctx context.Context, q *graphql.Query) (interface{}, 
 		return nil, err
 	}
 
-	printPlan(p)
+	// printPlan(p)
 
 	r, err := e.execute(ctx, p, nil)
 	if err != nil {

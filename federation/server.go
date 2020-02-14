@@ -36,6 +36,7 @@ type DirectExecutorClient struct {
 }
 
 func (c *DirectExecutorClient) Execute(ctx context.Context, req *graphql.Query) ([]byte, error) {
+	// fmt.Println("MAOOPO")
 	marshaled, err := marshalQuery(req)
 	if err != nil {
 		return nil, err
@@ -82,9 +83,22 @@ func (s *Server) Execute(ctx context.Context, req *thunderpb.ExecuteRequest) (*t
 		return nil, fmt.Errorf("unknown kind %s", query.Kind)
 	}
 
+	// fmt.Println("BEFORE")
+	// printSelections(query.Selections[0].SelectionSet)
+
+	// fmt.Println("--------------")
+	// printSelections(query.SelectionSet)
+	// fmt.Println("--------------")
 	if err := graphql.PrepareQuery(context.Background(), schema, query.SelectionSet); err != nil {
 		return nil, err
 	}
+
+	// fmt.Println("AFTER")
+	// printSelections(query.Selections[0].SelectionSet)
+
+
+	// printSelections(query.SelectionSet)
+	// fmt.Println("--------------")
 
 	// Run subquery with the reactive cache
 	done := make(chan struct{}, 0)
