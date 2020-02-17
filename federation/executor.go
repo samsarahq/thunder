@@ -82,6 +82,7 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Exe
 	planner := &Planner{
 		schema:    types,
 		flattener: flattener,
+		schemas: schemas,
 	}
 
 	return &Executor{
@@ -98,6 +99,24 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 	isRoot := keys == nil
 	if !isRoot {
 		fmt.Println("KEYS", keys, typName)
+		// // fmt.Println(e.planner.schemas[service].Schema.Types)
+		// for _, myType := range e.planner.schemas[service].Schema.Types {
+		// 	// fmt.Println(myType.Name, typName)
+		// 	if myType.Name == "Federation"{
+		// 		for _, field := range myType.Fields {
+		// 			fmt.Println(field.Name)
+		// 		}
+		// 		fmt.Println("YEE")
+		// 		// fmt.Println(myType.Name)
+		// // 	if (len(myType.InputFields) > 0 ) {
+		// // 		fmt.Println(service, myType.Name, len(myType.InputFields))
+		// // 		for _, inputField := range myType.InputFields {
+		// // 			fmt.Println("    ", inputField.Name)
+		// 		}
+		// 	}
+				
+
+
 		selectionSet = &graphql.SelectionSet{
 			Selections: []*graphql.Selection{
 				{

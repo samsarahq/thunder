@@ -3,10 +3,11 @@ package federation
 import (
 	"errors"
 	"fmt"
+	// "reflect"
 	"sort"
-	"reflect"
 
 	"github.com/samsarahq/thunder/graphql"
+	// "github.com/samsarahq/thunder/graphql/schemabuilder"
 )
 
 const queryString string = "query"
@@ -59,6 +60,7 @@ type Plan struct {
 type Planner struct {
 	schema    *SchemaWithFederationInfo //schema describes what fields the graphql servers know about along with the services that know how to execute each field
 	flattener *flattener                //flattener knows how to combine all the fragments on a query into a singel query
+	schemas map[string]*introspectionQueryResult
 }
 
 // Executing a subquery
@@ -234,10 +236,55 @@ func (e *Planner) planObject(typ *graphql.Object, selectionSet *graphql.Selectio
 			}
 		}
 		if !hasKey {
-			fmt.Println("TYPE:", typ, typ.Name, reflect.TypeOf(typ), typ.Description, typ.FederatedKeys)
-			fmt.Println(otherServices)
-			// for _, service := ramge otherServices {
+			// built := schemabuilder.buildStruct(typ)
+			// fmt.Println(build)
+			// a := schemabuilder.objects[typ]
+			// schemabuilder.
+			// fmt.Println(typ.Elem())
+			// fmt.Println("TYPE:", typ, typ.Name, reflect.TypeOf(typ), typ.Description, typ.KeyField, typ.FederatedKeys)
+			
+
+			// fmt.Println(otherServices)
+			for _, service := range otherServices {
+			// 	// fmt.Println(service)
+				// fmt.Println(e.schemas[service].Schema.Types)
+				for _, myType := range e.schemas[service].Schema.Types {
+					
+					if myType.Name == typ.Name && typ.Name != "Query" {
+						fmt.Println(myType.Name, typ.Name)
+					}
+			// 		// 	fmt.Println("YEEET")
+			// 		if (len(myType.InputFields) > 0 ) {
+			// 			fmt.Println(service, myType.Name, len(myType.InputFields))
+			// 			for _, inputField := range myType.InputFields {
+			// 				fmt.Println("    ", inputField.Name)
+			// 			}
+			// 		}
+			// 			// fmt.Println(service, myType.Name, len(myType.InputFields))
+			// 			// fmt.Println(reflect.TypeOf(myType))
+			// 			// for _, inputField := range myType.InputFields {
+			// 			// 	fmt.Println(inputField.Name)
+			// 			// }
+			// 		// 	fmt.Println("done")
+					}
+				}
+
+			// 	// type introspectionType struct {
+			// 	// 	Name          string                    `json:"name"`
+			// 	// 	Kind          string                    `json:"kind"`
+			// 	// 	Fields        []introspectionField      `json:"fields"`
+			// 	// 	InputFields   []introspectionInputField `json:"inputFields"`
+			// 	// 	cause  []*introspectionTypeRef   `json:"possibleTypes"`
+			// 	// 	EnumValues    []introspectionEnumValue  `json:"enumValues"`
+			// 	// }
 				
+			// 	// type introspectionSchema struct {
+			// 	// 	Types []introspectionType `json:"types"`
+			// 	// }
+				
+			// 	// type introspectionQueryResult struct {
+			// 	// 	Schema introspectionSchema `json:"__schema"`
+			// 	// }
 			// }
 			p.SelectionSet.Selections = append(p.SelectionSet.Selections, &graphql.Selection{
 				Name:  "__federation",

@@ -61,6 +61,7 @@ func (sb *schemaBuilder) getType(nodeType reflect.Type) (graphql.Type, error) {
 
 	// Structs
 	if nodeType.Kind() == reflect.Struct {
+		fmt.Println("VHBJNKM")
 		if err := sb.buildStruct(nodeType); err != nil {
 			return nil, err
 		}

@@ -90,6 +90,7 @@ func parseGraphQLFieldInfo(field reflect.StructField) (*graphQLFieldInfo, error)
 		}
 	}
 	// fmt.Println(field.Name)
+	// fmt.Println("YOOO", key)
 	return &graphQLFieldInfo{Name: name, KeyField: key, OptionalInputField: optional}, nil
 }
 

@@ -86,7 +86,12 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 			object.KeyField = built
 		}
 
-		
+		// for _, field := field.FederatedKeys {
+		// 	fmt.Println(field)
+		// }
+		// fmt.Println(field.Name)
+
+
 		
 		// if (object.Name == "User") {
 		// 	fmt.Println("VHBJNK", object.Name, object.FederatedKeys)

@@ -146,7 +146,7 @@ func mergeTypeRefs(a, b *introspectionTypeRef, isInput bool) (*introspectionType
 	switch a.Kind {
 	// Basic types must be identical.
 	case "SCALAR", "ENUM", "INPUT_OBJECT", "UNION", "OBJECT":
-		if a.Name != b.Name {
+		if a.Name != b.Name && a.Kind != "INPUT_OBJECT" {
 			return nil, errors.New("types must be identical")
 		}
 		return &introspectionTypeRef{
