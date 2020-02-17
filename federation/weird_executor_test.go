@@ -41,15 +41,16 @@ func createExecutorWithFederatedObjects2() (*Executor, error) {
 		return users, nil
 	})
 
+
 	// The second schema has a user with an email and a secret field
 	type UserWithEmail struct {
 		Id    int64
 		OrgId int64
 		Email string
 	}
-	s2 := schemabuilder.NewSchema()
+	s2 := schemabuilder.NewSchemaWithName("s2")
 	// s2.Object("UserIds", UserIds{})
-	s2.Federation().FieldFunc("User", func(args struct{ Keys []UserIds }) []*UserWithEmail {
+	s2.Federation().FederatedFieldFunc("User", func(args struct{ Keys []UserIds }) []*UserWithEmail {
 		fmt.Println("keys", args.Keys)
 		users := make([]*UserWithEmail, 0, len(args.Keys))
 		users = append(users, &UserWithEmail{Id: int64(1), Email: "yaaayeeeet@gmail.com"})
@@ -63,24 +64,24 @@ func createExecutorWithFederatedObjects2() (*Executor, error) {
 
 	// The third schema has a user with an email and a secret field
 	
-	s3 := schemabuilder.NewSchema()
+	s3 := schemabuilder.NewSchemaWithName("s3")
 	// s2.Object("UserIds", UserIds{})
 	type UserIds2 struct {
 		Id    int64
 		OrgId int64
 	}
-	s3.Federation().FieldFunc("User", func(args struct{ Keys []UserIds2 }) []*UserWithEmail {
+	s3.Federation().FederatedFieldFunc("User", func(args struct{ Keys []UserIds2 }) []*UserWithEmail {
 		fmt.Println("keys", args.Keys)
 		users := make([]*UserWithEmail, 0, len(args.Keys))
 		users = append(users, &UserWithEmail{Id: int64(1), Email: "yaaayeeeet@gmail.com"})
 		return users
 	})
-	s3.Federation().FieldFunc("UserWithId", func(args struct{ Keys []UserIds2 }) []*UserWithEmail {
-		fmt.Println("keys", args.Keys)
-		users := make([]*UserWithEmail, 0, len(args.Keys))
-		users = append(users, &UserWithEmail{Id: int64(1), Email: "yaaayeeeet@gmail.com"})
-		return users
-	})
+	// s3.Federation().FieldFunc("UserWithId", func(args struct{ Keys []UserIds2 }) []*UserWithEmail {
+	// 	fmt.Println("keys", args.Keys)
+	// 	users := make([]*UserWithEmail, 0, len(args.Keys))
+	// 	users = append(users, &UserWithEmail{Id: int64(1), Email: "yaaayeeeet@gmail.com"})
+	// 	return users
+	// })
 	user3 := s3.Object("User", UserWithEmail{})
 	user3.FieldFunc("supersecret", func(ctx context.Context, user *UserWithEmail) (string, error) {
 		return "yeet", nil

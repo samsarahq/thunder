@@ -127,6 +127,7 @@ func (e *Planner) planObject(typ *graphql.Object, selectionSet *graphql.Selectio
 		After:        nil,
 		Kind:         queryString,
 	}
+	// fmt.Println(typ.Name, typ.ServiceName)
 
 	var localSelections []*graphql.Selection
 	selectionsByService := make(map[string][]*graphql.Selection)

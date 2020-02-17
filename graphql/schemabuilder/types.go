@@ -1,6 +1,7 @@
 package schemabuilder
 
 import (
+	"fmt"
 	"context"
 	"reflect"
 )
@@ -12,6 +13,7 @@ type Object struct {
 	Description string
 	Type        interface{}
 	Methods     Methods // Deprecated, use FieldFunc instead.
+	ServiceName string
 
 	key string
 	FederatedKeys []string
@@ -198,6 +200,28 @@ func (s *Object) FieldFunc(name string, f interface{}, options ...FieldFuncOptio
 	}
 	s.Methods[name] = m
 }
+
+func (s *Object) FederatedFieldFunc(name string, f interface{}, options ...FieldFuncOption) {
+	fmt.Println("FEDERTEED FIELD FUNC", name, s.ServiceName)
+	if s.Methods == nil {
+		s.Methods = make(Methods)
+	}
+
+	m := &method{Fn: f}
+	for _, opt := range options {
+		opt.apply(m)
+	}
+
+	federatedMethodName := fmt.Sprintf("%s%s", name,  s.ServiceName) 
+
+	if _, ok := s.Methods[federatedMethodName]; ok {
+		panic("duplicate method")
+	}
+	fmt.Println("federatedMethodName",federatedMethodName )
+	s.Methods[federatedMethodName] = m
+	s.Methods[name] = m
+}
+
 
 func (s *Object) BatchFieldFunc(name string, batchFunc interface{}, options ...FieldFuncOption) {
 	if s.Methods == nil {

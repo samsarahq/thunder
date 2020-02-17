@@ -97,6 +97,8 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 	schema := e.Executors[service]
 
 	isRoot := keys == nil
+	fedeatdeName := fmt.Sprintf("%s%s", typName, service)
+
 	if !isRoot {
 		fmt.Println("KEYS", keys, typName)
 		// // fmt.Println(e.planner.schemas[service].Schema.Types)
@@ -116,6 +118,8 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 		// 	}
 				
 
+		fmt.Println("YOOOOO", typName, service)
+	
 
 		selectionSet = &graphql.SelectionSet{
 			Selections: []*graphql.Selection{
@@ -126,8 +130,8 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 					SelectionSet: &graphql.SelectionSet{
 						Selections: []*graphql.Selection{
 							{
-								Name:  typName,
-								Alias: typName,
+								Name:  fedeatdeName,
+								Alias: fedeatdeName,
 								Args: map[string]interface{}{
 									"keys": keys,
 								},
@@ -151,7 +155,6 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 		SelectionSet: selectionSet,
 	})
 
-
 	if err != nil {
 		return nil, fmt.Errorf("execute remotely: %v", err)
 	}
@@ -173,13 +176,18 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 			return nil, fmt.Errorf("root did not have a federation map, got %v", res)
 		}
 
-		results, ok = federation[typName].([]interface{})
+		
+		results, ok = federation[fedeatdeName].([]interface{})
 		if !ok {
 			return nil, fmt.Errorf("federation map did not have a %s slice, got %v", typName, res)
 		}
 	} else {
 		results = []interface{}{res}
 	}
+
+	fmt.Println("RESULTS", results)
+	fmt.Println("RES",res)
+	
 
 	return results, nil
 }
@@ -261,6 +269,7 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) ([]
 		res, err = e.runOnService(ctx, p.Service, p.Type, keys, p.Kind, p.SelectionSet)
 		// fmt.Println(res, p.Service)
 		// printSelections(p.SelectionSet)
+		fmt.Println("RSUL:T", res, err)
 		if err != nil {
 			return nil, fmt.Errorf("run on service: %v", err)
 		}
