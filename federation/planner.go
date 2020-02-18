@@ -237,13 +237,8 @@ func (e *Planner) planObject(typ *graphql.Object, selectionSet *graphql.Selectio
 			}
 		}
 		if !hasKey {
-			// built := schemabuilder.buildStruct(typ)
-			// fmt.Println(build)
-			// a := schemabuilder.objects[typ]
-			// schemabuilder.
-			// fmt.Println(typ.Elem())
-			// fmt.Println("TYPE:", typ, typ.Name, reflect.TypeOf(typ), typ.Description, typ.KeyField, typ.FederatedKeys)
-
+			
+			// Fetch selections based on what other graphqlservices are being called
 			inputFieldsToFetch := make(map[string]interface{}, 0)
 			for _, service := range otherServices {
 				fedeatdeName := fmt.Sprintf("%s%s", typ, service)
@@ -253,7 +248,6 @@ func (e *Planner) planObject(typ *graphql.Object, selectionSet *graphql.Selectio
 						for _, input := range myType.Fields {
 							if input.Name == fedeatdeName {
 								for _, arg := range input.Args {
-									// fmt.Println("ARF",  arg.Type.OfType.OfType.OfType.Name)
 									inputObjectType =  arg.Type.OfType.OfType.OfType.Name
 								}
 							}
@@ -263,20 +257,16 @@ func (e *Planner) planObject(typ *graphql.Object, selectionSet *graphql.Selectio
 
 				for _, myType := range e.schemas[service].Schema.Types {
 					if myType.Name == inputObjectType {
-						// fmt.Println("YAY")
 						for _, field := range myType.InputFields {
-							// fmt.Println(field.Name)
 							inputFieldsToFetch[field.Name] = struct{}{}
 						}
 					}
 				}
 			}
 
-
 			selections := make([]*graphql.Selection, len(inputFieldsToFetch))
 			i := 0
 			for inputField := range inputFieldsToFetch {
-				fmt.Println("INPUT FIELD ", inputField)
 				selections[i] = &graphql.Selection{
 					Name: inputField, 
 					Alias: inputField,
@@ -284,7 +274,6 @@ func (e *Planner) planObject(typ *graphql.Object, selectionSet *graphql.Selectio
 				i++
 			}
 
-			// fmt.Println(selections)
 
 
 			p.SelectionSet.Selections = append(p.SelectionSet.Selections, &graphql.Selection{

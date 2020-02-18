@@ -100,15 +100,13 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 	isRoot := keys == nil
 	fedeatdeName := fmt.Sprintf("%s%s", typName, service)
 
+	// filter keys based on service 
 	inputTypeName := ""
 	for _, myType := range e.planner.schemas[service].Schema.Types {
-		// fmt.Println(myType.Name, typName, reflect.TypeOf(myType), "yee")
 		if myType.Name == "Federation"{
 			for _, input := range myType.Fields {
 				if input.Name == fedeatdeName {
-					// fmt.Println("KKKK :", input.Name, input.Args)
 					for _, arg := range input.Args {
-						// fmt.Println("ARF",  arg.Type.OfType.OfType.OfType.Name)
 						inputTypeName =  arg.Type.OfType.OfType.OfType.Name
 					}
 				}
@@ -116,8 +114,6 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 			}
 		}
 	}
-
-	// fmt.Println("INPUT TYPE NAME", inputTypeName, "\n ")
 
 	expectedInputFieldNames := make([]string, 0)
 	for _, myType := range e.planner.schemas[service].Schema.Types {
@@ -127,38 +123,26 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 			}
 		}
 	}
-		
-	// fmt.Println("expected input fields", expectedInputFieldNames)
 
 	newKeys := make([]interface{},0)
 	for _, item := range keys {
-		// fmt.Println(item, reflect.TypeOf(item))
 		newItem := make(map[string]interface{})
 		for name, value := range item.(map[string]interface {}) {
-			// fmt.Println(name, value)
 
 			for _, acceptedNames := range expectedInputFieldNames {
 				if acceptedNames == name {
-					// fmt.Println("I MATCH")
 					newItem[name] = value
 				}
 			}
-		// 	// newKeys 
 		}
 		newKeys = append(newKeys, newItem)
 	}
 	
-	fmt.Println("new keys", newKeys)
 
 
 
 	if !isRoot {
 		
-		
-
-
-	
-
 		selectionSet = &graphql.SelectionSet{
 			Selections: []*graphql.Selection{
 				{
