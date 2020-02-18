@@ -125,6 +125,48 @@
                             "name": "",
                             "ofType": {
                               "kind": "SCALAR",
+                              "name": "int64",
+                              "ofType": null
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "name": "Barschema1",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "LIST",
+                      "name": "",
+                      "ofType": {
+                        "kind": "NON_NULL",
+                        "name": "",
+                        "ofType": {
+                          "kind": "OBJECT",
+                          "name": "Bar",
+                          "ofType": null
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "args": [
+                    {
+                      "name": "keys",
+                      "type": {
+                        "kind": "NON_NULL",
+                        "name": "",
+                        "ofType": {
+                          "kind": "LIST",
+                          "name": "",
+                          "ofType": {
+                            "kind": "NON_NULL",
+                            "name": "",
+                            "ofType": {
+                              "kind": "SCALAR",
                               "name": "string",
                               "ofType": null
                             }
@@ -134,6 +176,48 @@
                     }
                   ],
                   "name": "Foo",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "LIST",
+                      "name": "",
+                      "ofType": {
+                        "kind": "NON_NULL",
+                        "name": "",
+                        "ofType": {
+                          "kind": "OBJECT",
+                          "name": "Foo",
+                          "ofType": null
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "args": [
+                    {
+                      "name": "keys",
+                      "type": {
+                        "kind": "NON_NULL",
+                        "name": "",
+                        "ofType": {
+                          "kind": "LIST",
+                          "name": "",
+                          "ofType": {
+                            "kind": "NON_NULL",
+                            "name": "",
+                            "ofType": {
+                              "kind": "SCALAR",
+                              "name": "string",
+                              "ofType": null
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "name": "Fooschema2",
                   "type": {
                     "kind": "NON_NULL",
                     "name": "",

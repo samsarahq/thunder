@@ -138,7 +138,7 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 		newKeys = append(newKeys, newItem)
 	}
 	
-
+	fmt.Println("new keys", newKeys, keys)
 
 
 	if !isRoot {
@@ -286,7 +286,9 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) ([]
 	} else {
 		var err error
 		// Executes that part of the plan (the subquery) on one of the federated gqlservers
+		fmt.Println("HERE")
 		res, err = e.runOnService(ctx, p.Service, p.Type, keys, p.Kind, p.SelectionSet)
+		fmt.Println(res, err)
 		if err != nil {
 			return nil, fmt.Errorf("run on service: %v", err)
 		}
