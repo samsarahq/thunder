@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"reflect"
 
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/introspection"
@@ -99,26 +100,98 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 	isRoot := keys == nil
 	fedeatdeName := fmt.Sprintf("%s%s", typName, service)
 
+	inputTypeName := ""
+	for _, myType := range e.planner.schemas[service].Schema.Types {
+		// fmt.Println(myType.Name, typName, reflect.TypeOf(myType), "yee")
+		if myType.Name == "Federation"{
+			for _, input := range myType.Fields {
+				if input.Name == fedeatdeName {
+					fmt.Println("KKKK :", input.Name, input.Args)
+					for _, arg := range input.Args {
+						fmt.Println("ARF",  arg.Type.OfType.OfType.OfType.Name)
+						inputTypeName =  arg.Type.OfType.OfType.OfType.Name
+					}
+				}
+				
+			}
+		}
+	}
+
+	fmt.Println("INPUT TYPE NAME", inputTypeName, "\n ")
+
+	expectedInputFieldNames := make([]string, 0)
+	for _, myType := range e.planner.schemas[service].Schema.Types {
+		// fmt.Println(myType.Name, typName, reflect.TypeOf(myType), "yee")
+		if myType.Name == inputTypeName {
+			fmt.Println("   exepected inputs", myType.InputFields)
+			for _, field := range myType.InputFields {
+				// fmt.Println("A", field.Name)
+				expectedInputFieldNames = append(expectedInputFieldNames, field.Name)
+			}
+		}
+	}
+		
+	fmt.Println("expected input fields", expectedInputFieldNames)
+
+	newKeys := make([]interface{},0)
+	for _, item := range keys {
+		// fmt.Println(item, reflect.TypeOf(item))
+		newItem := make(map[string]interface{})
+		for name, value := range item.(map[string]interface {}) {
+			// fmt.Println(name, value)
+
+			for _, acceptedNames := range expectedInputFieldNames {
+				if acceptedNames == name {
+					// fmt.Println("I MATCH")
+					newItem[name] = value
+				}
+			}
+		// 	// newKeys 
+		}
+		newKeys = append(newKeys, newItem)
+	}
+	
+	fmt.Println("new keys", newKeys)
+
+
+
 	if !isRoot {
-		fmt.Println("KEYS", keys, typName)
-		// // fmt.Println(e.planner.schemas[service].Schema.Types)
-		// for _, myType := range e.planner.schemas[service].Schema.Types {
-		// 	// fmt.Println(myType.Name, typName)
-		// 	if myType.Name == "Federation"{
+		fmt.Println("KEYS", keys, typName, reflect.TypeOf(keys))
+		// fmt.Println(e.planner.schemas[service].Schema.Types)
+		for _, myType := range e.planner.schemas[service].Schema.Types {
+			// fmt.Println(myType.Name, typName, reflect.TypeOf(myType), "yee")
+			if myType.Name == "Federation"{
+				for _, input := range myType.Fields {
+					fmt.Println("K :", input.Name, input.Args)
+				}
 		// 		for _, field := range myType.Fields {
-		// 			fmt.Println(field.Name)
+		// 			fmt.Println("K :", field.Name)
 		// 		}
-		// 		fmt.Println("YEE")
-		// 		// fmt.Println(myType.Name)
-		// // 	if (len(myType.InputFields) > 0 ) {
-		// // 		fmt.Println(service, myType.Name, len(myType.InputFields))
-		// // 		for _, inputField := range myType.InputFields {
-		// // 			fmt.Println("    ", inputField.Name)
+		// // 		fmt.Println("YEE")
+		// // 		// fmt.Println(myType.Name)
+		// // // 	if (len(myType.InputFields) > 0 ) {
+		// // // 		fmt.Println(service, myType.Name, len(myType.InputFields))
+		// // // 		for _, inputField := range myType.InputFields {
+		// // // 			fmt.Println("    ", inputField.Name)
 		// 		}
-		// 	}
+				// if (len(myType.InputFields) > 0 ) {
+				// 	fmt.Println("LMAO", myType.Name,  myType.InputFields, myType.InputFields[0])
+				// 	for _, input := range myType.InputFields {
+				// 		fmt.Println(input.Type.OfType)
+				// 	}
+				}
+				// fmt.Println(myType.Service)
+			}
+
+			// fmt.Println(myType.Name)
+		
 				
 
 		fmt.Println("YOOOOO", typName, service)
+
+		
+
+
 	
 
 		selectionSet = &graphql.SelectionSet{
@@ -133,7 +206,7 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 								Name:  fedeatdeName,
 								Alias: fedeatdeName,
 								Args: map[string]interface{}{
-									"keys": keys,
+									"keys": newKeys,
 								},
 								SelectionSet: selectionSet,
 								// parsed: true,

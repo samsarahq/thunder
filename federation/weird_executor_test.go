@@ -68,7 +68,8 @@ func createExecutorWithFederatedObjects2() (*Executor, error) {
 	// s2.Object("UserIds", UserIds{})
 	type UserIds2 struct {
 		Id    int64
-		OrgId int64
+		// OrgId int64
+		// OrgId2 int64
 	}
 	s3.Federation().FederatedFieldFunc("User", func(args struct{ Keys []UserIds2 }) []*UserWithEmail {
 		fmt.Println("keys", args.Keys)
