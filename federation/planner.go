@@ -243,66 +243,57 @@ func (e *Planner) planObject(typ *graphql.Object, selectionSet *graphql.Selectio
 			// schemabuilder.
 			// fmt.Println(typ.Elem())
 			// fmt.Println("TYPE:", typ, typ.Name, reflect.TypeOf(typ), typ.Description, typ.KeyField, typ.FederatedKeys)
-			
 
-			// fmt.Println(otherServices)
+			inputFieldsToFetch := make(map[string]interface{}, 0)
 			for _, service := range otherServices {
-			// 	// fmt.Println(service)
-				// fmt.Println(e.schemas[service].Schema.Types)
+				fedeatdeName := fmt.Sprintf("%s%s", typ, service)
+				inputObjectType := "" 
 				for _, myType := range e.schemas[service].Schema.Types {
-					
-					if myType.Name == typ.Name && typ.Name != "Query" {
-						fmt.Println(myType.Name, typ.Name)
-					}
-			// 		// 	fmt.Println("YEEET")
-			// 		if (len(myType.InputFields) > 0 ) {
-			// 			fmt.Println(service, myType.Name, len(myType.InputFields))
-			// 			for _, inputField := range myType.InputFields {
-			// 				fmt.Println("    ", inputField.Name)
-			// 			}
-			// 		}
-			// 			// fmt.Println(service, myType.Name, len(myType.InputFields))
-			// 			// fmt.Println(reflect.TypeOf(myType))
-			// 			// for _, inputField := range myType.InputFields {
-			// 			// 	fmt.Println(inputField.Name)
-			// 			// }
-			// 		// 	fmt.Println("done")
+					if myType.Name == "Federation"{
+						for _, input := range myType.Fields {
+							if input.Name == fedeatdeName {
+								for _, arg := range input.Args {
+									// fmt.Println("ARF",  arg.Type.OfType.OfType.OfType.Name)
+									inputObjectType =  arg.Type.OfType.OfType.OfType.Name
+								}
+							}
+						}
 					}
 				}
 
-			// 	// type introspectionType struct {
-			// 	// 	Name          string                    `json:"name"`
-			// 	// 	Kind          string                    `json:"kind"`
-			// 	// 	Fields        []introspectionField      `json:"fields"`
-			// 	// 	InputFields   []introspectionInputField `json:"inputFields"`
-			// 	// 	cause  []*introspectionTypeRef   `json:"possibleTypes"`
-			// 	// 	EnumValues    []introspectionEnumValue  `json:"enumValues"`
-			// 	// }
-				
-			// 	// type introspectionSchema struct {
-			// 	// 	Types []introspectionType `json:"types"`
-			// 	// }
-				
-			// 	// type introspectionQueryResult struct {
-			// 	// 	Schema introspectionSchema `json:"__schema"`
-			// 	// }
-			// }
+				for _, myType := range e.schemas[service].Schema.Types {
+					if myType.Name == inputObjectType {
+						// fmt.Println("YAY")
+						for _, field := range myType.InputFields {
+							// fmt.Println(field.Name)
+							inputFieldsToFetch[field.Name] = struct{}{}
+						}
+					}
+				}
+			}
+
+
+			selections := make([]*graphql.Selection, len(inputFieldsToFetch))
+			i := 0
+			for inputField := range inputFieldsToFetch {
+				fmt.Println("INPUT FIELD ", inputField)
+				selections[i] = &graphql.Selection{
+					Name: inputField, 
+					Alias: inputField,
+				}
+				i++
+			}
+
+			// fmt.Println(selections)
+
+
 			p.SelectionSet.Selections = append(p.SelectionSet.Selections, &graphql.Selection{
 				Name:  "__federation",
 				Alias: "__federation",
 				UnparsedArgs: map[string]interface{}{},
 				// SelectionSet: map[string]interface{}{}
 				SelectionSet: &graphql.SelectionSet{
-					Selections: []*graphql.Selection{
-						{
-							Name:  "id",
-							Alias: "id",
-						},
-						{
-							Name:  "orgId",
-							Alias: "orgId",
-						},
-					},
+					Selections: selections,
 				},
 			})
 		}

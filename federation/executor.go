@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
-	"reflect"
+	// "reflect"
 
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/introspection"
@@ -106,9 +106,9 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 		if myType.Name == "Federation"{
 			for _, input := range myType.Fields {
 				if input.Name == fedeatdeName {
-					fmt.Println("KKKK :", input.Name, input.Args)
+					// fmt.Println("KKKK :", input.Name, input.Args)
 					for _, arg := range input.Args {
-						fmt.Println("ARF",  arg.Type.OfType.OfType.OfType.Name)
+						// fmt.Println("ARF",  arg.Type.OfType.OfType.OfType.Name)
 						inputTypeName =  arg.Type.OfType.OfType.OfType.Name
 					}
 				}
@@ -117,21 +117,18 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 		}
 	}
 
-	fmt.Println("INPUT TYPE NAME", inputTypeName, "\n ")
+	// fmt.Println("INPUT TYPE NAME", inputTypeName, "\n ")
 
 	expectedInputFieldNames := make([]string, 0)
 	for _, myType := range e.planner.schemas[service].Schema.Types {
-		// fmt.Println(myType.Name, typName, reflect.TypeOf(myType), "yee")
 		if myType.Name == inputTypeName {
-			fmt.Println("   exepected inputs", myType.InputFields)
 			for _, field := range myType.InputFields {
-				// fmt.Println("A", field.Name)
 				expectedInputFieldNames = append(expectedInputFieldNames, field.Name)
 			}
 		}
 	}
 		
-	fmt.Println("expected input fields", expectedInputFieldNames)
+	// fmt.Println("expected input fields", expectedInputFieldNames)
 
 	newKeys := make([]interface{},0)
 	for _, item := range keys {
@@ -156,39 +153,7 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 
 
 	if !isRoot {
-		fmt.Println("KEYS", keys, typName, reflect.TypeOf(keys))
-		// fmt.Println(e.planner.schemas[service].Schema.Types)
-		for _, myType := range e.planner.schemas[service].Schema.Types {
-			// fmt.Println(myType.Name, typName, reflect.TypeOf(myType), "yee")
-			if myType.Name == "Federation"{
-				for _, input := range myType.Fields {
-					fmt.Println("K :", input.Name, input.Args)
-				}
-		// 		for _, field := range myType.Fields {
-		// 			fmt.Println("K :", field.Name)
-		// 		}
-		// // 		fmt.Println("YEE")
-		// // 		// fmt.Println(myType.Name)
-		// // // 	if (len(myType.InputFields) > 0 ) {
-		// // // 		fmt.Println(service, myType.Name, len(myType.InputFields))
-		// // // 		for _, inputField := range myType.InputFields {
-		// // // 			fmt.Println("    ", inputField.Name)
-		// 		}
-				// if (len(myType.InputFields) > 0 ) {
-				// 	fmt.Println("LMAO", myType.Name,  myType.InputFields, myType.InputFields[0])
-				// 	for _, input := range myType.InputFields {
-				// 		fmt.Println(input.Type.OfType)
-				// 	}
-				}
-				// fmt.Println(myType.Service)
-			}
-
-			// fmt.Println(myType.Name)
 		
-				
-
-		fmt.Println("YOOOOO", typName, service)
-
 		
 
 
@@ -258,9 +223,7 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 		results = []interface{}{res}
 	}
 
-	fmt.Println("RESULTS", results)
-	fmt.Println("RES",res)
-	
+
 
 	return results, nil
 }
@@ -338,11 +301,8 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) ([]
 		}
 	} else {
 		var err error
-		// Eexecutes that part of the plan (the subquery) on one of the federated gqlservers
+		// Executes that part of the plan (the subquery) on one of the federated gqlservers
 		res, err = e.runOnService(ctx, p.Service, p.Type, keys, p.Kind, p.SelectionSet)
-		// fmt.Println(res, p.Service)
-		// printSelections(p.SelectionSet)
-		fmt.Println("RSUL:T", res, err)
 		if err != nil {
 			return nil, fmt.Errorf("run on service: %v", err)
 		}
@@ -396,7 +356,7 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) ([]
 	if err := g.Wait(); err != nil {
 		return nil, err
 	}
-	fmt.Println(res)
+	// fmt.Println(res)
 	return res, nil
 
 }

@@ -507,7 +507,7 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 	}
 
 	if typ.KeyField != nil {
-		fmt.Println("VGJHBKJN", typ.Name, typ.FederatedKeys)
+		// fmt.Println("VGJHBKJN", typ.Name, typ.FederatedKeys)
 		destForSelection := make([]*outputNode, 0, len(nonNilDestinations))
 		for idx, destMap := range nonNilDestinations {
 			filler := newOutputNode(originDestinations[idx], "__key")
