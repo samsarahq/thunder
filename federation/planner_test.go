@@ -1,6 +1,7 @@
 package federation
 
 import (
+	// "fmt"
 	"testing"
 
 	"github.com/samsarahq/thunder/graphql"
@@ -34,9 +35,19 @@ func setupExecutor(t *testing.T) (*Planner, error) {
 	require.NoError(t, err)
 
 	f, err := newFlattener(merged.Schema)
+
+	plannerSchemas := make(map[string]*introspectionQueryResult)
+	for service, versions := range schemas {
+		for _, schema := range versions {
+			plannerSchemas[service] = extractSchema(t, schema.MustBuild())
+		}
+	}
+
+
 	return &Planner{
 		flattener: f,
 		schema:    merged,
+		schemas:  plannerSchemas,
 	}, nil
 }
 

@@ -50,7 +50,7 @@ func createExecutorWithFederatedObjects() (*Executor, error) {
 		Id    int64
 		OrgId int64
 	}
-	s1 := schemabuilder.NewSchema()
+	s1 := schemabuilder.NewSchemaWithName("s1")
 	user := s1.Object("User", User{})
 	user.Key("id")
 	user.Federation(func(u *User) int64 {
@@ -96,7 +96,7 @@ func createExecutorWithFederatedObjects() (*Executor, error) {
 		OrgId int64
 		Email string
 	}
-	s2 := schemabuilder.NewSchema()
+	s2 := schemabuilder.NewSchemaWithName("s2")
 	s2.Federation().FieldFunc("User", func(args struct{ Keys []int64 }) []*UserWithEmail {
 		users := make([]*UserWithEmail, 0, len(args.Keys))
 		users = append(users, &UserWithEmail{Id: int64(1), Email: "yaaayeeeet@gmail.com"})
@@ -216,7 +216,7 @@ func TestExecutorWithFederatedObject(t *testing.T) {
 
 
 func TestExecutorFailures(t *testing.T) {
-	schema := schemabuilder.NewSchema()
+	schema := schemabuilder.NewSchemaWithName("schema")
 	schema.Query().FieldFunc("fail", func(ctx context.Context) (string, error) {
 		return "", errors.New("somethings broken")
 	})
@@ -248,13 +248,13 @@ func TestExecutorCancelsOnFailure(t *testing.T) {
 	s2started := make(chan struct{}, 0)
 	s2canceled := make(chan struct{}, 0)
 
-	s1 := schemabuilder.NewSchema()
+	s1 := schemabuilder.NewSchemaWithName("s1")
 	s1.Query().FieldFunc("fail", func(ctx context.Context) (string, error) {
 		<-s2started
 		return "", errors.New("fail")
 	})
 
-	s2 := schemabuilder.NewSchema()
+	s2 := schemabuilder.NewSchemaWithName("s2")
 	s2.Query().FieldFunc("wait", func(ctx context.Context) (string, error) {
 		close(s2started)
 		<-ctx.Done()
@@ -298,7 +298,7 @@ func assertExecuteEqual(ctx context.Context, t *testing.T, e *Executor, in, out 
 
 // TestExecutorHasReactiveCache tests that a reactive.Cache works.
 func TestExecutorHasReactiveCache(t *testing.T) {
-	schema := schemabuilder.NewSchema()
+	schema := schemabuilder.NewSchemaWithName("schema")
 	schema.Query().FieldFunc("testCache", func(ctx context.Context) (string, error) {
 		count := 0
 		for i := 0; i < 2; i++ {

@@ -120,6 +120,7 @@ func printSelections(selectionSet *graphql.SelectionSet) {
 }
 
 func (e *Planner) planObject(typ *graphql.Object, selectionSet *graphql.SelectionSet, service string) (*Plan, error) {
+	// fmt.Println("schemas", e.schemas)
 	p := &Plan{
 		Type:         typ.Name,
 		Service:      service,
@@ -243,17 +244,21 @@ func (e *Planner) planObject(typ *graphql.Object, selectionSet *graphql.Selectio
 			for _, service := range otherServices {
 				fedeatdeName := fmt.Sprintf("%s%s", typ, service)
 				inputObjectType := "" 
-				for _, myType := range e.schemas[service].Schema.Types {
-					if myType.Name == "Federation"{
-						for _, input := range myType.Fields {
-							if input.Name == fedeatdeName {
-								for _, arg := range input.Args {
-									inputObjectType =  arg.Type.OfType.OfType.OfType.Name
+				// fmt.Println(e.schemas[service], service, e.schemas)
+				if e.schemas[service].Schema.Types != nil {
+					for _, myType := range e.schemas[service].Schema.Types {
+						if myType.Name == "Federation"{
+							for _, input := range myType.Fields {
+								if input.Name == fedeatdeName {
+									for _, arg := range input.Args {
+										inputObjectType =  arg.Type.OfType.OfType.OfType.Name
+									}
 								}
 							}
 						}
 					}
 				}
+				
 
 				for _, myType := range e.schemas[service].Schema.Types {
 					if myType.Name == inputObjectType {
@@ -274,17 +279,27 @@ func (e *Planner) planObject(typ *graphql.Object, selectionSet *graphql.Selectio
 				i++
 			}
 
+			if len(selections) > 0 {
+				p.SelectionSet.Selections = append(p.SelectionSet.Selections, &graphql.Selection{
+					Name:  "__federation",
+					Alias: "__federation",
+					UnparsedArgs: map[string]interface{}{},
+					// SelectionSet: map[string]interface{}{}
+					SelectionSet: &graphql.SelectionSet{
+						Selections: selections,
+					},
+				})
+			} else {
+				p.SelectionSet.Selections = append(p.SelectionSet.Selections, &graphql.Selection{
+					Name:  "__federation",
+					Alias: "__federation",
+					UnparsedArgs: map[string]interface{}{},
+			
+				})
+			}
 
 
-			p.SelectionSet.Selections = append(p.SelectionSet.Selections, &graphql.Selection{
-				Name:  "__federation",
-				Alias: "__federation",
-				UnparsedArgs: map[string]interface{}{},
-				// SelectionSet: map[string]interface{}{}
-				SelectionSet: &graphql.SelectionSet{
-					Selections: selections,
-				},
-			})
+			
 		}
 	}
 

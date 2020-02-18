@@ -36,6 +36,7 @@ func NewSchemaWithName(name string) *Schema {
 // NewSchema creates a new schema.
 func NewSchema() *Schema {
 	schema := &Schema{
+		Name: "default",
 		objects: make(map[string]*Object),
 	}
 

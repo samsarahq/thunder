@@ -28,7 +28,7 @@ type Pair struct {
 }
 
 func buildTestSchema1() *schemabuilder.Schema {
-	schema := schemabuilder.NewSchema()
+	schema := schemabuilder.NewSchemaWithName("schema1")
 
 	query := schema.Query()
 	query.FieldFunc("s1f", func() *Foo {
@@ -85,7 +85,7 @@ func buildTestSchema1() *schemabuilder.Schema {
 		return Enum(1)
 	})
 
-	schema.Federation().FieldFunc("Bar", func(args struct{ Keys []int64 }) []*Bar {
+	schema.Federation().FederatedFieldFunc("Bar", func(args struct{ Keys []int64 }) []*Bar {
 		bars := make([]*Bar, 0, len(args.Keys))
 		for _, key := range args.Keys {
 			bars = append(bars, &Bar{Id: key})
@@ -117,9 +117,9 @@ func buildTestSchema1() *schemabuilder.Schema {
 }
 
 func buildTestSchema2() *schemabuilder.Schema {
-	schema := schemabuilder.NewSchema()
+	schema := schemabuilder.NewSchemaWithName("schema2")
 
-	schema.Federation().FieldFunc("Foo", func(args struct{ Keys []string }) []*Foo {
+	schema.Federation().FederatedFieldFunc("Foo", func(args struct{ Keys []string }) []*Foo {
 		foos := make([]*Foo, 0, len(args.Keys))
 		for _, key := range args.Keys {
 			foos = append(foos, &Foo{Name: key})
