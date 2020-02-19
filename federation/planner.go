@@ -119,6 +119,13 @@ func printSelections(selectionSet *graphql.SelectionSet) {
 	}
 }
 
+func getRootType(typ *introspectionTypeRef) string {
+	if typ.OfType == nil {
+		return typ.Name
+	} 
+	return getRootType(typ.OfType)
+}
+
 func (e *Planner) planObject(typ *graphql.Object, selectionSet *graphql.SelectionSet, service string) (*Plan, error) {
 	// fmt.Println("schemas", e.schemas)
 	p := &Plan{
@@ -242,16 +249,16 @@ func (e *Planner) planObject(typ *graphql.Object, selectionSet *graphql.Selectio
 			// Fetch selections based on what other graphqlservices are being called
 			inputFieldsToFetch := make(map[string]interface{}, 0)
 			for _, service := range otherServices {
-				fedeatdeName := fmt.Sprintf("%s%s", typ, service)
+				federatedName := fmt.Sprintf("%s-%s", typ, service)
 				inputObjectType := "" 
 				// fmt.Println(e.schemas[service], service, e.schemas)
 				if e.schemas[service].Schema.Types != nil {
 					for _, myType := range e.schemas[service].Schema.Types {
 						if myType.Name == "Federation"{
 							for _, input := range myType.Fields {
-								if input.Name == fedeatdeName {
+								if input.Name == federatedName {
 									for _, arg := range input.Args {
-										inputObjectType =  arg.Type.OfType.OfType.OfType.Name
+										inputObjectType =  getRootType(arg.Type)
 									}
 								}
 							}

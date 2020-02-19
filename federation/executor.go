@@ -98,16 +98,16 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 	schema := e.Executors[service]
 
 	isRoot := keys == nil
-	fedeatdeName := fmt.Sprintf("%s%s", typName, service)
+	federatedName := fmt.Sprintf("%s-%s", typName, service)
 
 	// filter keys based on service 
 	inputTypeName := ""
 	for _, myType := range e.planner.schemas[service].Schema.Types {
 		if myType.Name == "Federation"{
 			for _, input := range myType.Fields {
-				if input.Name == fedeatdeName {
+				if input.Name == federatedName {
 					for _, arg := range input.Args {
-						inputTypeName =  arg.Type.OfType.OfType.OfType.Name
+						inputTypeName =  getRootType(arg.Type)
 					}
 				}
 				
@@ -152,8 +152,8 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 					SelectionSet: &graphql.SelectionSet{
 						Selections: []*graphql.Selection{
 							{
-								Name:  fedeatdeName,
-								Alias: fedeatdeName,
+								Name:  federatedName,
+								Alias: federatedName,
 								Args: map[string]interface{}{
 									"keys": newKeys,
 								},
@@ -199,7 +199,7 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 		}
 
 		
-		results, ok = federation[fedeatdeName].([]interface{})
+		results, ok = federation[federatedName].([]interface{})
 		if !ok {
 			return nil, fmt.Errorf("federation map did not have a %s slice, got %v", typName, res)
 		}
@@ -286,7 +286,6 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) ([]
 	} else {
 		var err error
 		// Executes that part of the plan (the subquery) on one of the federated gqlservers
-		fmt.Println("HERE")
 		res, err = e.runOnService(ctx, p.Service, p.Type, keys, p.Kind, p.SelectionSet)
 		fmt.Println(res, err)
 		if err != nil {

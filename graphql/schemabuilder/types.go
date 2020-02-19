@@ -202,7 +202,6 @@ func (s *Object) FieldFunc(name string, f interface{}, options ...FieldFuncOptio
 }
 
 func (s *Object) FederatedFieldFunc(name string, f interface{}, options ...FieldFuncOption) {
-	fmt.Println("FEDERTEED FIELD FUNC", name, s.ServiceName)
 	if s.Methods == nil {
 		s.Methods = make(Methods)
 	}
@@ -212,14 +211,13 @@ func (s *Object) FederatedFieldFunc(name string, f interface{}, options ...Field
 		opt.apply(m)
 	}
 
-	federatedMethodName := fmt.Sprintf("%s%s", name,  s.ServiceName) 
+	federatedMethodName := fmt.Sprintf("%s-%s", name,  s.ServiceName) 
 
 	if _, ok := s.Methods[federatedMethodName]; ok {
 		panic("duplicate method")
 	}
 	fmt.Println("federatedMethodName",federatedMethodName )
 	s.Methods[federatedMethodName] = m
-	s.Methods[name] = m
 }
 
 
