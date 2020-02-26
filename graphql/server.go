@@ -349,6 +349,7 @@ func (c *conn) handleMutate(in *inEnvelope) error {
 		go c.rerunSubscriptionsImmediately()
 
 		initial = false
+		go c.closeSubscription(id)
 		return nil, errors.New("stop")
 	}, c.minRerunIntervalFunc(c.ctx, query), c.alwaysSpawnGoroutineFunc(c.ctx, query))
 
