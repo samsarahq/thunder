@@ -240,9 +240,18 @@ func TestImplicitNullUpdate(t *testing.T) {
 					}
 
 					tt.giveUpdate.Id = 1
-					if err := db.UpdateRow(ctx, tt.giveUpdate); err != nil {
+					result, err := db.UpdateRowWithResult(ctx, tt.giveUpdate)
+					if err != nil {
 						t.Error(err)
 					}
+
+					rowsAffected, err := result.RowsAffected()
+
+					if err != nil {
+						t.Error(err)
+					}
+
+					require.Equal(t, rowsAffected, int64(1))
 
 					for _, field := range tt.wantNullFields {
 						assertFieldIsNull(t, sqlDB, field)

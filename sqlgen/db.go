@@ -389,9 +389,26 @@ func (db *DB) UpsertRow(ctx context.Context, row interface{}) (sql.Result, error
 //   if err := db.UpdateRow(ctx, user); err != nil {
 //
 func (db *DB) UpdateRow(ctx context.Context, row interface{}) error {
+	_, err := db.updateRowWithResult(ctx, row)
+	return err
+}
+
+// UpdateRowWithResult updates a single row in the database, identified by the row's primary key
+//
+// row should be a pointer to a struct, for example:
+//
+//   user := &User{Id; 10, Name: "bar"}
+//   if result, err := db.UpdateRowWithResult(ctx, user); err != nil {
+//
+// It is identical to UpdateRow, but returns an sql.Result as well.
+func (db *DB) UpdateRowWithResult(ctx context.Context, row interface{}) (sql.Result, error) {
+	return db.updateRowWithResult(ctx, row)
+}
+
+func (db *DB) updateRowWithResult(ctx context.Context, row interface{}) (sql.Result, error) {
 	query, err := db.Schema.MakeUpdateRow(row)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := db.checkColumnValuesAgainstLimits(
@@ -399,11 +416,11 @@ func (db *DB) UpdateRow(ctx context.Context, row interface{}) error {
 		query,
 		append(query.Where.Columns, query.Columns...),
 		append(query.Where.Values, query.Values...), query.Table); err != nil {
-		return err
+		return nil, err
 	}
 
-	_, err = db.execWithTrace(ctx, query, "UpsertRow")
-	return err
+	res, err := db.execWithTrace(ctx, query, "UpdateRow")
+	return res, err
 }
 
 // DeleteRow deletes a single row from the database, identified by the row's primary key
