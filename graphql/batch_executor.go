@@ -116,7 +116,10 @@ func (e *Executor) Execute(ctx context.Context, typ Type, source interface{}, qu
 		return nil, fmt.Errorf("expected query or mutation object for execution, got: %s", typ.String())
 	}
 
-	topLevelSelections := Flatten(query.SelectionSet)
+	topLevelSelections, err := Flatten(query.SelectionSet)
+	if err != nil {
+		return nil, err
+	}
 	topLevelRespWriter := newTopLevelOutputNode(query.Name)
 	initialSelectionWorkUnits := make([]*WorkUnit, 0, len(topLevelSelections))
 	writers := make(map[string]*outputNode)
@@ -411,7 +414,10 @@ func resolveUnionBatch(ctx context.Context, sources []interface{}, typ *Union, s
 // Traverses the object selections and resolves or creates work units to resolve
 // all of the object fields for every source passed in.
 func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object, selectionSet *SelectionSet, destinations []*outputNode) ([]*WorkUnit, error) {
-	selections := Flatten(selectionSet)
+	selections, err := Flatten(selectionSet)
+	if err != nil {
+		return nil, err
+	}
 	numExpensive := 0
 	numNonExpensive := 0
 	for _, selection := range selections {

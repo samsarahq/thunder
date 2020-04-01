@@ -1,12 +1,104 @@
 [
   {
-    "Name": "batchExecutor:Directive with fragment on top level",
+    "Name": "batchExecutor:Directive with fragment on top level, skip true",
     "Values": [
       {}
     ]
   },
   {
-    "Name": "batchExecutor:Directive with fragment nested",
+    "Name": "batchExecutor:Directive with fragment nested, skip true",
+    "Values": [
+      {
+        "items": [
+          {
+            "__key": 1,
+            "id": 1
+          },
+          {
+            "__key": 2,
+            "id": 2
+          },
+          {
+            "__key": 3,
+            "id": 3
+          },
+          {
+            "__key": 4,
+            "id": 4
+          },
+          {
+            "__key": 5,
+            "id": 5
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "Name": "batchExecutor:Directive on fragment selection, skip true",
+    "Values": [
+      {
+        "items": [
+          {
+            "__key": 1,
+            "id": 1
+          },
+          {
+            "__key": 2,
+            "id": 2
+          },
+          {
+            "__key": 3,
+            "id": 3
+          },
+          {
+            "__key": 4,
+            "id": 4
+          },
+          {
+            "__key": 5,
+            "id": 5
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "Name": "batchExecutor:Directive on both fragment(include true) and fragment selection(include false)",
+    "Values": [
+      {
+        "items": [
+          {
+            "__key": 1,
+            "id": 1,
+            "number": "\u000b"
+          },
+          {
+            "__key": 2,
+            "id": 2,
+            "number": "\u000c"
+          },
+          {
+            "__key": 3,
+            "id": 3,
+            "number": "\r"
+          },
+          {
+            "__key": 4,
+            "id": 4,
+            "number": "\u000e"
+          },
+          {
+            "__key": 5,
+            "id": 5,
+            "number": "\u000f"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "Name": "batchExecutor:Directive on both fragment(include false) and fragment selection(include true)",
     "Values": [
       {
         "items": [

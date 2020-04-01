@@ -25,13 +25,16 @@ func buildSchema() *graphql.Schema {
 	item.FieldFunc("name", func(ctx context.Context, item Item) (string, error) {
 		return string(item.Id), nil
 	})
+	item.FieldFunc("number", func(ctx context.Context, item Item) (string, error) {
+		return string(item.Number), nil
+	})
 	query.FieldFunc("items", func(ctx context.Context) ([]Item, error) {
 		retList := make([]Item, 5)
-		retList[0] = Item{Id: 1}
-		retList[1] = Item{Id: 2}
-		retList[2] = Item{Id: 3}
-		retList[3] = Item{Id: 4}
-		retList[4] = Item{Id: 5}
+		retList[0] = Item{Id: 1, Number: 11}
+		retList[1] = Item{Id: 2, Number: 12}
+		retList[2] = Item{Id: 3, Number: 13}
+		retList[3] = Item{Id: 4, Number: 14}
+		retList[4] = Item{Id: 5, Number: 15}
 		return retList, nil
 	})
 	return schema.MustBuild()
@@ -98,23 +101,55 @@ func TestDirectivesWithFragments(t *testing.T) {
 	snap := testgraphql.NewSnapshotter(t, builtSchema)
 	defer snap.Verify()
 
-	snap.SnapshotQuery("Directive with fragment on top level", `query x {
-		...X @skip(if: true)
-	}
-	fragment X on Query {
-		items {
-			name
+	snap.SnapshotQuery("Directive with fragment on top level, skip true", `query x {
+			...X @skip(if: true)
 		}
-	}`)
+		fragment X on Query {
+			items {
+				name
+			}
+		}`)
 
-	snap.SnapshotQuery("Directive with fragment nested", `query x {
+	snap.SnapshotQuery("Directive with fragment nested, skip true", `query x {
+			items {
+				id
+				...X @skip(if: true)
+			}
+		}
+		fragment X on Item {
+			name
+		}`)
+
+	snap.SnapshotQuery("Directive on fragment selection, skip true", `query x {
 		items {
 			id
-			...X @skip(if: true)
+			...X
 		}
 	}
 	fragment X on Item {
-		name
+		name @skip(if: true)
+	}`)
+
+	snap.SnapshotQuery("Directive on both fragment(include true) and fragment selection(include false)", `query x {
+		items {
+			id
+			...X @include(if: true)
+		}
+	}
+	fragment X on Item {
+		name @include(if: false)
+		number
+	}`)
+
+	snap.SnapshotQuery("Directive on both fragment(include false) and fragment selection(include true)", `query x {
+		items {
+			id
+			...X @include(if: false)
+		}
+	}
+	fragment X on Item {
+		name @include(if: true)
+		number
 	}`)
 
 }
