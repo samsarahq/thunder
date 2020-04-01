@@ -205,6 +205,41 @@ func TestFlatten(t *testing.T) {
 	type Args struct {
 		Value int
 	}
+	result, err := graphql.Flatten(&graphql.SelectionSet{
+		Selections: []*graphql.Selection{
+			{
+				Name:  "a",
+				Alias: "b",
+				Args: &Args{
+					Value: 2,
+				},
+				ParentType: "Query",
+				SelectionSet: &graphql.SelectionSet{
+					Selections: []*graphql.Selection{{
+						Name:         "foo",
+						UnparsedArgs: map[string]interface{}{},
+						ParentType:   "A",
+					}},
+				},
+			},
+			{
+				Name:  "a",
+				Alias: "b",
+				Args: &Args{
+					Value: 2,
+				},
+				ParentType: "Query",
+				SelectionSet: &graphql.SelectionSet{
+					Selections: []*graphql.Selection{{
+						Name:         "foo",
+						UnparsedArgs: map[string]interface{}{},
+						ParentType:   "A",
+					}},
+				},
+			},
+		},
+	})
+	assert.NoError(t, err)
 
 	assert.Equal(t,
 		[]*graphql.Selection{
@@ -229,41 +264,8 @@ func TestFlatten(t *testing.T) {
 					}},
 				},
 			},
-		},
-		graphql.Flatten(&graphql.SelectionSet{
-			Selections: []*graphql.Selection{
-				{
-					Name:  "a",
-					Alias: "b",
-					Args: &Args{
-						Value: 2,
-					},
-					ParentType: "Query",
-					SelectionSet: &graphql.SelectionSet{
-						Selections: []*graphql.Selection{{
-							Name:         "foo",
-							UnparsedArgs: map[string]interface{}{},
-							ParentType:   "A",
-						}},
-					},
-				},
-				{
-					Name:  "a",
-					Alias: "b",
-					Args: &Args{
-						Value: 2,
-					},
-					ParentType: "Query",
-					SelectionSet: &graphql.SelectionSet{
-						Selections: []*graphql.Selection{{
-							Name:         "foo",
-							UnparsedArgs: map[string]interface{}{},
-							ParentType:   "A",
-						}},
-					},
-				},
-			},
-		}))
+		}, result,
+	)
 }
 
 /*

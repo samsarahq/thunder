@@ -160,7 +160,7 @@ func parseSelectionSet(input *ast.SelectionSet, globalFragments map[string]*Frag
 			if !found {
 				return nil, NewClientError("unknown fragment")
 			}
-			if (len(directives) > 0) {
+			if len(directives) > 0 {
 				fragment.Directives = directives
 			}
 
@@ -180,11 +180,11 @@ func parseSelectionSet(input *ast.SelectionSet, globalFragments map[string]*Frag
 			}
 
 			newFragment := &Fragment{
-				On: on,
+				On:           on,
 				SelectionSet: selectionSet,
 			}
 
-			if (len(directives) > 0) {
+			if len(directives) > 0 {
 				newFragment.Directives = directives
 			}
 
@@ -481,14 +481,14 @@ func MustParse(source string, vars map[string]interface{}) *Query {
 //
 // Flatten does _not_ flatten out the inner queries, so the name above does not
 // get flattened out yet.
-func Flatten(selectionSet *SelectionSet) []*Selection {
+func Flatten(selectionSet *SelectionSet) ([]*Selection, error) {
 	grouped := make(map[string][]*Selection)
 
 	state := make(map[*SelectionSet]visitState)
-	var visit func(*SelectionSet)
-	visit = func(selectionSet *SelectionSet) {
+	var visit func(*SelectionSet) error
+	visit = func(selectionSet *SelectionSet) error {
 		if state[selectionSet] == visited {
-			return
+			return nil
 		}
 
 		for _, selection := range selectionSet.Selections {
@@ -496,18 +496,24 @@ func Flatten(selectionSet *SelectionSet) []*Selection {
 		}
 
 		for _, fragment := range selectionSet.Fragments {
-			// Apply the directive on the fragment to every sub selection
-			// to ensure it gets applied after the query is flattened
-			for _, selection := range fragment.SelectionSet.Selections {
-				selection.Directives = fragment.Directives
+			ok, err := shouldIncludeNode(fragment.Directives)
+			if err != nil {
+				return err
 			}
-			visit(fragment.SelectionSet)
+			if ok {
+				if err := visit(fragment.SelectionSet); err != nil {
+					return err
+				}
+			}
 		}
 
 		state[selectionSet] = visited
+		return nil
 	}
 
-	visit(selectionSet)
+	if err := visit(selectionSet); err != nil {
+		return nil, err
+	}
 
 	var flattened []*Selection
 	for _, selections := range grouped {
@@ -532,7 +538,7 @@ func Flatten(selectionSet *SelectionSet) []*Selection {
 		})
 	}
 
-	return flattened
+	return flattened, nil
 }
 
 /*
