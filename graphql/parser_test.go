@@ -190,6 +190,17 @@ func TestParseUnsupported(t *testing.T) {
 
 	_, err = Parse(`
 {
+	baz {
+		b(a: 1)
+		b(a: 2)
+	}
+}`, map[string]interface{}{})
+	if err == nil || err.Error() != "same alias with different args" {
+		t.Error("expected different args to fail", err)
+	}
+
+	_, err = Parse(`
+{
 	a: a
 	a: b
 }`, map[string]interface{}{})
@@ -214,6 +225,36 @@ func TestParseUnsupported(t *testing.T) {
 }`, map[string]interface{}{})
 	if err == nil || err.Error() != "directives not supported" {
 		t.Error("expected directives to fail", err)
+	}
+
+	_, err = Parse(`
+	{
+		baz {
+			x: b(a:3) {
+				foo
+			}
+			x: c(a:3) {
+				foo
+			}
+		}
+	}`, map[string]interface{}{})
+	if err == nil || err.Error() != "same alias with different name" {
+		t.Error("expected different content for same names to fail", err)
+	}
+
+	_, err = Parse(`
+	{
+		baz {
+			x: b(a:3) {
+				foo
+			}
+			y: b(a:3) {
+				foo
+			}
+		}
+	}`, map[string]interface{}{})
+	if err != nil {
+		t.Error("expected different names with same content to succeed", err)
 	}
 
 	_, err = Parse(`

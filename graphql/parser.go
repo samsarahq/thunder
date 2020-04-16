@@ -265,6 +265,11 @@ func detectConflicts(selectionSet *SelectionSet) error {
 				} else {
 					selections[selection.Alias] = selection
 				}
+				if selection.SelectionSet != nil {
+					if err := visitChild(selection.SelectionSet); err != nil {
+						return err
+					}
+				}
 			}
 
 			for _, fragment := range selectionSet.Fragments {
