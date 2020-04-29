@@ -12,25 +12,6 @@ import (
 	"github.com/samsarahq/thunder/thunderpb"
 )
 
-type GrpcExecutorClient struct {
-	Client thunderpb.ExecutorClient
-}
-
-func (c *GrpcExecutorClient) Execute(ctx context.Context, req *graphql.Query) ([]byte, error) {
-	marshaled, err := marshalQuery(req)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := c.Client.Execute(ctx, &thunderpb.ExecuteRequest{
-		Query: marshaled,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return resp.Result, nil
-}
-
-
 type DirectExecutorClient struct {
 	Client thunderpb.ExecutorServer
 }
@@ -51,7 +32,6 @@ func (c *DirectExecutorClient) Execute(ctx context.Context, req *graphql.Query) 
 
 // Server must implement thunderpb.ExecutorServer.
 var _ thunderpb.ExecutorServer = &Server{}
-
 
 type Server struct {
 	schema *graphql.Schema
@@ -98,7 +78,7 @@ func (s *Server) Execute(ctx context.Context, req *thunderpb.ExecuteRequest) (*t
 		}()
 
 		gqlExec := graphql.NewExecutor(graphql.NewImmediateGoroutineScheduler())
-		res, err := gqlExec.Execute(ctx, schema, nil,  query)
+		res, err := gqlExec.Execute(ctx, schema, nil, query)
 		if err != nil {
 			return nil, fmt.Errorf("executing query: %v", err)
 		}
@@ -117,7 +97,6 @@ func (s *Server) Execute(ctx context.Context, req *thunderpb.ExecuteRequest) (*t
 	rerunner.Stop()
 	return r, e
 }
-
 
 // marshalPbSelections gets a selection set and marshals it into the protobuf format
 func marshalPbSelections(selectionSet *graphql.SelectionSet) (*thunderpb.SelectionSet, error) {

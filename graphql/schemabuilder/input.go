@@ -316,7 +316,7 @@ func (sb *schemaBuilder) makeSliceParser(typ reflect.Type) (*argParser, graphql.
 	return &argParser{
 		FromJSON: func(value interface{}, dest reflect.Value) error {
 			asSlice, ok := value.([]interface{})
-			if asSlice != nil && !ok {
+			if !ok {
 				return errors.New("not a list")
 			}
 
