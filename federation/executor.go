@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/introspection"
+	"golang.org/x/sync/errgroup"
 )
 
 type ExecutorClient interface {
@@ -88,80 +90,12 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Exe
 
 }
 
-// Runs a subquery on a specified service and returns the results
-// func (e *Executor) runOnService(ctx context.Context, service string, typName string, keys []interface{}, kind string, selectionSet *graphql.SelectionSet) ([]interface{}, error) {
-// 	schema := e.Executors[service]
-
-// 	isRoot := keys == nil
-// 	if !isRoot {
-// 		selectionSet = &graphql.SelectionSet{
-// 			Selections: []*graphql.Selection{
-// 				{
-// 					Name:  "__federation",
-// 					Alias: "__federation",
-// 					Args:  map[string]interface{}{},
-// 					SelectionSet: &graphql.SelectionSet{
-// 						Selections: []*graphql.Selection{
-// 							{
-// 								Name:  typName,
-// 								Alias: typName,
-// 								Args: map[string]interface{}{
-// 									"keys": keys,
-// 								},
-// 								SelectionSet: selectionSet,
-// 							},
-// 						},
-// 					},
-// 				},
-// 			},
-// 		}
-// 	}
-
-// 	// TODO: make sure that if this hangs we're still good?
-// 	bytes, err := schema.Execute(ctx, &graphql.Query{
-// 		Kind:         kind,
-// 		SelectionSet: selectionSet,
-// 	})
-
-// 	if err != nil {
-// 		return nil, fmt.Errorf("execute remotely: %v", err)
-// 	}
-
-// 	var res interface{}
-// 	if err := json.Unmarshal(bytes, &res); err != nil {
-// 		return nil, fmt.Errorf("unmarshal res: %v", err)
-// 	}
-
-// 	var results []interface{}
-// 	if !isRoot {
-// 		root, ok := res.(map[string]interface{})
-// 		if !ok {
-// 			return nil, fmt.Errorf("did not get back a map from executor, got %v", res)
-// 		}
-
-// 		federation, ok := root["__federation"].(map[string]interface{})
-// 		if !ok {
-// 			return nil, fmt.Errorf("root did not have a federation map, got %v", res)
-// 		}
-
-// 		results, ok = federation[typName].([]interface{})
-// 		if !ok {
-// 			return nil, fmt.Errorf("federation map did not have a %s slice, got %v", typName, res)
-// 		}
-// 	} else {
-// 		results = []interface{}{res}
-// 	}
-
-// 	return results, nil
-// }
-
 type pathFollower struct {
 	targets []map[string]interface{}
 	keys    []interface{}
 }
 
 func (pf *pathFollower) extractTargets(node interface{}, path []PathStep) error {
-	// XXX: encode list flattening in path?
 	if slice, ok := node.([]interface{}); ok {
 		for i, elem := range slice {
 			if err := pf.extractTargets(elem, path); err != nil {
@@ -218,7 +152,73 @@ func (pf *pathFollower) extractTargets(node interface{}, path []PathStep) error 
 	return nil
 }
 
+func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) ([]interface{}, error) {
+	var res []interface{}
+
+	if p.Service == gatewayCoordinatorServiceName {
+		res = []interface{}{
+			map[string]interface{}{},
+		}
+	}
+
+	g, ctx := errgroup.WithContext(ctx)
+
+	var resMu sync.Mutex
+
+	for _, subPlan := range p.After {
+		subPlan := subPlan
+		var pf pathFollower
+		pf.keys = nil
+		pf.targets = []map[string]interface{}{
+			res[0].(map[string]interface{}),
+		}
+
+		g.Go(func() error {
+			results, err := e.execute(ctx, subPlan, pf.keys)
+			if err != nil {
+				return fmt.Errorf("executing sub plan: %v", err)
+			}
+
+			if len(results) != len(pf.targets) {
+				return fmt.Errorf("got %d results for %d targets", len(results), len(pf.targets))
+			}
+
+			resMu.Lock()
+			defer resMu.Unlock()
+
+			for i, target := range pf.targets {
+				result, ok := results[i].(map[string]interface{})
+				if !ok {
+					return fmt.Errorf("result is not an object: %v", result)
+				}
+				for k, v := range result {
+					target[k] = v
+				}
+			}
+
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
 func (e *Executor) Execute(ctx context.Context, q *graphql.Query) (interface{}, error) {
-	return nil, nil
+	p, err := e.planner.planRoot(q)
+	if err != nil {
+		return nil, err
+	}
+
+	printPlan(p)
+	r, err := e.execute(ctx, p, nil)
+	if err != nil {
+		return nil, err
+	}
+	res := r[0]
+
+	return res, nil
 
 }
