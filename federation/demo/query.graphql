@@ -1,0 +1,30 @@
+{
+  users {
+    id
+    name
+    picture {
+      url
+    }
+    albums {
+      pictures {
+        url
+      }
+    }
+  }
+  logo {
+    url
+  }
+  searchUsers(query: "Foo") {
+    __typename
+    ... on User {
+      name
+      picture {
+        url
+      }
+    }
+    ... on Address {
+      city
+      street
+    }
+  }
+}
