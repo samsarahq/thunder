@@ -100,7 +100,7 @@ var includeDirective = Directive{
 	Args: []InputValue{
 		InputValue{
 			Name:        "if",
-			Type:        Type{Inner: &graphql.Scalar{Type: "bool"}},
+			Type:        Type{Inner: &graphql.NonNull{Type: &graphql.Scalar{Type: "bool"}}},
 			Description: "Included when true.",
 		},
 	},
@@ -117,12 +117,11 @@ var skipDirective = Directive{
 	Args: []InputValue{
 		InputValue{
 			Name:        "if",
-			Type:        Type{Inner: &graphql.Scalar{Type: "bool"}},
+			Type:        Type{Inner: &graphql.NonNull{Type: &graphql.Scalar{Type: "bool"}}},
 			Description: "Skipped when true.",
 		},
 	},
 }
-
 
 func (s *introspection) registerType(schema *schemabuilder.Schema) {
 	object := schema.Object("__Type", Type{})

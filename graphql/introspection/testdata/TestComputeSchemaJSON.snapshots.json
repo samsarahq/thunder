@@ -12,9 +12,13 @@
                   "description": "Included when true.",
                   "name": "if",
                   "type": {
-                    "kind": "SCALAR",
-                    "name": "bool",
-                    "ofType": null
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "bool",
+                      "ofType": null
+                    }
                   }
                 }
               ],
@@ -33,9 +37,13 @@
                   "description": "Skipped when true.",
                   "name": "if",
                   "type": {
-                    "kind": "SCALAR",
-                    "name": "bool",
-                    "ofType": null
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "bool",
+                      "ofType": null
+                    }
                   }
                 }
               ],
