@@ -3,6 +3,7 @@ package federation
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/samsarahq/thunder/graphql"
@@ -39,6 +40,19 @@ func createExecutorWithFederatedObjects() (*Executor, *schemabuilder.Schema, *sc
 		return u.Id
 	})
 	s1.Query().FieldFunc("users", func(ctx context.Context) ([]*User, error) {
+		users := make([]*User, 0, 1)
+		users = append(users, &User{Id: int64(1), OrgId: int64(9086)})
+		return users, nil
+	})
+
+	type CustomArgs struct {
+		Name string
+	}
+
+	s1.Query().FieldFunc("usersWithArgs", func(args struct {
+		Foo string
+	}) ([]*User, error) {
+		fmt.Println("CUSTOM ARGS", args)
 		users := make([]*User, 0, 1)
 		users = append(users, &User{Id: int64(1), OrgId: int64(9086)})
 		return users, nil
@@ -143,9 +157,25 @@ func TestMultipleExecutorGeneratedSchemas(t *testing.T) {
 }
 
 func runAndValidateQueryResults(t *testing.T, ctx context.Context, e *Executor, query string, out string) {
+	// if err := graphql.PrepareQuery(context.Background(), query, q.SelectionSet); err != nil {
+	// 	t.Error(err)
+	// }
+	// q := graphql.MustParse(`
+	// 	{
+	// 		users {
+	// 			name
+	// 			slow { count }
+	//         }
+	//     }`, nil)
+	// q := graphql.MustParse(query, map[string]interface{}{})
+	// if err := graphql.PrepareQuery(context.Background(), builtSchema.Query, q.SelectionSet); err != nil {
+	// 	t.Error(err)
+	// }
+
 	res, err := e.Execute(ctx, graphql.MustParse(query, map[string]interface{}{}))
 	var expected interface{}
 	err = json.Unmarshal([]byte(out), &expected)
+	fmt.Println("final error", err)
 	require.NoError(t, err)
 	assert.Equal(t, expected, res)
 }
@@ -249,6 +279,43 @@ func TestExecutorQueriesFieldsOnOneService(t *testing.T) {
 						}
 					]
 				}`,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.Name, func(t *testing.T) {
+			// Validates that we were able to execute the query on multiple
+			// schemas and correctly stitch the results back together
+			ctx := context.Background()
+			runAndValidateQueryResults(t, ctx, e, testCase.Query, testCase.Output)
+		})
+	}
+}
+
+func TestExecutorQueriesFieldsOnOneServiceWithArgs(t *testing.T) {
+	e, _, _, err := createExecutorWithFederatedObjects()
+	require.NoError(t, err)
+	testCases := []struct {
+		Name   string
+		Query  string
+		Output string
+	}{
+		{
+			Name: "query fields on both services",
+			Query: `
+				query Foo {
+					usersWithArgs(foo: "foo") {
+						id
+					}
+				}`,
+			Output: `
+			{
+				"usersWithArgs":[
+					{
+						"__key":1,
+						"id":1
+					}
+				]
+			}`,
 		},
 	}
 	for _, testCase := range testCases {
