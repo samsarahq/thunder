@@ -3,6 +3,7 @@ package federation
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/samsarahq/thunder/graphql"
@@ -31,6 +32,7 @@ func createExecutorWithFederatedObjects() (*Executor, *schemabuilder.Schema, *sc
 	type User struct {
 		Id    int64
 		OrgId int64
+		Name  string
 	}
 	s1 := schemabuilder.NewSchema()
 	user := s1.Object("User", User{})
@@ -41,6 +43,14 @@ func createExecutorWithFederatedObjects() (*Executor, *schemabuilder.Schema, *sc
 	s1.Query().FieldFunc("users", func(ctx context.Context) ([]*User, error) {
 		users := make([]*User, 0, 1)
 		users = append(users, &User{Id: int64(1), OrgId: int64(9086)})
+		return users, nil
+	})
+
+	s1.Query().FieldFunc("usersWithArgs", func(args struct {
+		Name string
+	}) ([]*User, error) {
+		users := make([]*User, 0, 1)
+		users = append(users, &User{Id: int64(1), OrgId: int64(9086), Name: args.Name})
 		return users, nil
 	})
 
@@ -150,6 +160,11 @@ func runAndValidateQueryResults(t *testing.T, ctx context.Context, e *Executor, 
 	assert.Equal(t, expected, res)
 }
 
+func runAndValidateQueryError(t *testing.T, ctx context.Context, e *Executor, query string, out string, expectedError string) {
+	_, err := e.Execute(ctx, graphql.MustParse(query, map[string]interface{}{}))
+	assert.True(t, strings.Contains(err.Error(), expectedError))
+}
+
 func TestExecutorQueriesFieldsOnOneService(t *testing.T) {
 	e, _, _, err := createExecutorWithFederatedObjects()
 	require.NoError(t, err)
@@ -257,6 +272,79 @@ func TestExecutorQueriesFieldsOnOneService(t *testing.T) {
 			// schemas and correctly stitch the results back together
 			ctx := context.Background()
 			runAndValidateQueryResults(t, ctx, e, testCase.Query, testCase.Output)
+		})
+	}
+}
+
+func TestExecutorQueriesFieldsOnOneServiceWithArgs(t *testing.T) {
+	e, _, _, err := createExecutorWithFederatedObjects()
+	require.NoError(t, err)
+	testCases := []struct {
+		Name          string
+		Query         string
+		Output        string
+		Error         bool
+		ExpectedError string
+	}{
+		{
+			Name: "query fields with args",
+			Query: `
+				query Foo {
+					usersWithArgs(name: "foo") {
+						id
+						name
+					}
+				}`,
+			Output: `
+			{
+				"usersWithArgs":[
+					{
+						"__key":1,
+						"id":1,
+						"name":"foo"
+					}
+				]
+			}`,
+			Error: false,
+		},
+		{
+			Name: "query without necessary arguments",
+			Query: `
+				query Foo {
+					usersWithArgs(foo: "foo") {
+						id
+						name
+					}
+				}`,
+			Output:        "",
+			Error:         true,
+			ExpectedError: "error parsing args for \"usersWithArgs\": name: not a string",
+		},
+		{
+			Name: "query without necessary arguments 2",
+			Query: `
+				query Foo {
+					usersWithArgs {
+						id
+						name
+					}
+				}`,
+			Output:        "",
+			Error:         true,
+			ExpectedError: "error parsing args for \"usersWithArgs\": name: not a string",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.Name, func(t *testing.T) {
+			ctx := context.Background()
+			if !testCase.Error {
+				// Validates that we were able to execute the query on multiple
+				// schemas and correctly stitch the results back together
+				runAndValidateQueryResults(t, ctx, e, testCase.Query, testCase.Output)
+			} else {
+				runAndValidateQueryError(t, ctx, e, testCase.Query, testCase.Output, testCase.ExpectedError)
+			}
+
 		})
 	}
 }
