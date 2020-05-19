@@ -119,9 +119,9 @@ func marshalPbSelections(selectionSet *graphql.SelectionSet) (*thunderpb.Selecti
 		}
 
 		var args []byte
-		if selection.Args != nil {
+		if selection.UnparsedArgs != nil {
 			var err error
-			args, err = json.Marshal(selection.Args)
+			args, err = json.Marshal(selection.UnparsedArgs)
 			if err != nil {
 				return nil, oops.Wrapf(err, "marshaling args")
 			}
@@ -177,7 +177,7 @@ func unmarshalPbSelectionSet(selectionSet *thunderpb.SelectionSet) (*graphql.Sel
 			Name:         selection.Name,
 			Alias:        selection.Alias,
 			SelectionSet: children,
-			Args:         args,
+			UnparsedArgs: args,
 		})
 	}
 
