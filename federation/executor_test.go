@@ -83,26 +83,27 @@ func createExecutorWithFederatedObjects() (*Executor, *schemabuilder.Schema, *sc
 	})
 
 	// The second schema has a user with an email and a secret field
-	type UserWithEmail struct {
-		Id    int64
-		OrgId int64
-		Email string
+	type UserWithContactInfo struct {
+		Id          int64
+		OrgId       int64
+		Email       string
+		PhoneNumber string
 	}
 	s2 := schemabuilder.NewSchema()
-	s2.Federation().FieldFunc("User", func(args struct{ Keys []int64 }) []*UserWithEmail {
-		users := make([]*UserWithEmail, 0, len(args.Keys))
-		users = append(users, &UserWithEmail{Id: int64(1), Email: "yaaayeeeet@gmail.com"})
+	s2.Federation().FieldFunc("User", func(args struct{ Keys []int64 }) []*UserWithContactInfo {
+		users := make([]*UserWithContactInfo, 0, len(args.Keys))
+		users = append(users, &UserWithContactInfo{Id: int64(1), Email: "yaaayeeeet@gmail.com", PhoneNumber: "555"})
 		return users
 	})
-	s2.Query().FieldFunc("secretUsers", func(ctx context.Context) ([]*UserWithEmail, error) {
-		users := make([]*UserWithEmail, 0, 1)
-		users = append(users, &UserWithEmail{Id: int64(1), OrgId: int64(1), Email: "test@gmail.com"})
+	s2.Query().FieldFunc("secretUsers", func(ctx context.Context) ([]*UserWithContactInfo, error) {
+		users := make([]*UserWithContactInfo, 0, 1)
+		users = append(users, &UserWithContactInfo{Id: int64(1), OrgId: int64(1), Email: "test@gmail.com", PhoneNumber: "555"})
 		return users, nil
 	})
 
-	user2 := s2.Object("User", UserWithEmail{})
+	user2 := s2.Object("User", UserWithContactInfo{})
 	user2.Key("id")
-	user2.FieldFunc("secret", func(ctx context.Context, user *UserWithEmail) (string, error) {
+	user2.FieldFunc("secret", func(ctx context.Context, user *UserWithContactInfo) (string, error) {
 		return "shhhhh", nil
 	})
 
@@ -332,6 +333,53 @@ func TestExecutorQueriesFieldsOnOneServiceWithArgs(t *testing.T) {
 			Output:        "",
 			Error:         true,
 			ExpectedError: "error parsing args for \"usersWithArgs\": name: not a string",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.Name, func(t *testing.T) {
+			ctx := context.Background()
+			if !testCase.Error {
+				// Validates that we were able to execute the query on multiple
+				// schemas and correctly stitch the results back together
+				runAndValidateQueryResults(t, ctx, e, testCase.Query, testCase.Output)
+			} else {
+				runAndValidateQueryError(t, ctx, e, testCase.Query, testCase.Output, testCase.ExpectedError)
+			}
+
+		})
+	}
+}
+
+func TestExecutorQueriesFieldsOnMultipleServices(t *testing.T) {
+	e, _, _, err := createExecutorWithFederatedObjects()
+	require.NoError(t, err)
+	testCases := []struct {
+		Name          string
+		Query         string
+		Output        string
+		Error         bool
+		ExpectedError string
+	}{
+		{
+			Name: "query fields with args",
+			Query: `
+			query Foo {
+				users {
+					id
+					email
+				}
+			}`,
+			Output: `
+			{
+				"users":[
+					{
+						"__key":1,
+						"email":"yaaayeeeet@gmail.com",
+						"id":1
+					}
+				]
+			}`,
+			Error: false,
 		},
 	}
 	for _, testCase := range testCases {

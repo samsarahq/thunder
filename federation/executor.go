@@ -3,6 +3,7 @@ package federation
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 
 	"github.com/samsarahq/go/oops"
@@ -92,6 +93,33 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Exe
 }
 
 func (e *Executor) runOnService(ctx context.Context, service string, typName string, keys []interface{}, kind string, selectionSet *graphql.SelectionSet) (map[string]interface{}, error) {
+	schema := e.Executors[service]
+
+	isRoot := keys == nil
+	if !isRoot {
+		selectionSet = &graphql.SelectionSet{
+			Selections: []*graphql.Selection{
+				{
+					Name:  "__federation",
+					Alias: "__federation",
+					Args:  map[string]interface{}{},
+					SelectionSet: &graphql.SelectionSet{
+						Selections: []*graphql.Selection{
+							{
+								Name:  typName,
+								Alias: typName,
+								UnparsedArgs: map[string]interface{}{
+									"keys": keys,
+								},
+								SelectionSet: selectionSet,
+							},
+						},
+					},
+				},
+			},
+		}
+	}
+
 	// Execute query on specified service
 	schema, ok := e.Executors[service]
 	if !ok {
@@ -113,7 +141,87 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 	if !ok {
 		return nil, oops.Errorf("executor res not a map[string]interface{}")
 	}
+	if !isRoot {
+		result, ok = result["__federation"].(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("root did not have a federation map, got %v", res)
+		}
+
+		r, ok := result[typName].([]interface{})
+		if !ok {
+			return nil, fmt.Errorf("federation map did not have a %s slice, got %v", typName, res)
+		}
+
+		if len(r) != 1 {
+			return nil, fmt.Errorf("federation had incorect number of results for %s slice, got %v", typName, res)
+		}
+
+		res, ok := r[0].(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("federation map did not have an element in %s slice, got %v", typName, res)
+		}
+		return res, nil
+
+	}
 	return result, nil
+}
+
+func (pathTargets *pathSubqueryMetadata) extractKeys(node interface{}, path []PathStep) error {
+
+	if slice, ok := node.([]interface{}); ok {
+		for i, elem := range slice {
+			if err := pathTargets.extractKeys(elem, path); err != nil {
+				return fmt.Errorf("idx %d: %v", i, err)
+			}
+		}
+		return nil
+	}
+
+	if len(path) == 0 {
+		obj, ok := node.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("not an object: %v", obj)
+		}
+		key, ok := obj["__federation"]
+		if !ok {
+			return fmt.Errorf("missing __federation: %v", obj)
+		}
+		pathTargets.results = obj
+		pathTargets.keys = append(pathTargets.keys, key)
+		return nil
+	}
+
+	obj, ok := node.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	step := path[0]
+	switch step.Kind {
+	case KindField:
+		next, ok := obj[step.Name]
+		if !ok {
+			return fmt.Errorf("does not have key %s", step.Name)
+		}
+
+		if err := pathTargets.extractKeys(next, path[1:]); err != nil {
+			return fmt.Errorf("elem %s: %v", next, err)
+		}
+
+	case KindType:
+		typ, ok := obj["__typename"].(string)
+		if !ok {
+			return fmt.Errorf("does not have string key __typename")
+		}
+
+		if typ == step.Name {
+			if err := pathTargets.extractKeys(obj, path[1:]); err != nil {
+				return fmt.Errorf("typ %s: %v", typ, err)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) (interface{}, error) {
@@ -141,6 +249,10 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) (in
 		if p.Service == gatewayCoordinatorServiceName {
 			subPlanMetaData.keys = nil // On the root query there are no specified keys
 			subPlanMetaData.results = res
+		} else {
+			if err := subPlanMetaData.extractKeys(res, subPlan.Path); err != nil {
+				return nil, fmt.Errorf("failed to extratc keys %v: %v", subPlan.Path, err)
+			}
 		}
 
 		g.Go(func() error {
@@ -159,11 +271,9 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) (in
 			resMu.Lock()
 			defer resMu.Unlock()
 			for k, v := range result {
-				if _, ok := subPlanMetaData.results[k]; ok {
-					return oops.Errorf("key already exists in results: %v", k)
-				}
 				subPlanMetaData.results[k] = v
 			}
+
 			return nil
 		})
 	}
@@ -181,6 +291,20 @@ type pathSubqueryMetadata struct {
 	results map[string]interface{} // Results from subquery
 }
 
+func deleteKey(v interface{}, k string) {
+	switch v := v.(type) {
+	case []interface{}:
+		for _, e := range v {
+			deleteKey(e, k)
+		}
+	case map[string]interface{}:
+		delete(v, k)
+		for _, e := range v {
+			deleteKey(e, k)
+		}
+	}
+}
+
 func (e *Executor) Execute(ctx context.Context, query *graphql.Query) (interface{}, error) {
 	plan, err := e.planner.planRoot(query)
 	if err != nil {
@@ -192,5 +316,6 @@ func (e *Executor) Execute(ctx context.Context, query *graphql.Query) (interface
 		return nil, err
 	}
 
+	deleteKey(r, "__federation")
 	return r, nil
 }
