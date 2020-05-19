@@ -93,6 +93,7 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Exe
 }
 
 func (e *Executor) runOnService(ctx context.Context, service string, typName string, keys []interface{}, kind string, selectionSet *graphql.SelectionSet) (map[string]interface{}, error) {
+	fmt.Println("run on service")
 	// Execute query on specified service
 	schema, ok := e.Executors[service]
 	if !ok {
@@ -182,11 +183,13 @@ type pathSubqueryMetadata struct {
 func (e *Executor) Execute(ctx context.Context, query *graphql.Query) (interface{}, error) {
 	plan, err := e.planner.planRoot(query)
 	if err != nil {
+		fmt.Println(err)
 		return nil, err
 	}
 
 	r, err := e.execute(ctx, plan, nil)
 	if err != nil {
+		fmt.Println(err)
 		return nil, err
 	}
 

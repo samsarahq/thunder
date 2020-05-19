@@ -79,7 +79,7 @@ type Planner struct {
 // 		  name
 // 		}
 // 	  }
-// }  
+// }
 // "__federation" becomes the root query that the subquery is nested under,
 // "Foo" is the federated object type that we need to refetch,
 // and "__typename" lets gateway know what type the object is.
@@ -104,7 +104,7 @@ func printSelections(selectionSet *graphql.SelectionSet) {
 		fmt.Println(" selections")
 		for _, subSelection := range selectionSet.Selections {
 			fmt.Println(" ", subSelection.Name)
-			if (subSelection.Args != nil) {
+			if subSelection.Args != nil {
 				fmt.Println("   args ", subSelection.Args)
 			}
 			printSelections(subSelection.SelectionSet)
@@ -144,7 +144,8 @@ func (e *Planner) planObject(typ *graphql.Object, selectionSet *graphql.Selectio
 		if !ok {
 			return nil, fmt.Errorf("typ %s has no field %s", typ.Name, selection.Name)
 		}
-
+		fmt.Println("YOOO", field, selection.Name, selection.Args, selection.UnparsedArgs)
+		// field.ParseArguments(selection.UnparsedArgs)
 		fieldInfo := e.schema.Fields[field]
 
 		// Prioritize resolving as many fields as we can in the current service
@@ -176,6 +177,14 @@ func (e *Planner) planObject(typ *graphql.Object, selectionSet *graphql.Selectio
 			}
 		}
 
+		fmt.Println("PLS", field, selection.Name, selection.Args, selection.UnparsedArgs)
+		for name, arg := range field.Args {
+			fmt.Println(name, arg)
+			//TODO(aria): Parse Args
+
+			// parsed := reflect.New(field.Type)
+			// fmt.Println(parsed)
+		}
 		selectionCopy := &graphql.Selection{
 			Alias:        selection.Alias,
 			Name:         selection.Name,
@@ -234,8 +243,8 @@ func (e *Planner) planObject(typ *graphql.Object, selectionSet *graphql.Selectio
 		}
 		if !hasKey {
 			p.SelectionSet.Selections = append(p.SelectionSet.Selections, &graphql.Selection{
-				Name:  "__federation",
-				Alias: "__federation",
+				Name:         "__federation",
+				Alias:        "__federation",
 				UnparsedArgs: map[string]interface{}{},
 			})
 		}
@@ -253,8 +262,8 @@ func (e *Planner) planUnion(typ *graphql.Union, selectionSet *graphql.SelectionS
 		SelectionSet: &graphql.SelectionSet{
 			Selections: []*graphql.Selection{
 				{
-					Name:  "__typename",
-					Alias: "__typename",
+					Name:         "__typename",
+					Alias:        "__typename",
 					UnparsedArgs: map[string]interface{}{},
 				},
 			},

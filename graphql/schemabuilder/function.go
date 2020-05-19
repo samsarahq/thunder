@@ -60,6 +60,7 @@ func (sb *schemaBuilder) buildFunctionAndFuncCtx(typ reflect.Type, m *method) (*
 	if err != nil {
 		return nil, nil, err
 	}
+	fmt.Println("OMG", typ.Name(), args, argParser.Parse)
 
 	return &graphql.Field{
 		Resolve: func(ctx context.Context, source, funcRawArgs interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {

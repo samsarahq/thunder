@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="ed0003a9-4ccf-4607-93e6-85ce3f716534" name="Default Changelist" comment="">
+      <change afterPath="$PROJECT_DIR$/federation/http.go" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Go File" />
+      </list>
+    </option>
+  </component>
+  <component name="GOROOT" path="$PROJECT_DIR$/../../../../../opt/go1.12.8" />
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectId" id="1YJvfEGbNofqNttH3YpF4ibGCpn" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showExcludedFiles" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">
+    <property name="DefaultGoTemplateProperty" value="Go File" />
+    <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
+    <property name="WebServerToolWindowFactoryState" value="false" />
+    <property name="go.import.settings.migrated" value="true" />
+    <property name="go.vendoring.notification.had.been.shown" value="true" />
+    <property name="last_opened_file_path" value="$USER_HOME$" />
+  </component>
+  <component name="RunManager">
+    <configuration name="TestExecutorWithFederatedObject in github.com/samsarahq/thunder/federation" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="thunder" />
+      <working_directory value="$PROJECT_DIR$/federation" />
+      <framework value="gotest" />
+      <kind value="PACKAGE" />
+      <package value="github.com/samsarahq/thunder/federation" />
+      <pattern value="^TestExecutorWithFederatedObject$" />
+      <method v="2" />
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Go Test.TestExecutorWithFederatedObject in github.com/samsarahq/thunder/federation" />
+      </list>
+    </recent_temporary>
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="1" />
+  </component>
+  <component name="WindowStateProjectService">
+    <state x="2293" y="197" key="#GOROOT" timestamp="1582673632727">
+      <screen x="1680" y="23" width="1920" height="1057" />
+    </state>
+    <state x="2293" y="197" key="#GOROOT/1680.23.1920.1057/0.23.1680.935@1680.23.1920.1057" timestamp="1582673632727" />
+    <state width="1844" height="251" key="GridCell.Tab.0.bottom" timestamp="1582674014047">
+      <screen x="1680" y="23" width="1920" height="1057" />
+    </state>
+    <state width="1844" height="251" key="GridCell.Tab.0.bottom/1680.23.1920.1057/0.23.1680.935@1680.23.1920.1057" timestamp="1582674014047" />
+    <state width="1844" height="251" key="GridCell.Tab.0.center" timestamp="1582674014046">
+      <screen x="1680" y="23" width="1920" height="1057" />
+    </state>
+    <state width="1844" height="251" key="GridCell.Tab.0.center/1680.23.1920.1057/0.23.1680.935@1680.23.1920.1057" timestamp="1582674014046" />
+    <state width="1844" height="251" key="GridCell.Tab.0.left" timestamp="1582674014046">
+      <screen x="1680" y="23" width="1920" height="1057" />
+    </state>
+    <state width="1844" height="251" key="GridCell.Tab.0.left/1680.23.1920.1057/0.23.1680.935@1680.23.1920.1057" timestamp="1582674014046" />
+    <state width="1844" height="251" key="GridCell.Tab.0.right" timestamp="1582674014046">
+      <screen x="1680" y="23" width="1920" height="1057" />
+    </state>
+    <state width="1844" height="251" key="GridCell.Tab.0.right/1680.23.1920.1057/0.23.1680.935@1680.23.1920.1057" timestamp="1582674014046" />
+    <state x="2300" y="349" width="687" height="518" key="find.popup" timestamp="1582925345144">
+      <screen x="1680" y="23" width="1920" height="1057" />
+    </state>
+    <state x="543" y="311" width="687" height="518" key="find.popup/0.23.1680.935@0.23.1680.935" timestamp="1582915680605" />
+    <state x="2300" y="349" width="687" height="518" key="find.popup/1680.23.1920.1057/0.23.1680.935@1680.23.1920.1057" timestamp="1582925345144" />
+    <state x="550" y="211" width="670" height="599" key="search.everywhere.popup" timestamp="1582916016241">
+      <screen x="0" y="23" width="1680" height="935" />
+    </state>
+    <state x="550" y="211" width="670" height="599" key="search.everywhere.popup/0.23.1680.935@0.23.1680.935" timestamp="1582916016241" />
+    <state x="2309" y="235" width="670" height="676" key="search.everywhere.popup/1680.23.1920.1057/0.23.1680.935@1680.23.1920.1057" timestamp="1582867473928" />
+    <state x="2309" y="217" width="670" height="618" key="search.everywhere.popup/1680.23.1920.965/0.23.1680.1027@1680.23.1920.965" timestamp="1582767314501" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
+          <url>file://$PROJECT_DIR$/federation/http.go</url>
+          <option name="timeStamp" value="1" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
+          <url>file://$PROJECT_DIR$/thunderpb/federation.pb.go</url>
+          <line>219</line>
+          <option name="timeStamp" value="2" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
+  </component>
+</project>

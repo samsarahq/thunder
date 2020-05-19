@@ -171,6 +171,7 @@ func PrepareQuery(ctx context.Context, typ Type, selectionSet *SelectionSet) err
 
 			// Only parse args once for a given selection.
 			if !selection.parsed {
+				fmt.Println(selection.Name, selection.Args, selection.UnparsedArgs)
 				selection.parsed = true
 				parsed, err := field.ParseArguments(selection.UnparsedArgs)
 				if err != nil {

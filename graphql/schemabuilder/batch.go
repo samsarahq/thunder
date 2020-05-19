@@ -123,7 +123,6 @@ func (sb *schemaBuilder) buildBatchFunctionAndFuncCtx(typ reflect.Type, m *metho
 
 		return funcCtx.extractResultsAndErr(funcOutputArgs, idxValues, retType)
 	}
-
 	return &graphql.Field{
 		BatchResolver:              batchExecFunc,
 		Batch:                      true,
