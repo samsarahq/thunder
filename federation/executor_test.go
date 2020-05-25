@@ -34,11 +34,15 @@ func createExecutorWithFederatedObjects() (*Executor, *schemabuilder.Schema, *sc
 		OrgId int64
 		Name  string
 	}
-	s1 := schemabuilder.NewSchema()
+	s1 := schemabuilder.NewSchemaWithName("s1")
 	user := s1.Object("User", User{})
 	user.Key("id")
-	user.Federation(func(u *User) int64 {
-		return u.Id
+	type UserIds struct {
+		Id    int64
+		OrgId int64
+	}
+	user.Federation(func(u *User) *User {
+		return u
 	})
 	s1.Query().FieldFunc("users", func(ctx context.Context) ([]*User, error) {
 		users := make([]*User, 0, 1)
@@ -89,8 +93,13 @@ func createExecutorWithFederatedObjects() (*Executor, *schemabuilder.Schema, *sc
 		Email       string
 		PhoneNumber string
 	}
-	s2 := schemabuilder.NewSchema()
-	s2.Federation().FieldFunc("User", func(args struct{ Keys []int64 }) []*UserWithContactInfo {
+
+	type UserKeys struct {
+		Id    int64
+		OrgId int64
+	}
+	s2 := schemabuilder.NewSchemaWithName("s2")
+	s2.Federation().FederatedFieldFunc("User", func(args struct{ Keys []UserKeys }) []*UserWithContactInfo {
 		users := make([]*UserWithContactInfo, 0, len(args.Keys))
 		users = append(users, &UserWithContactInfo{Id: int64(1), Email: "yaaayeeeet@gmail.com", PhoneNumber: "555"})
 		return users

@@ -11,6 +11,7 @@ import (
 // can be registered against the "Mutation" and "Query" objects in order to
 // build out a full GraphQL schema.
 type Schema struct {
+	Name      string
 	objects   map[string]*Object
 	enumTypes map[reflect.Type]*EnumMapping
 }
@@ -18,6 +19,23 @@ type Schema struct {
 // NewSchema creates a new schema.
 func NewSchema() *Schema {
 	schema := &Schema{
+		objects: make(map[string]*Object),
+	}
+
+	// Default registrations.
+	schema.Enum(SortOrder(0), map[string]SortOrder{
+		"asc":  SortOrder_Ascending,
+		"desc": SortOrder_Descending,
+	})
+
+	return schema
+}
+
+// NewSchema creates a new schema.
+func NewSchemaWithName(name string) *Schema {
+
+	schema := &Schema{
+		Name:    name,
 		objects: make(map[string]*Object),
 	}
 
@@ -100,8 +118,9 @@ func (s *Schema) Object(name string, typ interface{}) *Object {
 		return object
 	}
 	object := &Object{
-		Name: name,
-		Type: typ,
+		Name:        name,
+		Type:        typ,
+		ServiceName: s.Name,
 	}
 	s.objects[name] = object
 	return object
@@ -175,7 +194,6 @@ func (s *Schema) MustBuild() *graphql.Schema {
 	}
 	return built
 }
-
 
 type federation struct{}
 

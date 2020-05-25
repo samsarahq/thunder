@@ -195,7 +195,7 @@ func TestPlanner(t *testing.T) {
 						}
 					}`),
 					After: []*Plan{
-						
+
 						{
 							Path: []PathStep{
 								{Kind: KindField, Name: "s1both"},

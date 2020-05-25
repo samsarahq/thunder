@@ -2,6 +2,7 @@ package schemabuilder
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 )
 
@@ -14,6 +15,9 @@ type Object struct {
 	Methods     Methods // Deprecated, use FieldFunc instead.
 
 	key string
+
+	ServiceName   string
+	FederatedKeys []string
 }
 
 type paginationObject struct {
@@ -311,7 +315,9 @@ type concurrencyArgs struct {
 // the different goroutines.
 type NumParallelInvocationsFunc func(ctx context.Context, numNodes int) int
 
-func (f NumParallelInvocationsFunc) apply(m *method) { m.ConcurrencyArgs.numParallelInvocationsFunc = f }
+func (f NumParallelInvocationsFunc) apply(m *method) {
+	m.ConcurrencyArgs.numParallelInvocationsFunc = f
+}
 
 type UseFallbackFlag func(context.Context) bool
 
@@ -347,4 +353,27 @@ var unionType = reflect.TypeOf(Union{})
 
 func (s *Object) Federation(f interface{}) {
 	s.FieldFunc("__federation", f)
+}
+
+func (s *Object) FederatedFieldFunc(name string, f interface{}, options ...FieldFuncOption) {
+
+	if s.Methods == nil {
+		s.Methods = make(Methods)
+	}
+
+	m := &method{Fn: f}
+	for _, opt := range options {
+		opt.apply(m)
+	}
+
+	if _, ok := s.Methods[name]; ok {
+		panic("duplicate method")
+	}
+	federatedMethodName := fmt.Sprintf("%s-%s", name, s.ServiceName)
+	if _, ok := s.Methods[federatedMethodName]; ok {
+		panic("duplicate method")
+	}
+	fmt.Println("federatedMethodName", federatedMethodName)
+	s.Methods[federatedMethodName] = m
+
 }

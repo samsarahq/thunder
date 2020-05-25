@@ -92,11 +92,69 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Exe
 
 }
 
+func getRootGraphqlType(typ graphql.Type) graphql.Type {
+	// if typ.(graphql.List) {
+	// 	return getRootType(typ.)
+	// }
+	// swicth typ := typ.(type) {
+
+	// }
+	switch typ := typ.(type) {
+	case *graphql.List:
+		// fmt.Println("LSTTT", typ)
+		return getRootGraphqlType(typ.Type)
+	case *graphql.NonNull:
+		// fmt.Println("NONULL", typ)
+		return getRootGraphqlType(typ.Type)
+	case *graphql.Object:
+		fmt.Println("PMGVHBKJNLKMGJ BHKJNHV GJKNJGHVBKN", typ)
+		if typ.Name == "__InputValue" {
+			for name, f := range typ.Fields {
+				fmt.Println(name, f.Type)
+			}
+			return typ
+		}
+		return nil
+	default:
+		fmt.Println(typ)
+		return nil
+	}
+	// return nil
+}
+
 func (e *Executor) runOnService(ctx context.Context, service string, typName string, keys []interface{}, kind string, selectionSet *graphql.SelectionSet) (map[string]interface{}, error) {
 	schema := e.Executors[service]
 
 	isRoot := keys == nil
 	if !isRoot {
+		federatedName := fmt.Sprintf("%s-%s", typName, service)
+		newKeys := make(map[string]interface{}, len(keys))
+
+		var rootObject *graphql.Object
+		var ok bool
+		for a, _ := range e.planner.schema.Fields {
+			if a.Type.String() == typName {
+				rootObject, ok = a.Type.(*graphql.Object)
+				if !ok {
+					return nil, oops.Errorf("WRONG")
+				}
+			}
+		}
+		for name, key := range keys[0].(map[string]interface{}) {
+			if name == "__key" {
+				continue
+			}
+			for fieldName, field := range rootObject.Fields {
+				if fieldName == name {
+					_, ok := field.FederatedKey[service]
+					if ok {
+						newKeys[name] = key
+						fmt.Println("ADDING", name, key, "TO SERVICE", service)
+					}
+				}
+			}
+		}
+
 		selectionSet = &graphql.SelectionSet{
 			Selections: []*graphql.Selection{
 				{
@@ -106,10 +164,10 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 					SelectionSet: &graphql.SelectionSet{
 						Selections: []*graphql.Selection{
 							{
-								Name:  typName,
-								Alias: typName,
+								Name:  federatedName,
+								Alias: federatedName,
 								UnparsedArgs: map[string]interface{}{
-									"keys": keys,
+									"keys": []interface{}{newKeys},
 								},
 								SelectionSet: selectionSet,
 							},
@@ -146,8 +204,8 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 		if !ok {
 			return nil, fmt.Errorf("root did not have a federation map, got %v", res)
 		}
-
-		r, ok := result[typName].([]interface{})
+		federatedName := fmt.Sprintf("%s-%s", typName, service)
+		r, ok := result[federatedName].([]interface{})
 		if !ok {
 			return nil, fmt.Errorf("federation map did not have a %s slice, got %v", typName, res)
 		}
@@ -258,6 +316,7 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) (in
 		g.Go(func() error {
 			// Execute the subquery on the specified service
 			results, err := e.execute(ctx, subPlan, subPlanMetaData.keys)
+			fmt.Println("results", results, err)
 			if err != nil {
 				return oops.Wrapf(err, "executing sub plan: %v", err)
 			}

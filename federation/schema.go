@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/samsarahq/thunder/graphql"
 )
@@ -28,6 +29,13 @@ type SchemaWithFederationInfo struct {
 	Schema *graphql.Schema
 	// Fields is a map of fields to services which they belong to
 	Fields map[*graphql.Field]*FieldInfo
+}
+
+func getRootType(typ *introspectionTypeRef) *introspectionTypeRef {
+	if typ.OfType == nil {
+		return typ
+	}
+	return getRootType(typ.OfType)
 }
 
 // convertVersionedSchemas takes schemas for all of versions of
@@ -83,12 +91,50 @@ func convertVersionedSchemas(schemas serviceSchemas) (*SchemaWithFederationInfo,
 	fieldInfos := make(map[*graphql.Field]*FieldInfo)
 	for _, service := range serviceNames {
 		for _, typ := range serviceSchemasByName[service].Schema.Types {
+
+			if typ.Name == "Federation" {
+				fmt.Println(typ.Name, typ.Kind)
+				obj := types[typ.Name].(*graphql.Object)
+				for _, field := range typ.Fields {
+					fmt.Println(field.Name, obj)
+					for _, arg := range field.Args {
+						rootType := getRootType(arg.Type)
+
+						fmt.Println("asdfgjhb", rootType, arg.Name)
+						names := strings.SplitN(field.Name, "-", 2)
+						objName := names[0]
+						for _, t := range serviceSchemasByName[service].Schema.Types {
+							if objName == t.Name {
+								obj2 := types[t.Name].(*graphql.Object)
+								inputType := types[rootType.Name].(*graphql.InputObject)
+								for inputFieldName := range inputType.InputFields {
+									for _, field := range t.Fields {
+										if field.Name == inputFieldName {
+											fmt.Println("FOUND", field.Name)
+											f := obj2.Fields[field.Name]
+											fmt.Println("HERE", field.Name, f)
+											if f.FederatedKey == nil {
+												f.FederatedKey = make(map[string]bool, len(serviceNames))
+											}
+											f.FederatedKey[service] = true
+											fmt.Println("YOOOOO", field.Name, t.Name, f.FederatedKey)
+										}
+									}
+								}
+							}
+
+						}
+
+					}
+
+				}
+
+			}
 			if typ.Kind == "OBJECT" {
 				obj := types[typ.Name].(*graphql.Object)
 
 				for _, field := range typ.Fields {
 					f := obj.Fields[field.Name]
-
 					info, ok := fieldInfos[f]
 					if !ok {
 						info = &FieldInfo{
