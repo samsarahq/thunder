@@ -394,13 +394,14 @@ func TestMergeEnumUnion(t *testing.T) {
 func TestMergeEnumIntersection(t *testing.T) {
 	type Enum int32
 
+	type enumType int32
 	s1 := schemabuilder.NewSchema()
 	{
 		s1.Enum(Enum(0), map[string]Enum{
 			"zero": 0,
 			"one":  1,
 		})
-		s1.Query().FieldFunc("f", func() Enum { return Enum(1) })
+		s1.Query().FieldFunc("f", func(args struct{EnumField Enum}) Enum { return Enum(1) })
 	}
 
 	s2 := schemabuilder.NewSchema()
@@ -409,7 +410,7 @@ func TestMergeEnumIntersection(t *testing.T) {
 			"zero": 0,
 			"two":  2,
 		})
-		s2.Query().FieldFunc("f", func() Enum { return Enum(1) })
+		s2.Query().FieldFunc("f", func(args struct{EnumField Enum}) Enum { return Enum(1) })
 	}
 
 	s3 := schemabuilder.NewSchema()
@@ -417,7 +418,7 @@ func TestMergeEnumIntersection(t *testing.T) {
 		s3.Enum(Enum(0), map[string]Enum{
 			"zero": 0,
 		})
-		s3.Query().FieldFunc("f", func() Enum { return Enum(1) })
+		s3.Query().FieldFunc("f", func(args struct{EnumField Enum}) Enum { return Enum(1) })
 	}
 
 	assertSchemaIntersectionEq(t, s1, s2, s3)
