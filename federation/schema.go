@@ -189,7 +189,7 @@ func parseInputFields(source []introspectionInputField, all map[string]graphql.T
 			return nil, fmt.Errorf("type %s not found", rawType.Name)
 		}
 		switch rawType.Kind {
-		case "INPUT_OBJECT", "SCALAR":
+		case "INPUT_OBJECT", "SCALAR", "ENUM":
 		default:
 			return nil, fmt.Errorf("input field %s has bad typ: %s", field.Name, rawType.Kind)
 		}
