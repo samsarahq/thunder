@@ -17,7 +17,7 @@ const keyField = "__key"
 const federationField = "__federation"
 
 type ExecutorClient interface {
-	Execute(ctx context.Context, req *graphql.Query) ([]byte, error)
+	Execute(ctx context.Context, req *graphql.Query, optionalArgs interface{}) ([]byte, error)
 }
 
 // Executor has a map of all the executor clients such that it can execute a
@@ -34,7 +34,7 @@ func fetchSchema(ctx context.Context, e ExecutorClient) ([]byte, error) {
 		return nil, err
 	}
 
-	return e.Execute(ctx, query)
+	return e.Execute(ctx, query, nil)
 }
 
 func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Executor, error) {
@@ -95,7 +95,8 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Exe
 
 }
 
-func (e *Executor) runOnService(ctx context.Context, service string, typName string, keys []interface{}, kind string, selectionSet *graphql.SelectionSet) (map[string]interface{}, error) {
+func (e *Executor) runOnService(ctx context.Context, service string, typName string, keys []interface{}, kind string, selectionSet *graphql.SelectionSet, optionalArgs interface{}) (map[string]interface{}, error) {
+	// Execute query on specified service
 	schema, ok := e.Executors[service]
 	if !ok {
 		return nil, oops.Errorf("service not recognized")
@@ -139,7 +140,7 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 	bytes, err := schema.Execute(ctx, &graphql.Query{
 		Kind:         kind,
 		SelectionSet: selectionSet,
-	})
+	}, optionalArgs)
 	if err != nil {
 		return nil, oops.Wrapf(err, "execute remotely")
 	}
@@ -229,13 +230,13 @@ func (pathTargets *pathSubqueryMetadata) extractKeys(node interface{}, path []Pa
 	return nil
 }
 
-func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) (interface{}, error) {
+func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}, optionalArgs interface{}) (interface{}, error) {
 	res := map[string]interface{}{}
 
 	// Executes that part of the plan (the subquery) on one of the federated gqlservers
 	if p.Service != gatewayCoordinatorServiceName {
 		var err error
-		res, err = e.runOnService(ctx, p.Service, p.Type, keys, p.Kind, p.SelectionSet)
+		res, err = e.runOnService(ctx, p.Service, p.Type, keys, p.Kind, p.SelectionSet, optionalArgs)
 		if err != nil {
 			return nil, oops.Wrapf(err, "run on service")
 		}
@@ -262,7 +263,7 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) (in
 
 		g.Go(func() error {
 			// Execute the subquery on the specified service
-			results, err := e.execute(ctx, subPlan, subPlanMetaData.keys)
+			results, err := e.execute(ctx, subPlan, subPlanMetaData.keys, optionalArgs)
 			if err != nil {
 				return oops.Wrapf(err, "executing sub plan: %v", err)
 			}
@@ -314,13 +315,13 @@ type pathSubqueryMetadata struct {
 	results map[string]interface{} // Results from subquery
 }
 
-func (e *Executor) Execute(ctx context.Context, query *graphql.Query) (interface{}, error) {
+func (e *Executor) Execute(ctx context.Context, query *graphql.Query, optionalArgs interface{}) (interface{}, error) {
 	plan, err := e.planner.planRoot(query)
 	if err != nil {
 		return nil, err
 	}
 
-	r, err := e.execute(ctx, plan, nil)
+	r, err := e.execute(ctx, plan, nil, optionalArgs)
 	if err != nil {
 		return nil, err
 	}
