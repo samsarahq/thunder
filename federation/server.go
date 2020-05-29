@@ -18,9 +18,9 @@ type DirectExecutorClient struct {
 	Client thunderpb.ExecutorServer
 }
 
-func (c *DirectExecutorClient) Execute(ctx context.Context, req *graphql.Query) ([]byte, error) {
+func (c *DirectExecutorClient) Execute(ctx context.Context, req *graphql.Query, optionalArgs interface{}) ([]byte, error) {
 	// marshal query into a protobuf
-	marshaled, err := marshalQuery(req)
+	marshaled, err := MarshalQuery(req)
 	if err != nil {
 		return nil, oops.Wrapf(err, "marshaling query")
 	}
@@ -52,8 +52,8 @@ func NewServer(schema *graphql.Schema) (*Server, error) {
 }
 
 // Execute unmarshals the protobuf query and executes it on the server
-func (s *Server) Execute(ctx context.Context, req *thunderpb.ExecuteRequest) (*thunderpb.ExecuteResponse, error) {
-	query, err := unmarshalQuery(req.Query)
+func ExecuteRequest(ctx context.Context, req *thunderpb.ExecuteRequest, gqlSchema *graphql.Schema, localExecutor graphql.ExecutorRunner) (*thunderpb.ExecuteResponse, error) {
+	query, err := UnmarshalQuery(req.Query)
 	if err != nil {
 		return nil, oops.Wrapf(err, "unmarshaling query")
 	}
@@ -61,9 +61,9 @@ func (s *Server) Execute(ctx context.Context, req *thunderpb.ExecuteRequest) (*t
 	var schema graphql.Type
 	switch query.Kind {
 	case "query":
-		schema = s.schema.Query
+		schema = gqlSchema.Query
 	case "mutation":
-		schema = s.schema.Mutation
+		schema = gqlSchema.Mutation
 	default:
 		return nil, fmt.Errorf("unknown kind %s", query.Kind)
 	}
@@ -84,7 +84,7 @@ func (s *Server) Execute(ctx context.Context, req *thunderpb.ExecuteRequest) (*t
 			close(done)
 		}()
 
-		res, err := s.localExecutor.Execute(ctx, schema, nil, query)
+		res, err := localExecutor.Execute(ctx, schema, nil, query)
 		if err != nil {
 			return nil, fmt.Errorf("executing query: %v", err)
 		}
@@ -103,6 +103,10 @@ func (s *Server) Execute(ctx context.Context, req *thunderpb.ExecuteRequest) (*t
 
 	rerunner.Stop()
 	return queryResponse, queryError
+}
+
+func (s *Server) Execute(ctx context.Context, req *thunderpb.ExecuteRequest) (*thunderpb.ExecuteResponse, error) {
+	return ExecuteRequest(ctx, req, s.schema, s.localExecutor)
 }
 
 // marshalPbSelections gets a selection set and marshals it into the protobuf format
@@ -200,7 +204,7 @@ func unmarshalPbSelectionSet(selectionSet *thunderpb.SelectionSet) (*graphql.Sel
 }
 
 // marshalQuery marshals a graphql query type into a protobuf
-func marshalQuery(query *graphql.Query) (*thunderpb.Query, error) {
+func MarshalQuery(query *graphql.Query) (*thunderpb.Query, error) {
 	selectionSet, err := marshalPbSelections(query.SelectionSet)
 	if err != nil {
 		return nil, oops.Wrapf(err, "marshaling query")
@@ -213,7 +217,7 @@ func marshalQuery(query *graphql.Query) (*thunderpb.Query, error) {
 }
 
 // unmarshalQuery unmarshals a protobuf query type into the graphql query type
-func unmarshalQuery(query *thunderpb.Query) (*graphql.Query, error) {
+func UnmarshalQuery(query *thunderpb.Query) (*graphql.Query, error) {
 	selectionSet, err := unmarshalPbSelectionSet(query.SelectionSet)
 	if err != nil {
 		return nil, oops.Wrapf(err, "unmarshaling query")
