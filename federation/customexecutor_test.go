@@ -70,7 +70,7 @@ func NewCustomExecutorServer(schema *graphql.Schema) (*CustomServer, error) {
 
 // Execute unmarshals the protobuf query and executes it on the server
 func (s *CustomServer) Execute(ctx context.Context, req *thunderpb.CustomExecutorRequest) (*thunderpb.CustomExecutorResponse, error) {
-	ctx = context.WithValue(ctx, "authToken", req.Token)
+	ctx = context.WithValue(ctx, "authtoken", req.Token)
 	resp, err := ExecuteRequest(ctx, req.Request, s.schema, s.localExecutor)
 	if err != nil {
 		return nil, err
@@ -78,7 +78,7 @@ func (s *CustomServer) Execute(ctx context.Context, req *thunderpb.CustomExecuto
 	return &thunderpb.CustomExecutorResponse{Response: resp}, err
 }
 
-func TestCustomExecutor(t *testing.T) {
+func createFederatedSchema(t *testing.T) *schemabuilder.Schema {
 	type User struct {
 		Id    int64
 		OrgId int64
@@ -91,7 +91,7 @@ func TestCustomExecutor(t *testing.T) {
 		return u.Id
 	})
 	s1.Query().FieldFunc("users", func(ctx context.Context) ([]*User, error) {
-		value, ok := ctx.Value("authToken").(string)
+		value, ok := ctx.Value("authtoken").(string)
 		if ok && value == "testToken" {
 			users := make([]*User, 0, 1)
 			users = append(users, &User{Id: int64(1), OrgId: int64(9086)})
@@ -100,19 +100,17 @@ func TestCustomExecutor(t *testing.T) {
 		return nil, oops.Errorf("no token")
 
 	})
-	ctx := context.Background()
-	execs := make(map[string]ExecutorClient)
-	srv, err := NewCustomExecutorServer(s1.MustBuild())
-	require.NoError(t, err)
-	execs["s1"] = &SpecialExecutorClient{Client: srv}
-	e, err := NewExecutor(ctx, execs)
-	require.NoError(t, err)
+	return s1
+}
+
+func executeSuccesfulQuery(t *testing.T, ctx context.Context, e *Executor, extraInformation interface{}) {
+
 	query := `query Foo {
 					users {
 						id
 					}
 				}`
-	res, err := e.Execute(ctx, graphql.MustParse(query, map[string]interface{}{}), &Token{token: "testToken"})
+	res, err := e.Execute(ctx, graphql.MustParse(query, map[string]interface{}{}), extraInformation)
 	require.NoError(t, err)
 	output := `
 	 	{
@@ -127,4 +125,16 @@ func TestCustomExecutor(t *testing.T) {
 	err = json.Unmarshal([]byte(output), &expected)
 	require.NoError(t, err)
 	assert.Equal(t, expected, res)
+}
+
+func TestCustomExecutor(t *testing.T) {
+	schema := createFederatedSchema(t)
+	ctx := context.Background()
+	execs := make(map[string]ExecutorClient)
+	srv, err := NewCustomExecutorServer(schema.MustBuild())
+	require.NoError(t, err)
+	execs["s1"] = &SpecialExecutorClient{Client: srv}
+	e, err := NewExecutor(ctx, execs)
+	require.NoError(t, err)
+	executeSuccesfulQuery(t, ctx, e, &Token{token: "testToken"})
 }

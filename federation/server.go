@@ -51,7 +51,7 @@ func NewServer(schema *graphql.Schema) (*Server, error) {
 	}, nil
 }
 
-// Execute unmarshals the protobuf query and executes it on the server
+// ExecuteRequest unmarshals the protobuf query and executes it on the server
 func ExecuteRequest(ctx context.Context, req *thunderpb.ExecuteRequest, gqlSchema *graphql.Schema, localExecutor graphql.ExecutorRunner) (*thunderpb.ExecuteResponse, error) {
 	query, err := UnmarshalQuery(req.Query)
 	if err != nil {
