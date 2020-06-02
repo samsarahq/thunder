@@ -15,6 +15,7 @@ import (
 
 const keyField = "__key"
 const federationField = "__federation"
+const typeNameField = "__typeName"
 
 type ExecutorClient interface {
 	Execute(ctx context.Context, req *graphql.Query) ([]byte, error)
@@ -182,7 +183,7 @@ func (pathTargets *pathSubqueryMetadata) extractKeys(node interface{}, path []Pa
 	if slice, ok := node.([]interface{}); ok {
 		for i, elem := range slice {
 			if err := pathTargets.extractKeys(elem, path); err != nil {
-				return fmt.Errorf("idx %d: %v", i, err)
+				return oops.Errorf("idx %d: %v", i, err)
 			}
 		}
 		return nil
@@ -221,6 +222,16 @@ func (pathTargets *pathSubqueryMetadata) extractKeys(node interface{}, path []Pa
 		}
 		if err := pathTargets.extractKeys(next, path[1:]); err != nil {
 			return fmt.Errorf("elem %s: %v", next, err)
+		}
+	case KindType:
+		typ, ok := obj["__typename"].(string)
+		if !ok {
+			return fmt.Errorf("does not have string key __typename")
+		}
+		if typ == step.Name {
+			if err := pathTargets.extractKeys(obj, path[1:]); err != nil {
+				return fmt.Errorf("typ %s: %v", typ, err)
+			}
 		}
 	default:
 		return fmt.Errorf("unsupported step type name: %s kind: %v", step.Name, step.Kind)
@@ -277,7 +288,6 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}) (in
 			defer resMu.Unlock()
 			for k, v := range result {
 				if _, ok := subPlanMetaData.results[k]; !ok {
-					deleteKey(v, federationField)
 					subPlanMetaData.results[k] = v
 				} else {
 					if k != keyField || v != subPlanMetaData.results[k] {
@@ -305,6 +315,9 @@ func deleteKey(v interface{}, k string) {
 		}
 	case map[string]interface{}:
 		delete(v, k)
+		for _, e := range v {
+			deleteKey(e, k)
+		}
 	}
 }
 
@@ -324,5 +337,6 @@ func (e *Executor) Execute(ctx context.Context, query *graphql.Query) (interface
 	if err != nil {
 		return nil, err
 	}
+	deleteKey(r, federationField)
 	return r, nil
 }
