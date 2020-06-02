@@ -27,7 +27,11 @@ func makeExecutors(schemas map[string]*schemabuilder.Schema) (map[string]Executo
 	return executors, nil
 }
 
-func createExecutorWithFederatedObjects() (*Executor, *schemabuilder.Schema, *schemabuilder.Schema, error) {
+func createExecutor() (*Executor, error) {
+	e, _, _, _, err := createExecutorWithFederatedObjects()
+	return e, err
+}
+func createExecutorWithFederatedObjects() (*Executor, *schemabuilder.Schema, *schemabuilder.Schema, *schemabuilder.Schema, error) {
 	// The first schema has a user object with an id and orgId
 	type User struct {
 		Id    int64
@@ -92,7 +96,9 @@ func createExecutorWithFederatedObjects() (*Executor, *schemabuilder.Schema, *sc
 	s2 := schemabuilder.NewSchema()
 	s2.Federation().FieldFunc("User", func(args struct{ Keys []int64 }) []*UserWithContactInfo {
 		users := make([]*UserWithContactInfo, 0, len(args.Keys))
-		users = append(users, &UserWithContactInfo{Id: int64(1), Email: "yaaayeeeet@gmail.com", PhoneNumber: "555"})
+		for _, key := range args.Keys {
+			users = append(users, &UserWithContactInfo{Id: key, Email: "yaaayeeeet@gmail.com", PhoneNumber: "555"})
+		}
 		return users
 	})
 	s2.Query().FieldFunc("secretUsers", func(ctx context.Context) ([]*UserWithContactInfo, error) {
@@ -107,27 +113,69 @@ func createExecutorWithFederatedObjects() (*Executor, *schemabuilder.Schema, *sc
 		return "shhhhh", nil
 	})
 
+	s2.Federation().FieldFunc("Admin", func(args struct{ Keys []int64 }) []*Admin {
+		admins := make([]*Admin, 0, len(args.Keys))
+		for _, key := range args.Keys {
+			admins = append(admins, &Admin{Id: key, SuperPower: "flying"})
+		}
+		return admins
+	})
+	admin2 := s2.Object("Admin", Admin{})
+	admin2.Key("id")
+	admin2.FieldFunc("hiding", func(ctx context.Context, user *Admin) (bool, error) {
+		return true, nil
+	})
+
+	type Driver struct {
+		Id   int64
+		Name string
+	}
+	driver := s1.Object("Driver", Driver{})
+	driver.Key("id")
+	driver.Federation(func(d *Driver) int64 {
+		return d.Id
+	})
+	user.FieldFunc("driver", func(ctx context.Context, user *User) (*Driver, error) {
+		return &Driver{Id: int64(1), Name: "bob"}, nil
+	})
+
+	s3 := schemabuilder.NewSchema()
+	s3.Federation().FieldFunc("Driver", func(args struct{ Keys []int64 }) []*Driver {
+		drivers := make([]*Driver, 0, len(args.Keys))
+		for _, key := range args.Keys {
+			drivers = append(drivers, &Driver{Id: key, Name: "bob"})
+		}
+		return drivers
+	})
+	driver3 := s3.Object("Driver", Driver{})
+	driver3.Key("id")
+	driver3.FieldFunc("isDriving", func(ctx context.Context, driver *Driver) (bool, error) {
+		return true, nil
+	})
+
 	ctx := context.Background()
 	execs, err := makeExecutors(map[string]*schemabuilder.Schema{
 		"s1": s1,
 		"s2": s2,
+		"s3": s3,
 	})
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	e, err := NewExecutor(ctx, execs)
-	return e, s1, s2, err
+	return e, s1, s2, s3, err
 }
 
-func getExpectedSchemaWithFederationInfo(t *testing.T, s1 *schemabuilder.Schema, s2 *schemabuilder.Schema) *SchemaWithFederationInfo {
-	introspectionQueryReasult1 := extractSchema(t, s1.MustBuild())
-	introspectionQueryReasult2 := extractSchema(t, s2.MustBuild())
+func getExpectedSchemaWithFederationInfo(t *testing.T, s1 *schemabuilder.Schema, s2 *schemabuilder.Schema, s3 *schemabuilder.Schema) *SchemaWithFederationInfo {
+	introspectionQueryResult1 := extractSchema(t, s1.MustBuild())
+	introspectionQueryResult2 := extractSchema(t, s2.MustBuild())
+	introspectionQueryResult3 := extractSchema(t, s3.MustBuild())
 
 	schemas := make(map[string]*introspectionQueryResult)
-	schemas["s1"] = introspectionQueryReasult1
-	schemas["s2"] = introspectionQueryReasult2
-
+	schemas["s1"] = introspectionQueryResult1
+	schemas["s2"] = introspectionQueryResult2
+	schemas["s3"] = introspectionQueryResult3
 	// Add introspection schema for federeated client
 	schemaWithFederationInfo, err := convertSchema(schemas)
 	require.NoError(t, err)
@@ -147,9 +195,9 @@ func getExpectedSchemaWithFederationInfo(t *testing.T, s1 *schemabuilder.Schema,
 }
 
 func TestMultipleExecutorGeneratedSchemas(t *testing.T) {
-	e, s1, s2, err := createExecutorWithFederatedObjects()
+	e, s1, s2, s3, err := createExecutorWithFederatedObjects()
 	require.NoError(t, err)
-	expectedSchemaWithFederationInfo := getExpectedSchemaWithFederationInfo(t, s1, s2)
+	expectedSchemaWithFederationInfo := getExpectedSchemaWithFederationInfo(t, s1, s2, s3)
 	assert.Equal(t, getFieldServiceMaps(t, e.planner.schema), getFieldServiceMaps(t, expectedSchemaWithFederationInfo))
 }
 
@@ -167,7 +215,7 @@ func runAndValidateQueryError(t *testing.T, ctx context.Context, e *Executor, qu
 }
 
 func TestExecutorQueriesFieldsOnOneService(t *testing.T) {
-	e, _, _, err := createExecutorWithFederatedObjects()
+	e, err := createExecutor()
 	require.NoError(t, err)
 	testCases := []struct {
 		Name   string
@@ -278,7 +326,7 @@ func TestExecutorQueriesFieldsOnOneService(t *testing.T) {
 }
 
 func TestExecutorQueriesFieldsOnOneServiceWithArgs(t *testing.T) {
-	e, _, _, err := createExecutorWithFederatedObjects()
+	e, err := createExecutor()
 	require.NoError(t, err)
 	testCases := []struct {
 		Name          string
@@ -351,7 +399,7 @@ func TestExecutorQueriesFieldsOnOneServiceWithArgs(t *testing.T) {
 }
 
 func TestExecutorQueriesFieldsOnMultipleServices(t *testing.T) {
-	e, _, _, err := createExecutorWithFederatedObjects()
+	e, err := createExecutor()
 	require.NoError(t, err)
 	testCases := []struct {
 		Name          string
@@ -376,6 +424,140 @@ func TestExecutorQueriesFieldsOnMultipleServices(t *testing.T) {
 						"__key":1,
 						"email":"yaaayeeeet@gmail.com",
 						"id":1
+					}
+				]
+			}`,
+			Error: false,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.Name, func(t *testing.T) {
+			ctx := context.Background()
+			if !testCase.Error {
+				// Validates that we were able to execute the query on multiple
+				// schemas and correctly stitch the results back together
+				runAndValidateQueryResults(t, ctx, e, testCase.Query, testCase.Output)
+			} else {
+				runAndValidateQueryError(t, ctx, e, testCase.Query, testCase.Output, testCase.ExpectedError)
+			}
+
+		})
+	}
+}
+
+func TestExecutorQueriesFieldsOnUnionTypes(t *testing.T) {
+	e, err := createExecutor()
+	require.NoError(t, err)
+	testCases := []struct {
+		Name          string
+		Query         string
+		Output        string
+		Error         bool
+		ExpectedError string
+	}{
+		{
+			Name: "query fields with union type, admin and user, 2 server hops",
+			Query: `
+			query Foo {
+				everyone {
+					... on Admin {
+						id
+						hiding
+						superPower
+
+					}
+					... on User {
+						id
+						email
+					}
+				}
+			}`,
+			Output: `
+			{
+				"everyone":[
+					{
+						"__key":1,
+						"__typename":"Admin",
+						"id":1,
+						"hiding":true,
+						"superPower":"flying"
+					},
+					{
+						"__key":2,
+						"__typename":"User",
+						"id":2,
+						"email":"yaaayeeeet@gmail.com"
+					}
+				]
+			}`,
+			Error: false,
+		},
+		{
+			Name: "query fields with union type with nested object",
+			Query: `
+			query Foo {
+				everyone {
+					... on User {
+						id
+						driver {
+							id
+							isDriving
+						}
+					}
+					... on Admin {
+						id
+					}
+				}
+			}`,
+			Output: `
+			{
+				"everyone":[
+					{
+						"__key":1,
+						"__typename":"Admin",
+						"id":1
+					},
+					{
+						"__key":2,
+						"__typename":"User",
+						"id":2,
+						"driver": {
+							"id":1,
+							"__key":1,
+							"isDriving":true
+						}
+					}
+				]
+			}`,
+			Error: false,
+		},
+		{
+			Name: "query fields with union type for admin and user, 1 schema hop",
+			Query: `
+			query Foo {
+				everyone {
+					... on Admin {
+						id
+						hiding
+					}
+					... on User {
+						id
+					}
+				}
+			}`,
+			Output: `
+			{
+				"everyone":[
+					{
+						"__key":1,
+						"__typename":"Admin",
+						"id":1,
+						"hiding":true
+					},
+					{
+						"__key":2,
+						"__typename":"User",
+						"id":2
 					}
 				]
 			}`,
