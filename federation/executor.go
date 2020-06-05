@@ -29,20 +29,24 @@ type Executor struct {
 	planner   *Planner
 }
 
-func fetchSchema(ctx context.Context, e ExecutorClient) ([]byte, error) {
+func fetchSchema(ctx context.Context, e ExecutorClient, optionalArgs interface{}) ([]byte, error) {
 	query, err := graphql.Parse(introspection.IntrospectionQuery, map[string]interface{}{})
 	if err != nil {
 		return nil, err
 	}
 
-	return e.Execute(ctx, query, nil)
+	return e.Execute(ctx, query, optionalArgs)
 }
 
 func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Executor, error) {
+	return NewExecutorWithOptionalArgs(ctx, executors, nil)
+}
+
+func NewExecutorWithOptionalArgs(ctx context.Context, executors map[string]ExecutorClient, optionalArgs interface{}) (*Executor, error) {
 	// Fetches the schemas from the executors clients
 	schemas := make(map[string]*introspectionQueryResult)
 	for server, client := range executors {
-		schema, err := fetchSchema(ctx, client)
+		schema, err := fetchSchema(ctx, client, optionalArgs)
 		if err != nil {
 			return nil, oops.Wrapf(err, "fetching schema %s", server)
 		}
