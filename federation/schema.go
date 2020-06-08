@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/samsarahq/thunder/graphql"
 )
@@ -28,6 +29,13 @@ type SchemaWithFederationInfo struct {
 	Schema *graphql.Schema
 	// Fields is a map of fields to services which they belong to
 	Fields map[*graphql.Field]*FieldInfo
+}
+
+func getRootType(typ *introspectionTypeRef) *introspectionTypeRef {
+	if typ.OfType == nil {
+		return typ
+	}
+	return getRootType(typ.OfType)
 }
 
 // convertVersionedSchemas takes schemas for all of versions of
@@ -83,6 +91,47 @@ func convertVersionedSchemas(schemas serviceSchemas) (*SchemaWithFederationInfo,
 	fieldInfos := make(map[*graphql.Field]*FieldInfo)
 	for _, service := range serviceNames {
 		for _, typ := range serviceSchemasByName[service].Schema.Types {
+			
+			// For federated fields parse the arguments to figure out which 
+			// fields are the federated keys. They annotate that information 
+			// on the field object.
+			if typ.Name == "Federation" {
+				for _, field := range typ.Fields {
+					for _, arg := range field.Args {
+						
+						// Extract the type name from the formatting <object>-<service>
+						rootType := getRootType(arg.Type)
+						names := strings.SplitN(field.Name, "-", 2)
+						objName := names[0]
+						inputType := types[rootType.Name].(*graphql.InputObject)
+						
+						// For the service that we are on find the object type
+						for _, t := range serviceSchemasByName[service].Schema.Types {
+							if objName == t.Name {
+								obj := types[t.Name].(*graphql.Object)
+								// For every one of the input fields (federated keys)
+								for inputFieldName := range inputType.InputFields {
+									for _, field := range t.Fields {
+										// Find the field object amd add the service name to the list 
+										// of services that need the federated key
+										if field.Name == inputFieldName {
+											f := obj.Fields[field.Name]
+											if f.FederatedKey == nil {
+												f.FederatedKey = make(map[string]bool, len(serviceNames))
+											}
+											f.FederatedKey[service] = true
+										}
+									}
+								}
+							}
+						}
+
+					}
+
+				}
+
+			}
+
 			if typ.Kind == "OBJECT" {
 				obj := types[typ.Name].(*graphql.Object)
 
