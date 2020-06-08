@@ -134,6 +134,7 @@ type Field struct {
 	Batch        bool
 	External     bool
 	Expensive    bool
+	FederatedKey map[string]bool
 
 	// NumParallelInvocationsFunc controls how many goroutines we'll create for a
 	// field execution (batch or non-expensive).  We pass in the number of srcs
