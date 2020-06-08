@@ -2,6 +2,7 @@ package schemabuilder
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 )
 
@@ -14,6 +15,8 @@ type Object struct {
 	Methods     Methods // Deprecated, use FieldFunc instead.
 
 	key string
+
+	ServiceName   string
 }
 
 type paginationObject struct {
@@ -261,6 +264,27 @@ func (s *Object) ManualPaginationWithFallback(name string, manualPaginatedFunc i
 		panic("duplicate method")
 	}
 	s.Methods[name] = m
+}
+
+func (s *Object) FederatedFieldFunc(name string, f interface{}, options ...FieldFuncOption) {
+	if s.Methods == nil {
+		s.Methods = make(Methods)
+	}
+
+	m := &method{Fn: f}
+	for _, opt := range options {
+		opt.apply(m)
+	}
+
+	if _, ok := s.Methods[name]; ok {
+		panic("duplicate method")
+	}
+	federatedMethodName := fmt.Sprintf("%s-%s", name, s.ServiceName)
+	if _, ok := s.Methods[federatedMethodName]; ok {
+		panic("duplicate method")
+	}
+	s.Methods[federatedMethodName] = m
+
 }
 
 // Key registers the key field on an object. The field should be specified by the name of the
