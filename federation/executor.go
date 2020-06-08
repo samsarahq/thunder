@@ -105,28 +105,59 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 
 	// If it is not a root query, nest the subquery on the federation field
 	// and pass the keys in to find the object that the subquery is nested on
+	// Pass all federated keys for that service as arguments 
 	// {
 	//    __federation {
-	//     [ObjectName] (keys: Keys) {
+	//     [ObjectName]-[Service] (keys: Keys) {
 	//       subQuery
 	// 		}
 	//   }
 	// }
 	isRoot := keys == nil
 	if !isRoot {
+		federatedName := fmt.Sprintf("%s-%s", typName, service)
+		newKeys := make(map[string]interface{}, len(keys))
+
+		var rootObject *graphql.Object
+		var ok bool
+		for f, _ := range e.planner.schema.Fields {
+			if f.Type.String() == typName {
+				rootObject, ok = f.Type.(*graphql.Object)
+				if !ok {
+					return nil, oops.Errorf("root object isn't a graphql object")
+				}
+			}
+		}
+
+		// If it is a federated key on that service, add it to the input args
+		// passed in to the federated field func as one of the federatd keys 
+		for name, key := range keys[0].(map[string]interface{}) {
+			if name == "__key" {
+				continue
+			}
+			for fieldName, field := range rootObject.Fields {
+				if fieldName == name {
+					_, ok := field.FederatedKey[service]
+					if ok {
+						newKeys[name] = key
+					}
+				}
+			}
+		}
+
 		selectionSet = &graphql.SelectionSet{
 			Selections: []*graphql.Selection{
 				{
-					Name:  federationField,
-					Alias: federationField,
+					Name:  "__federation",
+					Alias: "__federation",
 					Args:  map[string]interface{}{},
 					SelectionSet: &graphql.SelectionSet{
 						Selections: []*graphql.Selection{
 							{
-								Name:  typName,
-								Alias: typName,
+								Name:  federatedName,
+								Alias: federatedName,
 								UnparsedArgs: map[string]interface{}{
-									"keys": keys,
+									"keys": []interface{}{newKeys},
 								},
 								SelectionSet: selectionSet,
 							},
@@ -159,8 +190,8 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 		if !ok {
 			return nil, fmt.Errorf("root did not have a federation map, got %v", res)
 		}
-
-		r, ok := result[typName].([]interface{})
+		federatedName := fmt.Sprintf("%s-%s", typName, service)
+		r, ok := result[federatedName].([]interface{})
 		if !ok {
 			return nil, fmt.Errorf("federation map did not have a %s slice, got %v", typName, res)
 		}
@@ -173,6 +204,7 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 		if !ok {
 			return nil, fmt.Errorf("federation map did not have an element in %s slice, got %v", typName, res)
 		}
+
 		return res, nil
 
 	}
@@ -291,7 +323,7 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}, opt
 				if _, ok := subPlanMetaData.results[k]; !ok {
 					subPlanMetaData.results[k] = v
 				} else {
-					if k != keyField || v != subPlanMetaData.results[k] {
+					if k != keyField && v == subPlanMetaData.results[k] {
 						return oops.Errorf("key already exists in results: %v", k)
 					}
 				}
@@ -338,6 +370,8 @@ func (e *Executor) Execute(ctx context.Context, query *graphql.Query, optionalAr
 	if err != nil {
 		return nil, err
 	}
+
+
 	deleteKey(r, federationField)
 	return r, nil
 }
