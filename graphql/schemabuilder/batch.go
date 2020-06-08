@@ -9,6 +9,52 @@ import (
 	"github.com/samsarahq/thunder/graphql"
 )
 
+// buildFunctionWthFallback corresponds to buildFunction for a federatedFieldFuncWIthFallback
+func (sb *schemaBuilder) buildFunctionWthFallback(typ reflect.Type, m *method) (*graphql.Field, error) {
+	fallbackField, fallbackFuncCtx, err := sb.buildFunctionAndFuncCtx(typ, &method{
+		Fn:                m.FederatedFallbackArgs.FallbackFunc,
+		MarkedNonNullable: m.MarkedNonNullable,
+		Expensive: m.Expensive,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	field, fieldFuncCtx, err := sb.buildFunctionAndFuncCtx(typ, m)
+	if err != nil {
+		return nil, err
+	}
+	if fallbackFuncCtx.hasContext != fieldFuncCtx.hasContext ||
+		!fallbackFuncCtx.hasSource || // Batch func always has a source.
+		fallbackFuncCtx.hasArgs != fieldFuncCtx.hasArgs ||
+		fallbackFuncCtx.hasSelectionSet != fieldFuncCtx.hasSelectionSet ||
+		fallbackFuncCtx.hasError != fieldFuncCtx.hasError ||
+		fallbackFuncCtx.hasRet != fieldFuncCtx.hasRet {
+		return nil, fmt.Errorf("field and fallback function signatures did not match")
+	}
+
+	if fallbackField.Type.String() != field.Type.String() {
+		return nil, fmt.Errorf("field and fallback graphql return types did not match: Field(%v) Fallback(%v)", field.Type, fallbackField.Type)
+	}
+
+	if len(fallbackField.Args) != len(field.Args) {
+		return nil, fmt.Errorf("field and fallback arg type did not match: Field(%v) Fallback(%v)", field.Args, fallbackField.Args)
+	}
+	for key, fallbackTyp := range fallbackField.Args {
+		if fieldType, ok := field.Args[key]; !ok || fallbackTyp.String() != fieldType.String() {
+			return nil, fmt.Errorf("field and fallback func arg types did not match: Field(%v) Fallback(%v)", fieldType, fallbackTyp)
+		}
+	}
+
+	if m.FederatedFallbackArgs.ShouldUseFallbackFunc == nil {
+		return nil, fmt.Errorf("batch function requires fallback check function (got nil)")
+	}
+
+	field.UseBatchFunc = m.FederatedFallbackArgs.ShouldUseFallbackFunc
+	field.Resolve = fallbackField.Resolve
+	return field, nil
+}
+
 // buildBatchFunction corresponds to buildFunction for a batchFieldFunc
 func (sb *schemaBuilder) buildBatchFunctionWithFallback(typ reflect.Type, m *method) (*graphql.Field, error) {
 	fallbackField, fallbackFuncCtx, err := sb.buildFunctionAndFuncCtx(typ, &method{

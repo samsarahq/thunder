@@ -287,6 +287,31 @@ func (s *Object) FederatedFieldFunc(name string, f interface{}, options ...Field
 
 }
 
+func (s *Object) FederatedFieldFuncWithFallback(name string, federatedFunc interface{}, fallbackFunc interface{}, flag UseFallbackFlag, options ...FieldFuncOption) {
+	if s.Methods == nil {
+		s.Methods = make(Methods)
+	}
+
+	m := &method{
+		Fn: federatedFunc,
+		FederatedFallbackArgs: federatedFallbackArgs{
+			FallbackFunc:          fallbackFunc,
+			ShouldUseFallbackFunc: flag,
+		},
+		Federated: true,
+	}
+	
+	for _, opt := range options {
+		opt.apply(m)
+	}
+
+	if _, ok := s.Methods[name]; ok {
+		panic("duplicate method")
+	}
+	s.Methods[name] = m
+}
+
+
 // Key registers the key field on an object. The field should be specified by the name of the
 // graphql field.
 // For example, for an object User:
@@ -322,6 +347,11 @@ type method struct {
 
 	BatchArgs batchArgs
 
+	// Whether the FieldFunc is a federated
+	Federated bool
+
+	FederatedFallbackArgs federatedFallbackArgs
+
 	ManualPaginationArgs manualPaginationArgs
 }
 
@@ -340,6 +370,11 @@ func (f NumParallelInvocationsFunc) apply(m *method) { m.ConcurrencyArgs.numPara
 type UseFallbackFlag func(context.Context) bool
 
 type batchArgs struct {
+	FallbackFunc          interface{}
+	ShouldUseFallbackFunc UseFallbackFlag
+}
+
+type federatedFallbackArgs struct {
 	FallbackFunc          interface{}
 	ShouldUseFallbackFunc UseFallbackFlag
 }

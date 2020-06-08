@@ -94,6 +94,15 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 	for _, name := range names {
 		method := methods[name]
 
+		if method.FederatedFallbackArgs.FallbackFunc != nil {
+			builtField, err := sb.buildFunctionWthFallback(typ, method)
+			if err != nil {
+				return fmt.Errorf("bad method %s on type %s: %s", name, typ, err)
+			}
+			object.Fields[name] = builtField
+			continue
+		}
+
 		if method.Batch {
 			if method.BatchArgs.FallbackFunc != nil {
 				batchField, err := sb.buildBatchFunctionWithFallback(typ, method)
