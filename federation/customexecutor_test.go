@@ -22,18 +22,18 @@ type Token struct {
 	token string
 }
 
-func (c *SpecialExecutorClient) Execute(ctx context.Context, req *graphql.Query, extraInformation interface{}) ([]byte, error) {
+func (c *SpecialExecutorClient) Execute(ctx context.Context, req *graphql.Query, extraInformation interface{}) ([]byte, interface{}, error) {
 	// 	// marshal query into a protobuf
 	marshaled, err := MarshalQuery(req)
 	if err != nil {
-		return nil, oops.Wrapf(err, "marshaling query")
+		return nil, nil, oops.Wrapf(err, "marshaling query")
 	}
 
 	authToken := ""
 	if extraInformation != nil {
 		token, ok := extraInformation.(*Token)
 		if !ok {
-			return nil, oops.Errorf("incorrect token")
+			return nil, nil, oops.Errorf("incorrect token")
 		}
 		authToken = token.token
 	}
@@ -46,9 +46,10 @@ func (c *SpecialExecutorClient) Execute(ctx context.Context, req *graphql.Query,
 	})
 
 	if err != nil {
-		return nil, oops.Wrapf(err, "executing query")
+		return nil, nil, oops.Wrapf(err, "executing query")
 	}
-	return resp.Response.Result, nil
+	// fmt.Println("execued")
+	return resp.Response.Result, "test", nil
 }
 
 // Server must implement thunderpb.ExecutorServer.

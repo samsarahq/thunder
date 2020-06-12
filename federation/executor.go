@@ -18,7 +18,7 @@ const federationField = "__federation"
 const typeNameField = "__typeName"
 
 type ExecutorClient interface {
-	Execute(ctx context.Context, req *graphql.Query, optionalArgs interface{}) ([]byte, error)
+	Execute(ctx context.Context, req *graphql.Query, optionalArgs interface{}) ([]byte, interface{}, error)
 }
 
 // Executor has a map of all the executor clients such that it can execute a
@@ -35,7 +35,8 @@ func fetchSchema(ctx context.Context, e ExecutorClient, optionalArgs interface{}
 		return nil, err
 	}
 
-	return e.Execute(ctx, query, optionalArgs)
+	resp, _, err := e.Execute(ctx, query, optionalArgs)
+	return resp, err
 }
 
 func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Executor, error) {
@@ -142,13 +143,14 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 	}
 
 	// Execute query on specified service
-	bytes, err := schema.Execute(ctx, &graphql.Query{
+	bytes, optionalResp, err := schema.Execute(ctx, &graphql.Query{
 		Kind:         kind,
 		SelectionSet: selectionSet,
 	}, optionalArgs)
 	if err != nil {
 		return nil, oops.Wrapf(err, "execute remotely")
 	}
+	fmt.Println(optionalResp)
 	// Unmarshal json from results
 	var res interface{}
 	if err := json.Unmarshal(bytes, &res); err != nil {
@@ -330,6 +332,7 @@ func deleteKey(v interface{}, k string) {
 type pathSubqueryMetadata struct {
 	keys    []interface{}          // Federated Keys passed into subquery
 	results map[string]interface{} // Results from subquery
+	optionalArgs []interface{}
 }
 
 func (e *Executor) Execute(ctx context.Context, query *graphql.Query, optionalArgs interface{}) (interface{}, error) {
