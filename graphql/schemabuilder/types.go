@@ -16,7 +16,8 @@ type Object struct {
 
 	key string
 
-	ServiceName   string
+	ServiceName string
+	IsFederated bool
 }
 
 type paginationObject struct {
@@ -275,7 +276,7 @@ func (s *Object) FederatedFieldFunc(name string, f interface{}, options ...Field
 	for _, opt := range options {
 		opt.apply(m)
 	}
-	
+
 	federatedMethodName := fmt.Sprintf("%s-%s", name, s.ServiceName)
 	if _, ok := s.Methods[federatedMethodName]; ok {
 		panic("duplicate method")
@@ -367,5 +368,8 @@ type Union struct{}
 var unionType = reflect.TypeOf(Union{})
 
 func (s *Object) Federation(f interface{}) {
+	if s.IsFederated {
+		panic("can't federate a federated method")
+	}
 	s.FieldFunc("__federation", f)
 }
