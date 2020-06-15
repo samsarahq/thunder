@@ -30,11 +30,11 @@ type SchemaWithFederationInfo struct {
 	Fields map[*graphql.Field]*FieldInfo
 }
 
-// convertVersionedSchemas takes schemas for all of versions of
+// ConvertVersionedSchemas takes schemas for all of versions of
 // all executors services and generates a single merged schema
 // annotated with mapping from field to all services that know
 // how to resolve the field
-func convertVersionedSchemas(schemas serviceSchemas) (*SchemaWithFederationInfo, error) {
+func ConvertVersionedSchemas(schemas serviceSchemas) (*SchemaWithFederationInfo, error) {
 	serviceNames := make([]string, 0, len(schemas))
 	for service := range schemas {
 		serviceNames = append(serviceNames, service)
@@ -120,7 +120,7 @@ func convertSchema(schemas map[string]*introspectionQueryResult) (*SchemaWithFed
 			"": schema,
 		}
 	}
-	return convertVersionedSchemas(versionedSchemas)
+	return ConvertVersionedSchemas(versionedSchemas)
 }
 
 // lookupTypeRef maps the a introspected type to a graphql type
