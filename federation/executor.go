@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"reflect"
 
 	"github.com/samsarahq/go/oops"
 	"golang.org/x/sync/errgroup"
@@ -96,7 +97,7 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Exe
 
 }
 
-func (e *Executor) runOnService(ctx context.Context, service string, typName string, keys []interface{}, kind string, selectionSet *graphql.SelectionSet, optionalArgs interface{}) (map[string]interface{}, error) {
+func (e *Executor) runOnService(ctx context.Context, service string, typName string, keys []interface{}, kind string, selectionSet *graphql.SelectionSet, optionalArgs interface{}) ([]interface{}, error) {
 	// Execute query on specified service
 	schema, ok := e.Executors[service]
 	if !ok {
@@ -105,15 +106,58 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 
 	// If it is not a root query, nest the subquery on the federation field
 	// and pass the keys in to find the object that the subquery is nested on
+	// Pass all federated keys for that service as arguments
 	// {
 	//    __federation {
-	//     [ObjectName] (keys: Keys) {
+	//     [ObjectName]-[Service] (keys: Keys) {
 	//       subQuery
 	// 		}
 	//   }
 	// }
 	isRoot := keys == nil
 	if !isRoot {
+		federatedName := fmt.Sprintf("%s-%s", typName, service)
+		
+		var rootObject *graphql.Object
+		var ok bool
+		for f, _ := range e.planner.schema.Fields {
+			if f.Type.String() == typName {
+				rootObject, ok = f.Type.(*graphql.Object)
+				if !ok {
+					return nil, oops.Errorf("root object isn't a graphql object")
+				}
+			}
+		}
+		if rootObject == nil {
+			return nil, oops.Errorf("root object not found for type %s", typName)
+		}
+	
+		// If it is a federated key on that service, add it to the input args
+		// passed in to the federated field func as one of the federated keys
+		newKeys := make([]interface{}, len(keys))
+
+		for i, key := range keys {
+			keyFields, ok := key.(map[string]interface{})
+			if !ok {
+				return nil, oops.Errorf("key field is an incorrect type expected map[string]interface{} got %s", reflect.TypeOf(typName))
+			}
+			newKey := make(map[string]interface{}, len(keyFields))
+			for name, keyField := range keyFields {
+				if name == "__key" {
+					continue
+				}
+				for fieldName, field := range rootObject.Fields {
+					if fieldName == name {
+						_, ok := field.FederatedKey[service]
+						if ok {
+							newKey[name] = keyField
+						}
+					}
+				}
+			}
+			newKeys[i] = newKey
+		}
+
 		selectionSet = &graphql.SelectionSet{
 			Selections: []*graphql.Selection{
 				{
@@ -123,10 +167,10 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 					SelectionSet: &graphql.SelectionSet{
 						Selections: []*graphql.Selection{
 							{
-								Name:  typName,
-								Alias: typName,
+								Name:  federatedName,
+								Alias: federatedName,
 								UnparsedArgs: map[string]interface{}{
-									"keys": keys,
+									"keys": newKeys,
 								},
 								SelectionSet: selectionSet,
 							},
@@ -150,33 +194,25 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 	if err := json.Unmarshal(bytes, &res); err != nil {
 		return nil, oops.Wrapf(err, "unmarshal res")
 	}
-	result, ok := res.(map[string]interface{})
-	if !ok {
-		return nil, oops.Errorf("executor res not a map[string]interface{}")
-	}
+
 	if !isRoot {
+		result, ok := res.(map[string]interface{})
+		if !ok {
+			return nil, oops.Errorf("executor res not a map[string]interface{}")
+		}
 		result, ok = result[federationField].(map[string]interface{})
 		if !ok {
 			return nil, fmt.Errorf("root did not have a federation map, got %v", res)
 		}
-
-		r, ok := result[typName].([]interface{})
+		federatedName := fmt.Sprintf("%s-%s", typName, service)
+		r, ok := result[federatedName].([]interface{})
 		if !ok {
 			return nil, fmt.Errorf("federation map did not have a %s slice, got %v", typName, res)
 		}
-
-		if len(r) != 1 {
-			return nil, fmt.Errorf("federation had incorect number of results for %s slice, got %v", typName, res)
-		}
-
-		res, ok := r[0].(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("federation map did not have an element in %s slice, got %v", typName, res)
-		}
-		return res, nil
+		return r, nil
 
 	}
-	return result, nil
+	return []interface{}{res}, nil
 }
 
 func (pathTargets *pathSubqueryMetadata) extractKeys(node interface{}, path []PathStep) error {
@@ -201,7 +237,7 @@ func (pathTargets *pathSubqueryMetadata) extractKeys(node interface{}, path []Pa
 		}
 		// Add a pointer to the object for where the results from
 		// the subquery will be added into the final result
-		pathTargets.results = obj
+		pathTargets.results = append(pathTargets.results, obj)
 		// Keys from the "__federation" field func are passed to
 		// the subquery
 		pathTargets.keys = append(pathTargets.keys, key)
@@ -241,8 +277,8 @@ func (pathTargets *pathSubqueryMetadata) extractKeys(node interface{}, path []Pa
 	return nil
 }
 
-func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}, optionalArgs interface{}) (interface{}, error) {
-	res := map[string]interface{}{}
+func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}, optionalArgs interface{}) ([]interface{}, error) {
+	var res []interface{}
 
 	// Executes that part of the plan (the subquery) on one of the federated gqlservers
 	if p.Service != gatewayCoordinatorServiceName {
@@ -250,6 +286,11 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}, opt
 		res, err = e.runOnService(ctx, p.Service, p.Type, keys, p.Kind, p.SelectionSet, optionalArgs)
 		if err != nil {
 			return nil, oops.Wrapf(err, "run on service")
+		}
+		
+	} else {
+		res = []interface{}{
+			map[string]interface{}{},
 		}
 	}
 
@@ -264,8 +305,13 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}, opt
 		subPlan := currentSubPlan
 		var subPlanMetaData pathSubqueryMetadata
 		if p.Service == gatewayCoordinatorServiceName {
-			subPlanMetaData.keys = nil // On the root query there are no specified keys
-			subPlanMetaData.results = res
+			// On the root query, there will only be one result since 
+			// it is on either the "query" or "mutatoon object"
+			subPlanMetaData.results = []map[string]interface{}{
+				res[0].(map[string]interface{}),
+			}
+			// On the root query, there are no federation keys
+			subPlanMetaData.keys = nil 
 		} else {
 			if err := subPlanMetaData.extractKeys(res, subPlan.Path); err != nil {
 				return nil, fmt.Errorf("failed to extract keys %v: %v", subPlan.Path, err)
@@ -274,28 +320,34 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}, opt
 
 		g.Go(func() error {
 			// Execute the subquery on the specified service
-			results, err := e.execute(ctx, subPlan, subPlanMetaData.keys, optionalArgs)
+			executionResults, err := e.execute(ctx, subPlan, subPlanMetaData.keys, optionalArgs)
 			if err != nil {
 				return oops.Wrapf(err, "executing sub plan: %v", err)
 			}
 
-			result, ok := results.(map[string]interface{})
-			if !ok {
-				return oops.Errorf("result is not an object: %v", result)
+			if len(executionResults) != len(subPlanMetaData.results) {
+				return fmt.Errorf("got %d results for %d targets", len(executionResults), len(subPlanMetaData.results))
 			}
 
 			// Acquire mutex lock before modifying results
 			resMu.Lock()
 			defer resMu.Unlock()
-			for k, v := range result {
-				if _, ok := subPlanMetaData.results[k]; !ok {
-					subPlanMetaData.results[k] = v
-				} else {
-					if k != keyField || v != subPlanMetaData.results[k] {
-						return oops.Errorf("key already exists in results: %v", k)
+			
+			for i, result := range subPlanMetaData.results {
+				executionResult, ok := executionResults[i].(map[string]interface{})
+				if !ok {
+					return fmt.Errorf("result is not an object: %v", executionResult)
+				}
+				
+				for k, v := range executionResult {
+					if _, ok := result[k]; !ok {
+						result[k] = v
+					} else {
+						if k != keyField || v != result[k] {
+							return oops.Errorf("key already exists in results: %v", k)
+						}
 					}
 				}
-
 			}
 			return nil
 		})
@@ -325,7 +377,7 @@ func deleteKey(v interface{}, k string) {
 // Metadata for a subquery
 type pathSubqueryMetadata struct {
 	keys    []interface{}          // Federated Keys passed into subquery
-	results map[string]interface{} // Results from subquery
+	results []map[string]interface{} // Results from subquery
 }
 
 func (e *Executor) Execute(ctx context.Context, query *graphql.Query, optionalArgs interface{}) (interface{}, error) {
@@ -338,6 +390,14 @@ func (e *Executor) Execute(ctx context.Context, query *graphql.Query, optionalAr
 	if err != nil {
 		return nil, err
 	}
-	deleteKey(r, federationField)
-	return r, nil
+
+	if len(r) != 1 {
+		return nil, oops.Errorf("Multiple results, expected one %v", r)
+	}
+	// The interface for results assumes we always get back a list of objects
+	// On the root query, we know there is only one object (a query or mutation)
+	// So we expect only one item in this list
+	res := r[0]
+	deleteKey(res, federationField)
+	return res, nil
 }
