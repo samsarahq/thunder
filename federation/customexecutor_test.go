@@ -22,18 +22,18 @@ type Token struct {
 	token string
 }
 
-func (c *SpecialExecutorClient) Execute(ctx context.Context, req *graphql.Query, extraInformation interface{}) ([]byte, error) {
+func (c *SpecialExecutorClient) Execute(ctx context.Context, req *graphql.Query, extraInformation interface{}) ([]byte, interface{}, error) {
 	// 	// marshal query into a protobuf
 	marshaled, err := MarshalQuery(req)
 	if err != nil {
-		return nil, oops.Wrapf(err, "marshaling query")
+		return nil, nil, oops.Wrapf(err, "marshaling query")
 	}
 
 	authToken := ""
 	if extraInformation != nil {
 		token, ok := extraInformation.(*Token)
 		if !ok {
-			return nil, oops.Errorf("incorrect token")
+			return nil, nil, oops.Errorf("incorrect token")
 		}
 		authToken = token.token
 	}
@@ -46,9 +46,9 @@ func (c *SpecialExecutorClient) Execute(ctx context.Context, req *graphql.Query,
 	})
 
 	if err != nil {
-		return nil, oops.Wrapf(err, "executing query")
+		return nil, nil, oops.Wrapf(err, "executing query")
 	}
-	return resp.Response.Result, nil
+	return resp.Response.Result, "respToken", nil
 }
 
 // Server must implement thunderpb.ExecutorServer.
@@ -75,7 +75,7 @@ func (s *CustomServer) Execute(ctx context.Context, req *thunderpb.CustomExecuto
 	if err != nil {
 		return nil, err
 	}
-	return &thunderpb.CustomExecutorResponse{Response: resp}, err
+	return &thunderpb.CustomExecutorResponse{Response: resp, Token: "respToken"}, err
 }
 
 func createFederatedSchema(t *testing.T) *schemabuilder.Schema {
@@ -104,13 +104,12 @@ func createFederatedSchema(t *testing.T) *schemabuilder.Schema {
 }
 
 func executeSuccesfulQuery(t *testing.T, ctx context.Context, e *Executor, extraInformation interface{}) {
-
 	query := `query Foo {
 					users {
 						id
 					}
 				}`
-	res, err := e.Execute(ctx, graphql.MustParse(query, map[string]interface{}{}), extraInformation)
+	res, optionalRespMetadata, err := e.Execute(ctx, graphql.MustParse(query, map[string]interface{}{}), extraInformation)
 	require.NoError(t, err)
 	output := `
 	 	{
@@ -125,6 +124,9 @@ func executeSuccesfulQuery(t *testing.T, ctx context.Context, e *Executor, extra
 	err = json.Unmarshal([]byte(output), &expected)
 	require.NoError(t, err)
 	assert.Equal(t, expected, res)
+	expectedoptionalRespMetadata := make([]interface{}, 1)
+	expectedoptionalRespMetadata[0] = "respToken"
+	assert.Equal(t, expectedoptionalRespMetadata, optionalRespMetadata)
 }
 
 func TestCustomExecutor(t *testing.T) {

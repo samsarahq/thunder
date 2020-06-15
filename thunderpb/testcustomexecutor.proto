@@ -12,7 +12,10 @@ message CustomExecutorRequest {
   string token = 2;
 }
 
-message CustomExecutorResponse { thunderpb.ExecuteResponse response = 1; }
+message CustomExecutorResponse { 
+  thunderpb.ExecuteResponse response = 1; 
+  string token = 2;
+}
 
 service CustomExecutor {
   rpc Execute(CustomExecutorRequest) returns (CustomExecutorResponse) {}
