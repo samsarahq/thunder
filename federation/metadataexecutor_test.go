@@ -16,19 +16,19 @@ type SpecialMetadataExecutorClient struct {
 	Client thunderpb.ExecutorServer
 }
 
-func (c *SpecialMetadataExecutorClient) Execute(ctx context.Context, req *graphql.Query, extraInformation interface{}) ([]byte, error) {
+func (c *SpecialMetadataExecutorClient) Execute(ctx context.Context, req *graphql.Query, extraInformation interface{}) ([]byte, interface{}, error) {
 	// marshal query into a protobuf
 	marshaled, err := MarshalQuery(req)
 	if err != nil {
-		return nil, oops.Wrapf(err, "marshaling query")
+		return nil, nil, oops.Wrapf(err, "marshaling query")
 	}
 	resp, err := c.Client.Execute(ctx, &thunderpb.ExecuteRequest{
 		Query: marshaled,
 	})
 	if err != nil {
-		return nil, oops.Wrapf(err, "executing query")
+		return nil, nil, oops.Wrapf(err, "executing query")
 	}
-	return resp.Result, nil
+	return resp.Result, "respToken", nil
 }
 
 // Server must implement thunderpb.ExecutorServer.
