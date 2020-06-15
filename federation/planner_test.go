@@ -30,7 +30,7 @@ func setupExecutor(t *testing.T) (*Planner, error) {
 			builtSchemas[service][version] = extractSchema(t, schema.MustBuild())
 		}
 	}
-	merged, err := convertVersionedSchemas(builtSchemas)
+	merged, err := ConvertVersionedSchemas(builtSchemas)
 	require.NoError(t, err)
 
 	f, err := newFlattener(merged.Schema)

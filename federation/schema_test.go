@@ -106,7 +106,7 @@ func extractConvertedVersionedSchemas(t *testing.T, schemas map[string]map[strin
 		}
 	}
 
-	merged, err := convertVersionedSchemas(builtSchemas)
+	merged, err := ConvertVersionedSchemas(builtSchemas)
 	require.NoError(t, err)
 
 	return extractSchema(t, merged.Schema), getFieldServiceMaps(t, merged)
