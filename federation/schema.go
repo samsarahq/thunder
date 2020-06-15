@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
+	"github.com/samsarahq/go/oops"
 	"github.com/samsarahq/thunder/graphql"
 )
 
@@ -28,6 +30,13 @@ type SchemaWithFederationInfo struct {
 	Schema *graphql.Schema
 	// Fields is a map of fields to services which they belong to
 	Fields map[*graphql.Field]*FieldInfo
+}
+
+func getRootType(typ *introspectionTypeRef) *introspectionTypeRef {
+	if typ.OfType == nil {
+		return typ
+	}
+	return getRootType(typ.OfType)
 }
 
 // convertVersionedSchemas takes schemas for all of versions of
@@ -83,6 +92,44 @@ func convertVersionedSchemas(schemas serviceSchemas) (*SchemaWithFederationInfo,
 	fieldInfos := make(map[*graphql.Field]*FieldInfo)
 	for _, service := range serviceNames {
 		for _, typ := range serviceSchemasByName[service].Schema.Types {
+
+			// For federated fields parse the arguments to figure out which
+			// fields are the federated keys. They annotate that information
+			// on the field object.
+			if typ.Name == "Federation" {
+				for _, field := range typ.Fields {
+				    // Extract the type name from the formatting <object>-<service>
+				    // And check that the object type exists
+					names := strings.SplitN(field.Name, "-", 2)
+					if len(names) != 2 {
+						return nil, oops.Errorf("Field %s doesnt have an object name and service name", field.Name)
+					}
+					objName := names[0]
+					obj, ok := types[objName].(*graphql.Object)
+					if !ok {
+						return nil, oops.Errorf("Expected objectName %s on merged schema", objName)
+					}
+					for _, arg := range field.Args {
+						rootType := getRootType(arg.Type)
+						inputType, ok := types[rootType.Name].(*graphql.InputObject)
+						if !ok {
+							return nil, oops.Errorf("Object %s is not an input object, but it is an argument to the field %s", rootType.Name, field.Name)
+						}
+						// If the field is one of the input fields to the federatedfieldfunc,
+						// add the service name to the list of federated keys
+						for fName, f := range obj.Fields {
+							if _, ok := inputType.InputFields[fName]; !ok {
+								continue
+							}
+							if f.FederatedKey == nil {
+								f.FederatedKey = make(map[string]bool, len(serviceNames))
+							}
+							f.FederatedKey[service] = true
+						}
+					}
+				}
+			}
+
 			if typ.Kind == "OBJECT" {
 				obj := types[typ.Name].(*graphql.Object)
 
