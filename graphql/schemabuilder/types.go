@@ -13,7 +13,8 @@ type Object struct {
 	Type        interface{}
 	Methods     Methods // Deprecated, use FieldFunc instead.
 	key string
-	ServiceName   string 
+	ServiceName string 
+	IsFederated bool
 }
 
 type paginationObject struct {
@@ -362,5 +363,8 @@ type Union struct{}
 var unionType = reflect.TypeOf(Union{})
 
 func (s *Object) Federation(f interface{}) {
+	if s.IsFederated {
+		panic("can't federate a federated method")
+	}
 	s.FieldFunc("__federation", f)
 }
