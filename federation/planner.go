@@ -226,18 +226,46 @@ func (e *Planner) planObject(typ *graphql.Object, selectionSet *graphql.Selectio
 	if needKey {
 		hasKey := false
 		for _, selection := range p.SelectionSet.Selections {
-			if selection.Name == "__federation" && selection.Alias == "__federation" {
+			if selection.Name == federationField && selection.Alias == federationField {
 				hasKey = true
-			} else if selection.Name == "__federation" || selection.Alias == "__federation" {
+			} else if selection.Name == federationField || selection.Alias == federationField {
 				return nil, fmt.Errorf("Both the selection name and alias have to be __federation")
 			}
 		}
 		if !hasKey {
-			p.SelectionSet.Selections = append(p.SelectionSet.Selections, &graphql.Selection{
-				Name:  "__federation",
-				Alias: "__federation",
+			// Parse all the fields and if it is a federated key for that service
+			// add it to the planner to fetch that field such that the subquery looks like
+			// __federation {
+			//	 id (federatedKey)
+			// }
+			selections := make([]*graphql.Selection, 0, len(typ.Fields))
+			for name, field := range typ.Fields {
+				for service := range field.FederatedKey {
+					if len(selectionsByService[service]) > 0 {
+						selections = append(selections, &graphql.Selection{
+							Name:         name,
+							Alias:        name,
+							UnparsedArgs: map[string]interface{}{},
+						})
+						break
+					}
+				}
+			}
+
+			federatedSelection := &graphql.Selection{
+				Name:         federationField,
+				Alias:        federationField,
 				UnparsedArgs: map[string]interface{}{},
-			})
+				SelectionSet: &graphql.SelectionSet{
+					Selections: selections,
+				},
+			}
+			if len(selections) > 0 {
+				federatedSelection.SelectionSet = &graphql.SelectionSet{
+					Selections: selections,
+				}
+			}
+			p.SelectionSet.Selections = append(p.SelectionSet.Selections, federatedSelection)
 		}
 	}
 
