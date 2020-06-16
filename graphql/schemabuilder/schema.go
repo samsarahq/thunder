@@ -46,7 +46,6 @@ func NewSchemaWithName(name string) *Schema {
 	return schema
 }
 
-
 // Enum registers an enumType in the schema. The val should be any arbitrary value
 // of the enumType to be used for reflection, and the enumMap should be
 // the corresponding map of the enums.
@@ -117,8 +116,8 @@ func (s *Schema) Object(name string, typ interface{}) *Object {
 		return object
 	}
 	object := &Object{
-		Name: name,
-		Type: typ,
+		Name:        name,
+		Type:        typ,
 		ServiceName: s.Name,
 	}
 	s.objects[name] = object
@@ -192,16 +191,4 @@ func (s *Schema) MustBuild() *graphql.Schema {
 		panic(err)
 	}
 	return built
-}
-
-
-type federation struct{}
-
-// Federation returns an object struct for exposing federated objects.
-func (s *Schema) Federation() *Object {
-	q := s.Query()
-	if _, ok := q.Methods["__federation"]; !ok {
-		q.FieldFunc("__federation", func() federation { return federation{} })
-	}
-	return s.Object("Federation", federation{})
 }
