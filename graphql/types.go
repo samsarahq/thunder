@@ -139,6 +139,9 @@ type Field struct {
 	// field execution (batch or non-expensive).  We pass in the number of srcs
 	// we're executing with so implementers can write custom logic.
 	NumParallelInvocationsFunc func(ctx context.Context, numNodes int) int
+
+	// FederatedKey tells us which services need this field as federated key.
+	FederatedKey map[string]bool
 }
 
 type Schema struct {
