@@ -143,7 +143,7 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 		for i, key := range keys {
 			keyFields, ok := key.(map[string]interface{})
 			if !ok {
-				return nil, oops.Errorf("key field is an incorrect type expected map[string]interface{} got %s", reflect.TypeOf(typName))
+				return nil, nil, oops.Errorf("key field is an incorrect type expected map[string]interface{} got %s", reflect.TypeOf(typName))
 			}
 			newKey := make(map[string]interface{}, len(keyFields))
 			for name, keyField := range keyFields {
@@ -206,14 +206,14 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 		}
 		result, ok = result[federationField].(map[string]interface{})
 		if !ok {
-			return nil, oops.Errorf("executor res not a map[string]interface{}")
+			return nil, nil, oops.Errorf("executor res not a map[string]interface{}")
 		}
 		federatedName := fmt.Sprintf("%s-%s", typName, service)
 		r, ok := result[federatedName].([]interface{})
 		if !ok {
 			return nil, nil, fmt.Errorf("root did not have a federation map, got %v", res)
 		}
-		return r, nil
+		return r, optionalResponseMetadata, nil
 
 	}
 	return []interface{}{res},optionalResponseMetadata, nil
@@ -401,7 +401,7 @@ func (e *Executor) Execute(ctx context.Context, query *graphql.Query, optionalAr
 	}
 
 	if len(r) != 1 {
-		return nil, oops.Errorf("Multiple results, expected one %v", r)
+		return nil, nil, oops.Errorf("Multiple results, expected one %v", r)
 	}
 	// The interface for results assumes we always get back a list of objects
 	// On the root query, we know there is only one object (a query or mutation)

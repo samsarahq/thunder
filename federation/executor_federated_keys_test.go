@@ -266,7 +266,7 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 }
 
 func runAndValidateQueryResults(t *testing.T, ctx context.Context, e *Executor, query string, out string) {
-	res, err := e.Execute(ctx, graphql.MustParse(query, map[string]interface{}{}), nil)
+	res, _, err := e.Execute(ctx, graphql.MustParse(query, map[string]interface{}{}), nil)
 	var expected interface{}
 	err = json.Unmarshal([]byte(out), &expected)
 	require.NoError(t, err)
@@ -274,7 +274,7 @@ func runAndValidateQueryResults(t *testing.T, ctx context.Context, e *Executor, 
 }
 
 func runAndValidateQueryError(t *testing.T, ctx context.Context, e *Executor, query string, out string, expectedError string) {
-	_, err := e.Execute(ctx, graphql.MustParse(query, map[string]interface{}{}), nil)
+	_, _, err := e.Execute(ctx, graphql.MustParse(query, map[string]interface{}{}), nil)
 	assert.True(t, strings.Contains(err.Error(), expectedError))
 }
 
