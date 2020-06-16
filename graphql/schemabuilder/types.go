@@ -368,3 +368,20 @@ func (s *Object) Federation(f interface{}) {
 	}
 	s.FieldFunc("__federation", f)
 }
+
+func (s *Schema) FederatedObject(name string, typ interface{}) *Object {
+	if object, ok := s.objects[name]; ok {
+		if reflect.TypeOf(object.Type) != reflect.TypeOf(typ) {
+			panic("re-registered object with different type")
+		}
+		return object
+	}
+	object := &Object{
+		Name:        name,
+		Type:        typ,
+		ServiceName: s.Name,
+		IsFederated: true,
+	}
+	s.objects[name] = object
+	return object
+}
