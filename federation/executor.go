@@ -128,12 +128,12 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 			if f.Type.String() == typName {
 				rootObject, ok = f.Type.(*graphql.Object)
 				if !ok {
-					return nil, oops.Errorf("root object isn't a graphql object")
+					return nil, nil, oops.Errorf("root object isn't a graphql object")
 				}
 			}
 		}
 		if rootObject == nil {
-			return nil, oops.Errorf("root object not found for type %s", typName)
+			return nil, nil, oops.Errorf("root object not found for type %s", typName)
 		}
 	
 		// If it is a federated key on that service, add it to the input args
@@ -198,24 +198,25 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 	if err := json.Unmarshal(bytes, &res); err != nil {
 		return nil, nil, oops.Wrapf(err, "unmarshal res")
 	}
+
 	if !isRoot {
 		result, ok := res.(map[string]interface{})
 		if !ok {
-			return nil, oops.Errorf("executor res not a map[string]interface{}")
+			return nil, nil, oops.Errorf("executor res not a map[string]interface{}")
 		}
 		result, ok = result[federationField].(map[string]interface{})
 		if !ok {
-			return nil, nil, fmt.Errorf("root did not have a federation map, got %v", res)
+			return nil, oops.Errorf("executor res not a map[string]interface{}")
 		}
 		federatedName := fmt.Sprintf("%s-%s", typName, service)
 		r, ok := result[federatedName].([]interface{})
 		if !ok {
-			return nil, nil, fmt.Errorf("federation map did not have a %s slice, got %v", typName, res)
+			return nil, nil, fmt.Errorf("root did not have a federation map, got %v", res)
 		}
-		return r, optionalResponseMetadata, nil
+		return r, nil
 
 	}
-	return []interface{}{res}, optionalResponseMetadata, nil
+	return []interface{}{res},optionalResponseMetadata, nil
 }
 
 func (pathTargets *pathSubqueryMetadata) extractKeys(node interface{}, path []PathStep) error {
@@ -297,7 +298,7 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}, opt
 		res = []interface{}{
 			map[string]interface{}{},
 		}
-	}
+	} 
 
 	g, ctx := errgroup.WithContext(ctx)
 	// resMu protects the results (res) as we stitch the results together from seperate goroutines
