@@ -2,6 +2,7 @@ package schemabuilder
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 )
 
