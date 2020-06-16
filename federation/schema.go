@@ -115,6 +115,14 @@ func ConvertVersionedSchemas(schemas serviceSchemas) (*SchemaWithFederationInfo,
 						if !ok {
 							return nil, oops.Errorf("Object %s is not an input object, but it is an argument to the field %s", rootType.Name, field.Name)
 						}
+
+						// Check that all the input fields are on the federated object
+						for fName := range inputType.InputFields {
+							if _, ok := obj.Fields[fName]; !ok {
+								return nil, oops.Errorf("input field %s is not a field on the object %s", fName, rootType.Name)
+							}
+						}
+
 						// If the field is one of the input fields to the federatedfieldfunc,
 						// add the service name to the list of federated keys
 						for fName, f := range obj.Fields {
