@@ -777,3 +777,49 @@ func TestExecutorQueriesWithBatching(t *testing.T) {
 		})
 	}
 }
+
+func TestSchemaFederationKeys(t *testing.T) {
+	type Device struct {
+        Id    int64
+        OrgId int64
+        Name  string
+        IsMulticam bool
+        ProductId int64
+	}
+	s1 := schemabuilder.NewSchemaWithName("rootgqlserver")
+	device := s1.Object("Device", Device{})
+	device.Key("id")
+	device.Federation(func(u *Device) *Device { 
+			return u
+	})
+	s1.Query().FieldFunc("device", func(ctx context.Context) (*Device, error) {
+		return &Device{Id:1, OrgId:1, Name:"bob", IsMulticam: true, ProductId: 1}, nil
+	})
+
+
+	s2 := schemabuilder.NewSchemaWithName("safetyserver")
+	type SafetyDevice struct {
+		Id          int64
+		IsMulticam   bool
+		FieldThatDoesntBelong int64
+	}
+	s2.Federation().FederatedFieldFunc("Device", func(args struct{ Keys []*SafetyDevice }) []*SafetyDevice {
+		return args.Keys 
+	})
+
+
+	// Register executor clients
+	executors := make(map[string]ExecutorClient)
+	srv, err := NewServer(s1.MustBuild())
+	require.NoError(t, err)
+	executors["s1"] = &DirectExecutorClient{Client: srv}
+	srv2, err := NewServer(s2.MustBuild())
+	require.NoError(t, err)
+	executors["s2"] = &DirectExecutorClient{Client: srv2}
+
+	// Build executor, it should error when trying to merge the schmea
+	// due to invalid federated keys
+	ctx := context.Background()
+	_, err = NewExecutor(ctx, executors)
+	assert.True(t, strings.Contains(err.Error(), "input field fieldThatDoesntBelong is not a field on the object SafetyDevice_InputObject"))
+}
