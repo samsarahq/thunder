@@ -12,13 +12,9 @@
                   "args": [],
                   "name": "__federation",
                   "type": {
-                    "kind": "NON_NULL",
-                    "name": "",
-                    "ofType": {
-                      "kind": "SCALAR",
-                      "name": "int64",
-                      "ofType": null
-                    }
+                    "kind": "OBJECT",
+                    "name": "Bar",
+                    "ofType": null
                   }
                 },
                 {
@@ -54,6 +50,27 @@
               "possibleTypes": []
             },
             {
+              "enumValues": [],
+              "fields": [],
+              "inputFields": [
+                {
+                  "name": "id",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "int64",
+                      "ofType": null
+                    }
+                  }
+                }
+              ],
+              "kind": "INPUT_OBJECT",
+              "name": "BarKeys_InputObject",
+              "possibleTypes": []
+            },
+            {
               "enumValues": [
                 {
                   "name": "one"
@@ -79,19 +96,15 @@
                           "kind": "LIST",
                           "name": "",
                           "ofType": {
-                            "kind": "NON_NULL",
-                            "name": "",
-                            "ofType": {
-                              "kind": "SCALAR",
-                              "name": "int64",
-                              "ofType": null
-                            }
+                            "kind": "INPUT_OBJECT",
+                            "name": "BarKeys_InputObject",
+                            "ofType": null
                           }
                         }
                       }
                     }
                   ],
-                  "name": "Bar",
+                  "name": "Bar-schema1",
                   "type": {
                     "kind": "NON_NULL",
                     "name": "",
@@ -121,19 +134,15 @@
                           "kind": "LIST",
                           "name": "",
                           "ofType": {
-                            "kind": "NON_NULL",
-                            "name": "",
-                            "ofType": {
-                              "kind": "SCALAR",
-                              "name": "string",
-                              "ofType": null
-                            }
+                            "kind": "INPUT_OBJECT",
+                            "name": "FooKeys_InputObject",
+                            "ofType": null
                           }
                         }
                       }
                     }
                   ],
-                  "name": "Foo",
+                  "name": "Foo-schema2",
                   "type": {
                     "kind": "NON_NULL",
                     "name": "",
@@ -165,13 +174,9 @@
                   "args": [],
                   "name": "__federation",
                   "type": {
-                    "kind": "NON_NULL",
-                    "name": "",
-                    "ofType": {
-                      "kind": "SCALAR",
-                      "name": "string",
-                      "ofType": null
-                    }
+                    "kind": "OBJECT",
+                    "name": "Foo",
+                    "ofType": null
                   }
                 },
                 {
@@ -266,6 +271,27 @@
               "inputFields": [],
               "kind": "OBJECT",
               "name": "Foo",
+              "possibleTypes": []
+            },
+            {
+              "enumValues": [],
+              "fields": [],
+              "inputFields": [
+                {
+                  "name": "name",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "string",
+                      "ofType": null
+                    }
+                  }
+                }
+              ],
+              "kind": "INPUT_OBJECT",
+              "name": "FooKeys_InputObject",
               "possibleTypes": []
             },
             {
