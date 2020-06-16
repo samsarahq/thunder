@@ -11,6 +11,7 @@ import (
 // can be registered against the "Mutation" and "Query" objects in order to
 // build out a full GraphQL schema.
 type Schema struct {
+	Name      string
 	objects   map[string]*Object
 	enumTypes map[reflect.Type]*EnumMapping
 }
@@ -29,6 +30,22 @@ func NewSchema() *Schema {
 
 	return schema
 }
+
+// NewSchema creates a new schema with a schema name
+func NewSchemaWithName(name string) *Schema {
+	schema := &Schema{
+		Name:    name,
+		objects: make(map[string]*Object),
+	}
+
+	// Default registrations.
+	schema.Enum(SortOrder(0), map[string]SortOrder{
+		"asc":  SortOrder_Ascending,
+		"desc": SortOrder_Descending,
+	})
+	return schema
+}
+
 
 // Enum registers an enumType in the schema. The val should be any arbitrary value
 // of the enumType to be used for reflection, and the enumMap should be
@@ -102,6 +119,7 @@ func (s *Schema) Object(name string, typ interface{}) *Object {
 	object := &Object{
 		Name: name,
 		Type: typ,
+		ServiceName: s.Name,
 	}
 	s.objects[name] = object
 	return object
