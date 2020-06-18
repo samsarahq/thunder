@@ -418,7 +418,7 @@ func (e *Executor) Execute(ctx context.Context, query *graphql.Query, optionalAr
 		return nil, nil, err
 	}
 
-	r, optionalResponseMetatdata, err := e.execute(ctx, plan, nil, optionalArgs)
+	r, responseMetadata, err := e.execute(ctx, plan, nil, optionalArgs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -431,5 +431,5 @@ func (e *Executor) Execute(ctx context.Context, query *graphql.Query, optionalAr
 	// So we expect only one item in this list
 	res := r[0]
 	deleteKey(res, federationField)
-	return res, optionalResponseMetatdata, nil
+	return res, responseMetadata, nil
 }
