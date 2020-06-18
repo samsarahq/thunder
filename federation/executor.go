@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sync"
 	"reflect"
+	"sync"
 
 	"github.com/samsarahq/go/oops"
 	"golang.org/x/sync/errgroup"
@@ -14,13 +14,29 @@ import (
 	"github.com/samsarahq/thunder/graphql/introspection"
 )
 
-
 const keyField = "__key"
 const federationField = "__federation"
 const typeNameField = "__typeName"
 
+// QueryRequest is sent to federated GraphQL servers by gateway service.
+type QueryRequest struct {
+	Query *graphql.Query
+	// Metadata is an optional custom field which can be used to send metadata such as authentication
+	// along with the query.
+	Metadata interface{}
+}
+
+// QueryResponse is the marshalled json reponse from federated GraphQL servers.
+type QueryResponse struct {
+	Result []byte
+	// Metadata is an optional custom field which can be used to receive metadata such as query duration
+	// along with the response.
+	Metadata interface{}
+}
+
+// ExecutorClient is used to send GraphQL requests from the gateway service to federated GraphQL servers.
 type ExecutorClient interface {
-	Execute(ctx context.Context, req *graphql.Query, optionalArgs interface{}) ([]byte, interface{}, error)
+	Execute(ctx context.Context, request *QueryRequest) (*QueryResponse, error)
 }
 
 // Executor has a map of all the executor clients such that it can execute a
@@ -31,13 +47,16 @@ type Executor struct {
 	planner   *Planner
 }
 
-func fetchSchema(ctx context.Context, e ExecutorClient, optionalArgs interface{}) ([]byte, interface{}, error) {
+func fetchSchema(ctx context.Context, e ExecutorClient, metadata interface{}) (*QueryResponse, error) {
 	query, err := graphql.Parse(introspection.IntrospectionQuery, map[string]interface{}{})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return e.Execute(ctx, query, optionalArgs)
+	return e.Execute(ctx, &QueryRequest{
+		Query:    query,
+		Metadata: metadata,
+	})
 }
 
 func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Executor, error) {
@@ -48,7 +67,8 @@ func NewExecutorWithOptionalArgs(ctx context.Context, executors map[string]Execu
 	// Fetches the schemas from the executors clients
 	schemas := make(map[string]*introspectionQueryResult)
 	for server, client := range executors {
-		schema, _, err := fetchSchema(ctx, client, optionalArgs)
+		resp, err := fetchSchema(ctx, client, optionalArgs)
+		schema := resp.Result
 		if err != nil {
 			return nil, oops.Wrapf(err, "fetching schema %s", server)
 		}
@@ -122,7 +142,7 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 	isRoot := keys == nil
 	if !isRoot {
 		federatedName := fmt.Sprintf("%s-%s", typName, service)
-		
+
 		var rootObject *graphql.Object
 		var ok bool
 		for f, _ := range e.planner.schema.Fields {
@@ -136,7 +156,7 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 		if rootObject == nil {
 			return nil, nil, oops.Errorf("root object not found for type %s", typName)
 		}
-	
+
 		// If it is a federated key on that service, add it to the input args
 		// passed in to the federated field func as one of the federated keys
 		newKeys := make([]interface{}, len(keys))
@@ -187,16 +207,20 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 	}
 
 	// Execute query on specified service
-	bytes, optionalResponseMetadata, err := schema.Execute(ctx, &graphql.Query{
-		Kind:         kind,
-		SelectionSet: selectionSet,
-	}, optionalArgs)
+	request := &QueryRequest{
+		Query: &graphql.Query{
+			Kind:         kind,
+			SelectionSet: selectionSet,
+		},
+		Metadata: optionalArgs,
+	}
+	response, err := schema.Execute(ctx, request)
 	if err != nil {
 		return nil, nil, oops.Wrapf(err, "execute remotely")
 	}
 	// Unmarshal json from results
 	var res interface{}
-	if err := json.Unmarshal(bytes, &res); err != nil {
+	if err := json.Unmarshal(response.Result, &res); err != nil {
 		return nil, nil, oops.Wrapf(err, "unmarshal res")
 	}
 
@@ -214,12 +238,11 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 		if !ok {
 			return nil, nil, fmt.Errorf("root did not have a federation map, got %v", res)
 		}
-		return r, optionalResponseMetadata, nil
+		return r, response.Metadata, nil
 
 	}
-	return []interface{}{res},optionalResponseMetadata, nil
+	return []interface{}{res}, response.Metadata, nil
 }
-
 
 func (pathTargets *pathSubqueryMetadata) extractKeys(node interface{}, path []PathStep) error {
 	// Extract key for every element in the slice
@@ -314,7 +337,7 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}, opt
 		var subPlanMetaData pathSubqueryMetadata
 		if p.Service == gatewayCoordinatorServiceName {
 			subPlanMetaData.keys = nil // On the root query there are no specified keys
-			// On the root query, there will only be one result since 
+			// On the root query, there will only be one result since
 			// it is on either the "query" or "mutation object"
 			subPlanMetaData.results = []map[string]interface{}{
 				res[0].(map[string]interface{}),
@@ -346,7 +369,7 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}, opt
 				if !ok {
 					return fmt.Errorf("result is not an object: %v", executionResult)
 				}
-				
+
 				for k, v := range executionResult {
 					if _, ok := result[k]; !ok {
 						result[k] = v
@@ -384,7 +407,7 @@ func deleteKey(v interface{}, k string) {
 
 // Metadata for a subquery
 type pathSubqueryMetadata struct {
-	keys                    []interface{}          // Federated Keys passed into subquery
+	keys                    []interface{}            // Federated Keys passed into subquery
 	results                 []map[string]interface{} // Results from subquery
 	optionalResponseMetatda []interface{}
 }
@@ -408,5 +431,5 @@ func (e *Executor) Execute(ctx context.Context, query *graphql.Query, optionalAr
 	// So we expect only one item in this list
 	res := r[0]
 	deleteKey(res, federationField)
-	return res,optionalResponseMetatdata,  nil
+	return res, optionalResponseMetatdata, nil
 }
