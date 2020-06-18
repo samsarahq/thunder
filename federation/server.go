@@ -18,20 +18,20 @@ type DirectExecutorClient struct {
 	Client thunderpb.ExecutorServer
 }
 
-func (c *DirectExecutorClient) Execute(ctx context.Context, req *graphql.Query, optionalArgs interface{}) ([]byte, interface{}, error) {
+func (c *DirectExecutorClient) Execute(ctx context.Context, request *QueryRequest) (*QueryResponse, error) {
 	// marshal query into a protobuf
-	marshaled, err := MarshalQuery(req)
+	marshaled, err := MarshalQuery(request.Query)
 	if err != nil {
-		return nil, nil, oops.Wrapf(err, "marshaling query")
+		return nil, oops.Wrapf(err, "marshaling query")
 	}
 	// Make a request to the executor client with the query
 	resp, err := c.Client.Execute(ctx, &thunderpb.ExecuteRequest{
 		Query: marshaled,
 	})
 	if err != nil {
-		return nil, nil, oops.Wrapf(err, "executing query")
+		return nil, oops.Wrapf(err, "executing query")
 	}
-	return resp.Result, nil, nil
+	return &QueryResponse{Result: resp.Result}, nil
 }
 
 // Server must implement thunderpb.ExecutorServer.
