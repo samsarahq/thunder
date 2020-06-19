@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/samsarahq/go/oops"
 	"github.com/samsarahq/thunder/graphql"
 )
 
@@ -12,6 +13,12 @@ import (
 // that object to build a GraphQL Field that can be resolved in the GraphQL
 // graph.
 func (sb *schemaBuilder) buildFunction(typ reflect.Type, m *method) (*graphql.Field, error) {
+	// If the method is federated, we want to built a graphql field that returns all
+	// fields on that object. This allows them to be sent as federated keys to other servers.
+	if m.FederationType != nil {
+		return sb.buildFederatedFunction(typ, m)
+	}
+
 	field, _, err := sb.buildFunctionAndFuncCtx(typ, m)
 	return field, err
 }
@@ -79,6 +86,29 @@ func (sb *schemaBuilder) buildFunctionAndFuncCtx(typ reflect.Type, m *method) (*
 		External:                   true,
 		NumParallelInvocationsFunc: m.ConcurrencyArgs.numParallelInvocationsFunc,
 	}, funcCtx, nil
+}
+
+// buildFederatedFunction creates a graphql field that exposes all the fields on the object struct.
+// This allows them to be sent to any other server as federated keys.
+func (sb *schemaBuilder) buildFederatedFunction(typ reflect.Type, m *method) (*graphql.Field, error) {
+	var argParser *argParser
+	returnType, err := sb.getType(reflect.TypeOf(m.FederationType))
+	if err != nil {
+		return nil, oops.Wrapf(err, "Invalid return type")
+	}
+	field := &graphql.Field{
+		Resolve: func(ctx context.Context, source, funcRawArgs interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
+			return source, nil
+
+		},
+		Args:                       make(map[string]graphql.Type),
+		Type:                       returnType,
+		ParseArguments:             argParser.Parse,
+		Expensive:                  m.Expensive,
+		External:                   true,
+		NumParallelInvocationsFunc: m.ConcurrencyArgs.numParallelInvocationsFunc,
+	}
+	return field, nil
 }
 
 // funcContext is used to parse the function signature in buildFunction.
