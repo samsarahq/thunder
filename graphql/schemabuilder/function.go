@@ -15,6 +15,11 @@ import (
 func (sb *schemaBuilder) buildFunction(typ reflect.Type, m *method) (*graphql.Field, error) {
 	// If the method is federated, we want to built a graphql field that returns all
 	// fields on that object. This allows them to be sent as federated keys to other servers.
+	// if typ.Name() == "federation" && m.FederationType != nil {
+	// returnType, err := sb.getType(reflect.TypeOf(m.FederationType))
+	// fmt.Println("VUHBJN ", typ.Name(), reflect.TypeOf(m.FederationType))
+	// }
+
 	if m.Federated {
 		var argParser *argParser
 		returnType, err := sb.getType(reflect.TypeOf(m.FederationType))
@@ -84,6 +89,45 @@ func (sb *schemaBuilder) buildFunctionAndFuncCtx(typ reflect.Type, m *method) (*
 		return nil, nil, err
 	}
 
+	if typ.Name() == "federation" {
+		fmt.Println("yolo     ", reflect.TypeOf(args["keys"]).Elem(), args["keys"], m.FederationType)
+		// iA := make(map[string]reflect.Type)0
+		// k := reflect.ValueOf(m.FederationType)
+
+		// Create a new instance of the underlying type
+		// vp := reflect.MakeSlice(reflect.TypeOf(m.FederationType), 0, 0)
+		federatedType := reflect.New(reflect.TypeOf(m.FederationType)).Type()
+		listOfFederatedType := reflect.MakeSlice(reflect.SliceOf(federatedType), 0, 0).Interface()
+
+		fmt.Println("jhbkjn    ", reflect.TypeOf(listOfFederatedType))
+		// iA["keys"] = reflect.New(reflect.List(reflect.TypeOf(args["keys"])))
+		a, b, err := sb.makeStructParser(reflect.TypeOf(m.FederationType))
+		fmt.Println(a, b, err)
+		fmt.Println(argParser, argType, err)
+		// c, err := funcCtx.argsTypeMap(b)
+		// if err != nil {
+		// 	return nil, nil, err
+		// }
+		// return &graphql.Field{
+		// 	Resolve: func(ctx context.Context, source, funcRawArgs interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
+		// 		// Set up function arguments.
+		// 		funcInputArgs := funcCtx.prepareResolveArgs(source, funcCtx.hasArgs, funcRawArgs, ctx, selectionSet)
+
+		// 		// Call the function.
+		// 		funcOutputArgs := callableFunc.Call(funcInputArgs)
+
+		// 		return funcCtx.extractResultAndErr(funcOutputArgs, retType)
+
+		// 	},
+		// 	Args:                       c,
+		// 	Type:                       retType,
+		// 	ParseArguments:             a.Parse,
+		// 	Expensive:                  m.Expensive,
+		// 	External:                   true,
+		// 	NumParallelInvocationsFunc: m.ConcurrencyArgs.numParallelInvocationsFunc,
+		// }, funcCtx, nil
+
+	}
 	return &graphql.Field{
 		Resolve: func(ctx context.Context, source, funcRawArgs interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
 			// Set up function arguments.

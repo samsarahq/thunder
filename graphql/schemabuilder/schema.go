@@ -119,7 +119,7 @@ func (f objectOptionFunc) apply(m *Object) { f(m) }
 // NonNullable is an option that can be passed to a FieldFunc to indicate that
 // its return value is required, even if the return value is a pointer type.
 var ShadowObject objectOptionFunc = func(m *Object) {
-	m.IsFederated = true
+	m.IsShadow = true
 }
 
 // NonNullable is an option that can be passed to a FieldFunc to indicate that
@@ -165,7 +165,29 @@ func (s *Schema) Object(name string, typ interface{}, options ...ObjectOption) *
 		object.Methods[federationField] = m
 
 	}
+	if object.IsShadow {
+		federatedObjectType := reflect.New(reflect.TypeOf(typ)).Interface()
+		if object.Methods == nil {
+			object.Methods = make(Methods)
+		}
 
+		m := &method{}
+		if _, ok := object.Methods[federationField]; ok {
+			panic("duplicate federation method")
+		}
+		m.FederationType = federatedObjectType
+		m.Federated = true
+		m.ShadowType = federatedObjectType
+		object.Methods[federationField] = m
+
+		// fo := reflect.New(reflect.SliceOf(reflect.TypeOf(typ))).Interface()
+		// reflect.
+
+		fmt.Println("F   F  O  ", reflect.TypeOf(federatedObjectType))
+
+		// s.FederatedFieldFunc("User", typ, nil)
+
+	}
 	s.objects[name] = object
 	return object
 }

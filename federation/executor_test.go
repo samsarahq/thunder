@@ -50,25 +50,22 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		Name        string
 		Email       string
 		PhoneNumber string
+		IsAdmin     bool
 	}
 	s1 := schemabuilder.NewSchemaWithName("s1")
 	user := s1.Object("User", User{}, schemabuilder.RootObject)
 	user.Key("id")
-	type UserIds struct {
-		Id    int64
-		OrgId int64
-	}
 	s1.Query().FieldFunc("users", func(ctx context.Context) ([]*User, error) {
 		users := make([]*User, 0, 1)
-		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: "testUser", Email: "email@gmail.com", PhoneNumber: "555-5555"})
-		users = append(users, &User{Id: int64(2), OrgId: int64(2), Name: "testUser2", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: "testUser", Email: "email@gmail.com", PhoneNumber: "555-5555", IsAdmin: true})
+		users = append(users, &User{Id: int64(2), OrgId: int64(2), Name: "testUser2", Email: "email2@gmail.com", PhoneNumber: "666-6666", IsAdmin: false})
 		return users, nil
 	})
 	s1.Query().FieldFunc("usersWithArgs", func(args struct {
 		Name string
 	}) ([]*User, error) {
 		users := make([]*User, 0, 1)
-		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: args.Name})
+		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: args.Name, Email: "email@gmail.com", PhoneNumber: "555-5555", IsAdmin: true})
 		return users, nil
 	})
 
@@ -137,19 +134,19 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		PhoneNumber string
 	}
 
-	type UserKeysWithOrgId struct {
-		Id    int64
-		OrgId int64
-	}
+	// type UserKeysWithOrgId struct {
+	// 	Id    int64
+	// 	OrgId int64
+	// }
 	s2 := schemabuilder.NewSchemaWithName("s2")
-	s2.FederatedFieldFunc("User", UserKeysWithOrgId{}, func(ctx context.Context, args struct{ Keys []UserKeysWithOrgId }) []*UserWithContactInfo {
-		users := make([]*UserWithContactInfo, 0, len(args.Keys))
-		for _, key := range args.Keys {
-			users = append(users, &UserWithContactInfo{Id: key.Id, OrgId: key.OrgId, Name: "userWithContactInfo", Email: "email@gmail.com", PhoneNumber: "555-5555"})
-		}
-		return users
+	s2.FederatedFieldFunc("User", UserWithContactInfo{}, func(ctx context.Context, args struct{ Keys []*UserWithContactInfo }) []*UserWithContactInfo {
+		// users := make([]*UserWithContactInfo, 0, len(args.Keys))
+		// for _, key := range args.Keys {
+		// 	users = append(users, &UserWithContactInfo{Id: key.Id, OrgId: key.OrgId, Name: "userWithContactInfo", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		// }
+		return args.Keys
 	})
-	userWithContactInfo := s2.FederatedObject("User", UserWithContactInfo{})
+	userWithContactInfo := s2.Object("User", UserWithContactInfo{}, schemabuilder.ShadowObject)
 	userWithContactInfo.Key("id")
 	userWithContactInfo.FieldFunc("secret", func(ctx context.Context, user *UserWithContactInfo) (string, error) {
 		return "shhhhh", nil
@@ -183,16 +180,16 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		OrgId   int64
 		IsAdmin bool
 	}
-	type UserKeys struct {
-		Id int64
-	}
+	// type UserKeys struct {
+	// 	Id int64
+	// }
 	s3 := schemabuilder.NewSchemaWithName("s3")
-	s3.FederatedFieldFunc("User", UserWithAdminPrivelages{}, func(args struct{ Keys []UserKeys }) []*UserWithAdminPrivelages {
-		users := make([]*UserWithAdminPrivelages, 0, len(args.Keys))
-		for _, key := range args.Keys {
-			users = append(users, &UserWithAdminPrivelages{Id: key.Id, OrgId: 0, IsAdmin: true})
-		}
-		return users
+	s3.FederatedFieldFunc("User", UserWithAdminPrivelages{}, func(args struct{ Keys []*UserWithAdminPrivelages }) []*UserWithAdminPrivelages {
+		// users := make([]*UserWithAdminPrivelages, 0, len(args.Keys))
+		// for _, key := range args.Keys {
+		// 	users = append(users, &UserWithAdminPrivelages{Id: key.Id, OrgId: 0, IsAdmin: true})
+		// }
+		return args.Keys
 	})
 	userWithAdminPrivelages := s3.FederatedObject("User", UserWithAdminPrivelages{})
 	userWithAdminPrivelages.Key("id")
@@ -200,7 +197,7 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		return "all", nil
 	})
 
-	s1.FederatedFieldFunc("User", UserKeysWithOrgId{}, func(ctx context.Context, args struct{ Keys []UserKeysWithOrgId }) []*UserWithContactInfo {
+	s1.FederatedFieldFunc("User", UserWithContactInfo{}, func(ctx context.Context, args struct{ Keys []UserWithContactInfo }) []*UserWithContactInfo {
 		users := make([]*UserWithContactInfo, 0, len(args.Keys))
 		for _, key := range args.Keys {
 			users = append(users, &UserWithContactInfo{Id: key.Id, OrgId: key.OrgId, Name: "userWithContactInfo", Email: "email@gmail.com", PhoneNumber: "555-5555"})
@@ -324,7 +321,9 @@ func TestExecutorQueriesBasic(t *testing.T) {
 						id
 						email
 						phoneNumber
+						secret
 						isAdmin
+						privelages
 					}
 				}`,
 			Output: `
@@ -335,13 +334,17 @@ func TestExecutorQueriesBasic(t *testing.T) {
 							"id":1,
 							"email": "email@gmail.com",
 							"phoneNumber": "555-5555",
-							"isAdmin":true
+							"isAdmin":true, 
+							"privelages":"all", 
+							"secret":"shhhhh"
 						},{
 							"__key":2,
 							"id":2,
-							"email": "email@gmail.com",
-							"phoneNumber": "555-5555",
-							"isAdmin":true
+							"email": "email2@gmail.com",
+							"phoneNumber": "666-6666",
+							"isAdmin":false,
+							"privelages":"all",
+							"secret":"shhhhh"
 						}
 					]
 				}`,

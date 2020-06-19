@@ -16,6 +16,7 @@ type Object struct {
 	key           string
 	ServiceName   string
 	IsFederated   bool
+	IsShadow      bool
 	FederatedType interface{}
 }
 
@@ -292,6 +293,7 @@ func (s *Schema) FederatedFieldFunc(name string, typ interface{}, f interface{},
 	if _, ok := obj.Methods[federatedMethodName]; ok {
 		panic("duplicate method")
 	}
+	m.FederationType = typ
 	obj.Methods[federatedMethodName] = m
 }
 
@@ -333,6 +335,8 @@ type method struct {
 	ManualPaginationArgs manualPaginationArgs
 
 	FederationType interface{}
+
+	ShadowType interface{}
 
 	Federated bool
 }
