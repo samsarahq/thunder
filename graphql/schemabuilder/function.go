@@ -90,7 +90,7 @@ func (sb *schemaBuilder) buildFunctionAndFuncCtx(typ reflect.Type, m *method) (*
 	}
 
 	if typ.Name() == "federation" {
-		fmt.Println("yolo     ", reflect.TypeOf(args["keys"]).Elem(), args["keys"], m.FederationType)
+		fmt.Println("yolo     ", reflect.TypeOf(args["keys"]), args["keys"], m.FederationType)
 		// iA := make(map[string]reflect.Type)0
 		// k := reflect.ValueOf(m.FederationType)
 
@@ -101,9 +101,35 @@ func (sb *schemaBuilder) buildFunctionAndFuncCtx(typ reflect.Type, m *method) (*
 
 		fmt.Println("jhbkjn    ", reflect.TypeOf(listOfFederatedType))
 		// iA["keys"] = reflect.New(reflect.List(reflect.TypeOf(args["keys"])))
+
+		// var typeRegistry = map[string]reflect.Type{
+		// 	"keys": reflect.TypeOf(listOfFederatedType),
+		// }
+
+		// keys := make(map[string]reflect.Type, 1)
+		// keys["keys"] = reflect.TypeOf(listOfFederatedType)
+		// fmt.Println(typeRegistry)
+		// reflect.Struct()
+		// t := reflect.TypeOf(listOfFederatedType)
+		// type k struct {
+		// 	keys t
+		// }
+
+		listOfFederatedType = []*Object
+
+		struct {
+			Keys []*Object
+		}
+
 		a, b, err := sb.makeStructParser(reflect.TypeOf(m.FederationType))
-		fmt.Println(a, b, err)
+
+		fmt.Println("VB", a, b, err)
 		fmt.Println(argParser, argType, err)
+
+		args2, _ := funcCtx.argsTypeMap(b)
+
+		fmt.Println("yolo2     ", reflect.TypeOf(args2))
+
 		// c, err := funcCtx.argsTypeMap(b)
 		// if err != nil {
 		// 	return nil, nil, err
@@ -214,6 +240,8 @@ func (funcCtx *funcContext) getArgParserAndTyp(sb *schemaBuilder, in []reflect.T
 	var argType graphql.Type
 	if len(in) > 0 && in[0] != selectionSetType {
 		var err error
+		fmt.Println(" IN ", in[0], reflect.TypeOf(in[0]))
+
 		if argParser, argType, err = sb.makeStructParser(in[0]); err != nil {
 			return nil, nil, in, fmt.Errorf("attempted to parse %s as arguments struct, but failed: %s", in[0].Name(), err.Error())
 		}
