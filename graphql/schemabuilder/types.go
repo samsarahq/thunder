@@ -13,8 +13,8 @@ type Object struct {
 	Description string
 	Type        interface{}
 	Methods     Methods // Deprecated, use FieldFunc instead.
-	key string
-	ServiceName string 
+	key         string
+	ServiceName string
 	IsFederated bool
 }
 
@@ -280,7 +280,6 @@ func (s *Object) FederatedFieldFunc(name string, f interface{}, options ...Field
 	s.Methods[federatedMethodName] = m
 }
 
-
 // Key registers the key field on an object. The field should be specified by the name of the
 // graphql field.
 // For example, for an object User:
@@ -317,6 +316,10 @@ type method struct {
 	BatchArgs batchArgs
 
 	ManualPaginationArgs manualPaginationArgs
+
+	// FederationType is an object where all the fields are keys
+	// that can be exposed over federation
+	FederationType interface{}
 }
 
 type concurrencyArgs struct {
@@ -362,13 +365,6 @@ type Methods map[string]*method
 type Union struct{}
 
 var unionType = reflect.TypeOf(Union{})
-
-func (s *Object) Federation(f interface{}) {
-	if s.IsFederated {
-		panic("can't federate a federated method")
-	}
-	s.FieldFunc("__federation", f)
-}
 
 func (s *Schema) FederatedObject(name string, typ interface{}) *Object {
 	if object, ok := s.objects[name]; ok {

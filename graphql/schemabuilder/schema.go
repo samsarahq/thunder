@@ -7,6 +7,8 @@ import (
 	"github.com/samsarahq/thunder/graphql"
 )
 
+const federationField = "__federation"
+
 // Schema is a struct that can be used to build out a GraphQL schema.  Functions
 // can be registered against the "Mutation" and "Query" objects in order to
 // build out a full GraphQL schema.
@@ -45,7 +47,6 @@ func NewSchemaWithName(name string) *Schema {
 	})
 	return schema
 }
-
 
 // Enum registers an enumType in the schema. The val should be any arbitrary value
 // of the enumType to be used for reflection, and the enumMap should be
@@ -104,12 +105,29 @@ func getEnumMap(enumMap interface{}, typ reflect.Type) (map[string]interface{}, 
 
 }
 
+// OpjectOption is an interface for the variadic options that can be passed
+// to a Object for configuring options on that object.
+type ObjectOption interface {
+	apply(*Object)
+}
+
+// objectOptionFunc is a helper to define ObjectOptions when creating an object
+type objectOptionFunc func(*Object)
+
+func (f objectOptionFunc) apply(m *Object) { f(m) }
+
+// RootObject is an option that can be passed to a Object to indicate that the object
+// can have field funcs on other severs, allowing it to be federated.
+var RootObject objectOptionFunc = func(m *Object) {
+	m.IsFederated = true
+}
+
 // Object registers a struct as a GraphQL Object in our Schema.
 // (https://facebook.github.io/graphql/June2018/#sec-Objects)
 // We'll read the fields of the struct to determine it's basic "Fields" and
 // we'll return an Object struct that we can use to register custom
 // relationships and fields on the object.
-func (s *Schema) Object(name string, typ interface{}) *Object {
+func (s *Schema) Object(name string, typ interface{}, options ...ObjectOption) *Object {
 	if object, ok := s.objects[name]; ok {
 		if reflect.TypeOf(object.Type) != reflect.TypeOf(typ) {
 			panic("re-registered object with different type")
@@ -117,11 +135,30 @@ func (s *Schema) Object(name string, typ interface{}) *Object {
 		return object
 	}
 	object := &Object{
-		Name: name,
-		Type: typ,
+		Name:        name,
+		Type:        typ,
 		ServiceName: s.Name,
 	}
 	s.objects[name] = object
+
+	for _, opt := range options {
+		opt.apply(object)
+	}
+
+	if object.IsFederated {
+		federatedObjectType := reflect.New(reflect.TypeOf(typ)).Interface()
+		if object.Methods == nil {
+			object.Methods = make(Methods)
+		}
+
+		federatedMethod := &method{}
+		if _, ok := object.Methods[federationField]; ok {
+			panic("duplicate federation method")
+		}
+		federatedMethod.FederationType = federatedObjectType
+		object.Methods[federationField] = federatedMethod
+	}
+
 	return object
 }
 
@@ -193,7 +230,6 @@ func (s *Schema) MustBuild() *graphql.Schema {
 	}
 	return built
 }
-
 
 type federation struct{}
 
