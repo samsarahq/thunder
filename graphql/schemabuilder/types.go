@@ -265,19 +265,30 @@ func (s *Object) ManualPaginationWithFallback(name string, manualPaginatedFunc i
 	s.Methods[name] = m
 }
 
-func (s *Object) FederatedFieldFunc(name string, f interface{}, options ...FieldFuncOption) {
-	if s.Methods == nil {
-		s.Methods = make(Methods)
+type federation struct{}
+
+func (s *Schema) FederatedFieldFunc(name string, f interface{}, options ...FieldFuncOption) {
+	// Create a field func called "__federation" on the root query object
+	q := s.Query()
+	if _, ok := q.Methods["__federation"]; !ok {
+		q.FieldFunc("__federation", func() federation { return federation{} })
 	}
+	obj := s.Object("Federation", federation{})
+
+	if obj.Methods == nil {
+		obj.Methods = make(Methods)
+	}
+
+	// Create a method on the "Federation" object to create the shadow object from the federated keys
 	m := &method{Fn: f}
 	for _, opt := range options {
 		opt.apply(m)
 	}
-	federatedMethodName := fmt.Sprintf("%s-%s", name, s.ServiceName)
-	if _, ok := s.Methods[federatedMethodName]; ok {
+	federatedMethodName := fmt.Sprintf("%s-%s", name, obj.ServiceName)
+	if _, ok := obj.Methods[federatedMethodName]; ok {
 		panic("duplicate method")
 	}
-	s.Methods[federatedMethodName] = m
+	obj.Methods[federatedMethodName] = m
 }
 
 // Key registers the key field on an object. The field should be specified by the name of the
