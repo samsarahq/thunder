@@ -86,7 +86,7 @@ func buildTestSchema1() *schemabuilder.Schema {
 	type BarKeys struct {
 		Id int64
 	}
-	schema.Federation().FederatedFieldFunc("Bar", func(args struct{ Keys []*BarKeys }) []*Bar {
+	schema.FederatedFieldFunc("Bar", func(args struct{ Keys []*BarKeys }) []*Bar {
 		bars := make([]*Bar, 0, len(args.Keys))
 		for _, key := range args.Keys {
 			bars = append(bars, &Bar{Id: key.Id})
@@ -122,7 +122,7 @@ func buildTestSchema2() *schemabuilder.Schema {
 	type FooKeys struct {
 		Name string
 	}
-	schema.Federation().FederatedFieldFunc("Foo", func(args struct{ Keys []*FooKeys }) []*Foo {
+	schema.FederatedFieldFunc("Foo", func(args struct{ Keys []*FooKeys }) []*Foo {
 		foos := make([]*Foo, 0, len(args.Keys))
 		for _, key := range args.Keys {
 			foos = append(foos, &Foo{Name: key.Name})
