@@ -3,6 +3,7 @@ package federation
 import (
 	"context"
 	"fmt"
+
 	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 )
@@ -67,10 +68,7 @@ func buildTestSchema1() *schemabuilder.Schema {
 		}
 	})
 
-	foo := schema.Object("Foo", Foo{})
-	foo.Federation(func(f *Foo) *Foo {
-		return f
-	})
+	foo := schema.Object("Foo", Foo{}, schemabuilder.RootObject)
 	foo.BatchFieldFunc("s1hmm", func(ctx context.Context, in map[batch.Index]*Foo) (map[batch.Index]string, error) {
 		out := make(map[batch.Index]string)
 		for i, foo := range in {
@@ -156,10 +154,6 @@ func buildTestSchema2() *schemabuilder.Schema {
 		return f
 	})
 
-	bar := schema.Object("Bar", Bar{})
-	bar.Federation(func(b *Bar)  *Bar {
-		return b
-	})
-
+	schema.Object("Bar", Bar{}, schemabuilder.RootObject)
 	return schema
 }

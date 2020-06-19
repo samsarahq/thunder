@@ -50,15 +50,12 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		Name  string
 	}
 	s1 := schemabuilder.NewSchemaWithName("s1")
-	user := s1.Object("User", User{})
+	user := s1.Object("User", User{}, schemabuilder.RootObject)
 	user.Key("id")
 	type UserIds struct {
 		Id    int64
 		OrgId int64
 	}
-	user.Federation(func(u *User) *User {
-		return u
-	})
 	s1.Query().FieldFunc("users", func(ctx context.Context) ([]*User, error) {
 		users := make([]*User, 0, 1)
 		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: "testUser"})
@@ -78,11 +75,8 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		OrgId      int64
 		SuperPower string
 	}
-	admin := s1.Object("Admin", Admin{})
+	admin := s1.Object("Admin", Admin{}, schemabuilder.RootObject)
 	admin.Key("id")
-	admin.Federation(func(a *Admin) *Admin {
-		return a
-	})
 	admin.FieldFunc("hiding", func(ctx context.Context, user *Admin) (bool, error) {
 		return true, nil
 	})
@@ -109,11 +103,8 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		OrgId int64
 		IsOn  bool
 	}
-	device := s1.Object("Device", Device{})
+	device := s1.Object("Device", Device{}, schemabuilder.RootObject)
 	device.Key("id")
-	device.Federation(func(d *Device) *Device {
-		return d
-	})
 
 	user.FieldFunc("device", func(ctx context.Context, user *User) (*Device, error) {
 		return &Device{Id: int64(1), OrgId: int64(1), IsOn: true}, nil
@@ -780,33 +771,29 @@ func TestExecutorQueriesWithBatching(t *testing.T) {
 
 func TestSchemaFederationKeys(t *testing.T) {
 	type Device struct {
-        Id    int64
-        OrgId int64
-        Name  string
-        IsMulticam bool
-        ProductId int64
+		Id         int64
+		OrgId      int64
+		Name       string
+		IsMulticam bool
+		ProductId  int64
 	}
 	s1 := schemabuilder.NewSchemaWithName("rootgqlserver")
-	device := s1.Object("Device", Device{})
+	device := s1.Object("Device", Device{}, schemabuilder.RootObject)
 	device.Key("id")
-	device.Federation(func(u *Device) *Device { 
-			return u
-	})
-	s1.Query().FieldFunc("device", func(ctx context.Context) (*Device, error) {
-		return &Device{Id:1, OrgId:1, Name:"bob", IsMulticam: true, ProductId: 1}, nil
-	})
 
+	s1.Query().FieldFunc("device", func(ctx context.Context) (*Device, error) {
+		return &Device{Id: 1, OrgId: 1, Name: "bob", IsMulticam: true, ProductId: 1}, nil
+	})
 
 	s2 := schemabuilder.NewSchemaWithName("safetyserver")
 	type SafetyDevice struct {
-		Id          int64
-		IsMulticam   bool
+		Id                    int64
+		IsMulticam            bool
 		FieldThatDoesntBelong int64
 	}
 	s2.Federation().FederatedFieldFunc("Device", func(args struct{ Keys []*SafetyDevice }) []*SafetyDevice {
-		return args.Keys 
+		return args.Keys
 	})
-
 
 	// Register executor clients
 	executors := make(map[string]ExecutorClient)
