@@ -9,13 +9,14 @@ import (
 // A Object represents a Go type and set of methods to be converted into an
 // Object in a GraphQL schema.
 type Object struct {
-	Name        string // Optional, defaults to Type's name.
-	Description string
-	Type        interface{}
-	Methods     Methods // Deprecated, use FieldFunc instead.
-	key         string
-	ServiceName string
-	IsFederated bool
+	Name          string // Optional, defaults to Type's name.
+	Description   string
+	Type          interface{}
+	Methods       Methods // Deprecated, use FieldFunc instead.
+	key           string
+	ServiceName   string
+	IsFederated   bool
+	FederatedType interface{}
 }
 
 type paginationObject struct {
@@ -38,6 +39,12 @@ func (f fieldFuncOptionFunc) apply(m *method) { f(m) }
 // its return value is required, even if the return value is a pointer type.
 var NonNullable fieldFuncOptionFunc = func(m *method) {
 	m.MarkedNonNullable = true
+}
+
+// NonNullable is an option that can be passed to a FieldFunc to indicate that
+// its return value is required, even if the return value is a pointer type.
+var Federated fieldFuncOptionFunc = func(m *method) {
+	m.Federated = true
 }
 
 // Paginated is an option that can be passed to a FieldFunc to indicate that
@@ -267,7 +274,7 @@ func (s *Object) ManualPaginationWithFallback(name string, manualPaginatedFunc i
 
 type federation struct{}
 
-func (s *Schema) FederatedFieldFunc(name string, f interface{}, options ...FieldFuncOption) {
+func (s *Schema) FederatedFieldFunc(name string, typ interface{}, f interface{}, options ...FieldFuncOption) {
 	q := s.Query()
 	if _, ok := q.Methods["__federation"]; !ok {
 		q.FieldFunc("__federation", func() federation { return federation{} })
@@ -324,6 +331,10 @@ type method struct {
 	BatchArgs batchArgs
 
 	ManualPaginationArgs manualPaginationArgs
+
+	FederationType interface{}
+
+	Federated bool
 }
 
 type concurrencyArgs struct {
@@ -369,13 +380,6 @@ type Methods map[string]*method
 type Union struct{}
 
 var unionType = reflect.TypeOf(Union{})
-
-func (s *Object) Federation(f interface{}) {
-	if s.IsFederated {
-		panic("can't federate a federated method")
-	}
-	s.FieldFunc("__federation", f)
-}
 
 func (s *Schema) FederatedObject(name string, typ interface{}) *Object {
 	if object, ok := s.objects[name]; ok {

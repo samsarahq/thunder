@@ -88,11 +88,9 @@ func createFederatedSchema(t *testing.T) *schemabuilder.Schema {
 		Name  string
 	}
 	s1 := schemabuilder.NewSchema()
-	user := s1.Object("User", User{})
+	user := s1.Object("User", User{}, schemabuilder.RootObject)
 	user.Key("id")
-	user.Federation(func(u *User) int64 {
-		return u.Id
-	})
+
 	s1.Query().FieldFunc("users", func(ctx context.Context) ([]*User, error) {
 		value, ok := ctx.Value("authtoken").(string)
 		if ok && value == "testToken" {

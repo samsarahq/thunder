@@ -97,8 +97,8 @@ func ConvertVersionedSchemas(schemas serviceSchemas) (*SchemaWithFederationInfo,
 			// on the field object.
 			if typ.Name == "Federation" {
 				for _, field := range typ.Fields {
-				    // Extract the type name from the formatting <object>-<service>
-				    // And check that the object type exists
+					// Extract the type name from the formatting <object>-<service>
+					// And check that the object type exists
 					names := strings.SplitN(field.Name, "-", 2)
 					if len(names) != 2 {
 						return nil, oops.Errorf("Field %s doesnt have an object name and service name", field.Name)
@@ -139,7 +139,6 @@ func ConvertVersionedSchemas(schemas serviceSchemas) (*SchemaWithFederationInfo,
 			}
 			if typ.Kind == "OBJECT" {
 				obj := types[typ.Name].(*graphql.Object)
-
 				for _, field := range typ.Fields {
 					f := obj.Fields[field.Name]
 

@@ -68,10 +68,8 @@ func buildTestSchema1() *schemabuilder.Schema {
 		}
 	})
 
-	foo := schema.Object("Foo", Foo{})
-	foo.Federation(func(f *Foo) *Foo {
-		return f
-	})
+	foo := schema.Object("Foo", Foo{}, schemabuilder.RootObject)
+
 	foo.BatchFieldFunc("s1hmm", func(ctx context.Context, in map[batch.Index]*Foo) (map[batch.Index]string, error) {
 		out := make(map[batch.Index]string)
 		for i, foo := range in {
@@ -89,7 +87,7 @@ func buildTestSchema1() *schemabuilder.Schema {
 	type BarKeys struct {
 		Id int64
 	}
-	schema.FederatedFieldFunc("Bar", func(args struct{ Keys []*BarKeys }) []*Bar {
+	schema.FederatedFieldFunc("Bar", BarKeys{}, func(args struct{ Keys []*BarKeys }) []*Bar {
 		bars := make([]*Bar, 0, len(args.Keys))
 		for _, key := range args.Keys {
 			bars = append(bars, &Bar{Id: key.Id})
@@ -125,7 +123,7 @@ func buildTestSchema2() *schemabuilder.Schema {
 	type FooKeys struct {
 		Name string
 	}
-	schema.FederatedFieldFunc("Foo", func(args struct{ Keys []*FooKeys }) []*Foo {
+	schema.FederatedFieldFunc("Foo", FooKeys{}, func(args struct{ Keys []*FooKeys }) []*Foo {
 		foos := make([]*Foo, 0, len(args.Keys))
 		for _, key := range args.Keys {
 			foos = append(foos, &Foo{Name: key.Name})
@@ -157,10 +155,7 @@ func buildTestSchema2() *schemabuilder.Schema {
 		return f
 	})
 
-	bar := schema.Object("Bar", Bar{})
-	bar.Federation(func(b *Bar) *Bar {
-		return b
-	})
+	schema.Object("Bar", Bar{}, schemabuilder.RootObject)
 
 	return schema
 }

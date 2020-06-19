@@ -45,24 +45,23 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		}
 	*/
 	type User struct {
-		Id    int64
-		OrgId int64
-		Name  string
+		Id          int64
+		OrgId       int64
+		Name        string
+		Email       string
+		PhoneNumber string
 	}
 	s1 := schemabuilder.NewSchemaWithName("s1")
-	user := s1.Object("User", User{})
+	user := s1.Object("User", User{}, schemabuilder.RootObject)
 	user.Key("id")
 	type UserIds struct {
 		Id    int64
 		OrgId int64
 	}
-	user.Federation(func(u *User) *User {
-		return u
-	})
 	s1.Query().FieldFunc("users", func(ctx context.Context) ([]*User, error) {
 		users := make([]*User, 0, 1)
-		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: "testUser"})
-		users = append(users, &User{Id: int64(2), OrgId: int64(2), Name: "testUser2"})
+		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: "testUser", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		users = append(users, &User{Id: int64(2), OrgId: int64(2), Name: "testUser2", Email: "email@gmail.com", PhoneNumber: "555-5555"})
 		return users, nil
 	})
 	s1.Query().FieldFunc("usersWithArgs", func(args struct {
@@ -78,11 +77,9 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		OrgId      int64
 		SuperPower string
 	}
-	admin := s1.Object("Admin", Admin{})
+	admin := s1.Object("Admin", Admin{}, schemabuilder.RootObject)
 	admin.Key("id")
-	admin.Federation(func(a *Admin) *Admin {
-		return a
-	})
+
 	admin.FieldFunc("hiding", func(ctx context.Context, user *Admin) (bool, error) {
 		return true, nil
 	})
@@ -109,11 +106,8 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		OrgId int64
 		IsOn  bool
 	}
-	device := s1.Object("Device", Device{})
+	device := s1.Object("Device", Device{}, schemabuilder.RootObject)
 	device.Key("id")
-	device.Federation(func(d *Device) *Device {
-		return d
-	})
 
 	user.FieldFunc("device", func(ctx context.Context, user *User) (*Device, error) {
 		return &Device{Id: int64(1), OrgId: int64(1), IsOn: true}, nil
@@ -148,7 +142,7 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		OrgId int64
 	}
 	s2 := schemabuilder.NewSchemaWithName("s2")
-	s2.FederatedFieldFunc("User", func(ctx context.Context, args struct{ Keys []UserKeysWithOrgId }) []*UserWithContactInfo {
+	s2.FederatedFieldFunc("User", UserKeysWithOrgId{}, func(ctx context.Context, args struct{ Keys []UserKeysWithOrgId }) []*UserWithContactInfo {
 		users := make([]*UserWithContactInfo, 0, len(args.Keys))
 		for _, key := range args.Keys {
 			users = append(users, &UserWithContactInfo{Id: key.Id, OrgId: key.OrgId, Name: "userWithContactInfo", Email: "email@gmail.com", PhoneNumber: "555-5555"})
@@ -193,7 +187,7 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		Id int64
 	}
 	s3 := schemabuilder.NewSchemaWithName("s3")
-	s3.FederatedFieldFunc("User", func(args struct{ Keys []UserKeys }) []*UserWithAdminPrivelages {
+	s3.FederatedFieldFunc("User", UserWithAdminPrivelages{}, func(args struct{ Keys []UserKeys }) []*UserWithAdminPrivelages {
 		users := make([]*UserWithAdminPrivelages, 0, len(args.Keys))
 		for _, key := range args.Keys {
 			users = append(users, &UserWithAdminPrivelages{Id: key.Id, OrgId: 0, IsAdmin: true})
@@ -206,7 +200,7 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		return "all", nil
 	})
 
-	s1.FederatedFieldFunc("User", func(ctx context.Context, args struct{ Keys []UserKeysWithOrgId }) []*UserWithContactInfo {
+	s1.FederatedFieldFunc("User", UserKeysWithOrgId{}, func(ctx context.Context, args struct{ Keys []UserKeysWithOrgId }) []*UserWithContactInfo {
 		users := make([]*UserWithContactInfo, 0, len(args.Keys))
 		for _, key := range args.Keys {
 			users = append(users, &UserWithContactInfo{Id: key.Id, OrgId: key.OrgId, Name: "userWithContactInfo", Email: "email@gmail.com", PhoneNumber: "555-5555"})
@@ -223,7 +217,7 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		Id    int64
 		OrgId int64
 	}
-	s3.FederatedFieldFunc("Device", func(args struct{ Keys []DeviceKeys }) []*DeviceWithTemperature {
+	s3.FederatedFieldFunc("Device", DeviceWithTemperature{}, func(args struct{ Keys []DeviceKeys }) []*DeviceWithTemperature {
 		devices := make([]*DeviceWithTemperature, 0, len(args.Keys))
 		for _, key := range args.Keys {
 			devices = append(devices, &DeviceWithTemperature{Id: key.Id, OrgId: key.OrgId, Temp: int64(70)})
@@ -580,7 +574,7 @@ func TestExecutorQueriesWithUnionTypes(t *testing.T) {
 						"__key":2,
 						"__typename":"User",
 						"id":2,
-						"email":"email@gmail.com",
+						"email":"",
 						"device": {
 							"__key":1,
 							"id":1
@@ -787,11 +781,9 @@ func TestSchemaFederationKeys(t *testing.T) {
 		ProductId  int64
 	}
 	s1 := schemabuilder.NewSchemaWithName("rootgqlserver")
-	device := s1.Object("Device", Device{})
+	device := s1.Object("Device", Device{}, schemabuilder.RootObject)
 	device.Key("id")
-	device.Federation(func(u *Device) *Device {
-		return u
-	})
+
 	s1.Query().FieldFunc("device", func(ctx context.Context) (*Device, error) {
 		return &Device{Id: 1, OrgId: 1, Name: "bob", IsMulticam: true, ProductId: 1}, nil
 	})
@@ -802,7 +794,7 @@ func TestSchemaFederationKeys(t *testing.T) {
 		IsMulticam            bool
 		FieldThatDoesntBelong int64
 	}
-	s2.FederatedFieldFunc("Device", func(args struct{ Keys []*SafetyDevice }) []*SafetyDevice {
+	s2.FederatedFieldFunc("Device", SafetyDevice{}, func(args struct{ Keys []*SafetyDevice }) []*SafetyDevice {
 		return args.Keys
 	})
 

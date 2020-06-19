@@ -234,7 +234,6 @@ func (sb *schemaBuilder) buildField(field reflect.StructField) (*graphql.Field, 
 	if err != nil {
 		return nil, err
 	}
-
 	return &graphql.Field{
 		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
 			value := reflect.ValueOf(source)

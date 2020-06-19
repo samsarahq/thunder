@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-
 )
 
 // MergeMode controls how to combine two different schemas. Union is used for
