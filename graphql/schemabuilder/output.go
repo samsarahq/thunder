@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"sort"
 
+	"github.com/kr/pretty"
 	"github.com/samsarahq/thunder/graphql"
 )
 
@@ -237,6 +238,7 @@ func (sb *schemaBuilder) buildField(field reflect.StructField) (*graphql.Field, 
 
 	return &graphql.Field{
 		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
+			pretty.Println("zhekai-field", source)
 			value := reflect.ValueOf(source)
 			if value.Kind() == reflect.Ptr {
 				value = value.Elem()

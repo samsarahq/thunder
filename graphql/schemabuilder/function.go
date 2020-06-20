@@ -84,7 +84,9 @@ func (sb *schemaBuilder) buildFunctionAndFuncCtx(typ reflect.Type, m *method) (*
 			// Call the function.
 			funcOutputArgs := callableFunc.Call(funcInputArgs)
 
-			return funcCtx.extractResultAndErr(funcOutputArgs, retType)
+			ret, err := funcCtx.extractResultAndErr(funcOutputArgs, retType)
+			pretty.Println("zhekai-normal-func", source, funcRawArgs, selectionSet, ret)
+			return ret, err
 
 		},
 		Args:                       args,
@@ -123,7 +125,7 @@ func (sb *schemaBuilder) buildShadowObjectFunction(typ reflect.Type, m *method) 
 	if err != nil {
 		return nil, oops.Wrapf(err, "Invalid return type")
 	}
-
+	rType := &graphql.NonNull{Type: &graphql.List{Type: retType}}
 	args, err := funcCtx.argsTypeMap(argType)
 	if err != nil {
 		return nil, err
@@ -131,11 +133,21 @@ func (sb *schemaBuilder) buildShadowObjectFunction(typ reflect.Type, m *method) 
 
 	return &graphql.Field{
 		Resolve: func(ctx context.Context, source, funcRawArgs interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
-			pretty.Println("zhekai-in-shadow", source, funcRawArgs, selectionSet)
-			return funcRawArgs, nil
+			//t := reflect.ValueOf(funcRawArgs).Field(0).Index(0).Type()
+			/*
+				len := reflect.ValueOf(funcRawArgs).Field(0).Len()
+				elemSlice := reflect.MakeSlice(reflect.SliceOf(t), 0, len)
+				for i := 0; i < 0; i++ {
+					elemSlice = reflect.Append(elemSlice, reflect.ValueOf(funcRawArgs).Field(0).Index(i))
+				}
+				pretty.Println("zhekai-in-shadow", source, funcRawArgs, selectionSet, t.String())
+			*/
+			return reflect.ValueOf(funcRawArgs).Field(0).Interface(), nil
+			//elemSlice := reflect.MakeSlice(reflect.SliceOf(t), 0, 2)
+			//return elemSlice.Interface(), nil
 		},
 		Args:                       args,
-		Type:                       retType,
+		Type:                       rType,
 		ParseArguments:             argParser.Parse,
 		Expensive:                  m.Expensive,
 		External:                   true,
@@ -154,6 +166,7 @@ func (sb *schemaBuilder) buildFederatedFunction(typ reflect.Type, m *method) (*g
 		if err != nil {
 			return nil, oops.Wrapf(err, "Invalid return type")
 		}
+
 	} else {
 		returnType, err = sb.getType(reflect.TypeOf(m.FederationType))
 		if err != nil {
@@ -163,6 +176,9 @@ func (sb *schemaBuilder) buildFederatedFunction(typ reflect.Type, m *method) (*g
 	field := &graphql.Field{
 		Resolve: func(ctx context.Context, source, funcRawArgs interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
 			pretty.Println("zhekai-in-root", source, funcRawArgs, selectionSet)
+			if source == nil {
+				return federation{}, nil
+			}
 			return source, nil
 		},
 		Args:                       make(map[string]graphql.Type),

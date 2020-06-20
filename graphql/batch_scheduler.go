@@ -26,6 +26,7 @@ type immediateGoroutineSchedulerRunner struct {
 func (r *immediateGoroutineSchedulerRunner) runEnqueue(resolver UnitResolver, units ...*WorkUnit) {
 	for _, unit := range units {
 		r.wg.Add(1)
+		// /pretty.Println("zhekai-runner", unit)
 		go func(u *WorkUnit) {
 			defer r.wg.Done()
 			units := resolver(u)
