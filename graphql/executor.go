@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"reflect"
 	"runtime"
+
+	"github.com/kr/pretty"
 )
 
 type pathError struct {
@@ -174,6 +176,7 @@ func PrepareQuery(ctx context.Context, typ Type, selectionSet *SelectionSet) err
 				selection.parsed = true
 				parsed, err := field.ParseArguments(selection.UnparsedArgs)
 				if err != nil {
+					pretty.Println("zhekai-argparse", selection.UnparsedArgs)
 					return NewClientError(`error parsing args for "%s": %s`, selection.Name, err)
 				}
 				selection.Args = parsed

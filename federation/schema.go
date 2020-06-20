@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kr/pretty"
 	"github.com/samsarahq/go/oops"
 	"github.com/samsarahq/thunder/graphql"
 )
@@ -96,9 +97,10 @@ func ConvertVersionedSchemas(schemas serviceSchemas) (*SchemaWithFederationInfo,
 			// fields are the federated keys. They annotate that information
 			// on the field object.
 			if typ.Name == "Federation" {
+				pretty.Println("zhekai-Federation", typ)
 				for _, field := range typ.Fields {
-				    // Extract the type name from the formatting <object>-<service>
-				    // And check that the object type exists
+					// Extract the type name from the formatting <object>-<service>
+					// And check that the object type exists
 					names := strings.SplitN(field.Name, "-", 2)
 					if len(names) != 2 {
 						return nil, oops.Errorf("Field %s doesnt have an object name and service name", field.Name)

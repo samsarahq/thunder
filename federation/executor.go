@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"sync"
 
+	"github.com/kr/pretty"
 	"github.com/samsarahq/go/oops"
 	"golang.org/x/sync/errgroup"
 
@@ -231,6 +232,7 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 		}
 		result, ok = result[federationField].(map[string]interface{})
 		if !ok {
+			pretty.Println("zheka-federation-result", result[federationField], request, res)
 			return nil, nil, oops.Errorf("executor res not a map[string]interface{}")
 		}
 		federatedName := fmt.Sprintf("%s-%s", typName, service)

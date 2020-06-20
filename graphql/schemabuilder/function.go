@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/kr/pretty"
 	"github.com/samsarahq/go/oops"
 	"github.com/samsarahq/thunder/graphql"
 )
@@ -15,8 +16,15 @@ import (
 func (sb *schemaBuilder) buildFunction(typ reflect.Type, m *method) (*graphql.Field, error) {
 	// If the method is federated, we want to built a graphql field that returns all
 	// fields on that object. This allows them to be sent as federated keys to other servers.
+
 	if m.FederationType != nil {
+		//pretty.Println("zhekai-function", typ.String())
 		return sb.buildFederatedFunction(typ, m)
+	}
+
+	if m.ShadowObjectType != nil {
+		pretty.Println("zhekai-shadow-object-type", typ)
+		return sb.buildShadowObjectFunction(typ, m)
 	}
 
 	field, _, err := sb.buildFunctionAndFuncCtx(typ, m)
@@ -88,18 +96,74 @@ func (sb *schemaBuilder) buildFunctionAndFuncCtx(typ reflect.Type, m *method) (*
 	}, funcCtx, nil
 }
 
+func (sb *schemaBuilder) buildShadowObjectFunction(typ reflect.Type, m *method) (*graphql.Field, error) {
+	shadowType := reflect.TypeOf(m.ShadowObjectType)
+	funcCtx := &funcContext{typ: typ}
+	input := reflect.StructOf([]reflect.StructField{
+		{
+			Name: "Keys",
+			Type: reflect.SliceOf(reflect.PtrTo(shadowType)),
+		},
+	})
+	in := []reflect.Type{input}
+	pretty.Println("zhekai-shadowStart", in[0].String())
+	argParser, argType, in, err := funcCtx.getArgParserAndTyp(sb, in)
+	if err != nil {
+		return nil, err
+	}
+	pretty.Println("zhekai-shadowfunc", argType.String())
+	funcCtx.hasArgs = argParser != nil
+
+	// We have succeeded if no arguments remain.
+	if len(in) != 0 {
+		return nil, fmt.Errorf("%s arguments should be [context][, [*]%s][, args][, selectionSet]", funcCtx.funcType, typ)
+	}
+
+	retType, err := sb.getType(shadowType)
+	if err != nil {
+		return nil, oops.Wrapf(err, "Invalid return type")
+	}
+
+	args, err := funcCtx.argsTypeMap(argType)
+	if err != nil {
+		return nil, err
+	}
+
+	return &graphql.Field{
+		Resolve: func(ctx context.Context, source, funcRawArgs interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
+			pretty.Println("zhekai-in-shadow", source, funcRawArgs, selectionSet)
+			return funcRawArgs, nil
+		},
+		Args:                       args,
+		Type:                       retType,
+		ParseArguments:             argParser.Parse,
+		Expensive:                  m.Expensive,
+		External:                   true,
+		NumParallelInvocationsFunc: m.ConcurrencyArgs.numParallelInvocationsFunc,
+	}, nil
+}
+
 // buildFederatedFunction creates a graphql field that exposes all the fields on the object struct.
 // This allows them to be sent to any other server as federated keys.
 func (sb *schemaBuilder) buildFederatedFunction(typ reflect.Type, m *method) (*graphql.Field, error) {
 	var argParser *argParser
-	returnType, err := sb.getType(reflect.TypeOf(m.FederationType))
-	if err != nil {
-		return nil, oops.Wrapf(err, "Invalid return type")
+	var err error
+	var returnType graphql.Type
+	if typ == reflect.TypeOf(query{}) {
+		returnType, err = sb.getType(reflect.TypeOf(federation{}))
+		if err != nil {
+			return nil, oops.Wrapf(err, "Invalid return type")
+		}
+	} else {
+		returnType, err = sb.getType(reflect.TypeOf(m.FederationType))
+		if err != nil {
+			return nil, oops.Wrapf(err, "Invalid return type")
+		}
 	}
 	field := &graphql.Field{
 		Resolve: func(ctx context.Context, source, funcRawArgs interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
+			pretty.Println("zhekai-in-root", source, funcRawArgs, selectionSet)
 			return source, nil
-
 		},
 		Args:                       make(map[string]graphql.Type),
 		Type:                       returnType,
@@ -177,6 +241,7 @@ func (funcCtx *funcContext) getArgParserAndTyp(sb *schemaBuilder, in []reflect.T
 	var argType graphql.Type
 	if len(in) > 0 && in[0] != selectionSetType {
 		var err error
+		pretty.Println("zhekai-arg", in[0].String())
 		if argParser, argType, err = sb.makeStructParser(in[0]); err != nil {
 			return nil, nil, in, fmt.Errorf("attempted to parse %s as arguments struct, but failed: %s", in[0].Name(), err.Error())
 		}

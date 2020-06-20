@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/kr/pretty"
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/internal"
 )
@@ -115,6 +116,7 @@ func (sb *schemaBuilder) makeStructParser(typ reflect.Type) (*argParser, graphql
 // to create an instance of the original struct from JSON.
 func (sb *schemaBuilder) getStructObjectFields(typ reflect.Type) (*graphql.InputObject, map[string]argField, error) {
 	// Check if the struct type is already cached
+	pretty.Println("zhekai-getstruct", typ.String())
 	if cached, ok := sb.typeCache[typ]; ok {
 		return cached.argType, cached.fields, nil
 	}

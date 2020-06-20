@@ -119,7 +119,12 @@ func (f objectOptionFunc) apply(m *Object) { f(m) }
 // RootObject is an option that can be passed to a Object to indicate that the object
 // can have field funcs on other severs, allowing it to be federated.
 var RootObject objectOptionFunc = func(m *Object) {
-	m.IsFederated = true
+	m.IsRoot = true
+}
+
+// TODO(zhekai): comment
+var ShadowObject objectOptionFunc = func(m *Object) {
+	m.IsShadowObject = true
 }
 
 // Object registers a struct as a GraphQL Object in our Schema.
@@ -145,7 +150,7 @@ func (s *Schema) Object(name string, typ interface{}, options ...ObjectOption) *
 		opt.apply(object)
 	}
 
-	if object.IsFederated {
+	if object.IsRoot {
 		federatedObjectType := reflect.New(reflect.TypeOf(typ)).Interface()
 		if object.Methods == nil {
 			object.Methods = make(Methods)
@@ -167,7 +172,7 @@ type query struct{}
 // Query returns an Object struct that we can use to register all the top level
 // graphql query functions we'd like to expose.
 func (s *Schema) Query() *Object {
-	return s.Object("Query", query{})
+	return s.Object("Query", query{}, RootObject)
 }
 
 type mutation struct{}
@@ -192,8 +197,17 @@ func (s *Schema) Build() (*graphql.Schema, error) {
 		typeCache:    make(map[reflect.Type]cachedType, 0),
 	}
 
-	s.Object("Query", query{})
+	queryObject := s.Object("Query", query{}, RootObject)
+	//s.Object("Query", query{})
 	s.Object("Mutation", mutation{})
+
+	var federationObject *Object
+	if queryObject.IsRoot {
+		federationObject = s.Object("Federation", federation{})
+		if _, ok := queryObject.Methods["__federation"]; !ok {
+			queryObject.FieldFunc("__federation", func() federation { return federation{} })
+		}
+	}
 
 	for _, object := range s.objects {
 		typ := reflect.TypeOf(object.Type)
@@ -206,6 +220,25 @@ func (s *Schema) Build() (*graphql.Schema, error) {
 		}
 
 		sb.objects[typ] = object
+
+		// add Federation shadow object field func to Query
+
+		if object.IsShadowObject {
+			if federationObject == nil {
+				return nil, fmt.Errorf("root query should be federated")
+			}
+			if federationObject.Methods == nil {
+				federationObject.Methods = make(Methods)
+			}
+			m := &method{}
+			m.ShadowObjectType = object.Type
+			federationMethodName := fmt.Sprintf("%s-%s", object.Name, object.ServiceName)
+			if _, ok := federationObject.Methods[federationMethodName]; ok {
+				panic("duplicate federation method")
+			}
+			federationObject.Methods[federationMethodName] = m
+		}
+
 	}
 
 	queryTyp, err := sb.getType(reflect.TypeOf(&query{}))
@@ -216,6 +249,7 @@ func (s *Schema) Build() (*graphql.Schema, error) {
 	if err != nil {
 		return nil, err
 	}
+	//pretty.Println("zhekai-query", queryTyp)
 	return &graphql.Schema{
 		Query:    queryTyp,
 		Mutation: mutationTyp,

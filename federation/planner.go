@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/kr/pretty"
 	"github.com/samsarahq/thunder/graphql"
 )
 
@@ -79,7 +80,7 @@ type Planner struct {
 // 		  name
 // 		}
 // 	  }
-// }  
+// }
 // "__federation" becomes the root query that the subquery is nested under,
 // "Foo" is the federated object type that we need to refetch,
 // and "__typename" lets gateway know what type the object is.
@@ -104,7 +105,7 @@ func printSelections(selectionSet *graphql.SelectionSet) {
 		fmt.Println(" selections")
 		for _, subSelection := range selectionSet.Selections {
 			fmt.Println(" ", subSelection.Name)
-			if (subSelection.Args != nil) {
+			if subSelection.Args != nil {
 				fmt.Println("   args ", subSelection.Args)
 			}
 			printSelections(subSelection.SelectionSet)
@@ -281,8 +282,8 @@ func (e *Planner) planUnion(typ *graphql.Union, selectionSet *graphql.SelectionS
 		SelectionSet: &graphql.SelectionSet{
 			Selections: []*graphql.Selection{
 				{
-					Name:  "__typename",
-					Alias: "__typename",
+					Name:         "__typename",
+					Alias:        "__typename",
 					UnparsedArgs: map[string]interface{}{},
 				},
 			},
@@ -400,6 +401,7 @@ func (e *Planner) planRoot(query *graphql.Query) (*Plan, error) {
 	}
 
 	reversePaths(p)
+	pretty.Println("zhekai-full-plan", p)
 
 	return p, nil
 }

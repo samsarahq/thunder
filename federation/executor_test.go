@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kr/pretty"
 	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
@@ -45,9 +46,12 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		}
 	*/
 	type User struct {
-		Id    int64
-		OrgId int64
-		Name  string
+		Id          int64
+		OrgId       int64
+		Name        string
+		Email       string
+		PhoneNumber string
+		IsAdmin     bool
 	}
 	s1 := schemabuilder.NewSchemaWithName("s1")
 	user := s1.Object("User", User{}, schemabuilder.RootObject)
@@ -58,8 +62,8 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 	}
 	s1.Query().FieldFunc("users", func(ctx context.Context) ([]*User, error) {
 		users := make([]*User, 0, 1)
-		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: "testUser"})
-		users = append(users, &User{Id: int64(2), OrgId: int64(2), Name: "testUser2"})
+		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: "testUser", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		users = append(users, &User{Id: int64(2), OrgId: int64(2), Name: "testUser2", Email: "email@gmail.com", PhoneNumber: "555-5555"})
 		return users, nil
 	})
 	s1.Query().FieldFunc("usersWithArgs", func(args struct {
@@ -139,14 +143,18 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		OrgId int64
 	}
 	s2 := schemabuilder.NewSchemaWithName("s2")
-	s2.Federation().FederatedFieldFunc("User", func(ctx context.Context, args struct{ Keys []UserKeysWithOrgId }) []*UserWithContactInfo {
-		users := make([]*UserWithContactInfo, 0, len(args.Keys))
-		for _, key := range args.Keys {
-			users = append(users, &UserWithContactInfo{Id: key.Id, OrgId: key.OrgId, Name: "userWithContactInfo", Email: "email@gmail.com", PhoneNumber: "555-5555"})
-		}
-		return users
-	})
-	userWithContactInfo := s2.FederatedObject("User", UserWithContactInfo{})
+
+	/*
+		s2.Federation().FederatedFieldFunc("User", func(ctx context.Context, args struct{ Keys []UserKeysWithOrgId }) []*UserWithContactInfo {
+			users := make([]*UserWithContactInfo, 0, len(args.Keys))
+			for _, key := range args.Keys {
+				users = append(users, &UserWithContactInfo{Id: key.Id, OrgId: key.OrgId, Name: "userWithContactInfo", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+			}
+			return users
+		})
+	*/
+
+	userWithContactInfo := s2.Object("User", UserWithContactInfo{})
 	userWithContactInfo.Key("id")
 	userWithContactInfo.FieldFunc("secret", func(ctx context.Context, user *UserWithContactInfo) (string, error) {
 		return "shhhhh", nil
@@ -184,26 +192,33 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		Id int64
 	}
 	s3 := schemabuilder.NewSchemaWithName("s3")
-	s3.Federation().FederatedFieldFunc("User", func(args struct{ Keys []UserKeys }) []*UserWithAdminPrivelages {
-		users := make([]*UserWithAdminPrivelages, 0, len(args.Keys))
-		for _, key := range args.Keys {
-			users = append(users, &UserWithAdminPrivelages{Id: key.Id, OrgId: 0, IsAdmin: true})
-		}
-		return users
-	})
-	userWithAdminPrivelages := s3.FederatedObject("User", UserWithAdminPrivelages{})
+
+	/*
+		s3.Federation().FederatedFieldFunc("User", func(args struct{ Keys []UserKeys }) []*UserWithAdminPrivelages {
+			users := make([]*UserWithAdminPrivelages, 0, len(args.Keys))
+			for _, key := range args.Keys {
+				users = append(users, &UserWithAdminPrivelages{Id: key.Id, OrgId: 0, IsAdmin: true})
+			}
+			return users
+		})
+	*/
+
+	userWithAdminPrivelages := s3.Object("User", UserWithAdminPrivelages{}, schemabuilder.ShadowObject)
 	userWithAdminPrivelages.Key("id")
 	userWithAdminPrivelages.FieldFunc("privelages", func(ctx context.Context, user *UserWithAdminPrivelages) (string, error) {
+		pretty.Println("zhekai-privelages", "here")
 		return "all", nil
 	})
 
-	s1.Federation().FederatedFieldFunc("User", func(ctx context.Context, args struct{ Keys []UserKeysWithOrgId }) []*UserWithContactInfo {
-		users := make([]*UserWithContactInfo, 0, len(args.Keys))
-		for _, key := range args.Keys {
-			users = append(users, &UserWithContactInfo{Id: key.Id, OrgId: key.OrgId, Name: "userWithContactInfo", Email: "email@gmail.com", PhoneNumber: "555-5555"})
-		}
-		return users
-	})
+	/*
+		s1.Federation().FederatedFieldFunc("User", func(ctx context.Context, args struct{ Keys []UserKeysWithOrgId }) []*UserWithContactInfo {
+			users := make([]*UserWithContactInfo, 0, len(args.Keys))
+			for _, key := range args.Keys {
+				users = append(users, &UserWithContactInfo{Id: key.Id, OrgId: key.OrgId, Name: "userWithContactInfo", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+			}
+			return users
+		})
+	*/
 
 	type DeviceWithTemperature struct {
 		Id    int64
@@ -214,13 +229,17 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		Id    int64
 		OrgId int64
 	}
-	s3.Federation().FederatedFieldFunc("Device", func(args struct{ Keys []DeviceKeys }) []*DeviceWithTemperature {
-		devices := make([]*DeviceWithTemperature, 0, len(args.Keys))
-		for _, key := range args.Keys {
-			devices = append(devices, &DeviceWithTemperature{Id: key.Id, OrgId: key.OrgId, Temp: int64(70)})
-		}
-		return devices
-	})
+
+	/*
+		s3.Federation().FederatedFieldFunc("Device", func(args struct{ Keys []DeviceKeys }) []*DeviceWithTemperature {
+			devices := make([]*DeviceWithTemperature, 0, len(args.Keys))
+			for _, key := range args.Keys {
+				devices = append(devices, &DeviceWithTemperature{Id: key.Id, OrgId: key.OrgId, Temp: int64(70)})
+			}
+			return devices
+		})
+	*/
+
 	deviceWithTemp := s3.Object("Device", DeviceWithTemperature{})
 	deviceWithTemp.Key("id")
 
@@ -258,6 +277,7 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 
 func runAndValidateQueryResults(t *testing.T, ctx context.Context, e *Executor, query string, out string) {
 	res, _, err := e.Execute(ctx, graphql.MustParse(query, map[string]interface{}{}), nil)
+	require.NoError(t, err)
 	var expected interface{}
 	err = json.Unmarshal([]byte(out), &expected)
 	require.NoError(t, err)
@@ -277,6 +297,11 @@ func makeExecutors(schemas map[string]*schemabuilder.Schema) (map[string]Executo
 		if err != nil {
 			return nil, err
 		}
+		/*
+			if name == "s3" {
+				pretty.Println("zhekai-schema-debug", srv.schema)
+			}
+		*/
 		executors[name] = &DirectExecutorClient{Client: srv}
 	}
 
@@ -291,28 +316,30 @@ func TestExecutorQueriesBasic(t *testing.T) {
 		Query  string
 		Output string
 	}{
-		{
-			Name: "query fields on one schema",
-			Query: `
-				query Foo {
-					users {
-						id
-					}
-				}`,
-			Output: `
-				{
-					"users":[
-						{
-							"__key":1,
-							"id":1
-						},
-						{
-							"__key":2,
-							"id":2
+		/*
+			{
+				Name: "query fields on one schema",
+				Query: `
+					query Foo {
+						users {
+							id
 						}
-					]
-				}`,
-		},
+					}`,
+				Output: `
+					{
+						"users":[
+							{
+								"__key":1,
+								"id":1
+							},
+							{
+								"__key":2,
+								"id":2
+							}
+						]
+					}`,
+			},
+		*/
 		{
 			Name: "query fields on multiple schemas",
 			Query: `
@@ -322,6 +349,7 @@ func TestExecutorQueriesBasic(t *testing.T) {
 						email
 						phoneNumber
 						isAdmin
+						privelages
 					}
 				}`,
 			Output: `
@@ -332,13 +360,15 @@ func TestExecutorQueriesBasic(t *testing.T) {
 							"id":1,
 							"email": "email@gmail.com",
 							"phoneNumber": "555-5555",
-							"isAdmin":true
+							"isAdmin":false,
+							"privelages": "all"
 						},{
 							"__key":2,
 							"id":2,
 							"email": "email@gmail.com",
 							"phoneNumber": "555-5555",
-							"isAdmin":true
+							"isAdmin":false,
+							"privelages": "all"
 						}
 					]
 				}`,
@@ -493,7 +523,7 @@ func TestExecutorQueriesWithArgs(t *testing.T) {
 						"__key":1,
 						"id":1,
 						"name":"foo",
-						"orgId": 1,	
+						"orgId": 1,
 						"deviceWithArgs" : {
 								"__key": 2,
 								"id": 2,
@@ -506,12 +536,12 @@ func TestExecutorQueriesWithArgs(t *testing.T) {
 		},
 		{
 			Name: "query without necessary arguments",
-			Query: `	
-				query Foo {	
-					usersWithArgs(foo: "foo") {	
-						id	
-						name	
-					}	
+			Query: `
+				query Foo {
+					usersWithArgs(foo: "foo") {
+						id
+						name
+					}
 				}`,
 			Output:        "",
 			Error:         true,
@@ -552,8 +582,8 @@ func TestExecutorQueriesWithUnionTypes(t *testing.T) {
 					... on User {
 						id
 						email
-						device {	
-							id	
+						device {
+							id
 						}
 					}
 				}

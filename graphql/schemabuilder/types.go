@@ -9,13 +9,14 @@ import (
 // A Object represents a Go type and set of methods to be converted into an
 // Object in a GraphQL schema.
 type Object struct {
-	Name        string // Optional, defaults to Type's name.
-	Description string
-	Type        interface{}
-	Methods     Methods // Deprecated, use FieldFunc instead.
-	key         string
-	ServiceName string
-	IsFederated bool
+	Name           string // Optional, defaults to Type's name.
+	Description    string
+	Type           interface{}
+	Methods        Methods // Deprecated, use FieldFunc instead.
+	key            string
+	ServiceName    string
+	IsRoot         bool
+	IsShadowObject bool
 }
 
 type paginationObject struct {
@@ -320,6 +321,9 @@ type method struct {
 	// FederationType is an object where all the fields are keys
 	// that can be exposed over federation
 	FederationType interface{}
+
+	// TODO(zhekai): comment
+	ShadowObjectType interface{}
 }
 
 type concurrencyArgs struct {
@@ -332,7 +336,9 @@ type concurrencyArgs struct {
 // the different goroutines.
 type NumParallelInvocationsFunc func(ctx context.Context, numNodes int) int
 
-func (f NumParallelInvocationsFunc) apply(m *method) { m.ConcurrencyArgs.numParallelInvocationsFunc = f }
+func (f NumParallelInvocationsFunc) apply(m *method) {
+	m.ConcurrencyArgs.numParallelInvocationsFunc = f
+}
 
 type UseFallbackFlag func(context.Context) bool
 
@@ -377,7 +383,6 @@ func (s *Schema) FederatedObject(name string, typ interface{}) *Object {
 		Name:        name,
 		Type:        typ,
 		ServiceName: s.Name,
-		IsFederated: true,
 	}
 	s.objects[name] = object
 	return object

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kr/pretty"
 	"github.com/samsarahq/go/oops"
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/introspection"
@@ -67,6 +68,7 @@ func ExecuteRequest(ctx context.Context, req *thunderpb.ExecuteRequest, gqlSchem
 	default:
 		return nil, fmt.Errorf("unknown kind %s", query.Kind)
 	}
+	pretty.Println("zhekai-query", query)
 
 	if err := graphql.PrepareQuery(ctx, schema, query.SelectionSet); err != nil {
 		return nil, err
