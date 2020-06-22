@@ -8,6 +8,7 @@ import (
 )
 
 const federationField = "__federation"
+const federationName = "Federation"
 
 // Schema is a struct that can be used to build out a GraphQL schema.  Functions
 // can be registered against the "Mutation" and "Query" objects in order to
@@ -119,7 +120,11 @@ func (f objectOptionFunc) apply(m *Object) { f(m) }
 // RootObject is an option that can be passed to a Object to indicate that the object
 // can have field funcs on other severs, allowing it to be federated.
 var RootObject objectOptionFunc = func(m *Object) {
-	m.IsFederated = true
+	m.IsRoot = true
+}
+
+var ShadowObject objectOptionFunc = func(m *Object) {
+	m.IsShadow = true
 }
 
 // Object registers a struct as a GraphQL Object in our Schema.
@@ -145,20 +150,40 @@ func (s *Schema) Object(name string, typ interface{}, options ...ObjectOption) *
 		opt.apply(object)
 	}
 
-	if object.IsFederated {
-		federatedObjectType := reflect.New(reflect.TypeOf(typ)).Interface()
+	objectType := reflect.PtrTo(reflect.TypeOf(typ))
+	if object.IsRoot {
 		if object.Methods == nil {
 			object.Methods = make(Methods)
 		}
-
-		federatedMethod := &method{}
+		rootMethod := &method{
+			RootObjectType: objectType,
+		}
 		if _, ok := object.Methods[federationField]; ok {
 			panic("duplicate federation method")
 		}
-		federatedMethod.FederationType = federatedObjectType
-		object.Methods[federationField] = federatedMethod
+		object.Methods[federationField] = rootMethod
 	}
 
+	if object.IsShadow {
+		// Create federation object on the root query
+		q := s.Query()
+		if _, ok := q.Methods[federationField]; !ok {
+			q.FieldFunc(federationField, func() federation { return federation{} })
+		}
+		federationObject := s.Object(federationName, federation{})
+		// Create a method for fetching the federated object
+		m := &method{
+			ShadowObjectType: objectType,
+		}
+		if federationObject.Methods == nil {
+			federationObject.Methods = make(Methods)
+		}
+		federatedMethodName := fmt.Sprintf("%s-%s", name, s.Name)
+		if _, ok := federationObject.Methods[federatedMethodName]; ok {
+			panic("duplicate method")
+		}
+		federationObject.Methods[federatedMethodName] = m
+	}
 	return object
 }
 

@@ -15,7 +15,8 @@ type Object struct {
 	Methods     Methods // Deprecated, use FieldFunc instead.
 	key         string
 	ServiceName string
-	IsFederated bool
+	IsRoot      bool
+	IsShadow    bool
 }
 
 type paginationObject struct {
@@ -267,13 +268,14 @@ func (s *Object) ManualPaginationWithFallback(name string, manualPaginatedFunc i
 
 type federation struct{}
 
+// FederatedFieldFunc registers the federated field func on the Federation object nested on a query object
 func (s *Schema) FederatedFieldFunc(name string, f interface{}, options ...FieldFuncOption) {
 	// Create a field func called "__federation" on the root query object
 	q := s.Query()
-	if _, ok := q.Methods["__federation"]; !ok {
-		q.FieldFunc("__federation", func() federation { return federation{} })
+	if _, ok := q.Methods[federationField]; !ok {
+		q.FieldFunc(federationField, func() federation { return federation{} })
 	}
-	obj := s.Object("Federation", federation{})
+	obj := s.Object(federationName, federation{})
 
 	if obj.Methods == nil {
 		obj.Methods = make(Methods)
@@ -281,13 +283,16 @@ func (s *Schema) FederatedFieldFunc(name string, f interface{}, options ...Field
 
 	// Create a method on the "Federation" object to create the shadow object from the federated keys
 	m := &method{Fn: f}
+
 	for _, opt := range options {
 		opt.apply(m)
 	}
+
 	federatedMethodName := fmt.Sprintf("%s-%s", name, obj.ServiceName)
 	if _, ok := obj.Methods[federatedMethodName]; ok {
 		panic("duplicate method")
 	}
+
 	obj.Methods[federatedMethodName] = m
 }
 
@@ -328,9 +333,14 @@ type method struct {
 
 	ManualPaginationArgs manualPaginationArgs
 
-	// FederationType is an object where all the fields are keys
+	// RootObjectType is an object where all the fields are keys
 	// that can be exposed over federation
-	FederationType interface{}
+	RootObjectType reflect.Type
+
+	// ShadowObjectType is the reflect type of parent object if it
+	// is a shadow object. A shadow object's fields are each of the
+	// field that are sent as args to a federated sunquery.
+	ShadowObjectType reflect.Type
 }
 
 type concurrencyArgs struct {
@@ -376,20 +386,3 @@ type Methods map[string]*method
 type Union struct{}
 
 var unionType = reflect.TypeOf(Union{})
-
-func (s *Schema) FederatedObject(name string, typ interface{}) *Object {
-	if object, ok := s.objects[name]; ok {
-		if reflect.TypeOf(object.Type) != reflect.TypeOf(typ) {
-			panic("re-registered object with different type")
-		}
-		return object
-	}
-	object := &Object{
-		Name:        name,
-		Type:        typ,
-		ServiceName: s.Name,
-		IsFederated: true,
-	}
-	s.objects[name] = object
-	return object
-}
