@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+	"time"
 
 	"github.com/samsarahq/go/oops"
 	"golang.org/x/sync/errgroup"
@@ -17,6 +18,7 @@ import (
 const keyField = "__key"
 const federationField = "__federation"
 const typeNameField = "__typeName"
+const minSchemaSyncIntervalSeconds = 30
 
 // QueryRequest is sent to federated GraphQL servers by gateway service.
 type QueryRequest struct {
@@ -44,7 +46,41 @@ type ExecutorClient interface {
 // The planner allows it to coordinate the subqueries being sent to the federated servers
 type Executor struct {
 	Executors map[string]ExecutorClient
-	planner   *Planner
+	syncer    *Syncer
+}
+
+// Syncer checks if there is a new schema available and then updates the planner as needed
+type Syncer struct {
+	ticker       *time.Ticker
+	schemaSyncer SchemaSyncer
+	plannerMu    *sync.RWMutex
+	planner      *Planner
+}
+
+func (e *Executor) getPlanner() *Planner {
+	e.syncer.plannerMu.RLock()
+	defer e.syncer.plannerMu.RUnlock()
+	return e.syncer.planner
+}
+
+func (e *Executor) setPlanner(p *Planner) {
+	e.syncer.plannerMu.Lock()
+	defer e.syncer.plannerMu.Unlock()
+	e.syncer.planner = p
+}
+
+func NewPlanner(types *SchemaWithFederationInfo) (*Planner, error) {
+	flattener, err := newFlattener(types.Schema)
+	if err != nil {
+		return nil, oops.Wrapf(err, "flattening schemas error")
+	}
+	// The planner is aware of the merged schema and what executors
+	// know about what fields
+	planner := &Planner{
+		schema:    types,
+		flattener: flattener,
+	}
+	return planner, err
 }
 
 func fetchSchema(ctx context.Context, e ExecutorClient, metadata interface{}) (*QueryResponse, error) {
@@ -59,72 +95,59 @@ func fetchSchema(ctx context.Context, e ExecutorClient, metadata interface{}) (*
 	})
 }
 
-func NewExecutor(ctx context.Context, executors map[string]ExecutorClient) (*Executor, error) {
-	return NewExecutorWithOptionalArgs(ctx, executors, nil)
+type CustomExecutorArgs struct {
+	SchemaSyncer              SchemaSyncer
+	OptionalArgs              interface{}
+	SchemaSyncIntervalSeconds func(ctx context.Context) int64
 }
 
-func NewExecutorWithOptionalArgs(ctx context.Context, executors map[string]ExecutorClient, optionalArgs interface{}) (*Executor, error) {
-	// Fetches the schemas from the executors clients
-	schemas := make(map[string]*introspectionQueryResult)
-	for server, client := range executors {
-		resp, err := fetchSchema(ctx, client, optionalArgs)
-		schema := resp.Result
-		if err != nil {
-			return nil, oops.Wrapf(err, "fetching schema %s", server)
-		}
-
-		var iq introspectionQueryResult
-		if err := json.Unmarshal(schema, &iq); err != nil {
-			return nil, oops.Wrapf(err, "unmarshaling schema %s", server)
-		}
-
-		schemas[server] = &iq
+func NewExecutor(ctx context.Context, executors map[string]ExecutorClient, c *CustomExecutorArgs) (*Executor, error) {
+	if c.SchemaSyncer == nil {
+		c.SchemaSyncer = NewIntrospectionSchemaSyncer(ctx, executors, c.OptionalArgs)
+	}
+	if c.SchemaSyncIntervalSeconds == nil {
+		c.SchemaSyncIntervalSeconds = func(ctx context.Context) int64 { return minSchemaSyncIntervalSeconds }
 	}
 
-	types, err := convertSchema(schemas)
+	planner, err := c.SchemaSyncer.FetchPlanner(ctx, c.OptionalArgs)
 	if err != nil {
-		return nil, oops.Wrapf(err, "converting schemas error")
+		return nil, oops.Wrapf(err, "failed to load schema")
 	}
 
-	introspectionSchema := introspection.BareIntrospectionSchema(types.Schema)
-	introspectionServer := &Server{schema: introspectionSchema}
+	schemaSyncIntervalSeconds := c.SchemaSyncIntervalSeconds(ctx)
 
-	executors["introspection"] = &DirectExecutorClient{Client: introspectionServer}
-	schema, err := introspection.RunIntrospectionQuery(introspection.BareIntrospectionSchema(introspectionServer.schema))
-
-	var iq introspectionQueryResult
-	if err := json.Unmarshal(schema, &iq); err != nil {
-		return nil, oops.Wrapf(err, "unmarshaling introspection schema")
-	}
-
-	schemas["introspection"] = &iq
-	types, err = convertSchema(schemas)
-	if err != nil {
-		return nil, oops.Wrapf(err, "converting schemas error")
-	}
-
-	flattener, err := newFlattener(types.Schema)
-	if err != nil {
-		return nil, oops.Wrapf(err, "flattening schemas error")
-	}
-
-	// The planner is aware of the merged schema and what executors
-	// know about what fields
-	planner := &Planner{
-		schema:    types,
-		flattener: flattener,
-	}
-
-	return &Executor{
+	executor := &Executor{
 		Executors: executors,
-		planner:   planner,
-	}, nil
-
+		syncer: &Syncer{
+			ticker:       time.NewTicker(time.Duration(schemaSyncIntervalSeconds) * time.Second),
+			schemaSyncer: c.SchemaSyncer,
+			plannerMu:    &sync.RWMutex{},
+			planner:      planner,
+		},
+	}
+	go executor.poll(ctx, c.OptionalArgs)
+	return executor, nil
 }
 
-func (e *Executor) runOnService(ctx context.Context, service string, typName string, keys []interface{}, kind string, selectionSet *graphql.SelectionSet, optionalArgs interface{}) ([]interface{}, interface{}, error) {
+func (e *Executor) poll(ctx context.Context, optionalArgs interface{}) error {
+	for {
+		select {
+		case <-e.syncer.ticker.C:
+			newPlanner, err := e.syncer.schemaSyncer.FetchPlanner(ctx, optionalArgs)
+			if err == nil && newPlanner != nil {
+				e.setPlanner(newPlanner)
+			}
+		case <-ctx.Done():
+			e.syncer.ticker.Stop()
+			return ctx.Err()
+		}
+	}
+	return nil
+}
+
+func (e *Executor) runOnService(ctx context.Context, service string, typName string, keys []interface{}, kind string, selectionSet *graphql.SelectionSet, optionalArgs interface{}, planner *Planner) ([]interface{}, interface{}, error) {
 	// Execute query on specified service
-	schema, ok := e.Executors[service]
+	executorClient, ok := e.Executors[service]
 	if !ok {
 		return nil, nil, oops.Errorf("service not recognized")
 	}
@@ -145,7 +168,7 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 
 		var rootObject *graphql.Object
 		var ok bool
-		for f, _ := range e.planner.schema.Fields {
+		for f, _ := range planner.schema.Fields {
 			if f.Type.String() == typName {
 				rootObject, ok = f.Type.(*graphql.Object)
 				if !ok {
@@ -214,7 +237,7 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 		},
 		Metadata: optionalArgs,
 	}
-	response, err := schema.Execute(ctx, request)
+	response, err := executorClient.Execute(ctx, request)
 	if err != nil {
 		return nil, nil, oops.Wrapf(err, "execute remotely")
 	}
@@ -306,7 +329,7 @@ func (pathTargets *pathSubqueryMetadata) extractKeys(node interface{}, path []Pa
 	return nil
 }
 
-func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}, optionalArgs interface{}) ([]interface{}, []interface{}, error) {
+func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}, optionalArgs interface{}, planner *Planner) ([]interface{}, []interface{}, error) {
 	var res []interface{}
 	optionalRespMetadata := make([]interface{}, 0)
 	// var optionalResponseArg interface{}
@@ -314,7 +337,7 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}, opt
 	if p.Service != gatewayCoordinatorServiceName {
 		var err error
 		var optionalRespQueryMetaData interface{}
-		res, optionalRespQueryMetaData, err = e.runOnService(ctx, p.Service, p.Type, keys, p.Kind, p.SelectionSet, optionalArgs)
+		res, optionalRespQueryMetaData, err = e.runOnService(ctx, p.Service, p.Type, keys, p.Kind, p.SelectionSet, optionalArgs, planner)
 		if err != nil {
 			return nil, nil, oops.Wrapf(err, "run on service")
 		}
@@ -351,7 +374,7 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}, opt
 
 		g.Go(func() error {
 			// Execute the subquery on the specified service
-			executionResults, subQueryRespMetadata, err := e.execute(ctx, subPlan, subPlanMetaData.keys, optionalArgs)
+			executionResults, subQueryRespMetadata, err := e.execute(ctx, subPlan, subPlanMetaData.keys, optionalArgs, planner)
 			if err != nil {
 				return oops.Wrapf(err, "executing sub plan: %v", err)
 			}
@@ -413,12 +436,13 @@ type pathSubqueryMetadata struct {
 }
 
 func (e *Executor) Execute(ctx context.Context, query *graphql.Query, optionalArgs interface{}) (interface{}, []interface{}, error) {
-	plan, err := e.planner.planRoot(query)
+	planner := e.getPlanner()
+	plan, err := planner.planRoot(query)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	r, responseMetadata, err := e.execute(ctx, plan, nil, optionalArgs)
+	r, responseMetadata, err := e.execute(ctx, plan, nil, optionalArgs, planner)
 	if err != nil {
 		return nil, nil, err
 	}
