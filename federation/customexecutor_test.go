@@ -136,7 +136,7 @@ func TestCustomExecutor(t *testing.T) {
 	srv, err := NewCustomExecutorServer(schema.MustBuild())
 	require.NoError(t, err)
 	execs["s1"] = &SpecialExecutorClient{Client: srv}
-	e, err := NewExecutor(ctx, execs)
+	e, err := NewExecutor(ctx, execs, &CustomExecutorArgs{})
 	require.NoError(t, err)
 	executeSuccesfulQuery(t, ctx, e, &Token{token: "testToken"})
 }
