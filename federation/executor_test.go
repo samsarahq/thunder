@@ -252,7 +252,7 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		return nil, nil, nil, nil, err
 	}
 
-	e, err := NewExecutor(ctx, execs)
+	e, err := NewExecutor(ctx, execs, &CustomExecutorArgs{})
 	return e, s1, s2, s3, err
 }
 
@@ -807,6 +807,6 @@ func TestSchemaFederationKeys(t *testing.T) {
 	// Build executor, it should error when trying to merge the schmea
 	// due to invalid federated keys
 	ctx := context.Background()
-	_, err = NewExecutor(ctx, executors)
+	_, err = NewExecutor(ctx, executors, &CustomExecutorArgs{})
 	assert.True(t, strings.Contains(err.Error(), "input field fieldThatDoesntBelong is not a field on the object SafetyDevice_InputObject"))
 }
