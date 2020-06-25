@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/samsarahq/go/oops"
@@ -461,6 +462,68 @@ func (db *DB) InsertRow(ctx context.Context, row interface{}) (sql.Result, error
 	}
 
 	return db.execWithTrace(ctx, query, "InsertRow")
+}
+
+// InsertRows inserts multiple rows into the database, chunksize rows at a time.
+// Most SQL db enforce a limit on max size of packet, which is why we need to break
+// the rows into chunks.
+//
+// rows should be an array of pointers to a struct, for example:
+//
+//   user1 := &User{Name: "foo"}
+//   user2 := &User{Name: "fan"}
+//   if err := db.InsertRows(ctx, [](*User){user1, user2}, 100); err != nil {
+//
+func (db *DB) InsertRows(ctx context.Context, rows interface{}, chunkSize int) error {
+	val := reflect.ValueOf(rows)
+	kind := val.Kind()
+	if kind != reflect.Slice && kind != reflect.Array {
+		return fmt.Errorf("expect array/slice got %s", val.Kind().String())
+	}
+
+	rowsData := make([]interface{}, val.Len())
+	for i := 0; i < val.Len(); i++ {
+		rowsData[i] = val.Index(i).Interface()
+	}
+
+	var tx *sql.Tx
+	if !db.HasTx(ctx) {
+		var err error
+		ctx, tx, err = db.WithTx(ctx)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+	}
+
+	for j := 0; j < len(rowsData); j += chunkSize {
+		sliceLength := chunkSize
+		if len(rowsData) < j+sliceLength {
+			sliceLength = len(rowsData) - j
+		}
+		slice := rowsData[j : j+sliceLength]
+
+		query, err := db.Schema.MakeBatchInsertRow(slice)
+		if err != nil {
+			return err
+		}
+
+		numColumns := len(query.Columns)
+		for i := 0; i < len(slice); i++ {
+			if err := db.checkColumnValuesAgainstLimits(ctx, query, query.Columns, query.Values[i*numColumns:(i+1)*numColumns], query.Table); err != nil {
+				return err
+			}
+		}
+		_, err = db.execWithTrace(ctx, query, "InsertRows")
+		if err != nil {
+			return err
+		}
+	}
+
+	if tx != nil {
+		return tx.Commit()
+	}
+	return nil
 }
 
 // UpsertRow inserts a single row into the database

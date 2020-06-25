@@ -567,6 +567,52 @@ func (s *Schema) MakeInsertRow(row interface{}) (*InsertQuery, error) {
 	}, nil
 }
 
+// MakeBatchInsertRow builds a new InsertQuery to insert multiple rows
+func (s *Schema) MakeBatchInsertRow(rows []interface{}) (*BatchInsertQuery, error) {
+	if len(rows) == 0 {
+		return nil, errors.New("an empty list of rows given")
+	}
+	ptr := reflect.ValueOf(rows[0])
+	typ, err := checkMutateRowTypeShape(ptr.Type())
+	if err != nil {
+		return nil, err
+	}
+	table, err := s.get(typ)
+	if err != nil {
+		return nil, err
+	}
+
+	var allValues [][]interface{}
+	for _, row := range rows {
+		values, err := table.unbuildStruct(row)
+		if err != nil {
+			return nil, err
+		}
+		allValues = append(allValues, values)
+	}
+
+	var columns []string
+	var values []interface{}
+
+	for valIndex, vals := range allValues {
+		for i, column := range table.Columns {
+			if column.Primary && table.PrimaryKeyType == AutoIncrement {
+				continue
+			}
+			if valIndex == 0 {
+				columns = append(columns, column.Name)
+			}
+			values = append(values, vals[i])
+		}
+	}
+
+	return &BatchInsertQuery{
+		Table:   table.Name,
+		Columns: columns,
+		Values:  values,
+	}, nil
+}
+
 // MakeUpsertRow builds a new UpsertQuery to upsqrt row
 func (s *Schema) MakeUpsertRow(row interface{}) (*UpsertQuery, error) {
 	ptr := reflect.ValueOf(row)

@@ -128,6 +128,48 @@ func (q *InsertQuery) ToSQL() (string, []interface{}) {
 	return buffer.String(), q.Values
 }
 
+// BatchInsertQuery represents a INSERT query with multiple rows
+type BatchInsertQuery struct {
+	Table   string
+	Columns []string
+	Values  []interface{}
+}
+
+// ToSQL builds a parameterized INSERT INTO x (a, b) VALUES (?, ?), (?, ?) ... statement
+func (q *BatchInsertQuery) ToSQL() (string, []interface{}) {
+	var buffer bytes.Buffer
+	buffer.WriteString("INSERT INTO ")
+	buffer.WriteString(q.Table)
+
+	if len(q.Columns) > 0 {
+		buffer.WriteString(" (")
+		for i, column := range q.Columns {
+			if i > 0 {
+				buffer.WriteString(", ")
+			}
+			buffer.WriteString(column)
+		}
+		buffer.WriteString(") VALUES ")
+
+		numRows := len(q.Values) / len(q.Columns)
+		for i := 0; i < numRows; i++ {
+			if i > 0 {
+				buffer.WriteString(", ")
+			}
+			buffer.WriteString("(")
+			for j := range q.Columns {
+				if j > 0 {
+					buffer.WriteString(", ")
+				}
+				buffer.WriteString("?")
+			}
+			buffer.WriteString(")")
+		}
+	}
+
+	return buffer.String(), q.Values
+}
+
 // UpsertQuery represents a INSERT ... ON DUPLICATE KEY UPDATE query
 type UpsertQuery struct {
 	Table   string
