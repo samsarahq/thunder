@@ -347,6 +347,27 @@ func TestMakeInsertAutoIncrement(t *testing.T) {
 	assert.Equal(t, []interface{}{"bob", int64(20), nil, make([]byte, 16)}, query.Values)
 }
 
+func TestMakeBatchInsertAutoIncrement(t *testing.T) {
+	s := NewSchema()
+	if err := s.RegisterType("users", AutoIncrement, user{}); err != nil {
+		t.Fatal(err)
+	}
+
+	query, err := s.MakeBatchInsertRow([](interface{}){
+		&user{
+			Name: "bob",
+			Age:  20,
+		},
+		&user{
+			Name: "ben",
+			Age:  30,
+		}})
+	assert.NoError(t, err)
+	assert.Equal(t, "users", query.Table)
+	assert.Equal(t, []string{"name", "age", "optional", "uuid"}, query.Columns)
+	assert.Equal(t, []interface{}{"bob", int64(20), nil, make([]byte, 16), "ben", int64(30), nil, make([]byte, 16)}, query.Values)
+}
+
 func TestMakeUpsertAutoIncrement(t *testing.T) {
 	s := NewSchema()
 	if err := s.RegisterType("users", AutoIncrement, user{}); err != nil {

@@ -162,6 +162,67 @@ func TestShardLimitInsert(t *testing.T) {
 	}
 }
 
+func TestShardLimitBatchInsert(t *testing.T) {
+	testcases := getLimitTestcases(t, "BatchInsert")
+	for _, testcase := range testcases {
+		t.Run(testcase.title, func(t *testing.T) {
+			tdb, db, err := setup()
+			assert.NoError(t, err)
+			defer tdb.Close()
+			ctx := context.Background()
+
+			aliceDb := testcase.withFilterLimit(db, Filter{
+				"name": "Alice",
+			})
+
+			alice := &User{Name: "Alice"}
+			bob := &User{Name: "Bob"}
+
+			// Check aliceDb can insert alice.
+			err = aliceDb.InsertRows(ctx, [](*User){alice}, 100)
+			assert.NoError(t, err)
+
+			var user *User
+			err = aliceDb.QueryRow(ctx, &user, Filter{"name": "Alice"}, nil)
+			assert.NoError(t, err)
+
+			// Check aliceDb can't insert alice and bob.
+			err = aliceDb.InsertRows(ctx, [](*User){alice, bob}, 100)
+			assert.Contains(t, err.Error(), "db requies name = Alice, but query has name = Bob")
+
+			tom := &User{Name: "Tom"}
+			jerry := &User{Name: "Jerry"}
+			// Check db can insert tom and jerry with a batch size of 1.
+			err = db.InsertRows(ctx, [](*User){tom, jerry}, 1)
+			assert.NoError(t, err)
+
+			err = db.QueryRow(ctx, &user, Filter{"name": "Tom"}, nil)
+			assert.NoError(t, err)
+			err = db.QueryRow(ctx, &user, Filter{"name": "Jerry"}, nil)
+			assert.NoError(t, err)
+
+			// Check db cannot query bob
+			err = db.QueryRow(ctx, &user, Filter{"name": "Bob"}, nil)
+			assert.Contains(t, err.Error(), "sql: no rows in result set")
+
+			// Check db can insert bob within a transaction
+			transactionCtx, tx, err := db.WithTx(ctx)
+			assert.NoError(t, err)
+			defer tx.Rollback()
+
+			err = db.InsertRows(transactionCtx, [](*User){bob}, 100)
+			assert.NoError(t, err)
+
+			assert.NoError(t, tx.Commit())
+
+			err = db.QueryRow(ctx, &user, Filter{"name": "Alice"}, nil)
+			assert.NoError(t, err)
+			err = db.QueryRow(ctx, &user, Filter{"name": "Bob"}, nil)
+			assert.NoError(t, err)
+		})
+	}
+}
+
 func TestShardLimitQueryRow(t *testing.T) {
 	testcases := getLimitTestcases(t, "Query row")
 	for _, testcase := range testcases {

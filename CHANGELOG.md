@@ -12,6 +12,7 @@
 #### `sqlgen`
 
 - Added `WithDynamicLimit` which is similar to `WithShardLimit` but allows for user-specified dynamic filters instead of a single static filter at registration time.
+- Added `InsertRows` which is similar to `InsertRow` but allows inserting multiple rows with those being sent over to db `chunkSize` rows at a time.
 
 ### Changed
 

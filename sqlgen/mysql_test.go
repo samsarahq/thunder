@@ -119,6 +119,26 @@ func TestInsertQuery(t *testing.T) {
 	}, "INSERT INTO foo3", []interface{}{}, t)
 }
 
+func TestBatchInsertQuery(t *testing.T) {
+	testQuery(&BatchInsertQuery{
+		Table:   "foo",
+		Columns: []string{"bar"},
+		Values:  []interface{}{3, 4},
+	}, "INSERT INTO foo (bar) VALUES (?), (?)", []interface{}{3, 4}, t)
+
+	testQuery(&BatchInsertQuery{
+		Table:   "foo2",
+		Columns: []string{"bar", "baz"},
+		Values:  []interface{}{3, "buh"},
+	}, "INSERT INTO foo2 (bar, baz) VALUES (?, ?)", []interface{}{3, "buh"}, t)
+
+	testQuery(&BatchInsertQuery{
+		Table:   "foo2",
+		Columns: []string{"bar", "baz"},
+		Values:  []interface{}{3, "buh", 5, "test"},
+	}, "INSERT INTO foo2 (bar, baz) VALUES (?, ?), (?, ?)", []interface{}{3, "buh", 5, "test"}, t)
+}
+
 func TestUpsertQuery(t *testing.T) {
 	testQuery(&UpsertQuery{
 		Table:   "foo",
