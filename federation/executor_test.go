@@ -810,3 +810,80 @@ func TestSchemaFederationKeys(t *testing.T) {
 	_, err = NewExecutor(ctx, executors, &CustomExecutorArgs{})
 	assert.True(t, strings.Contains(err.Error(), "input field fieldThatDoesntBelong is not a field on the object SafetyDevice_InputObject"))
 }
+
+func createMutationExecutor() (map[string]ExecutorClient, error) {
+	s1 := schemabuilder.NewSchemaWithName("s1")
+	type User struct {
+		Id   int64
+		Name string
+	}
+	s1.Mutation().FieldFunc("newUser", func(ctx context.Context) (*User, error) {
+		return &User{Id: int64(123), Name: "bob"}, nil
+	})
+
+	s2 := schemabuilder.NewSchemaWithName("s2")
+	s2.Mutation().FieldFunc("newFakeUser", func(ctx context.Context) (*User, error) {
+		return &User{Id: int64(234), Name: "fake"}, nil
+	})
+	return makeExecutors(map[string]*schemabuilder.Schema{
+		"s1": s1,
+		"s2": s2,
+	})
+}
+
+func TestMutationExecutor(t *testing.T) {
+	e, err := createMutationExecutor()
+	require.NoError(t, err)
+	ctx := context.Background()
+	executor, err := NewExecutor(ctx, e, &CustomExecutorArgs{})
+	require.NoError(t, err)
+
+	testCases := []struct {
+		Name          string
+		Query         string
+		Output        string
+		Error         bool
+		ExpectedError string
+	}{
+		{
+			Name: "query fields a succesful mutation",
+			Query: `mutation NewUser {
+				newUser {
+					id
+					name
+				}
+			}`,
+			Output: `
+			{
+				"newUser":{
+					"id":123,
+					"name":"bob"
+				}
+			}`,
+			Error: false,
+		},
+		{
+			Name: "query fields multiple mutations",
+			Query: `mutation NewUser {
+				newUser {
+					id
+				}
+				newFakeUser {
+					id
+				}
+			}`,
+			Output:        "",
+			Error:         true,
+			ExpectedError: "only support 1 mutation step to maintain ordering",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.Name, func(t *testing.T) {
+			if !testCase.Error {
+				runAndValidateQueryResults(t, ctx, executor, testCase.Query, testCase.Output)
+			} else {
+				runAndValidateQueryError(t, ctx, executor, testCase.Query, testCase.Output, testCase.ExpectedError)
+			}
+		})
+	}
+}
