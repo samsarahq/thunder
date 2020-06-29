@@ -156,10 +156,10 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 	// and pass the keys in to find the object that the subquery is nested on
 	// Pass all federated keys for that service as arguments
 	// {
-	//    __federation {
+	//   __federation {
 	//     [ObjectName]-[Service] (keys: Keys) {
 	//       subQuery
-	// 		}
+	//     }
 	//   }
 	// }
 	isRoot := keys == nil
