@@ -101,6 +101,11 @@ func (sb *schemaBuilder) buildFunctionAndFuncCtx(typ reflect.Type, m *method) (*
 
 // buildFederatedFunction creates a graphql field that exposes all the fields on the object struct.
 // This allows them to be sent to any other server as federated keys.
+//
+// It generates a field func on the federated object that looks like the example below
+// rootObjectType.fieldfunc("__federation", func(root *rootObjectType) (*rootObjectType) { return root })
+// This function allows us to fetch all the fields on the root object that can be sent to another server
+// as args to a shadow field func.
 func (sb *schemaBuilder) buildFederatedFunction(typ reflect.Type, m *method) (*graphql.Field, error) {
 	var argParser *argParser
 	returnType, err := sb.getType(m.RootObjectType)
@@ -131,6 +136,9 @@ func (sb *schemaBuilder) buildFederatedFunction(typ reflect.Type, m *method) (*g
 //     }
 //   }
 // }
+// This generates a field func on the federated object that looks like the example below
+// federation.fieldfunc("[ObjectName]-[Service]", func(args *ShadowObject) (*ShadowObject) { return args})
+// This function allows us to reconstruct the object that the subQuery is nested on
 func (sb *schemaBuilder) buildShadowObjectFederationFunction(typ reflect.Type, m *method) (*graphql.Field, error) {
 	funcCtx := &funcContext{typ: typ}
 
