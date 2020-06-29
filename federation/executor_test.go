@@ -22,6 +22,8 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 				id: int64!
 				orgId: int64!
 				name: string!
+				email       string
+				phoneNumber string
 				device: Device
 				__federation: User
 			}
@@ -45,9 +47,11 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		}
 	*/
 	type User struct {
-		Id    int64
-		OrgId int64
-		Name  string
+		Id          int64
+		OrgId       int64
+		Name        string
+		Email       string
+		PhoneNumber string
 	}
 	s1 := schemabuilder.NewSchemaWithName("s1")
 	user := s1.Object("User", User{}, schemabuilder.RootObject)
@@ -58,8 +62,8 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 	}
 	s1.Query().FieldFunc("users", func(ctx context.Context) ([]*User, error) {
 		users := make([]*User, 0, 1)
-		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: "testUser"})
-		users = append(users, &User{Id: int64(2), OrgId: int64(2), Name: "testUser2"})
+		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: "testUser", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		users = append(users, &User{Id: int64(2), OrgId: int64(2), Name: "testUser2", Email: "email@gmail.com", PhoneNumber: "555-5555"})
 		return users, nil
 	})
 	s1.Query().FieldFunc("usersWithArgs", func(args struct {
@@ -94,7 +98,7 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 	s1.Query().FieldFunc("everyone", func(ctx context.Context) ([]*Everyone, error) {
 		everyone := make([]*Everyone, 0, 2)
 		everyone = append(everyone, &Everyone{Admin: &Admin{Id: int64(1), OrgId: int64(9086), SuperPower: "flying"}})
-		everyone = append(everyone, &Everyone{User: &User{Id: int64(2), OrgId: int64(9086)}})
+		everyone = append(everyone, &Everyone{User: &User{Id: int64(2), OrgId: int64(9086), Email: "email@gmail.com", PhoneNumber: "555-5555"}})
 		return everyone, nil
 	})
 
@@ -139,14 +143,7 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		OrgId int64
 	}
 	s2 := schemabuilder.NewSchemaWithName("s2")
-	s2.FederatedFieldFunc("User", func(ctx context.Context, args struct{ Keys []UserKeysWithOrgId }) []*UserWithContactInfo {
-		users := make([]*UserWithContactInfo, 0, len(args.Keys))
-		for _, key := range args.Keys {
-			users = append(users, &UserWithContactInfo{Id: key.Id, OrgId: key.OrgId, Name: "userWithContactInfo", Email: "email@gmail.com", PhoneNumber: "555-5555"})
-		}
-		return users
-	})
-	userWithContactInfo := s2.FederatedObject("User", UserWithContactInfo{})
+	userWithContactInfo := s2.Object("User", UserWithContactInfo{}, schemabuilder.ShadowObject)
 	userWithContactInfo.Key("id")
 	userWithContactInfo.FieldFunc("secret", func(ctx context.Context, user *UserWithContactInfo) (string, error) {
 		return "shhhhh", nil
@@ -191,7 +188,7 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		}
 		return users
 	})
-	userWithAdminPrivelages := s3.FederatedObject("User", UserWithAdminPrivelages{})
+	userWithAdminPrivelages := s3.Object("User", UserWithAdminPrivelages{})
 	userWithAdminPrivelages.Key("id")
 	userWithAdminPrivelages.FieldFunc("privelages", func(ctx context.Context, user *UserWithAdminPrivelages) (string, error) {
 		return "all", nil
@@ -769,44 +766,46 @@ func TestExecutorQueriesWithBatching(t *testing.T) {
 	}
 }
 
-func TestSchemaFederationKeys(t *testing.T) {
-	type Device struct {
-		Id         int64
-		OrgId      int64
-		Name       string
-		IsMulticam bool
-		ProductId  int64
+func TestExecutorWithInvalidFederationKeys(t *testing.T) {
+	type User struct {
+		Id          int64
+		OrgId       int64
+		Name        string
+		Email       string
+		PhoneNumber string
 	}
-	s1 := schemabuilder.NewSchemaWithName("rootgqlserver")
-	device := s1.Object("Device", Device{}, schemabuilder.RootObject)
-	device.Key("id")
-
-	s1.Query().FieldFunc("device", func(ctx context.Context) (*Device, error) {
-		return &Device{Id: 1, OrgId: 1, Name: "bob", IsMulticam: true, ProductId: 1}, nil
+	s1 := schemabuilder.NewSchemaWithName("s1")
+	user := s1.Object("User", User{}, schemabuilder.RootObject)
+	user.Key("id")
+	type UserIds struct {
+		Id    int64
+		OrgId int64
+	}
+	s1.Query().FieldFunc("users", func(ctx context.Context) ([]*User, error) {
+		users := make([]*User, 0, 1)
+		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: "testUser", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		users = append(users, &User{Id: int64(2), OrgId: int64(2), Name: "testUser2", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		return users, nil
 	})
 
-	s2 := schemabuilder.NewSchemaWithName("safetyserver")
-	type SafetyDevice struct {
-		Id                    int64
-		IsMulticam            bool
-		FieldThatDoesntBelong int64
+	type UserWithContactInfo struct {
+		Id          int64
+		OrgId       int64
+		Name        string
+		UnkownField string
 	}
-	s2.FederatedFieldFunc("Device", func(args struct{ Keys []*SafetyDevice }) []*SafetyDevice {
-		return args.Keys
-	})
 
-	// Register executor clients
-	executors := make(map[string]ExecutorClient)
-	srv, err := NewServer(s1.MustBuild())
-	require.NoError(t, err)
-	executors["s1"] = &DirectExecutorClient{Client: srv}
-	srv2, err := NewServer(s2.MustBuild())
-	require.NoError(t, err)
-	executors["s2"] = &DirectExecutorClient{Client: srv2}
+	s2 := schemabuilder.NewSchemaWithName("s2")
+	s2.Object("User", UserWithContactInfo{}, schemabuilder.ShadowObject)
 
-	// Build executor, it should error when trying to merge the schmea
-	// due to invalid federated keys
+	// Create the executor with all the schemas
 	ctx := context.Background()
-	_, err = NewExecutor(ctx, executors, &CustomExecutorArgs{})
-	assert.True(t, strings.Contains(err.Error(), "input field fieldThatDoesntBelong is not a field on the object SafetyDevice_InputObject"))
+	execs, err := makeExecutors(map[string]*schemabuilder.Schema{
+		"s1": s1,
+		"s2": s2,
+	})
+	assert.NoError(t, err)
+
+	_, err = NewExecutor(ctx, execs, &CustomExecutorArgs{})
+	assert.True(t, strings.Contains(err.Error(), "Invalid federation key unkownField"))
 }
