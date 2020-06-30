@@ -69,20 +69,6 @@ func (e *Executor) setPlanner(p *Planner) {
 	e.syncer.planner = p
 }
 
-func NewPlanner(types *SchemaWithFederationInfo) (*Planner, error) {
-	flattener, err := newFlattener(types.Schema)
-	if err != nil {
-		return nil, oops.Wrapf(err, "flattening schemas error")
-	}
-	// The planner is aware of the merged schema and what executors
-	// know about what fields
-	planner := &Planner{
-		schema:    types,
-		flattener: flattener,
-	}
-	return planner, err
-}
-
 func fetchSchema(ctx context.Context, e ExecutorClient, metadata interface{}) (*QueryResponse, error) {
 	query, err := graphql.Parse(introspection.IntrospectionQuery, map[string]interface{}{})
 	if err != nil {
@@ -97,19 +83,18 @@ func fetchSchema(ctx context.Context, e ExecutorClient, metadata interface{}) (*
 
 type CustomExecutorArgs struct {
 	SchemaSyncer              SchemaSyncer
-	OptionalArgs              interface{}
 	SchemaSyncIntervalSeconds func(ctx context.Context) int64
 }
 
 func NewExecutor(ctx context.Context, executors map[string]ExecutorClient, c *CustomExecutorArgs) (*Executor, error) {
 	if c.SchemaSyncer == nil {
-		c.SchemaSyncer = NewIntrospectionSchemaSyncer(ctx, executors, c.OptionalArgs)
+		return nil, oops.Errorf("SchemaSyncer should not be nil")
 	}
 	if c.SchemaSyncIntervalSeconds == nil {
 		c.SchemaSyncIntervalSeconds = func(ctx context.Context) int64 { return minSchemaSyncIntervalSeconds }
 	}
 
-	planner, err := c.SchemaSyncer.FetchPlanner(ctx, c.OptionalArgs)
+	planner, err := c.SchemaSyncer.FetchPlanner(ctx)
 	if err != nil {
 		return nil, oops.Wrapf(err, "failed to load schema")
 	}
@@ -125,15 +110,15 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient, c *Cu
 			planner:      planner,
 		},
 	}
-	go executor.poll(ctx, c.OptionalArgs)
+	go executor.poll(ctx)
 	return executor, nil
 }
 
-func (e *Executor) poll(ctx context.Context, optionalArgs interface{}) error {
+func (e *Executor) poll(ctx context.Context) error {
 	for {
 		select {
 		case <-e.syncer.ticker.C:
-			newPlanner, err := e.syncer.schemaSyncer.FetchPlanner(ctx, optionalArgs)
+			newPlanner, err := e.syncer.schemaSyncer.FetchPlanner(ctx)
 			if err == nil && newPlanner != nil {
 				e.setPlanner(newPlanner)
 			}
