@@ -8,7 +8,7 @@ import (
 )
 
 const federationField = "__federation"
-const federation = "Federation"
+const federationName = "Federation"
 
 // Schema is a struct that can be used to build out a GraphQL schema.  Functions
 // can be registered against the "Mutation" and "Query" objects in order to
@@ -240,5 +240,5 @@ func (s *Schema) Federation() *Object {
 	if _, ok := q.Methods[federationField]; !ok {
 		q.FieldFunc(federationField, func() federation { return federation{} })
 	}
-	return s.Object(federation, federation{})
+	return s.Object(federationName, federation{})
 }

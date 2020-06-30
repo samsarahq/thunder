@@ -60,6 +60,7 @@ func (p *argParser) Parse(args interface{}) (interface{}, error) {
 	}
 	parsed := reflect.New(p.Type).Elem()
 	if err := p.FromJSON(args, parsed); err != nil {
+		fmt.Println("YOOO", p.Type, args, err)
 		return nil, err
 	}
 	return parsed.Interface(), nil
@@ -393,8 +394,13 @@ var scalarArgParsers = map[reflect.Type]*argParser{
 	},
 	reflect.TypeOf(int64(0)): {
 		FromJSON: func(value interface{}, dest reflect.Value) error {
+			if value == nil {
+				dest.Set(reflect.ValueOf(int64(0)).Convert(dest.Type()))
+				return nil
+			}
 			asFloat, ok := value.(float64)
 			if !ok {
+				fmt.Println("YEEET3", value)
 				return errors.New("not a number")
 			}
 			dest.Set(reflect.ValueOf(int64(asFloat)).Convert(dest.Type()))

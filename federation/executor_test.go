@@ -887,3 +887,25 @@ func TestMutationExecutor(t *testing.T) {
 		})
 	}
 }
+
+func TestExecutorCancelsLeakedContext(t *testing.T) {
+	var stashedCtx context.Context
+	schema := schemabuilder.NewSchema()
+	schema.Query().FieldFunc("stash", func(ctx context.Context) (string, error) {
+		stashedCtx = ctx
+		return "", nil
+	})
+	ctx := context.Background()
+	execs, err := makeExecutors(map[string]*schemabuilder.Schema{
+		"schema": schema,
+	})
+	require.NoError(t, err)
+	e, err := NewExecutor(ctx, execs, &CustomExecutorArgs{})
+	require.NoError(t, err)
+	runAndValidateQueryResults(t, ctx, e, `{ stash }`, `{"stash": ""}`)
+	<-stashedCtx.Done()
+	assert.EqualError(t, stashedCtx.Err(), "context canceled")
+}
+
+// When we add a federation key, we might be in a state where half the executors know about it and the other half don't.
+// When we merge the schema we wont send it, but we want to make sure that the executor still passes

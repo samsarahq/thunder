@@ -198,3 +198,132 @@ func TestExecutorQueriesWithCustomSchemaSyncer(t *testing.T) {
 	runAndValidateQueryResults(t, ctx, e, query2, expectedOutput2)
 
 }
+
+func TestAddingAField(t *testing.T) {
+	// s1 := buildTestSchema1()
+	// s2 := buildTestSchema2()
+
+	type Device struct {
+		Id         int64
+		OrgId      int64
+		Name       string
+		IsMulticam bool
+		ProductId  int64
+	}
+	s1 := schemabuilder.NewSchemaWithName("s1")
+	device := s1.Object("Device", Device{}, schemabuilder.RootObject)
+	device.Key("id")
+
+	s1.Query().FieldFunc("device", func(ctx context.Context) (*Device, error) {
+		return &Device{Id: 1, OrgId: 1, Name: "bob", IsMulticam: true, ProductId: 1}, nil
+	})
+
+	s2 := schemabuilder.NewSchemaWithName("s2")
+	type SafetyDevice struct {
+		Id         int64
+		IsMulticam bool
+	}
+	s2.Federation().FederatedFieldFunc("Device", func(args struct{ Keys []*SafetyDevice }) []*SafetyDevice {
+		return args.Keys
+	})
+
+	safetyDevice := s2.FederatedObject("Device", SafetyDevice{})
+	safetyDevice.Key("id")
+	safetyDevice.FieldFunc("secret", func(ctx context.Context, device *SafetyDevice) (string, error) {
+		return "shhhhh", nil
+	})
+
+	ctx := context.Background()
+	execs, err := makeExecutors(map[string]*schemabuilder.Schema{
+		"s1": s1,
+		"s2": s2,
+	})
+	require.NoError(t, err)
+
+	// // Write the schemas to a file
+	// services := []string{"s1", "s2"}
+	// for _, service := range services {
+	// 	schema, err := fetchSchema(ctx, execs[service], nil)
+	// 	require.NoError(t, err)
+	// 	err = writeSchemaToFile(service, schema.Result)
+	// 	require.NoError(t, err)
+	// }
+
+	// Creata file schema syncer that reads the schemas from the
+	// written files and listens to updates if those change
+	// schemaSyncer := newFileSchemaSyncer(ctx, services)
+	e, err := NewExecutor(ctx, execs, &CustomExecutorArgs{})
+	require.NoError(t, err)
+
+	query := `query Foo {
+					device {
+						secret
+					}
+				}`
+	expectedOutput := `{
+					"device": {
+						"__key":1,
+						"secret":"shhhhh"
+					}	
+				}`
+
+	// Run a federated query and ensure that it works
+	runAndValidateQueryResults(t, ctx, e, query, expectedOutput)
+	time.Sleep(5 * time.Second)
+
+	newS2 := schemabuilder.NewSchemaWithName("s2")
+	type SafetyDevice2 struct {
+		Id         int64
+		IsMulticam bool
+		ProductId  int64
+	}
+	newS2.Federation().FederatedFieldFunc("Device", func(args struct{ Keys []*SafetyDevice2 }) []*SafetyDevice2 {
+		return args.Keys
+	})
+
+	safetyDevice2 := newS2.FederatedObject("Device", SafetyDevice2{})
+	safetyDevice2.Key("id")
+	safetyDevice2.FieldFunc("secret", func(ctx context.Context, device *SafetyDevice2) (string, error) {
+		return "shhhhh", nil
+	})
+
+	newExecs, err := makeExecutors(map[string]*schemabuilder.Schema{
+		"s1": s1,
+		"s2": newS2,
+	})
+	require.NoError(t, err)
+
+	// // We need to do this to udpate the executor in our test
+	// // But when run locally it should already know about the new
+	// // field when the new service starts
+	e.Executors = newExecs
+
+	// Run a federated query and ensure that it works
+	runAndValidateQueryResults(t, ctx, e, query, expectedOutput)
+
+	// query2 := `query Foo {
+	// 	s2root2
+	// }`
+	// expectedOutput2 := `{
+	// 	"s2root2":"hello"
+	// }`
+
+	// // Since we havent written the new schema to the file, the merged schema and planner
+	// // dont know about the new field. We should see an error
+	// runAndValidateQueryError(t, ctx, e, query2, expectedOutput2, "unknown field s2root2 on typ Query")
+
+	// // Writes the new schemas to the file
+	// for _, service := range services {
+	// 	schema, err := fetchSchema(ctx, newExecs[service], nil)
+	// 	require.NoError(t, err)
+	// 	err = writeSchemaToFile(service, schema.Result)
+	// 	require.NoError(t, err)
+	// }
+
+	// // Sleep for 5 seconds to wait for the schema syncer to get the update
+	// time.Sleep(5 * time.Second)
+
+	// // 	Run the same query and validate that it works
+	// runAndValidateQueryResults(t, ctx, e, query2, expectedOutput2)
+
+}

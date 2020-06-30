@@ -439,11 +439,13 @@ func (e *Executor) Execute(ctx context.Context, query *graphql.Query, optionalAr
 	planner := e.getPlanner()
 	plan, err := planner.planRoot(query)
 	if err != nil {
+		fmt.Println(err)
 		return nil, nil, err
 	}
 
 	r, responseMetadata, err := e.execute(ctx, plan, nil, optionalArgs, planner)
 	if err != nil {
+		fmt.Println(err)
 		return nil, nil, err
 	}
 
