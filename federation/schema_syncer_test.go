@@ -16,22 +16,21 @@ import (
 )
 
 type FileSchemaSyncer struct {
-	services      []string
-	add           chan string // new URL channel
-	ticker        *time.Ticker
-	currentSchema []byte
+	services        []string
+	add             chan string // new URL channel
+	currentSchema   []byte
+	serviceSelector ServiceSelector
 }
 
 func newFileSchemaSyncer(ctx context.Context, services []string) *FileSchemaSyncer {
 	ss := &FileSchemaSyncer{
 		services: services,
-		ticker:   time.NewTicker(time.Second * 1),
 		add:      make(chan string),
 	}
 	return ss
 }
 
-func (s *FileSchemaSyncer) FetchPlanner(ctx context.Context, optionalArgs interface{}) (*Planner, error) {
+func (s *FileSchemaSyncer) FetchPlanner(ctx context.Context) (*Planner, error) {
 	schemas := make(map[string]*introspectionQueryResult)
 	for _, server := range s.services {
 		schema, err := readFile(server)
@@ -67,7 +66,7 @@ func (s *FileSchemaSyncer) FetchPlanner(ctx context.Context, optionalArgs interf
 		return nil, oops.Wrapf(err, "converting schemas error")
 	}
 
-	return NewPlanner(types)
+	return NewPlanner(types, s.serviceSelector)
 }
 
 // WriteToFile will print any string of text to a file safely by
@@ -131,10 +130,11 @@ func TestExecutorQueriesWithCustomSchemaSyncer(t *testing.T) {
 	schemaSyncer := newFileSchemaSyncer(ctx, services)
 	e, err := NewExecutor(ctx, execs, &CustomExecutorArgs{
 		SchemaSyncer:              schemaSyncer,
-		SchemaSyncIntervalSeconds: func(ctx context.Context) int64 { return 5 },
+		SchemaSyncIntervalSeconds: func(ctx context.Context) int64 { return 1 },
 	})
 	require.NoError(t, err)
 
+	// Test Case 1.
 	query := `query Foo {
 					s2root
 					s1fff {
@@ -155,10 +155,11 @@ func TestExecutorQueriesWithCustomSchemaSyncer(t *testing.T) {
 
 	// Run a federated query and ensure that it works
 	runAndValidateQueryResults(t, ctx, e, query, expectedOutput)
-	time.Sleep(5 * time.Second)
+	time.Sleep(2 * time.Second)
 
+	// Test Case 2.
 	// Add a new field to schema2
-	s2.Query().FieldFunc("s2root2", func() string {
+	s2.Query().FieldFunc("syncerTest", func() string {
 		return "hello"
 	})
 
@@ -172,17 +173,19 @@ func TestExecutorQueriesWithCustomSchemaSyncer(t *testing.T) {
 	// But when run locally it should already know about the new
 	// field when the new service starts
 	e.Executors = newExecs
+
 	query2 := `query Foo {
-		s2root2
+		syncerTest
 	}`
 	expectedOutput2 := `{
-		"s2root2":"hello"
+		"syncerTest":"hello"
 	}`
 
 	// Since we havent written the new schema to the file, the merged schema and planner
 	// dont know about the new field. We should see an error
-	runAndValidateQueryError(t, ctx, e, query2, expectedOutput2, "unknown field s2root2 on typ Query")
+	runAndValidateQueryError(t, ctx, e, query2, expectedOutput2, "unknown field syncerTest on typ Query")
 
+	// Test case 3.
 	// Writes the new schemas to the file
 	for _, service := range services {
 		schema, err := fetchSchema(ctx, newExecs[service], nil)
@@ -191,10 +194,52 @@ func TestExecutorQueriesWithCustomSchemaSyncer(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// Sleep for 5 seconds to wait for the schema syncer to get the update
-	time.Sleep(5 * time.Second)
+	// Sleep for 3 seconds to wait for the schema syncer to get the update
+	time.Sleep(3 * time.Second)
 
 	// 	Run the same query and validate that it works
 	runAndValidateQueryResults(t, ctx, e, query2, expectedOutput2)
 
+	// Test case 4.
+	// Add the same fieldfunc to s1.
+	s1.Query().FieldFunc("syncerTest", func() string {
+		return "hello from s1"
+	})
+	newExecs, err = makeExecutors(map[string]*schemabuilder.Schema{
+		"s1": s1,
+		"s2": s2,
+	})
+	require.NoError(t, err)
+	// We need to do this to udpate the executor in our test
+	// But when run locally it should already know about the new
+	// field when the new service starts
+	e.Executors = newExecs
+	// Writes the new schemas to the file
+	for _, service := range services {
+		schema, err := fetchSchema(ctx, newExecs[service], nil)
+		require.NoError(t, err)
+		err = writeSchemaToFile(service, schema.Result)
+		require.NoError(t, err)
+	}
+	// Sleep for 3 seconds to wait for the schema syncer to get the update
+	time.Sleep(3 * time.Second)
+	// Run the same query, the query should fail because the selection field has
+	// more than 1 service associated without a selector.
+	runAndValidateQueryError(t, ctx, e, query2, expectedOutput2, "is not in serviceSelector")
+
+	// Test case 5.
+	// Update the serviceSelector, syncerTestFunc to be resolved by service 1.
+	schemaSyncer.serviceSelector = func(typeName string, fieldName string) string {
+		if typeName == "Query" && fieldName == "syncerTest" {
+			return "s1"
+		}
+		return ""
+	}
+	expectedOutput2 = `{
+		"syncerTest":"hello from s1"
+	}`
+	// Sleep for 2 seconds to wait for the schema syncer to get the update
+	time.Sleep(2 * time.Second)
+	// Run the same query and validate that it works
+	runAndValidateQueryResults(t, ctx, e, query2, expectedOutput2)
 }

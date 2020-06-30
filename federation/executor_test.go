@@ -250,12 +250,13 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		return nil, nil, nil, nil, err
 	}
 
-	e, err := NewExecutor(ctx, execs, &CustomExecutorArgs{})
+	e, err := NewExecutor(ctx, execs, &CustomExecutorArgs{SchemaSyncer: NewIntrospectionSchemaSyncer(ctx, execs)})
 	return e, s1, s2, s3, err
 }
 
 func runAndValidateQueryResults(t *testing.T, ctx context.Context, e *Executor, query string, out string) {
 	res, _, err := e.Execute(ctx, graphql.MustParse(query, map[string]interface{}{}), nil)
+	require.NoError(t, err)
 	var expected interface{}
 	err = json.Unmarshal([]byte(out), &expected)
 	require.NoError(t, err)
@@ -314,32 +315,32 @@ func TestExecutorQueriesBasic(t *testing.T) {
 		{
 			Name: "query fields on multiple schemas",
 			Query: `
-				query Foo {
-					users {
-						id
-						email
-						phoneNumber
-						isAdmin
-					}
-				}`,
-			Output: `
-				{
-					"users":[
-						{
-							"__key":1,
-							"id":1,
-							"email": "email@gmail.com",
-							"phoneNumber": "555-5555",
-							"isAdmin":true
-						},{
-							"__key":2,
-							"id":2,
-							"email": "email@gmail.com",
-							"phoneNumber": "555-5555",
-							"isAdmin":true
+					query Foo {
+						users {
+							id
+							email
+							phoneNumber
+							isAdmin
 						}
-					]
-				}`,
+					}`,
+			Output: `
+					{
+						"users":[
+							{
+								"__key":1,
+								"id":1,
+								"email": "email@gmail.com",
+								"phoneNumber": "555-5555",
+								"isAdmin":true
+							},{
+								"__key":2,
+								"id":2,
+								"email": "email@gmail.com",
+								"phoneNumber": "555-5555",
+								"isAdmin":true
+							}
+						]
+					}`,
 		},
 	}
 	for _, testCase := range testCases {
@@ -491,7 +492,7 @@ func TestExecutorQueriesWithArgs(t *testing.T) {
 						"__key":1,
 						"id":1,
 						"name":"foo",
-						"orgId": 1,	
+						"orgId": 1,
 						"deviceWithArgs" : {
 								"__key": 2,
 								"id": 2,
@@ -504,12 +505,12 @@ func TestExecutorQueriesWithArgs(t *testing.T) {
 		},
 		{
 			Name: "query without necessary arguments",
-			Query: `	
-				query Foo {	
-					usersWithArgs(foo: "foo") {	
-						id	
-						name	
-					}	
+			Query: `
+				query Foo {
+					usersWithArgs(foo: "foo") {
+						id
+						name
+					}
 				}`,
 			Output:        "",
 			Error:         true,
@@ -550,8 +551,8 @@ func TestExecutorQueriesWithUnionTypes(t *testing.T) {
 					... on User {
 						id
 						email
-						device {	
-							id	
+						device {
+							id
 						}
 					}
 				}
@@ -807,7 +808,7 @@ func TestExecutorWithInvalidFederationKeys(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	_, err = NewExecutor(ctx, execs, &CustomExecutorArgs{})
+	_, err = NewExecutor(ctx, execs, &CustomExecutorArgs{SchemaSyncer: NewIntrospectionSchemaSyncer(ctx, execs)})
 	assert.True(t, strings.Contains(err.Error(), "Invalid federation key unkownField"))
 }
 
@@ -817,11 +818,12 @@ func createMutationExecutor() (map[string]ExecutorClient, error) {
 		Id   int64
 		Name string
 	}
+	s1.Object("User", User{}, schemabuilder.RootObject)
 	s1.Mutation().FieldFunc("newUser", func(ctx context.Context) (*User, error) {
 		return &User{Id: int64(123), Name: "bob"}, nil
 	})
-
 	s2 := schemabuilder.NewSchemaWithName("s2")
+	s2.Object("User", User{}, schemabuilder.RootObject, schemabuilder.ShadowObject)
 	s2.Mutation().FieldFunc("newFakeUser", func(ctx context.Context) (*User, error) {
 		return &User{Id: int64(234), Name: "fake"}, nil
 	})
@@ -835,7 +837,7 @@ func TestMutationExecutor(t *testing.T) {
 	e, err := createMutationExecutor()
 	require.NoError(t, err)
 	ctx := context.Background()
-	executor, err := NewExecutor(ctx, e, &CustomExecutorArgs{})
+	executor, err := NewExecutor(ctx, e, &CustomExecutorArgs{SchemaSyncer: NewIntrospectionSchemaSyncer(ctx, e)})
 	require.NoError(t, err)
 
 	testCases := []struct {
@@ -900,7 +902,7 @@ func TestExecutorReturnsError(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	e, err := NewExecutor(ctx, execs, &CustomExecutorArgs{})
+	e, err := NewExecutor(ctx, execs, &CustomExecutorArgs{SchemaSyncer: NewIntrospectionSchemaSyncer(ctx, execs)})
 	require.NoError(t, err)
 	runAndValidateQueryError(t, ctx, e, `{ fail }`, ``, "executing query: fail: uh oh")
 }
