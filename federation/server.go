@@ -79,7 +79,7 @@ func ExecuteRequest(ctx context.Context, req *thunderpb.ExecuteRequest, gqlSchem
 	var queryError error
 	rerunner := reactive.NewRerunner(ctx, func(ctx context.Context) (ret interface{}, err error) {
 		defer func() {
-			queryResponse = ret.(*thunderpb.ExecuteResponse)
+			queryResponse, _ = ret.(*thunderpb.ExecuteResponse)
 			queryError = err
 			close(done)
 		}()
