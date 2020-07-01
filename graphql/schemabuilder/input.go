@@ -129,7 +129,7 @@ func (sb *schemaBuilder) getStructObjectFields(typ reflect.Type) (*graphql.Input
 	}
 
 	if typ.Kind() != reflect.Struct {
-		return nil, nil, fmt.Errorf("expected struct but received type %s", typ.Name())
+		return nil, nil, fmt.Errorf("expected struct but received type %s", typ.Kind())
 	}
 
 	// Cache type information ahead of time to catch self-reference
