@@ -29,10 +29,10 @@ func (s *IntrospectionSchemaSyncer) FetchPlanner(ctx context.Context) (*Planner,
 	schemas := make(map[string]*introspectionQueryResult)
 	for server, client := range s.executors {
 		resp, err := fetchSchema(ctx, client, nil)
-		schema := resp.Result
 		if err != nil {
 			return nil, oops.Wrapf(err, "fetching schema %s", server)
 		}
+		schema := resp.Result
 		var iq introspectionQueryResult
 		if err := json.Unmarshal(schema, &iq); err != nil {
 			return nil, oops.Wrapf(err, "unmarshaling schema %s", server)
