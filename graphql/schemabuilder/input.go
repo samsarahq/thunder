@@ -473,8 +473,13 @@ var scalarArgParsers = map[reflect.Type]*argParser{
 	},
 	reflect.TypeOf(string("")): {
 		FromJSON: func(value interface{}, dest reflect.Value) error {
+			if value == nil {
+				dest.Set(reflect.ValueOf("").Convert(dest.Type()))
+				return nil
+			}
 			asString, ok := value.(string)
 			if !ok {
+				fmt.Println("HEREE", value)
 				return errors.New("not a string")
 			}
 			dest.Set(reflect.ValueOf(asString).Convert(dest.Type()))

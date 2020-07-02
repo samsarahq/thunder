@@ -243,3 +243,110 @@ func TestExecutorQueriesWithCustomSchemaSyncer(t *testing.T) {
 	// Run the same query and validate that it works
 	runAndValidateQueryResults(t, ctx, e, query2, expectedOutput2)
 }
+
+func TestOnlyShadowServiceKnowsAboutNewField(t *testing.T) {
+	type User struct {
+		Id          int64
+		OrgId       int64
+		Name        string
+		Email       string
+		PhoneNumber string
+	}
+	s1 := schemabuilder.NewSchemaWithName("s1")
+	user := s1.Object("User", User{}, schemabuilder.RootObject)
+	user.Key("id")
+	type UserIds struct {
+		Id    int64
+		OrgId int64
+	}
+	s1.Query().FieldFunc("users", func(ctx context.Context) ([]*User, error) {
+		users := make([]*User, 0, 1)
+		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: "testUser", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		users = append(users, &User{Id: int64(2), OrgId: int64(2), Name: "testUser2", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		return users, nil
+	})
+
+	type UserWithContactInfo struct {
+		Id    int64
+		OrgId int64
+		Name  string
+	}
+
+	s2 := schemabuilder.NewSchemaWithName("s2")
+	s2.FederatedFieldFunc("User", func(args struct{ Keys []*UserWithContactInfo }) []*UserWithContactInfo {
+		return args.Keys
+	})
+	userWithContactInfo := s2.Object("User", UserWithContactInfo{})
+	userWithContactInfo.FieldFunc("isCool", func(ctx context.Context) (bool, error) { return true, nil })
+
+	ctx := context.Background()
+	execs, err := makeExecutors(map[string]*schemabuilder.Schema{
+		"s1": s1,
+		"s2": s2,
+	})
+	require.NoError(t, err)
+
+	// Write the schemas to a file
+	services := []string{"s1", "s2"}
+	for _, service := range services {
+		schema, err := fetchSchema(ctx, execs[service], nil)
+		require.NoError(t, err)
+		err = writeSchemaToFile(service, schema.Result)
+		require.NoError(t, err)
+	}
+
+	// Creata file schema syncer that reads the schemas from the
+	// written files and listens to updates if those change
+	schemaSyncer := newFileSchemaSyncer(ctx, services)
+	e, err := NewExecutor(ctx, execs, &CustomExecutorArgs{
+		SchemaSyncer:              schemaSyncer,
+		SchemaSyncIntervalSeconds: func(ctx context.Context) int64 { return 100 },
+	})
+	require.NoError(t, err)
+
+	query := `query Foo {
+					users {
+						isCool
+					}
+				}`
+	expectedOutput := `{
+					"users":[
+						{
+							"__key":1, 
+							"isCool":true
+						},
+						{
+							"__key":2,
+							"isCool":true
+						}
+					]
+				}`
+
+	// Run a federated query and ensure that it works
+	runAndValidateQueryResults(t, ctx, e, query, expectedOutput)
+
+	type UserWithContactInfoNew struct {
+		Id    int64
+		OrgId int64
+		Name  string
+		Email string
+	}
+
+	s2new := schemabuilder.NewSchemaWithName("s2")
+	s2new.FederatedFieldFunc("User", func(args struct{ Keys []*UserWithContactInfoNew }) []*UserWithContactInfoNew {
+		return args.Keys
+	})
+	userWithContactInfoNew := s2new.Object("User", UserWithContactInfoNew{})
+	userWithContactInfoNew.FieldFunc("isCool", func(ctx context.Context) (bool, error) { return true, nil })
+
+	newExecs, err := makeExecutors(map[string]*schemabuilder.Schema{
+		"s1": s1,
+		"s2": s2new,
+	})
+	require.NoError(t, err)
+
+	// The executor is updated. This mocsk the case where the federated executor
+	// knows about a new field, but the gateway doesnt know about it yet
+	// We want to fill it with a blank value until the gateway can correctly send the information
+	e.Executors = newExecs
+}
