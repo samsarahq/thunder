@@ -14,13 +14,15 @@ type SchemaSyncer interface {
 	FetchPlanner(ctx context.Context) (*Planner, error)
 }
 type IntrospectionSchemaSyncer struct {
-	executors map[string]ExecutorClient
+	executors     map[string]ExecutorClient
+	queryMetadata interface{}
 }
 
 // Creates a schema syncer that periodically runs an introspection query agaisnt all the federated servers to check for updates.
-func NewIntrospectionSchemaSyncer(ctx context.Context, executors map[string]ExecutorClient) *IntrospectionSchemaSyncer {
+func NewIntrospectionSchemaSyncer(ctx context.Context, executors map[string]ExecutorClient, queryMetadata interface{}) *IntrospectionSchemaSyncer {
 	ss := &IntrospectionSchemaSyncer{
-		executors: executors,
+		executors:     executors,
+		queryMetadata: queryMetadata,
 	}
 	return ss
 }
@@ -28,7 +30,7 @@ func NewIntrospectionSchemaSyncer(ctx context.Context, executors map[string]Exec
 func (s *IntrospectionSchemaSyncer) FetchPlanner(ctx context.Context) (*Planner, error) {
 	schemas := make(map[string]*introspectionQueryResult)
 	for server, client := range s.executors {
-		resp, err := fetchSchema(ctx, client, nil)
+		resp, err := fetchSchema(ctx, client, s.queryMetadata)
 		if err != nil {
 			return nil, oops.Wrapf(err, "fetching schema %s", server)
 		}
