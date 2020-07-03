@@ -184,6 +184,22 @@ func (ldb *LiveDB) Query(ctx context.Context, result interface{}, filter sqlgen.
 	return sqlgen.CopySlice(result, rows)
 }
 
+// FullScanQuery bypasses any index checking on a query.
+// Normal LiveDB.Query will check during tests if the query uses an index and will fail tests if not. This function
+// will skip those checks.
+// There are cases where we explicitly want to support full table scans such as
+// 1. During tests to verify results (eg get all)
+// 2. Some rare operations are infrequent and its better to have no index and instead perform full table scans
+//    when that query is run.
+func (ldb *LiveDB) FullScanQuery(ctx context.Context, result interface{}, filter sqlgen.Filter, options *sqlgen.SelectOptions) error {
+	if options == nil {
+		options = &sqlgen.SelectOptions{}
+	}
+	options.AllowNoIndex = true
+
+	return ldb.Query(ctx, result, filter, options)
+}
+
 // QueryRow fetches a single row from the database and will invalidate ctx when
 // the query result changes
 //
