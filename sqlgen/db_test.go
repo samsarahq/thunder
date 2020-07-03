@@ -9,6 +9,45 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestPanicOnNoIndex(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("We expect non-indexed queries to panic.")
+		}
+	}()
+
+	tdb, db, err := setup()
+	assert.NoError(t, err)
+	defer tdb.Close()
+
+	db, err = db.WithPanicOnNoIndex()
+
+	// A second set will error
+	_, err = db.WithPanicOnNoIndex()
+	assert.EqualError(t, err, "already is set panic on no index")
+
+	// Querying users without any filters should panic (checked at the top of the test)
+	var users []*User
+	db.Query(context.Background(), &users, nil, nil)
+}
+
+func TestPanicOnNoIndexOverride(t *testing.T) {
+	tdb, db, err := setup()
+	assert.NoError(t, err)
+	defer tdb.Close()
+
+	db, err = db.WithPanicOnNoIndex()
+
+	// A second set will error
+	_, err = db.WithPanicOnNoIndex()
+	assert.EqualError(t, err, "already is set panic on no index")
+
+	// Querying users without any filters but with a full scan should not error.
+	var users []*User
+	err = db.FullScanQuery(context.Background(), &users, nil, nil)
+	assert.NoError(t, err)
+}
+
 type limitTestcase struct {
 	title           string
 	withFilterLimit func(*DB, Filter) *DB

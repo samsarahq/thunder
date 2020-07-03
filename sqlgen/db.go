@@ -3,9 +3,11 @@ package sqlgen
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 
+	"github.com/samsarahq/go/oops"
 	"github.com/samsarahq/thunder/batch"
 )
 
@@ -20,6 +22,8 @@ type DB struct {
 	shardLimit Filter
 
 	dynamicLimit DynamicLimit
+
+	panicOnNoIndex bool
 }
 
 type DynamicLimitFilterCallback func(context.Context, string) Filter
@@ -48,8 +52,9 @@ type DynamicLimit struct {
 
 func NewDB(conn *sql.DB, schema *Schema) *DB {
 	db := &DB{
-		Conn:   conn,
-		Schema: schema,
+		Conn:           conn,
+		Schema:         schema,
+		panicOnNoIndex: false,
 	}
 
 	db.batchFetch = &batch.Func{
@@ -132,6 +137,19 @@ func (db *DB) WithShardLimit(shardLimit Filter) (*DB, error) {
 	dbCopy := *db
 	dbCopy.shardLimit = shardLimit
 	return &dbCopy, nil
+}
+
+// WithPanicOnNoIndex will configure this db connection to run an
+// explain on every query and panic when no index is found. This setting is
+// recommended only for use in testing so that you can find non-indexed
+// queries during tests.
+func (db *DB) WithPanicOnNoIndex() (*DB, error) {
+	if db.panicOnNoIndex {
+		return nil, errors.New("already is set panic on no index")
+	}
+
+	db.panicOnNoIndex = true
+	return db, nil
 }
 
 // WithDynamicLimit is similar to WithShardLimit except that it supports
@@ -232,6 +250,64 @@ func (db *DB) checkColumnValuesAgainstLimits(ctx context.Context, query SQLQuery
 	return nil
 }
 
+type ExplainResultRow struct {
+	Id           int64
+	SelectType   string `sql:"select_type"`
+	Table        string
+	TypeColumn   string  `sql:"type"`
+	PossibleKeys *string `sql:"possible_keys"`
+	Key          *string
+	KeyLen       *string `sql:"key_len"`
+	Ref          *string
+	Rows         int64
+	Extra        *string `sql:"Extra"`
+}
+
+func parseExplainResults(resultRows *sql.Rows) (results []ExplainResultRow, err error) {
+	for resultRows.Next() {
+		var explainType ExplainResultRow
+		err := resultRows.Scan(
+			&explainType.Id, &explainType.SelectType, &explainType.Table, &explainType.TypeColumn, &explainType.PossibleKeys, &explainType.Key,
+			&explainType.KeyLen, &explainType.Ref, &explainType.Rows, &explainType.Extra)
+		if err != nil {
+			return nil, oops.Wrapf(err, "Failed to parse explain results")
+		}
+		results = append(results, explainType)
+	}
+	return results, nil
+}
+
+func (db *DB) runExplainQuery(ctx context.Context, clause string, args []interface{}) error {
+	// We run an explain first and panic if there's no index
+	explained := "EXPLAIN " + clause
+	res, err := db.QueryExecer(ctx).QueryContext(ctx, explained, args...)
+	if err != nil {
+		return oops.Wrapf(err, "Failed to run explain on the query")
+	}
+	defer res.Close()
+
+	explainRes, err := parseExplainResults(res)
+	if err != nil {
+		return oops.Wrapf(err, "failed to parse explain results")
+	}
+
+	for _, explain := range explainRes {
+		if explain.Key == nil && explain.PossibleKeys == nil {
+			explainJSON, _ := json.Marshal(explain)
+			helpMsg := "If you get this message, either check your indices or you can explicitly use a FullScanQuery knowing you're performing a full table scan."
+			panic(fmt.Sprintf(
+				"A sql query was used that misses indexes. %s\n\n%s\n\nwith args\n%s\n\n%s",
+				helpMsg,
+				clause,
+				args,
+				string(explainJSON),
+			))
+		}
+	}
+
+	return nil
+}
+
 func (db *DB) BaseQuery(ctx context.Context, query *BaseSelectQuery) ([]interface{}, error) {
 	selectQuery, err := query.MakeSelectQuery()
 	if err != nil {
@@ -251,6 +327,13 @@ func (db *DB) BaseQuery(ctx context.Context, query *BaseSelectQuery) ([]interfac
 	}
 
 	clause, args := selectQuery.ToSQL()
+
+	if db.panicOnNoIndex && (query.Options == nil || !query.Options.AllowNoIndex) {
+		err = db.runExplainQuery(ctx, clause, args)
+		if err != nil {
+			return nil, oops.Wrapf(err, "Failed to run explain query")
+		}
+	}
 
 	res, err := db.QueryExecer(ctx).QueryContext(ctx, clause, args...)
 	if err != nil {
@@ -318,6 +401,22 @@ func (db *DB) Query(ctx context.Context, result interface{}, filter Filter, opti
 	}
 
 	return CopySlice(result, rows)
+}
+
+// FullScanQuery bypasses any index checking on a query.
+// Normal LiveDB.Query will check during tests if the query uses an index and will fail tests if not. This function
+// will skip those checks.
+// There are cases where we explicitly want to support full table scans such as
+// 1. During tests to verify results (eg get all)
+// 2. Some rare operations are infrequent and its better to have no index and instead perform full table scans
+//    when that query is run.
+func (db *DB) FullScanQuery(ctx context.Context, result interface{}, filter Filter, options *SelectOptions) error {
+	if options == nil {
+		options = &SelectOptions{}
+	}
+	options.AllowNoIndex = true
+
+	return db.Query(ctx, result, filter, options)
 }
 
 // QueryRow fetches a single row from the database

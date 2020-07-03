@@ -23,6 +23,8 @@ type SelectOptions struct {
 
 	OrderBy string
 	Limit   int
+
+	AllowNoIndex bool
 }
 
 func (s *SelectOptions) IncludeFilter(table *Table, filter Filter) error {
@@ -381,8 +383,8 @@ func (b *baseCountQuery) makeCountQuery() (*countQuery, error) {
 	}
 
 	return &countQuery{
-		Table:   b.Table.Name,
-		Where:   where,
+		Table: b.Table.Name,
+		Where: where,
 	}, nil
 }
 
