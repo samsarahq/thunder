@@ -134,7 +134,7 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 	// Execute query on specified service
 	executorClient, ok := e.Executors[service]
 	if !ok {
-		return nil, nil, oops.Errorf("service not recognized")
+		return nil, nil, oops.Errorf("service %s not recognized", service)
 	}
 
 	// If it is not a root query, nest the subquery on the federation field
