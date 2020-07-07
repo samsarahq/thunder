@@ -68,7 +68,7 @@ func TestCustomMetadataExecutor(t *testing.T) {
 	srv, err := NewCustomMetadataServer(schema.MustBuild())
 	require.NoError(t, err)
 	execs["s1"] = &SpecialMetadataExecutorClient{Client: srv}
-	e, err := NewExecutor(ctx, execs, &CustomExecutorArgs{SchemaSyncer: NewIntrospectionSchemaSyncer(ctx, execs, nil)})
+	e, err := NewExecutor(ctx, execs, &SchemaSyncerConfig{SchemaSyncer: NewIntrospectionSchemaSyncer(ctx, execs, nil)})
 	require.NoError(t, err)
 	md := metadata.Pairs("authtoken", "testToken")
 	ctx = metadata.NewOutgoingContext(context.Background(), md)
