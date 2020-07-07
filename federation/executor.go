@@ -130,7 +130,7 @@ func (e *Executor) poll(ctx context.Context) error {
 	return nil
 }
 
-func (e *Executor) runOnService(ctx context.Context, service string, typName string, keys []interface{}, kind string, selectionSet *graphql.SelectionSet, optionalArgs interface{}, planner *Planner) ([]interface{}, interface{}, error) {
+func (e *Executor) runOnService(ctx context.Context, service string, typName string, keys []interface{}, kind string, selectionSet *graphql.SelectionSet, metadata interface{}, planner *Planner) ([]interface{}, interface{}, error) {
 	// Execute query on specified service
 	executorClient, ok := e.Executors[service]
 	if !ok {
@@ -220,7 +220,7 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 			Kind:         kind,
 			SelectionSet: selectionSet,
 		},
-		Metadata: optionalArgs,
+		Metadata: metadata,
 	}
 	response, err := executorClient.Execute(ctx, request)
 	if err != nil {
@@ -314,7 +314,7 @@ func (pathTargets *pathSubqueryMetadata) extractKeys(node interface{}, path []Pa
 	return nil
 }
 
-func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}, optionalArgs interface{}, planner *Planner) ([]interface{}, []interface{}, error) {
+func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}, metadata interface{}, planner *Planner) ([]interface{}, []interface{}, error) {
 	var res []interface{}
 	optionalRespMetadata := make([]interface{}, 0)
 	// var optionalResponseArg interface{}
@@ -322,7 +322,7 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}, opt
 	if p.Service != gatewayCoordinatorServiceName {
 		var err error
 		var optionalRespQueryMetaData interface{}
-		res, optionalRespQueryMetaData, err = e.runOnService(ctx, p.Service, p.Type, keys, p.Kind, p.SelectionSet, optionalArgs, planner)
+		res, optionalRespQueryMetaData, err = e.runOnService(ctx, p.Service, p.Type, keys, p.Kind, p.SelectionSet, metadata, planner)
 		if err != nil {
 			return nil, nil, oops.Wrapf(err, "run on service")
 		}
@@ -359,7 +359,7 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}, opt
 
 		g.Go(func() error {
 			// Execute the subquery on the specified service
-			executionResults, subQueryRespMetadata, err := e.execute(ctx, subPlan, subPlanMetaData.keys, optionalArgs, planner)
+			executionResults, subQueryRespMetadata, err := e.execute(ctx, subPlan, subPlanMetaData.keys, metadata, planner)
 			if err != nil {
 				return oops.Wrapf(err, "executing sub plan: %v", err)
 			}
@@ -420,14 +420,14 @@ type pathSubqueryMetadata struct {
 	optionalResponseMetatda []interface{}
 }
 
-func (e *Executor) Execute(ctx context.Context, query *graphql.Query, optionalArgs interface{}) (interface{}, []interface{}, error) {
+func (e *Executor) Execute(ctx context.Context, query *graphql.Query, metadata interface{}) (interface{}, []interface{}, error) {
 	planner := e.getPlanner()
 	plan, err := planner.planRoot(query)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	r, responseMetadata, err := e.execute(ctx, plan, nil, optionalArgs, planner)
+	r, responseMetadata, err := e.execute(ctx, plan, nil, metadata, planner)
 	if err != nil {
 		return nil, nil, err
 	}
