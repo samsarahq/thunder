@@ -81,12 +81,12 @@ func fetchSchema(ctx context.Context, e ExecutorClient, metadata interface{}) (*
 	})
 }
 
-type CustomExecutorArgs struct {
+type SchemaSyncerConfig struct {
 	SchemaSyncer              SchemaSyncer
 	SchemaSyncIntervalSeconds func(ctx context.Context) int64
 }
 
-func NewExecutor(ctx context.Context, executors map[string]ExecutorClient, c *CustomExecutorArgs) (*Executor, error) {
+func NewExecutor(ctx context.Context, executors map[string]ExecutorClient, c *SchemaSyncerConfig) (*Executor, error) {
 	if c.SchemaSyncer == nil {
 		return nil, oops.Errorf("SchemaSyncer should not be nil")
 	}

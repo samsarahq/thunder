@@ -250,7 +250,7 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		return nil, nil, nil, nil, err
 	}
 
-	e, err := NewExecutor(ctx, execs, &CustomExecutorArgs{SchemaSyncer: NewIntrospectionSchemaSyncer(ctx, execs, nil)})
+	e, err := NewExecutor(ctx, execs, &SchemaSyncerConfig{SchemaSyncer: NewIntrospectionSchemaSyncer(ctx, execs, nil)})
 	return e, s1, s2, s3, err
 }
 
@@ -808,7 +808,7 @@ func TestExecutorWithInvalidFederationKeys(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	_, err = NewExecutor(ctx, execs, &CustomExecutorArgs{SchemaSyncer: NewIntrospectionSchemaSyncer(ctx, execs, nil)})
+	_, err = NewExecutor(ctx, execs, &SchemaSyncerConfig{SchemaSyncer: NewIntrospectionSchemaSyncer(ctx, execs, nil)})
 	assert.True(t, strings.Contains(err.Error(), "Invalid federation key unkownField"))
 }
 
@@ -837,7 +837,7 @@ func TestMutationExecutor(t *testing.T) {
 	e, err := createMutationExecutor()
 	require.NoError(t, err)
 	ctx := context.Background()
-	executor, err := NewExecutor(ctx, e, &CustomExecutorArgs{SchemaSyncer: NewIntrospectionSchemaSyncer(ctx, e, nil)})
+	executor, err := NewExecutor(ctx, e, &SchemaSyncerConfig{SchemaSyncer: NewIntrospectionSchemaSyncer(ctx, e, nil)})
 	require.NoError(t, err)
 
 	testCases := []struct {
@@ -902,7 +902,7 @@ func TestExecutorReturnsError(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	e, err := NewExecutor(ctx, execs, &CustomExecutorArgs{SchemaSyncer: NewIntrospectionSchemaSyncer(ctx, execs, nil)})
+	e, err := NewExecutor(ctx, execs, &SchemaSyncerConfig{SchemaSyncer: NewIntrospectionSchemaSyncer(ctx, execs, nil)})
 	require.NoError(t, err)
 	runAndValidateQueryError(t, ctx, e, `{ fail }`, ``, "executing query: fail: uh oh")
 }

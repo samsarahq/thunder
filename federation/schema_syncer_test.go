@@ -128,7 +128,7 @@ func TestExecutorQueriesWithCustomSchemaSyncer(t *testing.T) {
 	// Creata file schema syncer that reads the schemas from the
 	// written files and listens to updates if those change
 	schemaSyncer := newFileSchemaSyncer(ctx, services)
-	e, err := NewExecutor(ctx, execs, &CustomExecutorArgs{
+	e, err := NewExecutor(ctx, execs, &SchemaSyncerConfig{
 		SchemaSyncer:              schemaSyncer,
 		SchemaSyncIntervalSeconds: func(ctx context.Context) int64 { return 1 },
 	})
@@ -294,7 +294,7 @@ func TestOnlyShadowServiceKnowsAboutNewField(t *testing.T) {
 	// Creata file schema syncer that reads the schemas from the
 	// written files and listens to updates if those change
 	schemaSyncer := newFileSchemaSyncer(ctx, services)
-	e, err := NewExecutor(ctx, execs, &CustomExecutorArgs{
+	e, err := NewExecutor(ctx, execs, &SchemaSyncerConfig{
 		SchemaSyncer:              schemaSyncer,
 		SchemaSyncIntervalSeconds: func(ctx context.Context) int64 { return 100 },
 	})
@@ -308,7 +308,7 @@ func TestOnlyShadowServiceKnowsAboutNewField(t *testing.T) {
 	expectedOutput := `{
 					"users":[
 						{
-							"__key":1, 
+							"__key":1,
 							"isCool":true
 						},
 						{
