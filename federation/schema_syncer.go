@@ -28,14 +28,14 @@ func NewIntrospectionSchemaSyncer(ctx context.Context, executors map[string]Exec
 }
 
 func (s *IntrospectionSchemaSyncer) FetchPlanner(ctx context.Context) (*Planner, error) {
-	schemas := make(map[string]*introspectionQueryResult)
+	schemas := make(map[string]*IntrospectionQueryResult)
 	for server, client := range s.executors {
 		resp, err := fetchSchema(ctx, client, s.queryMetadata)
 		if err != nil {
 			return nil, oops.Wrapf(err, "fetching schema %s", server)
 		}
 		schema := resp.Result
-		var iq introspectionQueryResult
+		var iq IntrospectionQueryResult
 		if err := json.Unmarshal(schema, &iq); err != nil {
 			return nil, oops.Wrapf(err, "unmarshaling schema %s", server)
 		}
@@ -54,7 +54,7 @@ func (s *IntrospectionSchemaSyncer) FetchPlanner(ctx context.Context) (*Planner,
 		return nil, oops.Wrapf(err, "error running introspection query")
 	}
 
-	var iq introspectionQueryResult
+	var iq IntrospectionQueryResult
 	if err := json.Unmarshal(schema, &iq); err != nil {
 		return nil, oops.Wrapf(err, "unmarshaling introspection schema")
 	}

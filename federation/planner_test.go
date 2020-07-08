@@ -25,7 +25,7 @@ func setupExecutor(t *testing.T) (*Planner, error) {
 
 	builtSchemas := make(serviceSchemas)
 	for service, versions := range schemas {
-		builtSchemas[service] = make(map[string]*introspectionQueryResult)
+		builtSchemas[service] = make(map[string]*IntrospectionQueryResult)
 		for version, schema := range versions {
 			builtSchemas[service][version] = extractSchema(t, schema.MustBuild())
 		}

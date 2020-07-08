@@ -13,7 +13,7 @@ import (
 // serviceSchemas holds all schemas for all of versions of
 // all executors services. It is a map from service name
 // and version to schema.
-type serviceSchemas map[string]map[string]*introspectionQueryResult
+type serviceSchemas map[string]map[string]*IntrospectionQueryResult
 
 // FieldInfo holds federation-specific information for
 // graphql.Fields used to plan and execute queries.
@@ -42,7 +42,7 @@ func getRootType(typ *introspectionTypeRef) *introspectionTypeRef {
 // validateFederationKeys validates that if a service is asking for a federated key, all the services
 // that have the objcet registered as a root object expose the field. This ensures that we can make
 // the hop from the root server to any of the federated servers safely before any queries are executed.
-func validateFederationKeys(serviceNames []string, serviceSchemasByName map[string]*introspectionQueryResult, obj *graphql.Object, keyField string) error {
+func validateFederationKeys(serviceNames []string, serviceSchemasByName map[string]*IntrospectionQueryResult, obj *graphql.Object, keyField string) error {
 	validFederatedKey := false
 	for _, service := range serviceNames {
 		for _, typ := range serviceSchemasByName[service].Schema.Types {
@@ -87,10 +87,10 @@ func ConvertVersionedSchemas(schemas serviceSchemas) (*SchemaWithFederationInfo,
 	}
 	sort.Strings(serviceNames)
 
-	serviceSchemasByName := make(map[string]*introspectionQueryResult)
+	serviceSchemasByName := make(map[string]*IntrospectionQueryResult)
 
 	// Finds the intersection of different version of the schemas
-	var serviceSchemas []*introspectionQueryResult
+	var serviceSchemas []*IntrospectionQueryResult
 	for _, service := range serviceNames {
 		versions := schemas[service]
 
@@ -100,7 +100,7 @@ func ConvertVersionedSchemas(schemas serviceSchemas) (*SchemaWithFederationInfo,
 		}
 		sort.Strings(versionNames)
 
-		var versionSchemas []*introspectionQueryResult
+		var versionSchemas []*IntrospectionQueryResult
 		for _, version := range versionNames {
 			versionSchemas = append(versionSchemas, versions[version])
 		}
@@ -210,10 +210,10 @@ func ConvertVersionedSchemas(schemas serviceSchemas) (*SchemaWithFederationInfo,
 
 // convertSchema annotates the schema with federation information vt
 // mapping fields to the corresponding services.
-func convertSchema(schemas map[string]*introspectionQueryResult) (*SchemaWithFederationInfo, error) {
+func convertSchema(schemas map[string]*IntrospectionQueryResult) (*SchemaWithFederationInfo, error) {
 	versionedSchemas := make(serviceSchemas)
 	for service, schema := range schemas {
-		versionedSchemas[service] = map[string]*introspectionQueryResult{
+		versionedSchemas[service] = map[string]*IntrospectionQueryResult{
 			"": schema,
 		}
 	}
@@ -303,7 +303,7 @@ func parseInputFields(source []introspectionInputField, all map[string]graphql.T
 
 // parseSchema takes the introspected schema, validates the types,
 // and maps every field to the graphql types
-func parseSchema(schema *introspectionQueryResult) (map[string]graphql.Type, error) {
+func parseSchema(schema *IntrospectionQueryResult) (map[string]graphql.Type, error) {
 	all := make(map[string]graphql.Type)
 
 	for _, typ := range schema.Schema.Types {

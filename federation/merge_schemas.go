@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-
 )
 
 // MergeMode controls how to combine two different schemas. Union is used for
@@ -95,7 +94,7 @@ type introspectionSchema struct {
 	Types []introspectionType `json:"types"`
 }
 
-type introspectionQueryResult struct {
+type IntrospectionQueryResult struct {
 	Schema introspectionSchema `json:"__schema"`
 }
 
@@ -365,7 +364,7 @@ func mergeTypes(a, b introspectionType, mode MergeMode) (*introspectionType, err
 	return &merged, nil
 }
 
-func mergeSchemas(a, b *introspectionQueryResult, mode MergeMode) (*introspectionQueryResult, error) {
+func mergeSchemas(a, b *IntrospectionQueryResult, mode MergeMode) (*IntrospectionQueryResult, error) {
 	types := make(map[string][]introspectionType)
 	for _, a := range a.Schema.Types {
 		types[a.Name] = append(types[a.Name], a)
@@ -396,14 +395,14 @@ func mergeSchemas(a, b *introspectionQueryResult, mode MergeMode) (*introspectio
 		merged = append(merged, *m)
 	}
 
-	return &introspectionQueryResult{
+	return &IntrospectionQueryResult{
 		Schema: introspectionSchema{
 			Types: merged,
 		},
 	}, nil
 }
 
-func mergeSchemaSlice(schemas []*introspectionQueryResult, mode MergeMode) (*introspectionQueryResult, error) {
+func mergeSchemaSlice(schemas []*IntrospectionQueryResult, mode MergeMode) (*IntrospectionQueryResult, error) {
 	if len(schemas) == 0 {
 		return nil, errors.New("no schemas")
 	}

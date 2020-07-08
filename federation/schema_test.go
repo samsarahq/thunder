@@ -14,24 +14,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func extractSchema(t *testing.T, schema *graphql.Schema) *introspectionQueryResult {
+func extractSchema(t *testing.T, schema *graphql.Schema) *IntrospectionQueryResult {
 	bytes, err := introspection.RunIntrospectionQuery(introspection.BareIntrospectionSchema(schema))
 	require.NoError(t, err)
-	var iq introspectionQueryResult
+	var iq IntrospectionQueryResult
 	err = json.Unmarshal(bytes, &iq)
 	require.NoError(t, err)
 	return &iq
 }
 
-func extractSchemas(t *testing.T, schemas map[string]*schemabuilder.Schema) map[string]*introspectionQueryResult {
-	out := make(map[string]*introspectionQueryResult)
+func extractSchemas(t *testing.T, schemas map[string]*schemabuilder.Schema) map[string]*IntrospectionQueryResult {
+	out := make(map[string]*IntrospectionQueryResult)
 	for k, v := range schemas {
 		out[k] = extractSchema(t, v.MustBuild())
 	}
 	return out
 }
 
-func extractConvertedSchemas(t *testing.T, schemas map[string]*schemabuilder.Schema) *introspectionQueryResult {
+func extractConvertedSchemas(t *testing.T, schemas map[string]*schemabuilder.Schema) *IntrospectionQueryResult {
 	combined, err := convertSchema(extractSchemas(t, schemas))
 	assert.NoError(t, err)
 	return extractSchema(t, combined.Schema)
@@ -97,10 +97,10 @@ func getFieldServiceMaps(t *testing.T, s *SchemaWithFederationInfo) map[string][
 	return fieldServices
 }
 
-func extractConvertedVersionedSchemas(t *testing.T, schemas map[string]map[string]*schemabuilder.Schema) (*introspectionQueryResult, map[string][]string) {
+func extractConvertedVersionedSchemas(t *testing.T, schemas map[string]map[string]*schemabuilder.Schema) (*IntrospectionQueryResult, map[string][]string) {
 	builtSchemas := make(serviceSchemas)
 	for service, versions := range schemas {
-		builtSchemas[service] = make(map[string]*introspectionQueryResult)
+		builtSchemas[service] = make(map[string]*IntrospectionQueryResult)
 		for version, schema := range versions {
 			builtSchemas[service][version] = extractSchema(t, schema.MustBuild())
 		}
@@ -125,7 +125,7 @@ func TestBuildSchemaKitchenSink(t *testing.T) {
 	out, err := introspection.RunIntrospectionQuery(types.Schema)
 	require.NoError(t, err)
 
-	var iq introspectionQueryResult
+	var iq IntrospectionQueryResult
 	err = json.Unmarshal(out, &iq)
 	require.NoError(t, err)
 
@@ -401,7 +401,7 @@ func TestMergeEnumIntersection(t *testing.T) {
 			"zero": 0,
 			"one":  1,
 		})
-		s1.Query().FieldFunc("f", func(args struct{EnumField Enum}) Enum { return Enum(1) })
+		s1.Query().FieldFunc("f", func(args struct{ EnumField Enum }) Enum { return Enum(1) })
 	}
 
 	s2 := schemabuilder.NewSchema()
@@ -410,7 +410,7 @@ func TestMergeEnumIntersection(t *testing.T) {
 			"zero": 0,
 			"two":  2,
 		})
-		s2.Query().FieldFunc("f", func(args struct{EnumField Enum}) Enum { return Enum(1) })
+		s2.Query().FieldFunc("f", func(args struct{ EnumField Enum }) Enum { return Enum(1) })
 	}
 
 	s3 := schemabuilder.NewSchema()
@@ -418,7 +418,7 @@ func TestMergeEnumIntersection(t *testing.T) {
 		s3.Enum(Enum(0), map[string]Enum{
 			"zero": 0,
 		})
-		s3.Query().FieldFunc("f", func(args struct{EnumField Enum}) Enum { return Enum(1) })
+		s3.Query().FieldFunc("f", func(args struct{ EnumField Enum }) Enum { return Enum(1) })
 	}
 
 	assertSchemaIntersectionEq(t, s1, s2, s3)
@@ -726,7 +726,7 @@ func TestBuildSchema(t *testing.T) {
 	out, err := introspection.RunIntrospectionQuery(types.Schema)
 	require.NoError(t, err)
 
-	var iq introspectionQueryResult
+	var iq IntrospectionQueryResult
 	err = json.Unmarshal(out, &iq)
 	require.NoError(t, err)
 	fmt.Println(iq)
