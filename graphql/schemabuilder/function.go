@@ -171,8 +171,9 @@ func (sb *schemaBuilder) buildShadowObjectFederationFunction(typ reflect.Type, m
 	rType := &graphql.NonNull{Type: &graphql.List{Type: returnType}}
 	field := &graphql.Field{
 		Resolve: func(ctx context.Context, source, funcRawArgs interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
-			args := funcRawArgs.(map[string]graphql.Type)
-			return args["keys"], nil
+			args := reflect.ValueOf(funcRawArgs)
+			keys := reflect.Indirect(args).FieldByName("Keys")
+			return keys.Interface(), nil
 		},
 		Args:                       args,
 		Type:                       rType,
