@@ -31,13 +31,13 @@ func newFileSchemaSyncer(ctx context.Context, services []string) *FileSchemaSync
 }
 
 func (s *FileSchemaSyncer) FetchPlanner(ctx context.Context) (*Planner, error) {
-	schemas := make(map[string]*introspectionQueryResult)
+	schemas := make(map[string]*IntrospectionQueryResult)
 	for _, server := range s.services {
 		schema, err := readFile(server)
 		if err != nil {
 			return nil, oops.Wrapf(err, "error reading file for server %s", server)
 		}
-		var iq introspectionQueryResult
+		var iq IntrospectionQueryResult
 		if err := json.Unmarshal(schema, &iq); err != nil {
 			return nil, oops.Wrapf(err, "unmarshaling schema %s", server)
 		}
@@ -55,7 +55,7 @@ func (s *FileSchemaSyncer) FetchPlanner(ctx context.Context) (*Planner, error) {
 		return nil, oops.Wrapf(err, "error running introspection query")
 	}
 
-	var iq introspectionQueryResult
+	var iq IntrospectionQueryResult
 	if err := json.Unmarshal(schema, &iq); err != nil {
 		return nil, oops.Wrapf(err, "unmarshaling introspection schema")
 	}
