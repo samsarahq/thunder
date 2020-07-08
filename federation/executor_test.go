@@ -321,6 +321,7 @@ func TestExecutorQueriesBasic(t *testing.T) {
 							email
 							phoneNumber
 							isAdmin
+							secret
 						}
 					}`,
 			Output: `
@@ -331,13 +332,15 @@ func TestExecutorQueriesBasic(t *testing.T) {
 								"id":1,
 								"email": "email@gmail.com",
 								"phoneNumber": "555-5555",
-								"isAdmin":true
+								"isAdmin":true,
+								"secret": "shhhhh"
 							},{
 								"__key":2,
 								"id":2,
 								"email": "email@gmail.com",
 								"phoneNumber": "555-5555",
-								"isAdmin":true
+								"isAdmin":true,
+								"secret": "shhhhh"
 							}
 						]
 					}`,
