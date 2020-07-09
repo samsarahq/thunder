@@ -86,15 +86,13 @@ func buildTestSchema1() *schemabuilder.Schema {
 	type BarKeys struct {
 		Id int64
 	}
-	schema.FederatedFieldFunc("Bar", func(args struct{ Keys []*BarKeys }) []*Bar {
+	bar := schema.Object("Bar", Bar{}, schemabuilder.CustomShadowObject(func(args struct{ Keys []*BarKeys }) []*Bar {
 		bars := make([]*Bar, 0, len(args.Keys))
 		for _, key := range args.Keys {
 			bars = append(bars, &Bar{Id: key.Id})
 		}
 		return bars
-	})
-
-	bar := schema.Object("Bar", Bar{})
+	}))
 	bar.FieldFunc("s1baz", func(b *Bar) string {
 		return fmt.Sprint(b.Id)
 	})
@@ -122,19 +120,18 @@ func buildTestSchema2() *schemabuilder.Schema {
 	type FooKeys struct {
 		Name string
 	}
-	schema.FederatedFieldFunc("Foo", func(args struct{ Keys []*FooKeys }) []*Foo {
-		foos := make([]*Foo, 0, len(args.Keys))
-		for _, key := range args.Keys {
-			foos = append(foos, &Foo{Name: key.Name})
-		}
-		return foos
-	})
 
 	schema.Query().FieldFunc("s2root", func() string {
 		return "hello"
 	})
 
-	foo := schema.Object("Foo", Foo{})
+	foo := schema.Object("Foo", Foo{}, schemabuilder.CustomShadowObject(func(args struct{ Keys []*FooKeys }) []*Foo {
+		foos := make([]*Foo, 0, len(args.Keys))
+		for _, key := range args.Keys {
+			foos = append(foos, &Foo{Name: key.Name})
+		}
+		return foos
+	}))
 
 	foo.FieldFunc("s2ok", func(ctx context.Context, in *Foo) (int, error) {
 		return len(in.Name), nil

@@ -174,33 +174,26 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		}
 	*/
 	type UserWithAdminPrivelages struct {
-		Id      int64
-		OrgId   int64
-		IsAdmin bool
+		Id    int64
+		OrgId int64
 	}
 	type UserKeys struct {
 		Id int64
 	}
 	s3 := schemabuilder.NewSchemaWithName("s3")
-	s3.FederatedFieldFunc("User", func(args struct{ Keys []UserKeys }) []*UserWithAdminPrivelages {
+	userWithAdminPrivelages := s3.Object("User", UserWithAdminPrivelages{}, schemabuilder.CustomShadowObject(func(args struct{ Keys []UserKeys }) []*UserWithAdminPrivelages {
 		users := make([]*UserWithAdminPrivelages, 0, len(args.Keys))
 		for _, key := range args.Keys {
-			users = append(users, &UserWithAdminPrivelages{Id: key.Id, OrgId: 0, IsAdmin: true})
+			users = append(users, &UserWithAdminPrivelages{Id: key.Id, OrgId: 0})
 		}
 		return users
-	})
-	userWithAdminPrivelages := s3.Object("User", UserWithAdminPrivelages{})
+	}))
 	userWithAdminPrivelages.Key("id")
+	userWithAdminPrivelages.FieldFunc("isAdmin", func(ctx context.Context, user *UserWithAdminPrivelages) (bool, error) {
+		return true, nil
+	})
 	userWithAdminPrivelages.FieldFunc("privelages", func(ctx context.Context, user *UserWithAdminPrivelages) (string, error) {
 		return "all", nil
-	})
-
-	s1.FederatedFieldFunc("User", func(ctx context.Context, args struct{ Keys []UserKeysWithOrgId }) []*UserWithContactInfo {
-		users := make([]*UserWithContactInfo, 0, len(args.Keys))
-		for _, key := range args.Keys {
-			users = append(users, &UserWithContactInfo{Id: key.Id, OrgId: key.OrgId, Name: "userWithContactInfo", Email: "email@gmail.com", PhoneNumber: "555-5555"})
-		}
-		return users
 	})
 
 	type DeviceWithTemperature struct {
@@ -212,14 +205,15 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		Id    int64
 		OrgId int64
 	}
-	s3.FederatedFieldFunc("Device", func(args struct{ Keys []DeviceKeys }) []*DeviceWithTemperature {
-		devices := make([]*DeviceWithTemperature, 0, len(args.Keys))
-		for _, key := range args.Keys {
-			devices = append(devices, &DeviceWithTemperature{Id: key.Id, OrgId: key.OrgId, Temp: int64(70)})
-		}
-		return devices
-	})
-	deviceWithTemp := s3.Object("Device", DeviceWithTemperature{})
+	deviceWithTemp := s3.Object("Device", DeviceWithTemperature{}, schemabuilder.CustomShadowObject(
+		func(args struct{ Keys []DeviceKeys }) []*DeviceWithTemperature {
+			devices := make([]*DeviceWithTemperature, 0, len(args.Keys))
+			for _, key := range args.Keys {
+				devices = append(devices, &DeviceWithTemperature{Id: key.Id, OrgId: key.OrgId, Temp: int64(70)})
+			}
+			return devices
+		},
+	))
 	deviceWithTemp.Key("id")
 
 	userWithAdminPrivelages.FieldFunc("deviceWithArgs", func(ctx context.Context, user *UserWithAdminPrivelages, args struct {
