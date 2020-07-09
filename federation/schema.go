@@ -166,7 +166,7 @@ func ConvertVersionedSchemas(schemas serviceSchemas) (*SchemaWithFederationInfo,
 							}
 						}
 
-						// If the field is one of the input fields to the federatedfieldfunc,
+						// If the field is one of the input fields to the shadow object func,
 						// add the service name to the list of federated keys
 						for fName, f := range obj.Fields {
 							if _, ok := inputType.InputFields[fName]; !ok {

@@ -109,22 +109,49 @@ func getEnumMap(enumMap interface{}, typ reflect.Type) (map[string]interface{}, 
 // OpjectOption is an interface for the variadic options that can be passed
 // to a Object for configuring options on that object.
 type ObjectOption interface {
-	apply(*Object)
+	apply(*Schema, *Object)
 }
 
 // objectOptionFunc is a helper to define ObjectOptions when creating an object
-type objectOptionFunc func(*Object)
+type objectOptionFunc func(*Schema, *Object)
 
-func (f objectOptionFunc) apply(m *Object) { f(m) }
+func (f objectOptionFunc) apply(s *Schema, m *Object) { f(s, m) }
 
 // RootObject is an option that can be passed to a Object to indicate that the object
 // can have field funcs on other severs, allowing it to be federated.
-var RootObject objectOptionFunc = func(m *Object) {
+var RootObject objectOptionFunc = func(s *Schema, m *Object) {
 	m.IsRoot = true
 }
 
-var ShadowObject objectOptionFunc = func(m *Object) {
+var ShadowObject objectOptionFunc = func(s *Schema, m *Object) {
 	m.IsShadow = true
+}
+
+type federation struct{}
+
+func CustomShadowObject(f interface{}, options ...ObjectOption) ObjectOption {
+	// Create a method on the "Federation" object to create the shadow object from the federated keys
+	m := &method{Fn: f}
+
+	var customShadowObjectField objectOptionFunc = func(s *Schema, obj *Object) {
+		q := s.Query()
+		if _, ok := q.Methods[federationField]; !ok {
+			q.FieldFunc(federationField, func() federation { return federation{} })
+		}
+		fedObj := s.Object(federationName, federation{})
+
+		if fedObj.Methods == nil {
+			fedObj.Methods = make(Methods)
+		}
+
+		federatedMethodName := fmt.Sprintf("%s-%s", obj.Name, obj.ServiceName)
+		if _, ok := fedObj.Methods[federatedMethodName]; ok {
+			panic("duplicate method")
+		}
+
+		fedObj.Methods[federatedMethodName] = m
+	}
+	return customShadowObjectField
 }
 
 // Object registers a struct as a GraphQL Object in our Schema.
@@ -147,7 +174,7 @@ func (s *Schema) Object(name string, typ interface{}, options ...ObjectOption) *
 	s.objects[name] = object
 
 	for _, opt := range options {
-		opt.apply(object)
+		opt.apply(s, object)
 	}
 
 	objectType := reflect.PtrTo(reflect.TypeOf(typ))
