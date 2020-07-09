@@ -2,7 +2,6 @@ package schemabuilder
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 )
 
@@ -264,36 +263,6 @@ func (s *Object) ManualPaginationWithFallback(name string, manualPaginatedFunc i
 		panic("duplicate method")
 	}
 	s.Methods[name] = m
-}
-
-type federation struct{}
-
-// FederatedFieldFunc registers the federated field func on the Federation object nested on a query object
-func (s *Schema) FederatedFieldFunc(name string, f interface{}, options ...FieldFuncOption) {
-	// Create a field func called "__federation" on the root query object
-	q := s.Query()
-	if _, ok := q.Methods[federationField]; !ok {
-		q.FieldFunc(federationField, func() federation { return federation{} })
-	}
-	obj := s.Object(federationName, federation{})
-
-	if obj.Methods == nil {
-		obj.Methods = make(Methods)
-	}
-
-	// Create a method on the "Federation" object to create the shadow object from the federated keys
-	m := &method{Fn: f}
-
-	for _, opt := range options {
-		opt.apply(m)
-	}
-
-	federatedMethodName := fmt.Sprintf("%s-%s", name, obj.ServiceName)
-	if _, ok := obj.Methods[federatedMethodName]; ok {
-		panic("duplicate method")
-	}
-
-	obj.Methods[federatedMethodName] = m
 }
 
 // Key registers the key field on an object. The field should be specified by the name of the
