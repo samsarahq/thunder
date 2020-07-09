@@ -40,7 +40,7 @@ func getRootType(typ *introspectionTypeRef) *introspectionTypeRef {
 }
 
 // validateFederationKeys validates that if a service is asking for a federated key, all the services
-// that have the objcet registered as a root object expose the field. This ensures that we can make
+// that have the object registered as a root object expose the field. This ensures that we can make
 // the hop from the root server to any of the federated servers safely before any queries are executed.
 func validateFederationKeys(serviceNames []string, serviceSchemasByName map[string]*IntrospectionQueryResult, obj *graphql.Object, keyField string) error {
 	validFederatedKey := false
@@ -57,7 +57,7 @@ func validateFederationKeys(serviceNames []string, serviceSchemasByName map[stri
 					}
 				}
 				// If it is a root object, check that it has all the fields being requested
-				// as a federated key
+				// as federated keys
 				if isRootObject {
 					for _, introspectedField := range typ.Fields {
 						if introspectedField.Name == keyField {
@@ -72,6 +72,31 @@ func validateFederationKeys(serviceNames []string, serviceSchemasByName map[stri
 	}
 	if !validFederatedKey {
 		return oops.Errorf("Invalid federation key %s", keyField)
+	}
+	return nil
+}
+
+func validateFieldsReturningFederatedObject(field introspectionField, types map[string]graphql.Type, service string) error {
+	fieldReturnType := getRootType(field.Type)
+	if fieldReturnType.Kind == "OBJECT" {
+		// We want to check
+		returnObj, _ := types[fieldReturnType.Name].(*graphql.Object)
+		for name, _ := range returnObj.Fields {
+			// Check that the type is federated
+			if name == federationField {
+				federatedFieldName := fmt.Sprintf("%s-%s", fieldReturnType, service)
+				if field.Name != federatedFieldName {
+
+					fedObj := types["Federation"].(*graphql.Object)
+					for fName, _ := range fedObj.Fields {
+						if fName == federatedFieldName {
+							return oops.Errorf("Field func %s can not return shadow type %s", field.Name, returnObj.Name)
+						}
+					}
+				}
+
+			}
+		}
 	}
 	return nil
 }
@@ -184,6 +209,11 @@ func ConvertVersionedSchemas(schemas serviceSchemas) (*SchemaWithFederationInfo,
 				obj := types[typ.Name].(*graphql.Object)
 
 				for _, field := range typ.Fields {
+					err := validateFieldsReturningFederatedObject(field, types, service)
+					if err != nil {
+						return nil, err
+					}
+
 					f := obj.Fields[field.Name]
 
 					info, ok := fieldInfos[f]

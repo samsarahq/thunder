@@ -903,3 +903,55 @@ func TestExecutorReturnsError(t *testing.T) {
 	require.NoError(t, err)
 	runAndValidateQueryError(t, ctx, e, `{ fail }`, ``, "executing query: fail: uh oh")
 }
+
+func TestExecutorWithRootObjectUsedIncorrectly(t *testing.T) {
+	type User struct {
+		Id          int64
+		OrgId       int64
+		Name        string
+		Email       string
+		PhoneNumber string
+	}
+	s1 := schemabuilder.NewSchemaWithName("s1")
+	user := s1.Object("User", User{}, schemabuilder.RootObject)
+	user.Key("id")
+
+	s1.Query().FieldFunc("users", func(ctx context.Context) ([]*User, error) {
+		users := make([]*User, 0, 1)
+		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: "testUser", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		users = append(users, &User{Id: int64(2), OrgId: int64(2), Name: "testUser2", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		return users, nil
+	})
+
+	type UserIds struct {
+		Id    int64
+		OrgId int64
+	}
+
+	type UserWithContactInfo struct {
+		Id    int64
+		OrgId int64
+		Name  string
+	}
+
+	s2 := schemabuilder.NewSchemaWithName("s2")
+	user2 := s2.Object("User", UserWithContactInfo{}, schemabuilder.ShadowObject)
+	user2.Key("id")
+	s2.Query().FieldFunc("users", func(ctx context.Context) ([]*UserWithContactInfo, error) {
+		users := make([]*UserWithContactInfo, 0, 1)
+		users = append(users, &UserWithContactInfo{Id: int64(1), OrgId: int64(1), Name: "testUser"})
+		users = append(users, &UserWithContactInfo{Id: int64(2), OrgId: int64(2), Name: "testUser2"})
+		return users, nil
+	})
+
+	// Create the executor with all the schemas
+	ctx := context.Background()
+	execs, err := makeExecutors(map[string]*schemabuilder.Schema{
+		"s1": s1,
+		"s2": s2,
+	})
+	assert.NoError(t, err)
+
+	_, err = NewExecutor(ctx, execs, &SchemaSyncerConfig{SchemaSyncer: NewIntrospectionSchemaSyncer(ctx, execs, nil)})
+	assert.True(t, strings.Contains(err.Error(), "Field func users can not return shadow type User"))
+}
