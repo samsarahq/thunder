@@ -76,6 +76,43 @@ func validateFederationKeys(serviceNames []string, serviceSchemasByName map[stri
 	return nil
 }
 
+// validateFieldsReturningFederatedObject checks that if an object is returned by a field func it can not be a shadow object type
+func validateFieldsReturningFederatedObject(serviceNames []string, serviceSchemasByName map[string]*IntrospectionQueryResult, types map[string]graphql.Type, fieldInfos map[*graphql.Field]*FieldInfo) error {
+	for _, service := range serviceNames {
+		for _, typ := range serviceSchemasByName[service].Schema.Types {
+			if typ.Kind == "OBJECT" {
+				for _, field := range typ.Fields {
+					// Check that the field's return type is an object
+					fieldReturnType := getRootType(field.Type)
+					if fieldReturnType.Kind == "OBJECT" {
+						// Error if it is a shadow object. To check this
+						// (1) Look through all the fields on the object to see if there is a federation field (__federation) and that
+						// the federation field is not on the current service
+						// (2) Look through all the fields on the federation object to see if it has a field for <ObjectType>-<Service>
+						returnObj, _ := types[fieldReturnType.Name].(*graphql.Object)
+						for name, f := range returnObj.Fields {
+							if name == federationField && !fieldInfos[f].Services[service] {
+								federatedFieldName := fmt.Sprintf("%s-%s", fieldReturnType, service)
+								if field.Name != federatedFieldName {
+									fedObj := types["Federation"].(*graphql.Object)
+									for fName, _ := range fedObj.Fields {
+										if fName == federatedFieldName {
+											return oops.Errorf("Field func %s can not return shadow type %s", field.Name, returnObj.Name)
+										}
+									}
+								}
+
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 // ConvertVersionedSchemas takes schemas for all of versions of
 // all executors services and generates a single merged schema
 // annotated with mapping from field to all services that know
@@ -184,6 +221,7 @@ func ConvertVersionedSchemas(schemas serviceSchemas) (*SchemaWithFederationInfo,
 				obj := types[typ.Name].(*graphql.Object)
 
 				for _, field := range typ.Fields {
+
 					f := obj.Fields[field.Name]
 
 					info, ok := fieldInfos[f]
@@ -197,6 +235,11 @@ func ConvertVersionedSchemas(schemas serviceSchemas) (*SchemaWithFederationInfo,
 				}
 			}
 		}
+	}
+
+	err = validateFieldsReturningFederatedObject(serviceNames, serviceSchemasByName, types, fieldInfos)
+	if err != nil {
+		return nil, err
 	}
 
 	return &SchemaWithFederationInfo{
