@@ -98,11 +98,6 @@ func (sb *schemaBuilder) makeStructParser(typ reflect.Type) (*argParser, graphql
 					return fmt.Errorf("%s: %s", name, err)
 				}
 			}
-			for name := range asMap {
-				if _, ok := fields[name]; !ok {
-					return fmt.Errorf("unknown arg %s", name)
-				}
-			}
 
 			return nil
 		},
