@@ -269,10 +269,9 @@ func TestOnlyShadowServiceKnowsAboutNewField(t *testing.T) {
 	}
 
 	s2 := schemabuilder.NewSchemaWithName("schema2")
-	s2.FederatedFieldFunc("User", func(args struct{ Keys []*UserWithContactInfo }) []*UserWithContactInfo {
+	userWithContactInfo := s2.Object("User", UserWithContactInfo{}, schemabuilder.CustomShadowObject(func(args struct{ Keys []*UserWithContactInfo }) []*UserWithContactInfo {
 		return args.Keys
-	})
-	userWithContactInfo := s2.Object("User", UserWithContactInfo{})
+	}))
 	userWithContactInfo.FieldFunc("isCool", func(ctx context.Context) (bool, error) { return true, nil })
 
 	ctx := context.Background()
@@ -332,10 +331,9 @@ func TestOnlyShadowServiceKnowsAboutNewField(t *testing.T) {
 	}
 
 	s2new := schemabuilder.NewSchemaWithName("schema2")
-	s2new.FederatedFieldFunc("User", func(args struct{ Keys []*UserWithContactInfoNew }) []*UserWithContactInfoNew {
+	userWithContactInfoNew := s2new.Object("User", UserWithContactInfoNew{}, schemabuilder.CustomShadowObject(func(args struct{ Keys []*UserWithContactInfoNew }) []*UserWithContactInfoNew {
 		return args.Keys
-	})
-	userWithContactInfoNew := s2new.Object("User", UserWithContactInfoNew{})
+	}))
 	userWithContactInfoNew.FieldFunc("isCool", func(ctx context.Context) (bool, error) { return true, nil })
 
 	newExecs, err := makeExecutors(map[string]*schemabuilder.Schema{
