@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 
@@ -26,6 +25,7 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 				email       string
 				phoneNumber string
 				device: Device
+				deviceWithArgs: Device
 				__federation: User
 			}
 			users: [User]
@@ -115,6 +115,12 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		return &Device{Id: int64(1), OrgId: int64(1), IsOn: true}, nil
 	})
 
+	user.FieldFunc("deviceWithArgs", func(ctx context.Context, user *User, args struct {
+		Id int64
+	}) (*Device, error) {
+		return &Device{Id: args.Id, OrgId: user.OrgId}, nil
+	})
+
 	/*
 		Schema: s2
 		Query {
@@ -162,7 +168,6 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 				orgId: int64!
 				isAdmin: bool!
 				privelages: string!
-				batchedDevices: [Device]
 			}
 			privelagedUsers: [User]
 			Device {
@@ -170,7 +175,6 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 				orgId: int64!
 				temp: in64!
 			}
-			deviceWithArgs: [User]
 		}
 	*/
 	type UserWithAdminPrivelages struct {
@@ -203,41 +207,17 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		return users
 	})
 
-	type DeviceWithTemperature struct {
-		Id    int64
-		OrgId int64
-		Temp  int64
-	}
-	type DeviceKeys struct {
+	type ShadowDevice struct {
 		Id    int64
 		OrgId int64
 	}
-	s3.FederatedFieldFunc("Device", func(args struct{ Keys []DeviceKeys }) []*DeviceWithTemperature {
-		devices := make([]*DeviceWithTemperature, 0, len(args.Keys))
-		for _, key := range args.Keys {
-			devices = append(devices, &DeviceWithTemperature{Id: key.Id, OrgId: key.OrgId, Temp: int64(70)})
-		}
-		return devices
+	s3.FederatedFieldFunc("Device", func(args struct{ Keys []*ShadowDevice }) []*ShadowDevice {
+
+		return args.Keys
 	})
-	deviceWithTemp := s3.Object("Device", DeviceWithTemperature{})
+	deviceWithTemp := s3.Object("Device", ShadowDevice{})
 	deviceWithTemp.Key("id")
-
-	userWithAdminPrivelages.FieldFunc("deviceWithArgs", func(ctx context.Context, user *UserWithAdminPrivelages, args struct {
-		Id   int64
-		Temp int64
-	}) (*DeviceWithTemperature, error) {
-		return &DeviceWithTemperature{Id: args.Id, OrgId: user.OrgId, Temp: args.Temp}, nil
-	})
-
-	userWithAdminPrivelages.BatchFieldFunc("batchedDevices", func(ctx context.Context, users map[batch.Index]*UserWithAdminPrivelages) (map[batch.Index][]*DeviceWithTemperature, error) {
-		devices := make(map[batch.Index][]*DeviceWithTemperature, len(users))
-		for i, user := range users {
-			devicesForUser := make([]*DeviceWithTemperature, 0, 1)
-			devicesForUser = append(devicesForUser, &DeviceWithTemperature{Id: user.Id, OrgId: user.OrgId, Temp: int64(60)})
-			devices[i] = devicesForUser
-		}
-		return devices, nil
-	})
+	deviceWithTemp.FieldFunc("temp", func(ctx context.Context, device *ShadowDevice) int64 { return int64(70) })
 
 	// Create the executor with all the schemas
 	ctx := context.Background()
@@ -481,7 +461,7 @@ func TestExecutorQueriesWithArgs(t *testing.T) {
 						id
 						name
 						orgId
-						deviceWithArgs(id:2, temp: 80) {
+						deviceWithArgs(id:2) {
 							id
 							orgId
 							temp
@@ -499,8 +479,8 @@ func TestExecutorQueriesWithArgs(t *testing.T) {
 						"deviceWithArgs" : {
 								"__key": 2,
 								"id": 2,
-								"orgId": 0,
-								"temp":80
+								"orgId": 1,
+								"temp":70
 						}
 					}
 				]
@@ -908,4 +888,76 @@ func TestExecutorReturnsError(t *testing.T) {
 	e, err := NewExecutor(ctx, execs, &SchemaSyncerConfig{SchemaSyncer: NewIntrospectionSchemaSyncer(ctx, execs, nil)})
 	require.NoError(t, err)
 	runAndValidateQueryError(t, ctx, e, `{ fail }`, ``, "executing query: fail: uh oh")
+}
+
+func TestExecutorWithRootObjectUsedIncorrectly(t *testing.T) {
+	type User struct {
+		Id          int64
+		OrgId       int64
+		Name        string
+		Email       string
+		PhoneNumber string
+	}
+	s1 := schemabuilder.NewSchemaWithName("s1")
+	user := s1.Object("User", User{}, schemabuilder.RootObject)
+	user.Key("id")
+
+	s1.Query().FieldFunc("users", func(ctx context.Context) ([]*User, error) {
+		users := make([]*User, 0, 1)
+		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: "testUser", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		users = append(users, &User{Id: int64(2), OrgId: int64(2), Name: "testUser2", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		return users, nil
+	})
+
+	type UserIds struct {
+		Id    int64
+		OrgId int64
+	}
+
+	type UserWithContactInfo struct {
+		Id    int64
+		OrgId int64
+		Name  string
+	}
+
+	s2 := schemabuilder.NewSchemaWithName("s2")
+	user2 := s2.Object("User", UserWithContactInfo{}, schemabuilder.ShadowObject)
+	user2.Key("id")
+	s2.Query().FieldFunc("users", func(ctx context.Context) ([]*UserWithContactInfo, error) {
+		users := make([]*UserWithContactInfo, 0, 1)
+		users = append(users, &UserWithContactInfo{Id: int64(1), OrgId: int64(1), Name: "testUser"})
+		users = append(users, &UserWithContactInfo{Id: int64(2), OrgId: int64(2), Name: "testUser2"})
+		return users, nil
+	})
+
+	// Create the executor with all the schemas
+	ctx := context.Background()
+	execs, err := makeExecutors(map[string]*schemabuilder.Schema{
+		"s1": s1,
+		"s2": s2,
+	})
+	assert.NoError(t, err)
+
+	_, err = NewExecutor(ctx, execs, &SchemaSyncerConfig{SchemaSyncer: NewIntrospectionSchemaSyncer(ctx, execs, nil)})
+	assert.True(t, strings.Contains(err.Error(), "Field func users can not return shadow type User"))
+
+	// During an object migration, we may register a multiple root objects
+	// In this case, we should allow users to be registered on both servers
+	s2 = schemabuilder.NewSchemaWithName("s2")
+	user2 = s2.Object("User", UserWithContactInfo{}, schemabuilder.ShadowObject, schemabuilder.RootObject)
+	user2.Key("id")
+	s2.Query().FieldFunc("users", func(ctx context.Context) ([]*UserWithContactInfo, error) {
+		users := make([]*UserWithContactInfo, 0, 1)
+		users = append(users, &UserWithContactInfo{Id: int64(1), OrgId: int64(1), Name: "testUser"})
+		users = append(users, &UserWithContactInfo{Id: int64(2), OrgId: int64(2), Name: "testUser2"})
+		return users, nil
+	})
+
+	execs, err = makeExecutors(map[string]*schemabuilder.Schema{
+		"s1": s1,
+		"s2": s2,
+	})
+	assert.NoError(t, err)
+	_, err = NewExecutor(ctx, execs, &SchemaSyncerConfig{SchemaSyncer: NewIntrospectionSchemaSyncer(ctx, execs, nil)})
+	assert.NoError(t, err)
 }
