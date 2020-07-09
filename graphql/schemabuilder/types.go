@@ -282,7 +282,7 @@ func (s *Schema) FederatedFieldFunc(name string, f interface{}, options ...Field
 	}
 
 	// Create a method on the "Federation" object to create the shadow object from the federated keys
-	m := &method{Fn: f}
+	m := &method{Fn: f, ShadowMethod: true}
 
 	for _, opt := range options {
 		opt.apply(m)
@@ -341,6 +341,8 @@ type method struct {
 	// is a shadow object. A shadow object's fields are each of the
 	// field that are sent as args to a federated sunquery.
 	ShadowObjectType reflect.Type
+
+	ShadowMethod bool
 }
 
 type concurrencyArgs struct {

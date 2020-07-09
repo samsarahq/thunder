@@ -98,11 +98,18 @@ func (sb *schemaBuilder) makeStructParser(typ reflect.Type) (*argParser, graphql
 					return fmt.Errorf("%s: %s", name, err)
 				}
 			}
-			for name := range asMap {
-				if _, ok := fields[name]; !ok {
-					return fmt.Errorf("unknown arg %s", name)
-				}
-			}
+
+			// // We want to skip this check if it is a shadow object
+			// // In a federated world we may delete a arg before the
+			// // gateway knows not to send the field. During this time, we don't
+			// // want the queries to fail if an extra arg is sent
+			// if !sb.objects[typ].IsShadow {
+			// 	for name := range asMap {
+			// 		if _, ok := fields[name]; !ok {
+			// 			return fmt.Errorf("unknown arg %s", name)
+			// 		}
+			// 	}
+			// }
 
 			return nil
 		},

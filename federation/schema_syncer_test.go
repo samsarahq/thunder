@@ -247,7 +247,7 @@ func TestExecutorQueriesWithCustomSchemaSyncer(t *testing.T) {
 func createSchemasWithFederatedUser(t *testing.T) (*schemabuilder.Schema, *schemabuilder.Schema, *Executor) {
 	type User struct {
 		Id    int64
-		OrgId int64
+		OrgId int64 `graphql:",optional"`
 		Email string
 	}
 	s1 := schemabuilder.NewSchemaWithName("schema1")
@@ -266,10 +266,7 @@ func createSchemasWithFederatedUser(t *testing.T) (*schemabuilder.Schema, *schem
 	}
 
 	s2 := schemabuilder.NewSchemaWithName("schema2")
-	s2.FederatedFieldFunc("User", func(args struct{ Keys []*UserWithContactInfo }) []*UserWithContactInfo {
-		return args.Keys
-	})
-	userWithContactInfo := s2.Object("User", UserWithContactInfo{})
+	userWithContactInfo := s2.Object("User", UserWithContactInfo{}, schemabuilder.ShadowObject)
 	userWithContactInfo.FieldFunc("isCool", func(ctx context.Context) (bool, error) { return true, nil })
 
 	ctx := context.Background()
@@ -411,16 +408,13 @@ func TestDeletingFederatedKey(t *testing.T) {
 	// Run a federated query and ensure that it works
 	runAndValidateQueryResults(t, ctx, e, query, expectedOutput)
 
-	// Test 1: The shadow user schema asks for a new field, gateway doesnt know about it
+	// Test 1: The shadow user schema no longer asks for org id, gateway still sends that field
 	type ShadowUserUpdated struct {
 		Id int64
 	}
 
 	s2new := schemabuilder.NewSchemaWithName("schema2")
-	s2new.FederatedFieldFunc("User", func(args struct{ Keys []*ShadowUserUpdated }) []*ShadowUserUpdated {
-		return args.Keys
-	})
-	userWithContactInfoNew := s2new.Object("User", ShadowUserUpdated{})
+	userWithContactInfoNew := s2new.Object("User", ShadowUserUpdated{}, schemabuilder.ShadowObject)
 	userWithContactInfoNew.FieldFunc("isCool", func(ctx context.Context) (bool, error) { return true, nil })
 	newExecs, err := makeExecutors(map[string]*schemabuilder.Schema{
 		"schema1": s1,
@@ -430,30 +424,46 @@ func TestDeletingFederatedKey(t *testing.T) {
 	e.Executors = newExecs
 	runAndValidateQueryResults(t, ctx, e, query, expectedOutput)
 
-	// // Test 2: The root user schema has a new field, gateway doesnt know about it
-	// type UserUpdated struct {
-	// 	Id          int64
-	// 	OrgId       int64
-	// 	Name        string
-	// 	Email       string
-	// 	PhoneNumber string
-	// }
-	// s1New := schemabuilder.NewSchemaWithName("schema1")
-	// userNew := s1New.Object("User", UserUpdated{}, schemabuilder.RootObject)
-	// userNew.Key("id")
-	// s1New.Query().FieldFunc("users", func(ctx context.Context) ([]*UserUpdated, error) {
-	// 	users := make([]*UserUpdated, 0, 1)
-	// 	users = append(users, &UserUpdated{Id: int64(1), OrgId: int64(1), Name: "testUser", Email: "email@gmail.com", PhoneNumber: "555-5555"})
-	// 	users = append(users, &UserUpdated{Id: int64(2), OrgId: int64(2), Name: "testUser2", Email: "email@gmail.com", PhoneNumber: "555-5555"})
-	// 	return users, nil
-	// })
-	// newExecs, err = makeExecutors(map[string]*schemabuilder.Schema{
-	// 	"schema1": s1New,
-	// 	"schema2": s2,
-	// })
-	// require.NoError(t, err)
-	// e.Executors = newExecs
-	// runAndValidateQueryResults(t, ctx, e, query, expectedOutput)
+	// Update the executor with the new schema where the shadow server no longer knows about orgId
+	services := []string{"schema1", "schema2"}
+	for _, service := range services {
+		schema, err := fetchSchema(ctx, newExecs[service], nil)
+		require.NoError(t, err)
+		err = writeSchemaToFile(service, schema.Result)
+		require.NoError(t, err)
+	}
+	schemaSyncer := newFileSchemaSyncer(ctx, services)
+	e, err = NewExecutor(ctx, newExecs, &SchemaSyncerConfig{
+		SchemaSyncer:              schemaSyncer,
+		SchemaSyncIntervalSeconds: func(ctx context.Context) int64 { return 100 },
+	})
+	require.NoError(t, err)
+
+	// Test 2: The root user schema now no longer knows about the org id. The gateway knows that
+	// the shadow schema server no longer needs the org id, but doesn't know that the root schema
+	// server can no longer resolve it
+	type UserUpdated struct {
+		Id          int64
+		Name        string
+		Email       string
+		PhoneNumber string
+	}
+	s1New := schemabuilder.NewSchemaWithName("schema1")
+	userNew := s1New.Object("User", UserUpdated{}, schemabuilder.RootObject)
+	userNew.Key("id")
+	s1New.Query().FieldFunc("users", func(ctx context.Context) ([]*UserUpdated, error) {
+		users := make([]*UserUpdated, 0, 1)
+		users = append(users, &UserUpdated{Id: int64(1), Name: "testUser", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		users = append(users, &UserUpdated{Id: int64(2), Name: "testUser2", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		return users, nil
+	})
+	newExecs, err = makeExecutors(map[string]*schemabuilder.Schema{
+		"schema1": s1New,
+		"schema2": s2new,
+	})
+	require.NoError(t, err)
+	e.Executors = newExecs
+	runAndValidateQueryResults(t, ctx, e, query, expectedOutput)
 
 	// // Test 3: Both the root and shadow schemas know about the new field, but the gateway doesnt know about it
 	// newExecs, err = makeExecutors(map[string]*schemabuilder.Schema{

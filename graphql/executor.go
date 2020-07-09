@@ -166,6 +166,7 @@ func PrepareQuery(ctx context.Context, typ Type, selectionSet *SelectionSet) err
 
 			field, ok := typ.Fields[selection.Name]
 			if !ok {
+				fmt.Println(selection.Name, typ.Name, selection)
 				return NewClientError(`unknown field "%s"`, selection.Name)
 			}
 
