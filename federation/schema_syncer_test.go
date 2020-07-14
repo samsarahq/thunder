@@ -324,10 +324,6 @@ func TestOnlyShadowServiceKnowsAboutNewField(t *testing.T) {
 		Id    int64
 		OrgId int64
 		Name  string
-		// When the gateway knows about email, it will fill it correctly
-		Email string `graphql:",optional"`
-		// This will never get filled correctly since the gateway doesnt know about this field
-		UnknownField string `graphql:",optional"`
 	}
 
 	s2new := schemabuilder.NewSchemaWithName("schema2")
@@ -348,6 +344,251 @@ func TestOnlyShadowServiceKnowsAboutNewField(t *testing.T) {
 	e.Executors = newExecs
 
 	// Run a federated query and ensure that it works
+	runAndValidateQueryResults(t, ctx, e, query, expectedOutput)
+
+}
+
+func createSchemasWithFederatedUser(t *testing.T) (*schemabuilder.Schema, *schemabuilder.Schema, *Executor) {
+	type User struct {
+		Id    int64
+		OrgId int64
+	}
+	s1 := schemabuilder.NewSchemaWithName("schema1")
+	user := s1.Object("User", User{}, schemabuilder.RootObject)
+	user.Key("id")
+	s1.Query().FieldFunc("users", func(ctx context.Context) ([]*User, error) {
+		users := make([]*User, 0, 1)
+		users = append(users, &User{Id: int64(1), OrgId: int64(1)})
+		users = append(users, &User{Id: int64(2), OrgId: int64(2)})
+		return users, nil
+	})
+
+	type UserWithContactInfo struct {
+		Id    int64
+		OrgId int64
+	}
+
+	s2 := schemabuilder.NewSchemaWithName("schema2")
+	userWithContactInfo := s2.Object("User", UserWithContactInfo{}, schemabuilder.ShadowObject)
+	userWithContactInfo.FieldFunc("isCool", func(ctx context.Context) (bool, error) { return true, nil })
+
+	ctx := context.Background()
+	execs, err := makeExecutors(map[string]*schemabuilder.Schema{
+		"schema1": s1,
+		"schema2": s2,
+	})
+	require.NoError(t, err)
+
+	// Write the schemas to a file
+	services := []string{"schema1", "schema2"}
+	for _, service := range services {
+		schema, err := fetchSchema(ctx, execs[service], nil)
+		require.NoError(t, err)
+		err = writeSchemaToFile(service, schema.Result)
+		require.NoError(t, err)
+	}
+
+	// Creata file schema syncer that reads the schemas from the
+	// written files and listens to updates if those change
+	schemaSyncer := newFileSchemaSyncer(ctx, services)
+	e, err := NewExecutor(ctx, execs, &SchemaSyncerConfig{
+		SchemaSyncer:              schemaSyncer,
+		SchemaSyncIntervalSeconds: func(ctx context.Context) int64 { return 100 },
+	})
+	require.NoError(t, err)
+	return s1, s2, e
+}
+
+// Test deletes the field org id from the schema with the shadow object, and then the schema with the root object.
+// Checks that existing queries still run at any stage in this process.
+func TestDeletingFederatedKey(t *testing.T) {
+	ctx := context.Background()
+	s1, _, e := createSchemasWithFederatedUser(t)
+	query := `query Foo {
+					users {
+						isCool
+					}
+				}`
+	expectedOutput := `{
+					"users":[
+						{
+							"__key":1,
+							"isCool":true
+						},
+						{
+							"__key":2,
+							"isCool":true
+						}
+					]
+				}`
+
+	// Run a federated query and ensure that it works
+	runAndValidateQueryResults(t, ctx, e, query, expectedOutput)
+
+	// Test 1: The shadow user schema no longer has the field "orgId", gateway doesn't knows about the schema update
+	type ShadowUserUpdated struct {
+		Id int64
+	}
+
+	s2new := schemabuilder.NewSchemaWithName("schema2")
+	userWithContactInfoNew := s2new.Object("User", ShadowUserUpdated{}, schemabuilder.ShadowObject)
+	userWithContactInfoNew.FieldFunc("isCool", func(ctx context.Context) (bool, error) { return true, nil })
+	newExecs, err := makeExecutors(map[string]*schemabuilder.Schema{
+		"schema1": s1,
+		"schema2": s2new,
+	})
+	require.NoError(t, err)
+	e.Executors = newExecs
+	runAndValidateQueryResults(t, ctx, e, query, expectedOutput)
+
+	// Test 2: The shadow user schema no longer the field "orgId", gateway knows about the schema update
+	services := []string{"schema1", "schema2"}
+	for _, service := range services {
+		schema, err := fetchSchema(ctx, newExecs[service], nil)
+		require.NoError(t, err)
+		err = writeSchemaToFile(service, schema.Result)
+		require.NoError(t, err)
+	}
+	schemaSyncer := newFileSchemaSyncer(ctx, services)
+	e, err = NewExecutor(ctx, newExecs, &SchemaSyncerConfig{
+		SchemaSyncer:              schemaSyncer,
+		SchemaSyncIntervalSeconds: func(ctx context.Context) int64 { return 100 },
+	})
+	require.NoError(t, err)
+	runAndValidateQueryResults(t, ctx, e, query, expectedOutput)
+
+	// Test 3: The root user schema no longer knows about the field "orgId", gateway doesn't knows about the schema update
+	type UserUpdated struct {
+		Id int64
+	}
+	s1New := schemabuilder.NewSchemaWithName("schema1")
+	userNew := s1New.Object("User", UserUpdated{}, schemabuilder.RootObject)
+	userNew.Key("id")
+	s1New.Query().FieldFunc("users", func(ctx context.Context) ([]*UserUpdated, error) {
+		users := make([]*UserUpdated, 0, 1)
+		users = append(users, &UserUpdated{Id: int64(1)})
+		users = append(users, &UserUpdated{Id: int64(2)})
+		return users, nil
+	})
+	newExecs, err = makeExecutors(map[string]*schemabuilder.Schema{
+		"schema1": s1New,
+		"schema2": s2new,
+	})
+	require.NoError(t, err)
+	e.Executors = newExecs
+	runAndValidateQueryResults(t, ctx, e, query, expectedOutput)
+
+	// Test 4: The root user schema no longer knows about the field "orgId", gateway knows about the schema update
+	for _, service := range services {
+		schema, err := fetchSchema(ctx, newExecs[service], nil)
+		require.NoError(t, err)
+		err = writeSchemaToFile(service, schema.Result)
+		require.NoError(t, err)
+	}
+	e, err = NewExecutor(ctx, newExecs, &SchemaSyncerConfig{
+		SchemaSyncer:              schemaSyncer,
+		SchemaSyncIntervalSeconds: func(ctx context.Context) int64 { return 100 },
+	})
+	require.NoError(t, err)
+	runAndValidateQueryResults(t, ctx, e, query, expectedOutput)
+}
+
+// Test adds the field name on the schema with the root object, and then the schema with the shadow object.
+// Checks that existing queries still run at any stage in this process.
+func TestAddingFederatedKey(t *testing.T) {
+	ctx := context.Background()
+	_, s2, e := createSchemasWithFederatedUser(t)
+	query := `query Foo {
+					users {
+						isCool
+					}
+				}`
+	expectedOutput := `{
+					"users":[
+						{
+							"__key":1,
+							"isCool":true
+						},
+						{
+							"__key":2,
+							"isCool":true
+						}
+					]
+				}`
+
+	// Run a federated query and ensure that it works
+	runAndValidateQueryResults(t, ctx, e, query, expectedOutput)
+
+	// Test 1: The root user schema has the new field "name", gateway doesn't knows about the schema update
+	type UserUpdated struct {
+		Id    int64
+		OrgId int64
+		Name  string
+	}
+	s1New := schemabuilder.NewSchemaWithName("schema1")
+	userNew := s1New.Object("User", UserUpdated{}, schemabuilder.RootObject)
+	userNew.Key("id")
+	s1New.Query().FieldFunc("users", func(ctx context.Context) ([]*UserUpdated, error) {
+		users := make([]*UserUpdated, 0, 1)
+		users = append(users, &UserUpdated{Id: int64(1), OrgId: int64(1), Name: "testUser"})
+		users = append(users, &UserUpdated{Id: int64(2), OrgId: int64(2), Name: "testUser2"})
+		return users, nil
+	})
+	newExecs, err := makeExecutors(map[string]*schemabuilder.Schema{
+		"schema1": s1New,
+		"schema2": s2,
+	})
+	require.NoError(t, err)
+	e.Executors = newExecs
+	runAndValidateQueryResults(t, ctx, e, query, expectedOutput)
+
+	// Test 2: The root user schema has a new field "name", gateway knows about the schema update
+	services := []string{"schema1", "schema2"}
+	for _, service := range services {
+		schema, err := fetchSchema(ctx, newExecs[service], nil)
+		require.NoError(t, err)
+		err = writeSchemaToFile(service, schema.Result)
+		require.NoError(t, err)
+	}
+	schemaSyncer := newFileSchemaSyncer(ctx, services)
+	e, err = NewExecutor(ctx, newExecs, &SchemaSyncerConfig{
+		SchemaSyncer:              schemaSyncer,
+		SchemaSyncIntervalSeconds: func(ctx context.Context) int64 { return 100 },
+	})
+	require.NoError(t, err)
+	runAndValidateQueryResults(t, ctx, e, query, expectedOutput)
+
+	// Test 3: The shadow user schema asks for the new field "name", gateway doesn't knows about the schema update
+	type ShadowUserUpdated struct {
+		Id    int64
+		OrgId int64
+		// When the gateway knows about name, it will fill it correctly
+		Name string `graphql:",optional"`
+	}
+
+	s2new := schemabuilder.NewSchemaWithName("schema2")
+	userWithContactInfoNew := s2new.Object("User", ShadowUserUpdated{}, schemabuilder.ShadowObject)
+	userWithContactInfoNew.FieldFunc("isCool", func(ctx context.Context) (bool, error) { return true, nil })
+	newExecs, err = makeExecutors(map[string]*schemabuilder.Schema{
+		"schema1": s1New,
+		"schema2": s2new,
+	})
+	require.NoError(t, err)
+	e.Executors = newExecs
+	runAndValidateQueryResults(t, ctx, e, query, expectedOutput)
+
+	// Test 4: The shadow user schema asks for the new field "name", gateway knows about the schema update
+	for _, service := range services {
+		schema, err := fetchSchema(ctx, newExecs[service], nil)
+		require.NoError(t, err)
+		err = writeSchemaToFile(service, schema.Result)
+		require.NoError(t, err)
+	}
+	e, err = NewExecutor(ctx, newExecs, &SchemaSyncerConfig{
+		SchemaSyncer:              schemaSyncer,
+		SchemaSyncIntervalSeconds: func(ctx context.Context) int64 { return 100 },
+	})
+	require.NoError(t, err)
 	runAndValidateQueryResults(t, ctx, e, query, expectedOutput)
 
 }
