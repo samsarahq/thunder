@@ -234,15 +234,6 @@
                 },
                 {
                   "args": [],
-                  "name": "s2nest",
-                  "type": {
-                    "kind": "OBJECT",
-                    "name": "Foo",
-                    "ofType": null
-                  }
-                },
-                {
-                  "args": [],
                   "name": "s2ok",
                   "type": {
                     "kind": "NON_NULL",

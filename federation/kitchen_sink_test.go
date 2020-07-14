@@ -147,10 +147,6 @@ func buildTestSchema2() *schemabuilder.Schema {
 		}
 	})
 
-	foo.FieldFunc("s2nest", func(f *Foo) *Foo {
-		return f
-	})
-
 	schema.Object("Bar", Bar{}, schemabuilder.RootObject)
 	return schema
 }

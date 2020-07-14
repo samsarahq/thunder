@@ -249,9 +249,6 @@ func TestPlanner(t *testing.T) {
 						id
 						s1baz
 					}
-					s2nest {
-						name
-					}
 					s2ok
 				}
 				s2root
@@ -302,9 +299,6 @@ func TestPlanner(t *testing.T) {
 									__federation {
 										id
 									}
-								}
-								s2nest {
-									name
 								}
 								s2ok
 							}`),
