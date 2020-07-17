@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/samsarahq/thunder/batch"
+	"github.com/stretchr/testify/assert"
+
 )
 
 // TestBasic tests that batch.Func with default options batches calls.
@@ -299,4 +301,17 @@ func TestError(t *testing.T) {
 		}(i)
 	}
 	wg.Wait()
+}
+
+func TestNoWithBatching(t *testing.T) {
+	ctx := context.Background()
+	f := func() {
+		(&batch.Func{
+			Many: func(ctx context.Context, args []interface{}) ([]interface{}, error) {
+				return nil, nil
+			},
+		}).Invoke(ctx, 0)
+	}
+
+	assert.PanicsWithValue(t, "WithBatching must be called on the context before using Func", f)
 }
