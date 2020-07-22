@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/samsarahq/go/oops"
 	"github.com/samsarahq/thunder/batch"
@@ -252,14 +253,14 @@ func (db *DB) checkColumnValuesAgainstLimits(ctx context.Context, query SQLQuery
 
 type ExplainResultRow struct {
 	Id           int64
-	SelectType   string `sql:"select_type"`
-	Table        string
-	TypeColumn   string  `sql:"type"`
+	SelectType   *string `sql:"select_type"`
+	Table        *string
+	TypeColumn   *string `sql:"type"`
 	PossibleKeys *string `sql:"possible_keys"`
 	Key          *string
 	KeyLen       *string `sql:"key_len"`
 	Ref          *string
-	Rows         int64
+	Rows         *int64
 	Extra        *string `sql:"Extra"`
 }
 
@@ -292,7 +293,9 @@ func (db *DB) runExplainQuery(ctx context.Context, clause string, args []interfa
 	}
 
 	for _, explain := range explainRes {
-		if explain.Key == nil && explain.PossibleKeys == nil {
+		// The query is ok if it has an index, a possible index, or is hitting const tables and
+		// finding no rows (this last case returns "Impossible WHERE...")
+		if explain.Key == nil && explain.PossibleKeys == nil && (explain.Extra == nil || !strings.HasPrefix(*explain.Extra, "Impossible WHERE")) {
 			explainJSON, _ := json.Marshal(explain)
 			helpMsg := "If you get this message, either check your indices or you can explicitly use a FullScanQuery knowing you're performing a full table scan."
 			panic(fmt.Sprintf(
