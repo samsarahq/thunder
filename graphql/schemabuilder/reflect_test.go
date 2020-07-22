@@ -437,6 +437,8 @@ type kitchenSinkArgs struct {
 	Hello               int64
 	Hello32             int32
 	Hello16             int16
+	HelloInt            int
+	HelloUint           uint
 	HelloFloat32        float32
 	HelloFloat64        float64
 	FooBar              string
@@ -502,6 +504,8 @@ func TestArgParser(t *testing.T) {
 			"hello": 20,
 			"hello32": 20,
 			"hello16": 20,
+			"helloInt": 22,
+			"helloUint": 22,
 			"helloFloat32": 42.0,
 			"helloFloat64": 42.0,
 			"fooBar": "foo!",
@@ -517,6 +521,8 @@ func TestArgParser(t *testing.T) {
 		Hello:           20,
 		Hello32:         20,
 		Hello16:         20,
+		HelloInt:        22,
+		HelloUint:       22,
 		HelloFloat32:    42.0,
 		HelloFloat64:    42.0,
 		FooBar:          "foo!",
@@ -546,6 +552,8 @@ func TestArgParser(t *testing.T) {
 			"hello": 40,
 			"hello32": 40,
 			"hello16": 40,
+			"helloInt": 22,
+			"helloUint": 22,
 			"helloFloat64": 40.0,
 			"helloFloat32": 40.0,
 			"fooBar": "bar!",
@@ -569,6 +577,8 @@ func TestArgParser(t *testing.T) {
 		Hello:               40,
 		Hello32:             40,
 		Hello16:             40,
+		HelloInt:            22,
+		HelloUint:           22,
 		HelloFloat64:        40.0,
 		HelloFloat32:        40.0,
 		FooBar:              "bar!",
