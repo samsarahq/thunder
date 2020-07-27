@@ -76,53 +76,6 @@ func validateFederationKeys(serviceNames []string, serviceSchemasByName map[stri
 	return nil
 }
 
-// validateFieldsReturningFederatedObject checks that if an object is returned by a field func it can not be a shadow object type
-func validateFieldsReturningFederatedObject(serviceNames []string, serviceSchemasByName map[string]*IntrospectionQueryResult, types map[string]graphql.Type, fieldInfos map[*graphql.Field]*FieldInfo) error {
-	for service, serviceSchema := range serviceSchemasByName {
-		for _, typ := range serviceSchema.Schema.Types {
-			if typ.Kind != "OBJECT" {
-				continue
-			}
-			for _, field := range typ.Fields {
-				// Check that the field's return type is an object
-				fieldReturnType := getRootType(field.Type)
-				if fieldReturnType.Kind != "OBJECT" {
-					continue
-				}
-				// Error if it is a shadow object. To check this
-				// (1) Look through all the fields on the object to see if there is a federation field (__federation) and that
-				// the federation field is not on the current service
-				// (2) Look through all the fields on the federation object to see if it has a field for <ObjectType>-<Service>
-				returnObj, ok := types[fieldReturnType.Name].(*graphql.Object)
-				if !ok {
-					return oops.Errorf("Return type %s is not a graphql object", fieldReturnType.Name)
-				}
-				for name, f := range returnObj.Fields {
-					if name == federationField && !fieldInfos[f].Services[service] {
-						federatedFieldName := fmt.Sprintf("%s-%s", fieldReturnType, service)
-						// If the field name is <fieldType-service> on a federation object, 
-						// it is an expected function for a shadow object type
-						if field.Name == federatedFieldName {
-							continue
-						}
-						fedObj, ok := types["Federation"].(*graphql.Object)
-						// If there isn't a federation object, it isn't a shadow object
-						if !ok {
-							continue
-						}
-						for fName, _ := range fedObj.Fields {
-							if fName == federatedFieldName {
-								return oops.Errorf("Field func %s can not return shadow type %s", field.Name, returnObj.Name)
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	return nil
-}
 
 // ConvertVersionedSchemas takes schemas for all of versions of
 // all executors services and generates a single merged schema
@@ -246,11 +199,6 @@ func ConvertVersionedSchemas(schemas serviceSchemas) (*SchemaWithFederationInfo,
 				}
 			}
 		}
-	}
-
-	err = validateFieldsReturningFederatedObject(serviceNames, serviceSchemasByName, types, fieldInfos)
-	if err != nil {
-		return nil, oops.Wrapf(err, "Field funcs can not shadow objects")
 	}
 
 	return &SchemaWithFederationInfo{
