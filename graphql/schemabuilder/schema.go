@@ -123,11 +123,11 @@ var ShadowObject objectOptionFunc = func(s *Schema, m *Object) {
 
 type federation struct{}
 
-func CustomShadowObject(f interface{}, options ...ObjectOption) ObjectOption {
+func CreateShadowObject(f interface{}, options ...ObjectOption) ObjectOption {
 	// Create a method on the "Federation" object to create the shadow object from the federated keys
 	m := &method{Fn: f}
 
-	var customShadowObjectField objectOptionFunc = func(s *Schema, obj *Object) {
+	var createShadowObjectField objectOptionFunc = func(s *Schema, obj *Object) {
 		q := s.Query()
 		if _, ok := q.Methods[federationField]; !ok {
 			q.FieldFunc(federationField, func() federation { return federation{} })
@@ -145,7 +145,7 @@ func CustomShadowObject(f interface{}, options ...ObjectOption) ObjectOption {
 
 		fedObj.Methods[federatedMethodName] = m
 	}
-	return customShadowObjectField
+	return createShadowObjectField
 }
 
 // Object registers a struct as a GraphQL Object in our Schema.

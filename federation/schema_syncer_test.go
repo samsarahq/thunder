@@ -269,7 +269,7 @@ func TestOnlyShadowServiceKnowsAboutNewField(t *testing.T) {
 	}
 
 	s2 := schemabuilder.NewSchemaWithName("schema2")
-	userWithContactInfo := s2.Object("User", UserWithContactInfo{}, schemabuilder.CustomShadowObject(func(args struct{ Keys []*UserWithContactInfo }) []*UserWithContactInfo {
+	userWithContactInfo := s2.Object("User", UserWithContactInfo{}, schemabuilder.CreateShadowObject(func(args struct{ Keys []*UserWithContactInfo }) []*UserWithContactInfo {
 		return args.Keys
 	}))
 	userWithContactInfo.FieldFunc("isCool", func(ctx context.Context) (bool, error) { return true, nil })
@@ -327,7 +327,7 @@ func TestOnlyShadowServiceKnowsAboutNewField(t *testing.T) {
 	}
 
 	s2new := schemabuilder.NewSchemaWithName("schema2")
-	userWithContactInfoNew := s2new.Object("User", UserWithContactInfoNew{}, schemabuilder.CustomShadowObject(func(args struct{ Keys []*UserWithContactInfoNew }) []*UserWithContactInfoNew {
+	userWithContactInfoNew := s2new.Object("User", UserWithContactInfoNew{}, schemabuilder.CreateShadowObject(func(args struct{ Keys []*UserWithContactInfoNew }) []*UserWithContactInfoNew {
 		return args.Keys
 	}))
 	userWithContactInfoNew.FieldFunc("isCool", func(ctx context.Context) (bool, error) { return true, nil })

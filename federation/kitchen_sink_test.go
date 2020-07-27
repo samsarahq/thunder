@@ -86,7 +86,7 @@ func buildTestSchema1() *schemabuilder.Schema {
 	type BarKeys struct {
 		Id int64
 	}
-	bar := schema.Object("Bar", Bar{}, schemabuilder.CustomShadowObject(func(args struct{ Keys []*BarKeys }) []*Bar {
+	bar := schema.Object("Bar", Bar{}, schemabuilder.CreateShadowObject(func(args struct{ Keys []*BarKeys }) []*Bar {
 		bars := make([]*Bar, 0, len(args.Keys))
 		for _, key := range args.Keys {
 			bars = append(bars, &Bar{Id: key.Id})
@@ -125,7 +125,7 @@ func buildTestSchema2() *schemabuilder.Schema {
 		return "hello"
 	})
 
-	foo := schema.Object("Foo", Foo{}, schemabuilder.CustomShadowObject(func(args struct{ Keys []*FooKeys }) []*Foo {
+	foo := schema.Object("Foo", Foo{}, schemabuilder.CreateShadowObject(func(args struct{ Keys []*FooKeys }) []*Foo {
 		foos := make([]*Foo, 0, len(args.Keys))
 		for _, key := range args.Keys {
 			foos = append(foos, &Foo{Name: key.Name})
