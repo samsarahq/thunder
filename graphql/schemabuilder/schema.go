@@ -120,19 +120,6 @@ func (f objectOptionFunc) apply(s *Schema, m *Object) { f(s, m) }
 type federation struct{}
 
 func CreateShadowObject(f interface{}, options ...ObjectOption) ObjectOption {
-	// Create a method on every object called "federation"
-	// that returns all fields on the object
-	if object.Methods == nil {
-		object.Methods = make(Methods)
-	}
-	rootMethod := &method{
-		RootObjectType: objectType,
-	}
-	if _, ok := object.Methods[federationField]; ok {
-		panic("duplicate federation method")
-	}
-	object.Methods[federationField] = rootMethod
-
 	// Create a method on the "Federation" object to create the shadow object from the federated keys
 	m := &method{Fn: f}
 
@@ -153,6 +140,21 @@ func CreateShadowObject(f interface{}, options ...ObjectOption) ObjectOption {
 		}
 
 		fedObj.Methods[federatedMethodName] = m
+
+		// Create a method on every object called "federation"
+		// that returns all fields on the object
+		if obj.Methods == nil {
+			obj.Methods = make(Methods)
+		}
+		objectType := reflect.PtrTo(reflect.TypeOf(object.Type))	
+		rootMethod := &method{
+			RootObjectType: objectType,
+		}
+		if _, ok := obj.Methods[federationField]; ok {
+			panic("duplicate federation method")
+		}
+		obj.Methods[federationField] = rootMethod
+
 	}
 	return createShadowObjectField
 }
@@ -173,7 +175,6 @@ func (s *Schema) Object(name string, typ interface{}, options ...ObjectOption) *
 		Name:        name,
 		Type:        typ,
 		ServiceName: s.Name,
-		IsRoot:   true,
 	}
 	s.objects[name] = object
 
@@ -181,7 +182,6 @@ func (s *Schema) Object(name string, typ interface{}, options ...ObjectOption) *
 		opt.apply(s, object)
 	}
 
-	objectType := reflect.PtrTo(reflect.TypeOf(typ))	
 	return object
 }
 
