@@ -14,8 +14,6 @@ type Object struct {
 	Methods     Methods // Deprecated, use FieldFunc instead.
 	key         string
 	ServiceName string
-	IsRoot      bool
-	IsShadow    bool
 }
 
 type paginationObject struct {
