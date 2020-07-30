@@ -43,9 +43,9 @@ func getRootType(typ *introspectionTypeRef) *introspectionTypeRef {
 // that have the objcet registered as a root object expose the field. This ensures that we can make
 // the hop from the root server to any of the federated servers safely before any queries are executed.
 func validateFederationKeys(serviceNames []string, serviceSchemasByName map[string]*IntrospectionQueryResult, obj *graphql.Object, keyField string) error {
-	validFederatedKey := false
 	for _, service := range serviceNames {
 		for _, typ := range serviceSchemasByName[service].Schema.Types {
+			validFederatedKey := false
 			if typ.Name == obj.Name {
 				// Check that it is a root object by checking if it has a field func called
 				// "__federation" on the object
@@ -66,12 +66,53 @@ func validateFederationKeys(serviceNames []string, serviceSchemasByName map[stri
 						}
 					}
 				}
-
+				if isRootObject && !validFederatedKey {
+					return oops.Errorf("Invalid federation key %s", keyField)
+				}
 			}
 		}
 	}
-	if !validFederatedKey {
-		return oops.Errorf("Invalid federation key %s", keyField)
+	return nil
+}
+
+// validateFederatedObjects validates that if a object is federated, it is federated on all the schemas
+func validateFederatedObjects(serviceNames []string, serviceSchemasByName map[string]*IntrospectionQueryResult, objName string) error {
+	// Check if it is federated on one service. It is federated if there is a field
+	//	called "__federation" on that object on any of the services it is on
+	federatedOnOneService := false
+	for _, service := range serviceNames {
+		for _, typ := range serviceSchemasByName[service].Schema.Types {
+			if typ.Name == objName {
+				for _, introspectedField := range typ.Fields {
+					if introspectedField.Name == federationField {
+						federatedOnOneService = true
+						break
+					}
+				}
+			}
+
+		}
+	}
+
+	if federatedOnOneService && objName != "Query" && objName != "Mutation" {
+		// If the object is federated on one service, make sure every service with
+		// that object can parse the keys and fetch the object
+		for _, service := range serviceNames {
+			for _, typ := range serviceSchemasByName[service].Schema.Types {
+				if typ.Name == objName {
+					isFederatedObject := false
+					for _, introspectedField := range typ.Fields {
+						if introspectedField.Name == federationField {
+							isFederatedObject = true
+							break
+						}
+					}
+					if !isFederatedObject {
+						return oops.Errorf("Object %s exists on another server and is not federated", objName)
+					}
+				}
+			}
+		}
 	}
 	return nil
 }
@@ -100,7 +141,7 @@ func validateFieldsReturningFederatedObject(serviceNames []string, serviceSchema
 				for name, f := range returnObj.Fields {
 					if name == federationField && !fieldInfos[f].Services[service] {
 						federatedFieldName := fmt.Sprintf("%s-%s", fieldReturnType, service)
-						// If the field name is <fieldType-service> on a federation object, 
+						// If the field name is <fieldType-service> on a federation object,
 						// it is an expected function for a shadow object type
 						if field.Name == federatedFieldName {
 							continue
@@ -172,6 +213,11 @@ func ConvertVersionedSchemas(schemas serviceSchemas) (*SchemaWithFederationInfo,
 	types, err := parseSchema(merged)
 	if err != nil {
 		return nil, err
+	}
+	for name := range types {
+		if err := validateFederatedObjects(serviceNames, serviceSchemasByName, name); err != nil {
+			return nil, oops.Wrapf(err, "Expected all services with object %s to be federated", name)
+		}
 	}
 
 	fieldInfos := make(map[*graphql.Field]*FieldInfo)
