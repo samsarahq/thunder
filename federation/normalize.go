@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"sort"
 
+	"github.com/samsarahq/go/oops"
 	"github.com/samsarahq/thunder/graphql"
 )
 
@@ -115,7 +116,14 @@ func (f *flattener) flattenFragments(selectionSet *graphql.SelectionSet, typ *gr
 
 	// Descend into fragments matching the current type.
 	for _, fragment := range selectionSet.Fragments {
-		ok, err := f.applies(typ, fragment)
+		ok, err := graphql.ShouldIncludeNode(fragment.Directives)
+		if err != nil {
+			return oops.Wrapf(err, "applying directive for fragment on %s", fragment.On)
+		}
+		if !ok {
+			continue
+		}
+		ok, err = f.applies(typ, fragment)
 		if err != nil {
 			return err
 		}
