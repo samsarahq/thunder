@@ -950,3 +950,354 @@ func TestExecutorWithRootObjectUsedIncorrectly(t *testing.T) {
 	_, err = NewExecutor(ctx, execs, &SchemaSyncerConfig{SchemaSyncer: NewIntrospectionSchemaSyncer(ctx, execs, nil)})
 	assert.NoError(t, err)
 }
+
+func TestExecutorQueriesWithDirectives(t *testing.T) {
+	e, _, _, _, err := createExecutorWithFederatedUser()
+	require.NoError(t, err)
+	testCases := []struct {
+		Name          string
+		Query         string
+		Output        string
+		Error         bool
+		ExpectedError string
+	}{
+		{
+			Name: "query fields with nested objects on multiple schemas with directives",
+			Query: `
+				query Foo {
+					users {
+						id
+						device @include (if: true) {
+							id @skip(if: false)
+							isOn @skip(if: true)
+							temp @include(if: true)
+						}
+					}
+				}`,
+			Output: `
+				{
+					"users":[
+						{
+							"__key":1,
+							"id":1,
+							"device":{
+								"__key":1,
+								"id":1,
+								"temp":70
+							}
+						},
+						{
+							"__key":2,
+							"id":2,
+							"device":{
+								"__key":1,
+								"id":1,
+								"temp":70
+							}
+						}
+					]
+				}`,
+		},
+		{
+			Name: "directive top level selection true",
+			Query: `
+				query Foo {
+					users @skip(if: true) {
+						id
+					}
+					usersWithArgs(name: "foo") @include(if: true) {
+						name
+					}
+				}`,
+			Output: `
+			{
+				"usersWithArgs":[
+					{
+						"__key":1,
+						"name":"foo"
+					}
+				]
+			}`,
+			Error: false,
+		},
+		{
+			Name: "directive top level selection false",
+			Query: `
+				query Foo {
+					users @include(if: false) {
+						id
+					}
+					usersWithArgs(name: "foo") @skip(if: false) {
+						id
+						name
+					}
+				}`,
+			Output: `
+			{
+				"usersWithArgs":[
+					{
+						"__key":1,
+						"id":1,
+						"name":"foo"
+					}
+				]
+			}`,
+			Error: false,
+		},
+		{
+			Name: "directive nested selections",
+			Query: `
+				query Foo {
+					users {
+						id @skip(if: true)
+						device @include(if: true){
+							id
+							isOn @skip(if: false)
+							temp @include(if: false)
+						}
+					}
+				}`,
+			Output: `
+			{
+				"users":[
+					{
+						"__key":1,
+						"device":{
+							"__key":1,
+							"id":1,
+							"isOn":true
+						}
+					},
+					{
+						"__key":2,
+						"device":{
+							"__key":1,
+							"id":1,
+							"isOn":true
+						}
+					}
+				]
+			}`,
+			Error: false,
+		},
+		{
+			Name: "directive with fragments inline and repeated",
+			Query: `
+				query Foo {
+					users {
+						... on User @skip(if: true){
+							name
+							isAdmin
+						}
+						... on User @include(if: true){
+							id
+							email
+						}
+						...Bar @include(if: false)
+						...Baz @skip(if: false)
+					}
+				}
+				fragment Bar on User {
+					orgId
+				}
+				fragment Baz on User {
+					phoneNumber
+				}`,
+			Output: `
+			{
+				"users":[
+					{
+						"__key":1,
+						"id":1,
+						"email":"email@gmail.com",
+						"phoneNumber": "555-5555"
+					},
+					{
+						"__key":2,
+						"id":2,
+						"email":"email@gmail.com",
+						"phoneNumber": "555-5555"
+					}
+				]
+			}`,
+			Error: false,
+		},
+		{
+			Name: "directive with top level fragments",
+			Query: `
+				query Foo {
+					...Bar @skip(if: true)
+					...Baz @include(if: true)
+				}
+				fragment Bar on Query {
+					users {
+						id
+					}
+				}
+				fragment Baz on Query {
+					users {
+						name
+					}
+				}`,
+			Output: `
+			{
+				"users":[
+					{
+						"__key":1,
+						"name":"testUser"
+					},
+					{
+						"__key":2,
+						"name":"testUser2"
+					}
+				]
+			}`,
+			Error: false,
+		},
+		{
+			Name: "directive on both fragment and fragment selection",
+			Query: `
+				query Foo {
+					users {
+						...Bar @include(if: true)
+					}
+				}
+				fragment Bar on User {
+					id @include(if: true)
+					phoneNumber @skip(if: true)
+				}`,
+			Output: `
+			{
+				"users":[
+					{
+						"__key":1,
+						"id": 1
+					},
+					{
+						"__key":2,
+						"id": 2
+					}
+				]
+			}`,
+			Error: false,
+		},
+		{
+			Name: "directive missing argument",
+			Query: `
+				query Foo {
+					users {
+						...Bar @include(notif: true)
+					}
+				}
+				fragment Bar on User {
+					id
+				}`,
+			Output:        "",
+			Error:         true,
+			ExpectedError: "required argument in directive not provided: if",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.Name, func(t *testing.T) {
+			ctx := context.Background()
+			if !testCase.Error {
+				// Validates that we were able to execute the query on multiple
+				// schemas and correctly stitch the results back together
+				runAndValidateQueryResults(t, ctx, e, testCase.Query, testCase.Output)
+			} else {
+				runAndValidateQueryError(t, ctx, e, testCase.Query, testCase.Output, testCase.ExpectedError)
+			}
+		})
+	}
+}
+
+func TestExecutorQueriesWithDirectivesWithVariables(t *testing.T) {
+	e, _, _, _, err := createExecutorWithFederatedUser()
+	require.NoError(t, err)
+	testCases := []struct {
+		Name          string
+		Query         string
+		Variables     map[string]interface{}
+		Output        string
+		Error         bool
+		ExpectedError string
+	}{
+		{
+			Name: "directive with skip variable true",
+			Query: `
+				query Foo {
+					...Bar @skip(if: $something)
+				}
+				fragment Bar on Query {
+					users {
+						name
+					}
+				}`,
+			Output: `
+			{}`,
+			Variables: map[string]interface{}{"something": true},
+			Error:     false,
+		},
+		{
+			Name: "directive with both variables false",
+			Query: `
+				query Foo {
+					...Bar @skip(if: $something)
+				}
+				fragment Bar on Query {
+					users {
+						name
+						id @include(if: $somethingElse)
+					}
+				}`,
+			Output: `
+			{
+				"users":[
+					{
+						"__key":1,
+						"name":"testUser"
+					},
+					{
+						"__key":2,
+						"name":"testUser2"
+					}
+				]
+			}`,
+			Variables: map[string]interface{}{"something": false, "somethingElse": false},
+			Error:     false,
+		},
+		{
+			Name: "directive with both variables false",
+			Query: `
+				query Foo {
+					...Bar @skip(if: $something)
+				}
+				fragment Bar on Query {
+					users {
+						name
+					}
+				}`,
+			Output:        "",
+			Variables:     map[string]interface{}{"something": "wrong type"},
+			Error:         true,
+			ExpectedError: "expected type boolean, found type string in \"if\" argument",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.Name, func(t *testing.T) {
+			ctx := context.Background()
+			if !testCase.Error {
+				res, _, err := e.Execute(ctx, graphql.MustParse(testCase.Query, testCase.Variables), nil)
+				require.NoError(t, err)
+				var expected interface{}
+				err = json.Unmarshal([]byte(testCase.Output), &expected)
+				require.NoError(t, err)
+				assert.Equal(t, expected, res)
+			} else {
+				_, _, err := e.Execute(ctx, graphql.MustParse(testCase.Query, testCase.Variables), nil)
+				assert.True(t, strings.Contains(err.Error(), testCase.ExpectedError))
+			}
+
+		})
+	}
+}
