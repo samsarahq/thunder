@@ -192,6 +192,14 @@ func (e *Planner) planObject(typ *graphql.Object, selectionSet *graphql.Selectio
 	}
 
 	for _, selection := range selectionSet.Selections {
+		ok, err := graphql.ShouldIncludeNode(selection.Directives)
+		if err != nil {
+			return nil, oops.Wrapf(err, "applying directive")
+
+		}
+		if !ok {
+			continue
+		}
 		if selection.Name == "__typename" {
 			localSelections = append(localSelections, selection)
 			continue
