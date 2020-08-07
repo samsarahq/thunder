@@ -124,7 +124,7 @@ func (e *Executor) Execute(ctx context.Context, typ Type, source interface{}, qu
 	initialSelectionWorkUnits := make([]*WorkUnit, 0, len(topLevelSelections))
 	writers := make(map[string]*outputNode)
 	for _, selection := range topLevelSelections {
-		ok, err := shouldIncludeNode(selection.Directives)
+		ok, err := ShouldIncludeNode(selection.Directives)
 		if err != nil {
 			return nil, err
 		}
@@ -469,7 +469,7 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 			continue
 		}
 
-		if ok, err := shouldIncludeNode(selection.Directives); err != nil {
+		if ok, err := ShouldIncludeNode(selection.Directives); err != nil {
 			return nil, nestPathError(selection.Alias, err)
 		} else if !ok {
 			continue
