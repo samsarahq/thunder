@@ -68,7 +68,9 @@ func buildTestSchema1() *schemabuilder.Schema {
 		}
 	})
 
-	foo := schema.Object("Foo", Foo{}, schemabuilder.RootObject)
+	foo := schema.Object("Foo", Foo{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*Foo }) []*Foo {
+		return args.Keys
+	}))
 	foo.BatchFieldFunc("s1hmm", func(ctx context.Context, in map[batch.Index]*Foo) (map[batch.Index]string, error) {
 		out := make(map[batch.Index]string)
 		for i, foo := range in {
@@ -86,7 +88,7 @@ func buildTestSchema1() *schemabuilder.Schema {
 	type BarKeys struct {
 		Id int64
 	}
-	bar := schema.Object("Bar", Bar{}, schemabuilder.CustomShadowObject(func(args struct{ Keys []*BarKeys }) []*Bar {
+	bar := schema.Object("Bar", Bar{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*BarKeys }) []*Bar {
 		bars := make([]*Bar, 0, len(args.Keys))
 		for _, key := range args.Keys {
 			bars = append(bars, &Bar{Id: key.Id})
@@ -125,7 +127,7 @@ func buildTestSchema2() *schemabuilder.Schema {
 		return "hello"
 	})
 
-	foo := schema.Object("Foo", Foo{}, schemabuilder.CustomShadowObject(func(args struct{ Keys []*FooKeys }) []*Foo {
+	foo := schema.Object("Foo", Foo{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*FooKeys }) []*Foo {
 		foos := make([]*Foo, 0, len(args.Keys))
 		for _, key := range args.Keys {
 			foos = append(foos, &Foo{Name: key.Name})
@@ -147,6 +149,8 @@ func buildTestSchema2() *schemabuilder.Schema {
 		}
 	})
 
-	schema.Object("Bar", Bar{}, schemabuilder.RootObject)
+	schema.Object("Bar", Bar{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*Bar }) []*Bar {
+		return args.Keys
+	}))
 	return schema
 }
