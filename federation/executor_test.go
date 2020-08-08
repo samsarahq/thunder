@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -55,7 +56,9 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		PhoneNumber string
 	}
 	s1 := schemabuilder.NewSchemaWithName("s1")
-	user := s1.Object("User", User{}, schemabuilder.RootObject)
+	user := s1.Object("User", User{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*User }) []*User {
+		return args.Keys
+	}))
 	user.Key("id")
 	type UserIds struct {
 		Id    int64
@@ -80,7 +83,9 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		OrgId      int64
 		SuperPower string
 	}
-	admin := s1.Object("Admin", Admin{}, schemabuilder.RootObject)
+	admin := s1.Object("Admin", Admin{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*Admin }) []*Admin {
+		return args.Keys
+	}))
 	admin.Key("id")
 	admin.FieldFunc("hiding", func(ctx context.Context, user *Admin) (bool, error) {
 		return true, nil
@@ -108,7 +113,9 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		OrgId int64
 		IsOn  bool
 	}
-	device := s1.Object("Device", Device{}, schemabuilder.RootObject)
+	device := s1.Object("Device", Device{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*Device }) []*Device {
+		return args.Keys
+	}))
 	device.Key("id")
 
 	user.FieldFunc("device", func(ctx context.Context, user *User) (*Device, error) {
@@ -150,7 +157,9 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		OrgId int64
 	}
 	s2 := schemabuilder.NewSchemaWithName("s2")
-	userWithContactInfo := s2.Object("User", UserWithContactInfo{}, schemabuilder.ShadowObject)
+	userWithContactInfo := s2.Object("User", UserWithContactInfo{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*UserWithContactInfo }) []*UserWithContactInfo {
+		return args.Keys
+	}))
 	userWithContactInfo.Key("id")
 	userWithContactInfo.FieldFunc("secret", func(ctx context.Context, user *UserWithContactInfo) (string, error) {
 		return "shhhhh", nil
@@ -178,14 +187,17 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		}
 	*/
 	type UserWithAdminPrivelages struct {
-		Id    int64
-		OrgId int64
+		Id          int64
+		OrgId       int64
+		Name        string
+		Email       string
+		PhoneNumber string
 	}
 	type UserKeys struct {
 		Id int64
 	}
 	s3 := schemabuilder.NewSchemaWithName("s3")
-	userWithAdminPrivelages := s3.Object("User", UserWithAdminPrivelages{}, schemabuilder.CustomShadowObject(func(args struct{ Keys []UserKeys }) []*UserWithAdminPrivelages {
+	userWithAdminPrivelages := s3.Object("User", UserWithAdminPrivelages{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []UserKeys }) []*UserWithAdminPrivelages {
 		users := make([]*UserWithAdminPrivelages, 0, len(args.Keys))
 		for _, key := range args.Keys {
 			users = append(users, &UserWithAdminPrivelages{Id: key.Id, OrgId: 0})
@@ -203,8 +215,11 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 	type ShadowDevice struct {
 		Id    int64
 		OrgId int64
+		IsOn  bool
 	}
-	deviceWithTemp := s3.Object("Device", ShadowDevice{}, schemabuilder.ShadowObject)
+	deviceWithTemp := s3.Object("Device", ShadowDevice{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*ShadowDevice }) []*ShadowDevice {
+		return args.Keys
+	}))
 	deviceWithTemp.Key("id")
 	deviceWithTemp.FieldFunc("temp", func(ctx context.Context, device *ShadowDevice) int64 { return int64(70) })
 
@@ -749,20 +764,28 @@ func TestExecutorWithInvalidFederationKeys(t *testing.T) {
 		PhoneNumber string
 	}
 	s1 := schemabuilder.NewSchemaWithName("s1")
-	user := s1.Object("User", User{}, schemabuilder.RootObject)
+	type UserKey struct {
+		Id int64
+	}
+	user := s1.Object("User", User{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*UserKey }) []*User {
+		users := make([]*User, 0, 2)
+		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: "testUser", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		users = append(users, &User{Id: int64(2), OrgId: int64(2), Name: "testUser2", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		return users
+	}))
 	user.Key("id")
 	type UserIds struct {
 		Id    int64
 		OrgId int64
 	}
 	s1.Query().FieldFunc("users", func(ctx context.Context) ([]*User, error) {
-		users := make([]*User, 0, 1)
+		users := make([]*User, 0, 2)
 		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: "testUser", Email: "email@gmail.com", PhoneNumber: "555-5555"})
 		users = append(users, &User{Id: int64(2), OrgId: int64(2), Name: "testUser2", Email: "email@gmail.com", PhoneNumber: "555-5555"})
 		return users, nil
 	})
 
-	type UserWithContactInfo struct {
+	type UserWithExtraKey struct {
 		Id          int64
 		OrgId       int64
 		Name        string
@@ -770,7 +793,12 @@ func TestExecutorWithInvalidFederationKeys(t *testing.T) {
 	}
 
 	s2 := schemabuilder.NewSchemaWithName("s2")
-	s2.Object("User", UserWithContactInfo{}, schemabuilder.ShadowObject)
+	s2.Object("User", User{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*UserWithExtraKey }) []*User {
+		users := make([]*User, 0, 2)
+		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: "testUser", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		users = append(users, &User{Id: int64(2), OrgId: int64(2), Name: "testUser2", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		return users
+	}))
 
 	// Create the executor with all the schemas
 	ctx := context.Background()
@@ -790,12 +818,16 @@ func createMutationExecutor() (map[string]ExecutorClient, error) {
 		Id   int64
 		Name string
 	}
-	s1.Object("User", User{}, schemabuilder.RootObject)
+	s1.Object("User", User{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*User }) []*User {
+		return args.Keys
+	}))
 	s1.Mutation().FieldFunc("newUser", func(ctx context.Context) (*User, error) {
 		return &User{Id: int64(123), Name: "bob"}, nil
 	})
 	s2 := schemabuilder.NewSchemaWithName("s2")
-	s2.Object("User", User{}, schemabuilder.RootObject, schemabuilder.ShadowObject)
+	s2.Object("User", User{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*User }) []*User {
+		return args.Keys
+	}))
 	s2.Mutation().FieldFunc("newFakeUser", func(ctx context.Context) (*User, error) {
 		return &User{Id: int64(234), Name: "fake"}, nil
 	})
@@ -879,7 +911,7 @@ func TestExecutorReturnsError(t *testing.T) {
 	runAndValidateQueryError(t, ctx, e, `{ fail }`, ``, "executing query: fail: uh oh")
 }
 
-func TestExecutorWithRootObjectUsedIncorrectly(t *testing.T) {
+func TestExpectedFederatedObject(t *testing.T) {
 	type User struct {
 		Id          int64
 		OrgId       int64
@@ -888,34 +920,37 @@ func TestExecutorWithRootObjectUsedIncorrectly(t *testing.T) {
 		PhoneNumber string
 	}
 	s1 := schemabuilder.NewSchemaWithName("s1")
-	user := s1.Object("User", User{}, schemabuilder.RootObject)
+	type UserKey struct {
+		Id int64
+	}
+	user := s1.Object("User", User{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*UserKey }) []*User {
+		users := make([]*User, 0, 2)
+		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: "testUser", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		users = append(users, &User{Id: int64(2), OrgId: int64(2), Name: "testUser2", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		return users
+	}))
 	user.Key("id")
-
+	type UserIds struct {
+		Id    int64
+		OrgId int64
+	}
 	s1.Query().FieldFunc("users", func(ctx context.Context) ([]*User, error) {
-		users := make([]*User, 0, 1)
+		users := make([]*User, 0, 2)
 		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: "testUser", Email: "email@gmail.com", PhoneNumber: "555-5555"})
 		users = append(users, &User{Id: int64(2), OrgId: int64(2), Name: "testUser2", Email: "email@gmail.com", PhoneNumber: "555-5555"})
 		return users, nil
 	})
 
-	type UserIds struct {
-		Id    int64
-		OrgId int64
-	}
-
-	type UserWithContactInfo struct {
-		Id    int64
-		OrgId int64
-		Name  string
-	}
-
 	s2 := schemabuilder.NewSchemaWithName("s2")
-	user2 := s2.Object("User", UserWithContactInfo{}, schemabuilder.ShadowObject)
+	user2 := s2.Object("User", User{})
 	user2.Key("id")
-	s2.Query().FieldFunc("users", func(ctx context.Context) ([]*UserWithContactInfo, error) {
-		users := make([]*UserWithContactInfo, 0, 1)
-		users = append(users, &UserWithContactInfo{Id: int64(1), OrgId: int64(1), Name: "testUser"})
-		users = append(users, &UserWithContactInfo{Id: int64(2), OrgId: int64(2), Name: "testUser2"})
+	user2.FieldFunc("isCool", func(ctx context.Context) (bool, error) {
+		return true, nil
+	})
+	s2.Query().FieldFunc("users2", func(ctx context.Context) ([]*User, error) {
+		users := make([]*User, 0, 2)
+		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: "testUser", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		users = append(users, &User{Id: int64(2), OrgId: int64(2), Name: "testUser2", Email: "email@gmail.com", PhoneNumber: "555-5555"})
 		return users, nil
 	})
 
@@ -928,25 +963,6 @@ func TestExecutorWithRootObjectUsedIncorrectly(t *testing.T) {
 	assert.NoError(t, err)
 
 	_, err = NewExecutor(ctx, execs, &SchemaSyncerConfig{SchemaSyncer: NewIntrospectionSchemaSyncer(ctx, execs, nil)})
-	assert.True(t, strings.Contains(err.Error(), "Field func users can not return shadow type User"))
-
-	// During an object migration, we may register a multiple root objects
-	// In this case, we should allow users to be registered on both servers
-	s2 = schemabuilder.NewSchemaWithName("s2")
-	user2 = s2.Object("User", UserWithContactInfo{}, schemabuilder.ShadowObject, schemabuilder.RootObject)
-	user2.Key("id")
-	s2.Query().FieldFunc("users", func(ctx context.Context) ([]*UserWithContactInfo, error) {
-		users := make([]*UserWithContactInfo, 0, 1)
-		users = append(users, &UserWithContactInfo{Id: int64(1), OrgId: int64(1), Name: "testUser"})
-		users = append(users, &UserWithContactInfo{Id: int64(2), OrgId: int64(2), Name: "testUser2"})
-		return users, nil
-	})
-
-	execs, err = makeExecutors(map[string]*schemabuilder.Schema{
-		"s1": s1,
-		"s2": s2,
-	})
-	assert.NoError(t, err)
-	_, err = NewExecutor(ctx, execs, &SchemaSyncerConfig{SchemaSyncer: NewIntrospectionSchemaSyncer(ctx, execs, nil)})
-	assert.NoError(t, err)
+	fmt.Println(err)
+	assert.True(t, strings.Contains(err.Error(), "Object User exists on another server and is not federated"))
 }

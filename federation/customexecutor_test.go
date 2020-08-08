@@ -88,7 +88,9 @@ func createFederatedSchema(t *testing.T) *schemabuilder.Schema {
 		Name  string
 	}
 	s1 := schemabuilder.NewSchema()
-	user := s1.Object("User", User{}, schemabuilder.RootObject)
+	user := s1.Object("User", User{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*User }) []*User {
+		return args.Keys
+	}))
 	user.Key("id")
 	s1.Query().FieldFunc("users", func(ctx context.Context) ([]*User, error) {
 		value, ok := ctx.Value("authtoken").(string)
