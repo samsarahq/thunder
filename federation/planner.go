@@ -86,7 +86,7 @@ func NewPlanner(types *SchemaWithFederationInfo, optionalServiceSelector Service
 // Executing a subquery
 //
 // When a subquery is run on a seperate graphql server, we want the subquery to be nested
-// on the "__federation" type so that the graphQL server
+// on the "_federation" type so that the graphQL server
 // For example, if our query like the example below where "allFoos" is a field on service1
 // and "name" is a field on service2.
 // {
@@ -96,14 +96,14 @@ func NewPlanner(types *SchemaWithFederationInfo, optionalServiceSelector Service
 // }
 // When we send the subquery to service2 it should look like the example below
 // {
-// 	__federation {
+// 	_federation {
 // 	  Foo(id: $id) {
 //      __typename
 // 		  name
 // 		}
 // 	  }
 // }
-// "__federation" becomes the root query that the subquery is nested under,
+// "_federation" becomes the root query that the subquery is nested under,
 // "Foo" is the federated object type that we need to refetch,
 // and "__typename" lets gateway know what type the object is.
 
@@ -286,20 +286,20 @@ func (e *Planner) planObject(typ *graphql.Object, selectionSet *graphql.Selectio
 	}
 
 	// knows how to resolve it, and we can take the results from that subquery and stitch it into the final response
-	// "__federation" indicates a seperate subplan that will be dispatched to a graphql server
+	// "_federation" indicates a seperate subplan that will be dispatched to a graphql server
 	if needKey {
 		hasKey := false
 		for _, selection := range p.SelectionSet.Selections {
 			if selection.Name == federationField && selection.Alias == federationField {
 				hasKey = true
 			} else if selection.Name == federationField || selection.Alias == federationField {
-				return nil, fmt.Errorf("Both the selection name and alias have to be __federation")
+				return nil, fmt.Errorf("Both the selection name and alias have to be _federation")
 			}
 		}
 		if !hasKey {
 			// Parse all the fields and if it is a federated key for that service
 			// add it to the planner to fetch that field such that the subquery looks like
-			// __federation {
+			// _federation {
 			//	 id (federatedKey)
 			// }
 			selections := make([]*graphql.Selection, 0, len(typ.Fields))

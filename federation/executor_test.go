@@ -27,7 +27,7 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 				phoneNumber string
 				device: Device
 				deviceWithArgs: Device
-				__federation: User
+				_federation: User
 			}
 			users: [User]
 			usersWithArgs: [User]
@@ -36,7 +36,7 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 				orgId: int64!
 				superPower: string!
 				hiding: bool
-				__federation: Admin
+				_federation: Admin
 			}
 			admins: [Admin]
 			everyone: [Admin || User]
@@ -44,7 +44,7 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 				id: int64!
 				orgId: int64!
 				isOn: bool
-				__federation: Device
+				_federation: Device
 			}
 		}
 	*/
@@ -172,7 +172,7 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 				User(keys: [UserKeys!]): [UserWithAdminPrivelages]
 			}
 			User {
-				__federation: User
+				_federation: User
 				id: int64!
 				orgId: int64!
 				isAdmin: bool!
