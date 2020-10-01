@@ -141,7 +141,7 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 	// and pass the keys in to find the object that the subquery is nested on
 	// Pass all federated keys for that service as arguments
 	// {
-	//   __federation {
+	//   _federation {
 	//     [ObjectName]-[Service] (keys: Keys) {
 	//       subQuery
 	//     }
@@ -275,7 +275,7 @@ func (pathTargets *pathSubqueryMetadata) extractKeys(node interface{}, path []Pa
 		// Add a pointer to the object for where the results from
 		// the subquery will be added into the final result
 		pathTargets.results = append(pathTargets.results, obj)
-		// Keys from the "__federation" field func are passed to
+		// Keys from the "_federation" field func are passed to
 		// the subquery
 		pathTargets.keys = append(pathTargets.keys, key)
 		return nil

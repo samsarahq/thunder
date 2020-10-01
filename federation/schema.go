@@ -48,7 +48,7 @@ func validateFederationKeys(serviceNames []string, serviceSchemasByName map[stri
 			validFederatedKey := false
 			if typ.Name == obj.Name {
 				// Check that it is a root object by checking if it has a field func called
-				// "__federation" on the object
+				// "_federation" on the object
 				isRootObject := false
 				for _, introspectedField := range typ.Fields {
 					if introspectedField.Name == federationField {
@@ -78,7 +78,7 @@ func validateFederationKeys(serviceNames []string, serviceSchemasByName map[stri
 // validateFederatedObjects validates that if a object is federated, it is federated on all the schemas
 func validateFederatedObjects(serviceNames []string, serviceSchemasByName map[string]*IntrospectionQueryResult, objName string) error {
 	// Check if it is federated on one service. It is federated if there is a field
-	//	called "__federation" on that object on any of the services it is on
+	//	called "_federation" on that object on any of the services it is on
 	federatedOnOneService := false
 	for _, service := range serviceNames {
 		for _, typ := range serviceSchemasByName[service].Schema.Types {
@@ -131,7 +131,7 @@ func validateFieldsReturningFederatedObject(serviceNames []string, serviceSchema
 					continue
 				}
 				// Error if it is a shadow object. To check this
-				// (1) Look through all the fields on the object to see if there is a federation field (__federation) and that
+				// (1) Look through all the fields on the object to see if there is a federation field (_federation) and that
 				// the federation field is not on the current service
 				// (2) Look through all the fields on the federation object to see if it has a field for <ObjectType>-<Service>
 				returnObj, ok := types[fieldReturnType.Name].(*graphql.Object)
