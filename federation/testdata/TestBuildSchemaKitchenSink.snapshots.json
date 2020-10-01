@@ -10,7 +10,7 @@
               "fields": [
                 {
                   "args": [],
-                  "name": "__federation",
+                  "name": "_federation",
                   "type": {
                     "kind": "OBJECT",
                     "name": "Bar",
@@ -269,7 +269,7 @@
               "fields": [
                 {
                   "args": [],
-                  "name": "__federation",
+                  "name": "_federation",
                   "type": {
                     "kind": "OBJECT",
                     "name": "Foo",
@@ -491,7 +491,7 @@
               "fields": [
                 {
                   "args": [],
-                  "name": "__federation",
+                  "name": "_federation",
                   "type": {
                     "kind": "NON_NULL",
                     "name": "",

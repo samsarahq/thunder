@@ -7,7 +7,7 @@ import (
 	"github.com/samsarahq/thunder/graphql"
 )
 
-const federationField = "__federation"
+const federationField = "_federation"
 const federationName = "Federation"
 
 // Schema is a struct that can be used to build out a GraphQL schema.  Functions

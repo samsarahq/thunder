@@ -86,7 +86,7 @@ func TestPlanner(t *testing.T) {
 					SelectionSet: mustParse(`{
 						s1fff {
 							name
-							__federation {
+							_federation {
 								name
 							}
 						}
@@ -123,7 +123,7 @@ func TestPlanner(t *testing.T) {
 					Kind:    "query",
 					SelectionSet: mustParse(`{
 						s1fff {
-							__federation {
+							_federation {
 								name
 							}
 						}
@@ -138,7 +138,7 @@ func TestPlanner(t *testing.T) {
 							Service: "schema2",
 							SelectionSet: mustParse(`{
 								s2bar {
-									__federation {
+									_federation {
 										id
 									}
 								}
@@ -193,10 +193,10 @@ func TestPlanner(t *testing.T) {
 							}
 							... on Foo {
 								__typename
-								a: s1nest { b: s1nest { c: s1nest { __federation { name } } } }
+								a: s1nest { b: s1nest { c: s1nest { _federation { name } } } }
 								name
 								s1hmm
-								__federation {
+								_federation {
 									name
 								}
 							}
@@ -261,12 +261,12 @@ func TestPlanner(t *testing.T) {
 					SelectionSet: mustParse(`{
 						s1echo(foo: "foo", pair: {a: 1, b: 3})
 						s1fff {
-							a: s1nest { b: s1nest { c: s1nest { __federation { name } } } }
+							a: s1nest { b: s1nest { c: s1nest { _federation { name } } } }
 							s1hmm
 							s1nest {
 								name
 							}
-							__federation {
+							_federation {
 								name
 							}
 						}
@@ -296,7 +296,7 @@ func TestPlanner(t *testing.T) {
 							SelectionSet: mustParse(`{
 								s2bar {
 									id
-									__federation {
+									_federation {
 										id
 									}
 								}
