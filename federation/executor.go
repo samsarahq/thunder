@@ -16,7 +16,7 @@ import (
 )
 
 const keyField = "__key"
-const federationField = "__federation"
+const federationField = "_federation"
 const typeNameField = "__typeName"
 const minSchemaSyncIntervalSeconds = 30
 
@@ -270,7 +270,7 @@ func (pathTargets *pathSubqueryMetadata) extractKeys(node interface{}, path []Pa
 		}
 		key, ok := obj[federationField]
 		if !ok {
-			return fmt.Errorf("missing __federation: %v", obj)
+			return fmt.Errorf("missing _federation: %v", obj)
 		}
 		// Add a pointer to the object for where the results from
 		// the subquery will be added into the final result
