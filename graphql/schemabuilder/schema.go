@@ -3,6 +3,7 @@ package schemabuilder
 import (
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/samsarahq/thunder/graphql"
 )
@@ -37,7 +38,7 @@ func NewSchema() *Schema {
 // NewSchema creates a new schema with a schema name
 func NewSchemaWithName(name string) *Schema {
 	schema := &Schema{
-		Name:    name,
+		Name:    strings.ToLower(name),
 		objects: make(map[string]*Object),
 	}
 
@@ -134,7 +135,7 @@ func FetchObjectFromKeys(f interface{}, options ...ObjectOption) ObjectOption {
 			fedObj.Methods = make(Methods)
 		}
 
-		federatedMethodName := fmt.Sprintf("%s-%s", obj.Name, obj.ServiceName)
+		federatedMethodName := fmt.Sprintf("%s-%s", obj.ServiceName, obj.Name)
 		if _, ok := fedObj.Methods[federatedMethodName]; ok {
 			panic("duplicate method")
 		}
