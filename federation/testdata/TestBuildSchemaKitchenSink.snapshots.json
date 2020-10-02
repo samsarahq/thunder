@@ -125,45 +125,7 @@
                       }
                     }
                   ],
-                  "name": "Bar-schema1",
-                  "type": {
-                    "kind": "NON_NULL",
-                    "name": "",
-                    "ofType": {
-                      "kind": "LIST",
-                      "name": "",
-                      "ofType": {
-                        "kind": "NON_NULL",
-                        "name": "",
-                        "ofType": {
-                          "kind": "OBJECT",
-                          "name": "Bar",
-                          "ofType": null
-                        }
-                      }
-                    }
-                  }
-                },
-                {
-                  "args": [
-                    {
-                      "name": "keys",
-                      "type": {
-                        "kind": "NON_NULL",
-                        "name": "",
-                        "ofType": {
-                          "kind": "LIST",
-                          "name": "",
-                          "ofType": {
-                            "kind": "INPUT_OBJECT",
-                            "name": "Bar_InputObject",
-                            "ofType": null
-                          }
-                        }
-                      }
-                    }
-                  ],
-                  "name": "Bar-schema2",
+                  "name": "schema1-Bar",
                   "type": {
                     "kind": "NON_NULL",
                     "name": "",
@@ -201,7 +163,7 @@
                       }
                     }
                   ],
-                  "name": "Foo-schema1",
+                  "name": "schema1-Foo",
                   "type": {
                     "kind": "NON_NULL",
                     "name": "",
@@ -232,6 +194,44 @@
                           "name": "",
                           "ofType": {
                             "kind": "INPUT_OBJECT",
+                            "name": "Bar_InputObject",
+                            "ofType": null
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "name": "schema2-Bar",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "LIST",
+                      "name": "",
+                      "ofType": {
+                        "kind": "NON_NULL",
+                        "name": "",
+                        "ofType": {
+                          "kind": "OBJECT",
+                          "name": "Bar",
+                          "ofType": null
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "args": [
+                    {
+                      "name": "keys",
+                      "type": {
+                        "kind": "NON_NULL",
+                        "name": "",
+                        "ofType": {
+                          "kind": "LIST",
+                          "name": "",
+                          "ofType": {
+                            "kind": "INPUT_OBJECT",
                             "name": "FooKeys_InputObject",
                             "ofType": null
                           }
@@ -239,7 +239,7 @@
                       }
                     }
                   ],
-                  "name": "Foo-schema2",
+                  "name": "schema2-Foo",
                   "type": {
                     "kind": "NON_NULL",
                     "name": "",
