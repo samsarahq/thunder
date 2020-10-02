@@ -140,7 +140,7 @@ func validateFieldsReturningFederatedObject(serviceNames []string, serviceSchema
 				}
 				for name, f := range returnObj.Fields {
 					if name == federationField && !fieldInfos[f].Services[service] {
-						federatedFieldName := fmt.Sprintf("%s-%s", fieldReturnType, service)
+						federatedFieldName := fmt.Sprintf("%s-%s", service, fieldReturnType)
 						// If the field name is <fieldType-service> on a federation object,
 						// it is an expected function for a shadow object type
 						if field.Name == federatedFieldName {
@@ -228,13 +228,13 @@ func ConvertVersionedSchemas(schemas serviceSchemas) (*SchemaWithFederationInfo,
 			// on the field object.
 			if typ.Name == "Federation" {
 				for _, field := range typ.Fields {
-					// Extract the type name from the formatting <object>-<service>
+					// Extract the type name from the formatting <service>-<object>
 					// And check that the object type exists
 					names := strings.SplitN(field.Name, "-", 2)
 					if len(names) != 2 {
 						return nil, oops.Errorf("Field %s doesnt have an object name and service name", field.Name)
 					}
-					objName := names[0]
+					objName := names[1]
 					obj, ok := types[objName].(*graphql.Object)
 					if !ok {
 						return nil, oops.Errorf("Expected objectName %s on merged schema", objName)
