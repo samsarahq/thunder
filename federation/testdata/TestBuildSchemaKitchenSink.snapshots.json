@@ -125,7 +125,7 @@
                       }
                     }
                   ],
-                  "name": "schema1-Bar",
+                  "name": "schema1_Bar",
                   "type": {
                     "kind": "NON_NULL",
                     "name": "",
@@ -163,7 +163,7 @@
                       }
                     }
                   ],
-                  "name": "schema1-Foo",
+                  "name": "schema1_Foo",
                   "type": {
                     "kind": "NON_NULL",
                     "name": "",
@@ -201,7 +201,7 @@
                       }
                     }
                   ],
-                  "name": "schema2-Bar",
+                  "name": "schema2_Bar",
                   "type": {
                     "kind": "NON_NULL",
                     "name": "",
@@ -239,7 +239,7 @@
                       }
                     }
                   ],
-                  "name": "schema2-Foo",
+                  "name": "schema2_Foo",
                   "type": {
                     "kind": "NON_NULL",
                     "name": "",

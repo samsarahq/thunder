@@ -135,7 +135,7 @@ func FetchObjectFromKeys(f interface{}, options ...ObjectOption) ObjectOption {
 			fedObj.Methods = make(Methods)
 		}
 
-		federatedMethodName := fmt.Sprintf("%s-%s", obj.ServiceName, obj.Name)
+		federatedMethodName := fmt.Sprintf("%s_%s", obj.ServiceName, obj.Name)
 		if _, ok := fedObj.Methods[federatedMethodName]; ok {
 			panic("duplicate method")
 		}

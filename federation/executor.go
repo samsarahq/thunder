@@ -149,7 +149,7 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 	// }
 	isRoot := keys == nil
 	if !isRoot {
-		federatedName := fmt.Sprintf("%s-%s", service, typName)
+		federatedName := fmt.Sprintf("%s_%s", service, typName)
 
 		var rootObject *graphql.Object
 		var ok bool
@@ -241,7 +241,7 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 		if !ok {
 			return nil, nil, oops.Errorf("executor res not a map[string]interface{}")
 		}
-		federatedName := fmt.Sprintf("%s-%s", service, typName)
+		federatedName := fmt.Sprintf("%s_%s", service, typName)
 		r, ok := result[federatedName].([]interface{})
 		if !ok {
 			return nil, nil, fmt.Errorf("root did not have a federation map, got %v", res)
