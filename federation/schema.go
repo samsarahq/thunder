@@ -133,14 +133,14 @@ func validateFieldsReturningFederatedObject(serviceNames []string, serviceSchema
 				// Error if it is a shadow object. To check this
 				// (1) Look through all the fields on the object to see if there is a federation field (_federation) and that
 				// the federation field is not on the current service
-				// (2) Look through all the fields on the federation object to see if it has a field for <ObjectType>-<Service>
+				// (2) Look through all the fields on the federation object to see if it has a field for <Service>_<ObjectType>
 				returnObj, ok := types[fieldReturnType.Name].(*graphql.Object)
 				if !ok {
 					return oops.Errorf("Return type %s is not a graphql object", fieldReturnType.Name)
 				}
 				for name, f := range returnObj.Fields {
 					if name == federationField && !fieldInfos[f].Services[service] {
-						federatedFieldName := fmt.Sprintf("%s-%s", service, fieldReturnType)
+						federatedFieldName := fmt.Sprintf("%s_%s", service, fieldReturnType)
 						// If the field name is <fieldType-service> on a federation object,
 						// it is an expected function for a shadow object type
 						if field.Name == federatedFieldName {
@@ -228,9 +228,9 @@ func ConvertVersionedSchemas(schemas serviceSchemas) (*SchemaWithFederationInfo,
 			// on the field object.
 			if typ.Name == "Federation" {
 				for _, field := range typ.Fields {
-					// Extract the type name from the formatting <service>-<object>
+					// Extract the type name from the formatting <service>_<object>
 					// And check that the object type exists
-					names := strings.SplitN(field.Name, "-", 2)
+					names := strings.SplitN(field.Name, "_", 2)
 					if len(names) != 2 {
 						return nil, oops.Errorf("Field %s doesnt have an object name and service name", field.Name)
 					}
