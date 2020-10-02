@@ -121,7 +121,7 @@ type federation struct{}
 
 func FetchObjectFromKeys(f interface{}, options ...ObjectOption) ObjectOption {
 	// Create a method on the "Federation" object to create the shadow object from the federated keys
-	m := &method{Fn: f}
+	m := &method{Fn: f, Expensive: true}
 
 	var FetchObjectFromKeysField objectOptionFunc = func(s *Schema, obj *Object) {
 		q := s.Query()
