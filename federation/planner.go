@@ -165,9 +165,6 @@ func (e *Planner) selectService(
 		}
 		return "", oops.Errorf("Field is not on multiple services")
 	}
-	if len(field.FederatedKey) > 0 {
-		return "", oops.Errorf("It is not allowed to select service for non field func %s for type %s", selection.Name, typeName)
-	}
 	if _, ok := fieldInfo.Services[customService]; !ok {
 		return "", oops.Errorf("no service %s", customService)
 	}
