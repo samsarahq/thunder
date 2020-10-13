@@ -22,6 +22,7 @@ type WorkUnit struct {
 	destinations []*outputNode
 	useBatch     bool
 	objectName   string
+	errorable    bool
 }
 
 type nonExpensive struct{}
@@ -124,6 +125,14 @@ func (e *Executor) Execute(ctx context.Context, typ Type, source interface{}, qu
 	initialSelectionWorkUnits := make([]*WorkUnit, 0, len(topLevelSelections))
 	writers := make(map[string]*outputNode)
 	for _, selection := range topLevelSelections {
+		if len(selection.Directives) > 0 {
+			fmt.Println("YAHH2", selection.Directives[0].Name)
+		}
+		supportsPartialFailures := SupportsPartialFailures(selection.Directives)
+		if supportsPartialFailures {
+			fmt.Println(selection.Name, " SUPPROTS PARTIAL FAILURES")
+		}
+		// fmt.Println(supportsPartialFailures)
 		ok, err := ShouldIncludeNode(selection.Directives)
 		if err != nil {
 			return nil, err
@@ -148,6 +157,7 @@ func (e *Executor) Execute(ctx context.Context, typ Type, source interface{}, qu
 				destinations: []*outputNode{writer},
 				selection:    selection,
 				objectName:   queryObject.Name,
+				errorable:    supportsPartialFailures,
 			},
 		)
 	}
@@ -164,6 +174,7 @@ func (e *Executor) Execute(ctx context.Context, typ Type, source interface{}, qu
 // selections of the unit to determine if it needs to schedule more work (which
 // will be returned as new work units that will need to get scheduled.
 func executeWorkUnit(unit *WorkUnit) []*WorkUnit {
+	fmt.Println("HERE", unit.errorable)
 	if unit.field.Batch && unit.useBatch {
 		return executeBatchWorkUnit(unit)
 	}
@@ -180,8 +191,10 @@ func executeWorkUnit(unit *WorkUnit) []*WorkUnit {
 }
 
 func executeBatchWorkUnit(unit *WorkUnit) []*WorkUnit {
+	fmt.Println("executinggggg")
 	results, err := SafeExecuteBatchResolver(unit.Ctx, unit.field, unit.sources, unit.selection.Args, unit.selection.SelectionSet)
 	if err != nil {
+		fmt.Println("ERROR NOT NIL")
 		for _, dest := range unit.destinations {
 			dest.Fail(err)
 		}
@@ -189,6 +202,7 @@ func executeBatchWorkUnit(unit *WorkUnit) []*WorkUnit {
 	}
 	unitChildren, err := resolveBatch(unit.Ctx, results, unit.field.Type, unit.selection.SelectionSet, unit.destinations)
 	if err != nil {
+		fmt.Println("ERROR NOT NIL2")
 		for _, dest := range unit.destinations {
 			dest.Fail(err)
 		}
@@ -208,8 +222,9 @@ func executeNonExpensiveWorkUnit(unit *WorkUnit) []*WorkUnit {
 			ctx = context.WithValue(unit.Ctx, nonExpensive{}, struct{}{})
 		}
 		fieldResult, err := SafeExecuteResolver(ctx, unit.field, src, unit.selection.Args, unit.selection.SelectionSet)
-		if err != nil {
+		if !unit.errorable && err != nil {
 			// Fail the unit and exit.
+			fmt.Println("ERROR NOT NIL3")
 			unit.destinations[idx].Fail(err)
 			return nil
 		}
@@ -218,6 +233,7 @@ func executeNonExpensiveWorkUnit(unit *WorkUnit) []*WorkUnit {
 	unitChildren, err := resolveBatch(unit.Ctx, results, unit.field.Type, unit.selection.SelectionSet, unit.destinations)
 	if err != nil {
 		for _, dest := range unit.destinations {
+			fmt.Println("ERROR NOT NIL4")
 			dest.Fail(err)
 		}
 		return nil
@@ -468,7 +484,11 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 			}
 			continue
 		}
+		// fmt.Println(selection.Directives)
 
+		if len(selection.Directives) > 0 {
+			fmt.Println("YAHH", selection.Directives[0].Name)
+		}
 		if ok, err := ShouldIncludeNode(selection.Directives); err != nil {
 			return nil, nestPathError(selection.Alias, err)
 		} else if !ok {

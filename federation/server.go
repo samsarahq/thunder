@@ -131,11 +131,22 @@ func marshalPbSelections(selectionSet *graphql.SelectionSet) (*thunderpb.Selecti
 			}
 		}
 
+		fmt.Println("SLECTCIOn", selection.Directives)
+
+		directives := make([]*thunderpb.Directives, len(selection.Directives))
+		for i, directive := range selection.Directives {
+			directives[i] = &thunderpb.Directives{
+				Name: directive.Name,
+			}
+		}
+		fmt.Println("SLECTCIOn dirteives", directives)
+
 		selections = append(selections, &thunderpb.Selection{
 			Name:         selection.Name,
 			Alias:        selection.Alias,
 			SelectionSet: children,
 			Arguments:    args,
+			Directives:   directives,
 		})
 	}
 
@@ -177,11 +188,21 @@ func unmarshalPbSelectionSet(selectionSet *thunderpb.SelectionSet) (*graphql.Sel
 			}
 		}
 
+		fmt.Println("PARSED", selection.Directives)
+		// Directives   []*Directive
+		directives := make([]*graphql.Directive, len(selection.Directives))
+		for i, directive := range selection.Directives {
+			directives[i] = &graphql.Directive{
+				Name: directive.Name,
+			}
+		}
+
 		selections = append(selections, &graphql.Selection{
 			Name:         selection.Name,
 			Alias:        selection.Alias,
 			SelectionSet: children,
 			UnparsedArgs: args,
+			Directives:   directives,
 		})
 	}
 

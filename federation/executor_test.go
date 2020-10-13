@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/samsarahq/go/oops"
+
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 
@@ -73,9 +75,10 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 	s1.Query().FieldFunc("usersWithArgs", func(args struct {
 		Name string
 	}) ([]*User, error) {
-		users := make([]*User, 0, 1)
-		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: args.Name})
-		return users, nil
+		// users := make([]*User, 0, 1)
+		// users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: args.Name})
+		// return users, nil
+		return nil, oops.Errorf("ERROR")
 	})
 
 	type Admin struct {

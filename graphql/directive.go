@@ -5,10 +5,16 @@ import (
 )
 
 const (
-	SKIP    = "skip"
-	INCLUDE = "include"
-	IF      = "if"
+	SKIP      = "skip"
+	INCLUDE   = "include"
+	IF        = "if"
+	ERRORABLE = "errorable"
 )
+
+func SupportsPartialFailures(directives []*Directive) bool {
+	skipDirective := findDirectiveWithName(directives, ERRORABLE)
+	return skipDirective != nil
+}
 
 // ShouldIncludeNode validates and checks the value of a skip or include directive
 func ShouldIncludeNode(directives []*Directive) (bool, error) {

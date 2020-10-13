@@ -116,6 +116,7 @@ func (f *flattener) flattenFragments(selectionSet *graphql.SelectionSet, typ *gr
 
 	// Descend into fragments matching the current type.
 	for _, fragment := range selectionSet.Fragments {
+		fmt.Println(fragment.Directives[0].Name)
 		ok, err := graphql.ShouldIncludeNode(fragment.Directives)
 		if err != nil {
 			return oops.Wrapf(err, "applying directive for fragment on %s", fragment.On)

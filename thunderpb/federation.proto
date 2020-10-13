@@ -10,6 +10,12 @@ message Selection {
   string alias = 2;
   SelectionSet selection_set = 3;
   bytes arguments = 4;
+  repeated Directives directives = 5;
+}
+
+message Directives {
+  string name = 1;
+  bytes arguments = 2;
 }
 
 message Fragment {
