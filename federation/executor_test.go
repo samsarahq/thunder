@@ -1274,64 +1274,23 @@ func TestExecutorQueriesWithDirectivesWithVariables(t *testing.T) {
 		ExpectedError string
 	}{
 		{
-			Name: "directive with skip variable true",
+			Name: "directive top level selection true",
 			Query: `
 				query Foo {
-					...Bar @skip(if: $something)
-				}
-				fragment Bar on Query {
-					users {
+					usersWithArgs(name: "foo") @errorable {
 						name
-					}
-				}`,
-			Output: `
-			{}`,
-			Variables: map[string]interface{}{"something": true},
-			Error:     false,
-		},
-		{
-			Name: "directive with both variables false",
-			Query: `
-				query Foo {
-					...Bar @skip(if: $something)
-				}
-				fragment Bar on Query {
-					users {
-						name
-						id @include(if: $somethingElse)
 					}
 				}`,
 			Output: `
 			{
-				"users":[
+				"usersWithArgs":[
 					{
 						"__key":1,
-						"name":"testUser"
-					},
-					{
-						"__key":2,
-						"name":"testUser2"
+						"name":"foo"
 					}
 				]
 			}`,
-			Variables: map[string]interface{}{"something": false, "somethingElse": false},
-			Error:     false,
-		},
-		{
-			Name: "directive with both variables false",
-			Query: `
-				query Foo {
-					...Bar @skip(if: $something)
-				}
-				fragment Bar on Query {
-					users {
-						name
-					}
-				}`,
-			Output:        "",
-			Variables:     map[string]interface{}{"something": "wrong type"},
-			Error:         true,
-			ExpectedError: "expected type boolean, found type string in \"if\" argument",
+			Error: false,
 		},
 	}
 	for _, testCase := range testCases {
