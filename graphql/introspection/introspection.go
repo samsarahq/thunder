@@ -435,7 +435,7 @@ func RunIntrospectionQuery(schema *graphql.Schema) ([]byte, error) {
 	}
 
 	executor := graphql.NewExecutor(graphql.NewImmediateGoroutineScheduler())
-	value, err := executor.Execute(context.Background(), schema.Query, nil, query)
+	value, _, err := executor.Execute(context.Background(), schema.Query, nil, query)
 	if err != nil {
 		return nil, err
 	}

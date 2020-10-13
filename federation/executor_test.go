@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/samsarahq/go/oops"
-
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 
@@ -1300,7 +1299,8 @@ func TestExecutorQueriesWithDirectivesWithVariables(t *testing.T) {
 		t.Run(testCase.Name, func(t *testing.T) {
 			ctx := context.Background()
 			if !testCase.Error {
-				res, _, err := e.Execute(ctx, graphql.MustParse(testCase.Query, testCase.Variables), nil)
+				res, metadata, err := e.Execute(ctx, graphql.MustParse(testCase.Query, testCase.Variables), nil)
+				fmt.Println("METADATA", metadata)
 				require.NoError(t, err)
 				var expected interface{}
 				err = json.Unmarshal([]byte(testCase.Output), &expected)

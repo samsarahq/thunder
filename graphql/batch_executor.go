@@ -15,14 +15,15 @@ import (
 // OutputNode that is used to record the result of running a section of the
 // graphql query.
 type WorkUnit struct {
-	Ctx          context.Context
-	field        *Field
-	selection    *Selection
-	sources      []interface{}
-	destinations []*outputNode
-	useBatch     bool
-	objectName   string
-	errorable    bool
+	Ctx           context.Context
+	field         *Field
+	selection     *Selection
+	sources       []interface{}
+	destinations  []*outputNode
+	useBatch      bool
+	objectName    string
+	errorable     bool
+	partialErrors string
 }
 
 type nonExpensive struct{}
@@ -85,14 +86,14 @@ func splitToNWorkUnits(unit *WorkUnit, numUnits int) []*WorkUnit {
 
 // UnitResolver is a function that executes a function and returns a set of
 // new work units that need to be run.
-type UnitResolver func(*WorkUnit) []*WorkUnit
+type UnitResolver func(*WorkUnit) ([]*WorkUnit, string)
 
 // WorkScheduler is an interface that can be provided to the BatchExecutor
 // to control how we traverse the Execution graph.  Examples would include using
 // a bounded goroutine pool, or using unbounded goroutine generation for each
 // work unit.
 type WorkScheduler interface {
-	Run(resolver UnitResolver, startingUnits ...*WorkUnit)
+	Run(resolver UnitResolver, startingUnits ...*WorkUnit) string
 }
 
 func NewExecutor(scheduler WorkScheduler) ExecutorRunner {
@@ -111,15 +112,15 @@ type Executor struct {
 // or executing fields.  Any work that needs to be done is passed off to the
 // scheduler to handle managing concurrency of the request.
 // It must return a JSON marshallable response (or an error).
-func (e *Executor) Execute(ctx context.Context, typ Type, source interface{}, query *Query) (interface{}, error) {
+func (e *Executor) Execute(ctx context.Context, typ Type, source interface{}, query *Query) (interface{}, string, error) {
 	queryObject, ok := typ.(*Object)
 	if !ok {
-		return nil, fmt.Errorf("expected query or mutation object for execution, got: %s", typ.String())
+		return nil, "", fmt.Errorf("expected query or mutation object for execution, got: %s", typ.String())
 	}
 
 	topLevelSelections, err := Flatten(query.SelectionSet)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	topLevelRespWriter := newTopLevelOutputNode(query.Name)
 	initialSelectionWorkUnits := make([]*WorkUnit, 0, len(topLevelSelections))
@@ -135,14 +136,14 @@ func (e *Executor) Execute(ctx context.Context, typ Type, source interface{}, qu
 		// fmt.Println(supportsPartialFailures)
 		ok, err := ShouldIncludeNode(selection.Directives)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		if !ok {
 			continue
 		}
 		field, ok := queryObject.Fields[selection.Name]
 		if !ok {
-			return nil, fmt.Errorf("invalid top-level selection %q", selection.Name)
+			return nil, "", fmt.Errorf("invalid top-level selection %q", selection.Name)
 		}
 
 		writer := newOutputNode(topLevelRespWriter, selection.Alias)
@@ -162,32 +163,36 @@ func (e *Executor) Execute(ctx context.Context, typ Type, source interface{}, qu
 		)
 	}
 
-	e.scheduler.Run(executeWorkUnit, initialSelectionWorkUnits...)
-
+	errors := e.scheduler.Run(executeWorkUnit, initialSelectionWorkUnits...)
+	fmt.Println("MY ERRORS", errors)
 	if topLevelRespWriter.errRecorder.err != nil {
-		return nil, topLevelRespWriter.errRecorder.err
+		return nil, "", topLevelRespWriter.errRecorder.err
 	}
-	return outputNodeToJSON(writers), nil
+	fmt.Println("VYIBNLKM", writers)
+	return outputNodeToJSON(writers), errors, nil
 }
 
 // executeWorkUnit executes/resolves a work unit and checks the
 // selections of the unit to determine if it needs to schedule more work (which
 // will be returned as new work units that will need to get scheduled.
-func executeWorkUnit(unit *WorkUnit) []*WorkUnit {
+func executeWorkUnit(unit *WorkUnit) ([]*WorkUnit, string) {
 	fmt.Println("HERE", unit.errorable)
 	if unit.field.Batch && unit.useBatch {
-		return executeBatchWorkUnit(unit)
+		return executeBatchWorkUnit(unit), ""
 	}
 
 	if !unit.field.Expensive {
-		return executeNonExpensiveWorkUnit(unit)
+		result, errors := executeNonExpensiveWorkUnit(unit)
+		fmt.Println("ERRORRRSS2", errors)
+		return result, errors
+		// return executeNonExpensiveWorkUnit(unit)
 	}
 
 	var units []*WorkUnit
 	for idx, src := range unit.sources {
 		units = append(units, executeNonBatchWorkUnitWithCaching(src, unit.destinations[idx], unit)...)
 	}
-	return units
+	return units, ""
 }
 
 func executeBatchWorkUnit(unit *WorkUnit) []*WorkUnit {
@@ -211,7 +216,7 @@ func executeBatchWorkUnit(unit *WorkUnit) []*WorkUnit {
 	return unitChildren
 }
 
-func executeNonExpensiveWorkUnit(unit *WorkUnit) []*WorkUnit {
+func executeNonExpensiveWorkUnit(unit *WorkUnit) ([]*WorkUnit, string) {
 	results := make([]interface{}, 0, len(unit.sources))
 	for idx, src := range unit.sources {
 		ctx := unit.Ctx
@@ -224,10 +229,15 @@ func executeNonExpensiveWorkUnit(unit *WorkUnit) []*WorkUnit {
 		fieldResult, err := SafeExecuteResolver(ctx, unit.field, src, unit.selection.Args, unit.selection.SelectionSet)
 		if !unit.errorable && err != nil {
 			// Fail the unit and exit.
-			fmt.Println("ERROR NOT NIL3")
+			// fmt.Println("ERROR NOT NIL3")
 			unit.destinations[idx].Fail(err)
-			return nil
+			return nil, ""
 		}
+		if unit.errorable {
+			// fmt.Println("ERROBLE", err)
+			return []*WorkUnit{}, err.Error()
+		}
+		// fmt.Println("fieldResult", fieldResult)
 		results = append(results, fieldResult)
 	}
 	unitChildren, err := resolveBatch(unit.Ctx, results, unit.field.Type, unit.selection.SelectionSet, unit.destinations)
@@ -236,9 +246,9 @@ func executeNonExpensiveWorkUnit(unit *WorkUnit) []*WorkUnit {
 			fmt.Println("ERROR NOT NIL4")
 			dest.Fail(err)
 		}
-		return nil
+		return nil, ""
 	}
-	return unitChildren
+	return unitChildren, ""
 }
 
 // executeNonBatchWorkUnitWithCaching wraps a resolve request in a reactive cache
@@ -538,9 +548,11 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 		default:
 			// If the fields are not expensive or external the work time should be
 			// bounded, so we can resolve them immediately.
+			result, errors := executeWorkUnit(unit)
+			fmt.Println("YOO", errors)
 			workUnits = append(
 				workUnits,
-				executeWorkUnit(unit)...,
+				result...,
 			)
 		}
 	}
@@ -552,16 +564,18 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 			destForSelection = append(destForSelection, filler)
 			destMap["__key"] = filler
 		}
+		result, errors := executeWorkUnit(&WorkUnit{
+			Ctx:          ctx,
+			field:        typ.KeyField,
+			sources:      nonNilSources,
+			destinations: destForSelection,
+			selection:    &Selection{},
+			objectName:   typ.Name,
+		})
+		fmt.Println("YOO", errors)
 		workUnits = append(
 			workUnits,
-			executeWorkUnit(&WorkUnit{
-				Ctx:          ctx,
-				field:        typ.KeyField,
-				sources:      nonNilSources,
-				destinations: destForSelection,
-				selection:    &Selection{},
-				objectName:   typ.Name,
-			})...,
+			result...,
 		)
 	}
 

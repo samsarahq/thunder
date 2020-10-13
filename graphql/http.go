@@ -103,7 +103,10 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		middlewares = append(middlewares, h.middlewares...)
 		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
 			output := next(input)
-			output.Current, output.Error = e.Execute(input.Ctx, schema, nil, input.ParsedQuery)
+			// output.Current, _, output.Error = e.Execute(input.Ctx, schema, nil, input.ParsedQuery)
+			executeErrors := ""
+			output.Current, executeErrors, output.Error = e.Execute(input.Ctx, schema, nil, input.ParsedQuery)
+			output.Metadata["errors"] = executeErrors
 			return output
 		})
 

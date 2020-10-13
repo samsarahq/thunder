@@ -31,7 +31,10 @@ func (c *DirectExecutorClient) Execute(ctx context.Context, request *QueryReques
 	if err != nil {
 		return nil, oops.Wrapf(err, "executing query")
 	}
-	return &QueryResponse{Result: resp.Result}, nil
+
+	respMetadata := make(map[string]interface{})
+	respMetadata["errors"] = resp.Errors
+	return &QueryResponse{Result: resp.Result, Metadata: respMetadata}, nil
 }
 
 // Server must implement thunderpb.ExecutorServer.
@@ -84,7 +87,8 @@ func ExecuteRequest(ctx context.Context, req *thunderpb.ExecuteRequest, gqlSchem
 			close(done)
 		}()
 
-		res, err := localExecutor.Execute(ctx, schema, nil, query)
+		res, metadata, err := localExecutor.Execute(ctx, schema, nil, query)
+		fmt.Println("METADATAAAA", metadata)
 		if err != nil {
 			return nil, fmt.Errorf("executing query: %v", err)
 		}
@@ -96,6 +100,7 @@ func ExecuteRequest(ctx context.Context, req *thunderpb.ExecuteRequest, gqlSchem
 
 		return &thunderpb.ExecuteResponse{
 			Result: bytes,
+			Errors: metadata,
 		}, nil
 	}, time.Hour, false)
 
@@ -131,7 +136,7 @@ func marshalPbSelections(selectionSet *graphql.SelectionSet) (*thunderpb.Selecti
 			}
 		}
 
-		fmt.Println("SLECTCIOn", selection.Directives)
+		// fmt.Println("SLECTCIOn", selection.Directives)
 
 		directives := make([]*thunderpb.Directives, len(selection.Directives))
 		for i, directive := range selection.Directives {
@@ -139,7 +144,7 @@ func marshalPbSelections(selectionSet *graphql.SelectionSet) (*thunderpb.Selecti
 				Name: directive.Name,
 			}
 		}
-		fmt.Println("SLECTCIOn dirteives", directives)
+		// fmt.Println("SLECTCIOn dirteives", directives)
 
 		selections = append(selections, &thunderpb.Selection{
 			Name:         selection.Name,
@@ -188,7 +193,7 @@ func unmarshalPbSelectionSet(selectionSet *thunderpb.SelectionSet) (*graphql.Sel
 			}
 		}
 
-		fmt.Println("PARSED", selection.Directives)
+		// fmt.Println("PARSED", selection.Directives)
 		// Directives   []*Directive
 		directives := make([]*graphql.Directive, len(selection.Directives))
 		for i, directive := range selection.Directives {

@@ -38,7 +38,10 @@ message ExecuteRequest {
   Query query = 1;
 }
 
-message ExecuteResponse { bytes result = 1; }
+message ExecuteResponse { 
+  bytes result = 1; 
+  string errors = 2;
+}
 
 service Executor {
   rpc Execute(ExecuteRequest) returns (ExecuteResponse) {}
