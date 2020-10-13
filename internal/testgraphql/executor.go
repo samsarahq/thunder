@@ -48,7 +48,7 @@ func (e *ExecutorWrapper) Execute(ctx context.Context, typ graphql.Type, source 
 	var lastErr error
 	runOnce := false
 	for _, executorAndName := range GetExecutors() {
-		output, err := executorAndName.Executor.Execute(ctx, typ, source, query)
+		output, metadata, err := executorAndName.Executor.Execute(ctx, typ, source, query)
 		if !runOnce {
 			lastOutput = output
 			lastErr = err
