@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/northvolt/thunder/batch"
+	"github.com/northvolt/thunder/diff"
+	"github.com/northvolt/thunder/reactive"
 	"github.com/samsarahq/go/oops"
-	"github.com/samsarahq/thunder/batch"
-	"github.com/samsarahq/thunder/diff"
-	"github.com/samsarahq/thunder/reactive"
 )
 
 const (

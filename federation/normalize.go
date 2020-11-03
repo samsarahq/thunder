@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"sort"
 
+	"github.com/northvolt/thunder/graphql"
 	"github.com/samsarahq/go/oops"
-	"github.com/samsarahq/thunder/graphql"
 )
 
 // CollectTypes finds all types reachable from typ and stores them in types as a

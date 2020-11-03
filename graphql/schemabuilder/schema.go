@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/samsarahq/thunder/graphql"
+	"github.com/northvolt/thunder/graphql"
 )
 
 const federationField = "_federation"

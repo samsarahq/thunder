@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/northvolt/thunder/graphql"
+	"github.com/northvolt/thunder/graphql/introspection"
+	"github.com/northvolt/thunder/graphql/schemabuilder"
+	"github.com/northvolt/thunder/thunderpb"
 	"github.com/samsarahq/go/oops"
-	"github.com/samsarahq/thunder/graphql"
-	"github.com/samsarahq/thunder/graphql/introspection"
-	"github.com/samsarahq/thunder/graphql/schemabuilder"
-	"github.com/samsarahq/thunder/thunderpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

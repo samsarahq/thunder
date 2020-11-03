@@ -27,7 +27,7 @@
 - Always invalidate entire reactive cache when query fails.
 
 #### `sqlgen`
-- Implemented a basic `(*sqlgen.DB).Count` receiver that wraps `SELECT COUNT(*)` functionality in SQL databases. ([#230](https://github.com/samsarahq/thunder/pull/230))
+- Implemented a basic `(*sqlgen.DB).Count` receiver that wraps `SELECT COUNT(*)` functionality in SQL databases. ([#230](https://github.com/northvolt/thunder/pull/230))
 
 
 ## [0.5.0] 2019-01-10
@@ -36,31 +36,31 @@
 
 #### `graphql`
 
-- Added support for marking input parameters as `graphql:",optional"` for graphql functions. These fields will be guaranteed to not error if they are not provided by callers. ([#215](https://github.com/samsarahq/thunder/pull/215))
-- Added automatic support for encoding.TextMarshaler/Unmarshaler types to be exposed as string fields. ([#214](https://github.com/samsarahq/thunder/pull/214))
-- Object key must now be scalar. ([#190](https://github.com/samsarahq/thunder/pull/190))
-- `ErrorCause` is a new exported function that can be used to unwrap pathErrors returned from middlleware. ([#191](https://github.com/samsarahq/thunder/pull/191))
-- `FieldFunc` now supports Pagination option, `PaginateFieldFunc` is deprecated. ([#197](https://github.com/samsarahq/thunder/pull/197))
-- Filtering and sorting are now supported in `FieldFunc` ([#202](https://github.com/samsarahq/thunder/pull/202), [docs](./doc/pagination.md))
-- Filtering is case-insensitive ([#209](https://github.com/samsarahq/thunder/pull/209))
+- Added support for marking input parameters as `graphql:",optional"` for graphql functions. These fields will be guaranteed to not error if they are not provided by callers. ([#215](https://github.com/northvolt/thunder/pull/215))
+- Added automatic support for encoding.TextMarshaler/Unmarshaler types to be exposed as string fields. ([#214](https://github.com/northvolt/thunder/pull/214))
+- Object key must now be scalar. ([#190](https://github.com/northvolt/thunder/pull/190))
+- `ErrorCause` is a new exported function that can be used to unwrap pathErrors returned from middlleware. ([#191](https://github.com/northvolt/thunder/pull/191))
+- `FieldFunc` now supports Pagination option, `PaginateFieldFunc` is deprecated. ([#197](https://github.com/northvolt/thunder/pull/197))
+- Filtering and sorting are now supported in `FieldFunc` ([#202](https://github.com/northvolt/thunder/pull/202), [docs](./doc/pagination.md))
+- Filtering is case-insensitive ([#209](https://github.com/northvolt/thunder/pull/209))
 
 #### `livesql`
 
-- Support filter types that serialize into `[]byte`. ([#172](https://github.com/samsarahq/thunder/pull/172))
+- Support filter types that serialize into `[]byte`. ([#172](https://github.com/northvolt/thunder/pull/172))
 - Serializes `sqlgen.Tester` into protobuf message.
 
 #### `reactive`
 
-- `reactive.AddDependency` accepts a serializable object to be added to dependency set tracker. ([#165](https://github.com/samsarahq/thunder/pull/165))
+- `reactive.AddDependency` accepts a serializable object to be added to dependency set tracker. ([#165](https://github.com/northvolt/thunder/pull/165))
 
 #### `sqlgen`
 
-- `sqlgen.Tester` now compares `driver.Value`s. ([#170](https://github.com/samsarahq/thunder/pull/170))
-- Support converting the zero value of fields to NULL in the db with tag `sql:",implicitnull"`. ([#181](https://github.com/samsarahq/thunder/pull/181))
-- Support non-pointer protobuf structs. ([#185](https://github.com/samsarahq/thunder/pull/185))
-- `BuildStruct` is added back and defined on `sqlgen.Schema`. ([#195](https://github.com/samsarahq/thunder/pull/195))
+- `sqlgen.Tester` now compares `driver.Value`s. ([#170](https://github.com/northvolt/thunder/pull/170))
+- Support converting the zero value of fields to NULL in the db with tag `sql:",implicitnull"`. ([#181](https://github.com/northvolt/thunder/pull/181))
+- Support non-pointer protobuf structs. ([#185](https://github.com/northvolt/thunder/pull/185))
+- `BuildStruct` is added back and defined on `sqlgen.Schema`. ([#195](https://github.com/northvolt/thunder/pull/195))
 - `UnbuildStruct` is now defined `sqlgen.Schema`. It's not a package level
-  function anymore. ([#195](https://github.com/samsarahq/thunder/pull/195))
+  function anymore. ([#195](https://github.com/northvolt/thunder/pull/195))
 
 #### `schemabuilder`
 
@@ -75,7 +75,7 @@
 
 ### Changed
 
-- Memory optimizations (see [#166](https://github.com/samsarahq/thunder/pull/166))
+- Memory optimizations (see [#166](https://github.com/northvolt/thunder/pull/166))
 
 ### Removed
 

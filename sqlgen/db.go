@@ -9,8 +9,8 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/northvolt/thunder/batch"
 	"github.com/samsarahq/go/oops"
-	"github.com/samsarahq/thunder/batch"
 )
 
 // DB uses a *sql.DB connection that is established by its owner. DB assumes the

@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/northvolt/thunder/graphql/introspection"
 	"github.com/samsarahq/go/oops"
-	"github.com/samsarahq/thunder/graphql/introspection"
 )
 
 // SchemaSyncer has a function that checks if the schema has changed,

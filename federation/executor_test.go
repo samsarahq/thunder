@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/samsarahq/thunder/graphql"
-	"github.com/samsarahq/thunder/graphql/schemabuilder"
+	"github.com/northvolt/thunder/graphql"
+	"github.com/northvolt/thunder/graphql/schemabuilder"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

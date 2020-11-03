@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"strconv"
 
-	"github.com/samsarahq/thunder/reactive"
+	"github.com/northvolt/thunder/reactive"
 )
 
 // WorkUnit is a set of execution work that will be done when running

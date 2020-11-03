@@ -6,11 +6,11 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/samsarahq/thunder/batch"
-	"github.com/samsarahq/thunder/internal/testfixtures"
-	"github.com/samsarahq/thunder/livesql"
-	"github.com/samsarahq/thunder/reactive"
-	"github.com/samsarahq/thunder/sqlgen"
+	"github.com/northvolt/thunder/batch"
+	"github.com/northvolt/thunder/internal/testfixtures"
+	"github.com/northvolt/thunder/livesql"
+	"github.com/northvolt/thunder/reactive"
+	"github.com/northvolt/thunder/sqlgen"
 	"github.com/stretchr/testify/assert"
 )
 

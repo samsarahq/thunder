@@ -13,9 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/samsarahq/thunder/internal/fields"
-	"github.com/samsarahq/thunder/logger"
-	"github.com/samsarahq/thunder/sqlgen"
+	"github.com/northvolt/thunder/internal/fields"
+	"github.com/northvolt/thunder/logger"
+	"github.com/northvolt/thunder/sqlgen"
 	"github.com/siddontang/go-mysql/mysql"
 	"github.com/siddontang/go-mysql/replication"
 )
@@ -113,12 +113,12 @@ func NewBinlogWithSource(ldb *LiveDB, sourceDB *sql.DB, host string, port uint16
 	}
 
 	syncer := replication.NewBinlogSyncer(&replication.BinlogSyncerConfig{
-		ServerID: binary.LittleEndian.Uint32(slaveId),
-		Host:     host,
+		ServerID:  binary.LittleEndian.Uint32(slaveId),
+		Host:      host,
 		Localhost: localHostName,
-		Port:     port,
-		User:     username,
-		Password: password,
+		Port:      port,
+		User:      username,
+		Password:  password,
 	})
 
 	streamer, err := syncer.StartSync(position)

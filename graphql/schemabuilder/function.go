@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/northvolt/thunder/graphql"
 	"github.com/samsarahq/go/oops"
-	"github.com/samsarahq/thunder/graphql"
 )
 
 // buildFunction takes the reflect type of an object and a method attached to

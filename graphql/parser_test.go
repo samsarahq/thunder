@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	. "github.com/samsarahq/thunder/graphql"
+	. "github.com/northvolt/thunder/graphql"
 )
 
 func TestParseSupported(t *testing.T) {

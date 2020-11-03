@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 package thunderpb;
-option go_package = "github.com/samsarahq/thunder/thunderpb";
+option go_package = "github.com/northvolt/thunder/thunderpb";
 
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "google/protobuf/timestamp.proto";

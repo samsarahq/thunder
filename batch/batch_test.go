@@ -8,9 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/samsarahq/thunder/batch"
+	"github.com/northvolt/thunder/batch"
 	"github.com/stretchr/testify/assert"
-
 )
 
 // TestBasic tests that batch.Func with default options batches calls.

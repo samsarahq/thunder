@@ -9,7 +9,7 @@ import (
 
 	"github.com/rakyll/statik/fs"
 
-	_ "github.com/samsarahq/thunder/graphql/graphiql/statik"
+	_ "github.com/northvolt/thunder/graphql/graphiql/statik"
 )
 
 func Handler() http.Handler {
