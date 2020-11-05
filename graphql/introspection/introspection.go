@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"sort"
 
 	"github.com/northvolt/thunder/graphql"
@@ -177,9 +178,33 @@ func (s *introspection) registerType(schema *schemabuilder.Schema) {
 		}
 	})
 
-	object.FieldFunc("interfaces", func() []Type { return nil })
-	object.FieldFunc("possibleTypes", func(t Type) []Type {
+	object.FieldFunc("interfaces", func(t Type) []Type {
 		switch t := t.Inner.(type) {
+		case *graphql.Object:
+			if t.IsInterface {
+				return nil
+			}
+			var out []Type
+			for _, v := range t.Interfaces {
+				out = append(out, Type{Inner: v})
+			}
+			return out
+		}
+		return nil
+	})
+	object.FieldFunc("possibleTypes", func(t Type) []Type {
+		log.Printf("POSSIBLE TYPES FOR: %s", t.Inner.String())
+		switch t := t.Inner.(type) {
+		case *graphql.Object:
+			if !t.IsInterface {
+				return nil
+			}
+			var out []Type
+			for _, v := range t.PossibleTypes {
+				out = append(out, Type{Inner: v})
+			}
+			return out
+
 		case *graphql.Union:
 			types := make([]Type, 0, len(t.Types))
 			for _, typ := range t.Types {

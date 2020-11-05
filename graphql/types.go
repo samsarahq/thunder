@@ -47,11 +47,13 @@ func (e *Enum) enumValues() []string {
 
 // Object is a value with several fields
 type Object struct {
-	Name        string
-	Description string
-	KeyField    *Field
-	Fields      map[string]*Field
-	IsInterface bool
+	Name          string
+	Description   string
+	KeyField      *Field
+	Fields        map[string]*Field
+	IsInterface   bool
+	Interfaces    map[string]*Object
+	PossibleTypes map[string]*Object
 }
 
 func (o *Object) isType() {}

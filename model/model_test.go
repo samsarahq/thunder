@@ -19,6 +19,4 @@ func Test(t *testing.T) {
 	}
 
 	log.Println(string(data))
-
-	// log.Fatal(string(data))
 }

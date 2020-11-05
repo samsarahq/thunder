@@ -2,6 +2,7 @@ package schemabuilder
 
 import (
 	"fmt"
+	"log"
 	"reflect"
 	"strings"
 
@@ -205,6 +206,8 @@ func (s *Schema) Object(name string, typ interface{}, options ...ObjectOption) *
 		opt.apply(s, object)
 	}
 
+	s.updateLinks()
+
 	return object
 }
 
@@ -305,4 +308,49 @@ func (s *Schema) MustBuild() *graphql.Schema {
 		panic(err)
 	}
 	return built
+}
+
+func (s *Schema) updateLinks() {
+	for _, obj := range s.objects {
+		obj.Interfaces = s.findInterfaces(obj.Type)
+		if len(obj.Interfaces) > 0 {
+			log.Printf("has ifaces %s: %v", obj.Name, obj.Interfaces)
+		}
+	}
+	for _, iface := range s.ifaces {
+		iface.PossibleTypes = s.findPossibleTypes(iface.Type)
+		if len(iface.PossibleTypes) > 0 {
+			log.Printf("has poss types %s: %v", iface.Name, iface.PossibleTypes)
+		}
+	}
+}
+
+func (s *Schema) findPossibleTypes(v interface{}) []reflect.Type {
+	iface := reflect.TypeOf(v).Elem()
+	var out []reflect.Type
+	for _, obj := range s.objects {
+		if obj.IsInterface {
+			continue
+		}
+		t := reflect.TypeOf(obj.Type)
+		if reflect.PtrTo(t).Implements(iface) {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+func (s *Schema) findInterfaces(v interface{}) []reflect.Type {
+	impl := reflect.PtrTo(reflect.TypeOf(v))
+	var out []reflect.Type
+	for _, obj := range s.ifaces {
+		if !obj.IsInterface {
+			continue
+		}
+		t := reflect.TypeOf(obj.Type).Elem()
+		if impl.Implements(t) {
+			out = append(out, t)
+		}
+	}
+	return out
 }

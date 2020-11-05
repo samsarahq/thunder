@@ -51,9 +51,20 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 		Name:        name,
 		Description: description,
 		Fields:      make(map[string]*graphql.Field),
+		Interfaces:  make(map[string]*graphql.Object),
 	}
 	sb.types[typ] = object
 	sb.typeNames[name] = typ
+
+	// has to be after types are set, or infinite loop.
+	if o, ok := sb.objects[typ]; ok {
+		objectKey = o.key
+		for _, iface := range o.Interfaces {
+			sb.buildIface(iface)
+			iface := sb.types[iface].(*graphql.Object)
+			object.Interfaces[iface.Name] = iface
+		}
+	}
 
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)

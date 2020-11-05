@@ -18,14 +18,24 @@ func (sb *schemaBuilder) buildIface(typ reflect.Type) error {
 	var description string
 	// var methods Methods
 	// var objectKey string
-	if object, ok := sb.objects[typ]; ok {
+	possibleTypes := make(map[string]*graphql.Object)
+	if object, ok := sb.ifaces[typ]; ok {
 		name = object.Name
 		description = object.Description
 		// methods = object.Methods
 		// objectKey = object.key
+		log.Printf("GOT POS TYPES %s: %v", object.Name, len(object.PossibleTypes))
+		for _, obj := range object.PossibleTypes {
+			log.Printf("Adding possible type: %s on %s", obj, object.Name)
+			sb.buildStruct(obj)
+			obj := sb.types[obj].(*graphql.Object)
+			possibleTypes[obj.Name] = obj
+		}
+		log.Printf("SETTING POS TYPES %s: %v", object.Name, len(possibleTypes))
 	}
 
 	if name == "" {
+		log.Printf("%#v", typ)
 		name = typ.Name()
 		if name == "" {
 			return fmt.Errorf("bad type %s: should have a name", typ)
@@ -36,10 +46,11 @@ func (sb *schemaBuilder) buildIface(typ reflect.Type) error {
 	}
 
 	object := &graphql.Object{
-		Name:        name,
-		Description: description,
-		Fields:      make(map[string]*graphql.Field),
-		IsInterface: true,
+		Name:          name,
+		Description:   description,
+		Fields:        make(map[string]*graphql.Field),
+		IsInterface:   true,
+		PossibleTypes: possibleTypes,
 	}
 	sb.types[typ] = object
 	sb.typeNames[name] = typ
@@ -62,7 +73,6 @@ func (sb *schemaBuilder) buildIface(typ reflect.Type) error {
 // buildField generates a graphQL field for a struct's field.  This field can be
 // used to "resolve" a response for a graphql request.
 func (sb *schemaBuilder) buildIfaceField(method reflect.Method) (*graphql.Field, error) {
-	log.Printf("BUILD IFACE FIELD: %s", method.Name)
 	if method.Type.NumOut() == 0 {
 		return nil, nil
 	}
@@ -73,9 +83,6 @@ func (sb *schemaBuilder) buildIfaceField(method reflect.Method) (*graphql.Field,
 
 	return &graphql.Field{
 		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
-			log.Printf("source: %T", source)
-			log.Printf("method: %s", method.Name)
-
 			t := reflect.TypeOf(source)
 
 			midx := -1

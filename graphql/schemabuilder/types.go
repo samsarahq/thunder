@@ -14,7 +14,10 @@ type Object struct {
 	Methods     Methods // Deprecated, use FieldFunc instead.
 	key         string
 	ServiceName string
-	IsInterface bool
+
+	IsInterface   bool
+	Interfaces    []reflect.Type
+	PossibleTypes []reflect.Type
 }
 
 type paginationObject struct {
