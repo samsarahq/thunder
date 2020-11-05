@@ -1,8 +1,0 @@
-[mysqld]
-
-# Enable MySQL binlog with complete data for every row.
-server-id        = 1
-log_bin
-expire_logs_days = 1
-max_binlog_size  = 100M
-binlog-format    = row
