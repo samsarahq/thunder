@@ -10,6 +10,10 @@ import (
 )
 
 func (sb *schemaBuilder) buildIface(typ reflect.Type) error {
+	if sb.types[typ] != nil {
+		return nil
+	}
+
 	var name string
 	var description string
 	// var methods Methods
@@ -69,11 +73,30 @@ func (sb *schemaBuilder) buildIfaceField(method reflect.Method) (*graphql.Field,
 
 	return &graphql.Field{
 		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
-			value := reflect.ValueOf(source)
-			if value.Kind() == reflect.Ptr {
-				value = value.Elem()
+			log.Printf("source: %T", source)
+			log.Printf("method: %s", method.Name)
+
+			t := reflect.TypeOf(source)
+
+			midx := -1
+			for i := 0; i < t.NumMethod(); i++ {
+				mm := t.Method(i)
+				if mm.Name == method.Name {
+					midx = i
+					break
+				}
 			}
-			return value.Method(method.Index).Call(nil), nil
+
+			if midx < 0 {
+				return nil, fmt.Errorf("unable to execute")
+			}
+
+			value := reflect.ValueOf(source)
+			res := value.Method(midx).Call(nil)
+			for _, v := range res {
+				return v.Interface(), nil
+			}
+			return nil, fmt.Errorf("no result")
 		},
 		Type:           retType,
 		ParseArguments: nilParseArguments,
