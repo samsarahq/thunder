@@ -17,6 +17,7 @@ const federationName = "Federation"
 type Schema struct {
 	Name      string
 	objects   map[string]*Object
+	ifaces    map[string]*Object
 	enumTypes map[reflect.Type]*EnumMapping
 }
 
@@ -24,6 +25,7 @@ type Schema struct {
 func NewSchema() *Schema {
 	schema := &Schema{
 		objects: make(map[string]*Object),
+		ifaces:  make(map[string]*Object),
 	}
 
 	// Default registrations.
@@ -157,6 +159,29 @@ func FetchObjectFromKeys(f interface{}, options ...ObjectOption) ObjectOption {
 	return FetchObjectFromKeysField
 }
 
+func (s *Schema) Interface(name string, typ interface{}, options ...ObjectOption) *Object {
+	if iface, ok := s.ifaces[name]; ok {
+		if reflect.TypeOf(iface.Type) != reflect.TypeOf(typ) {
+			panic("re-registered object with different type")
+		}
+		return iface
+	}
+
+	iface := &Object{
+		Name:        name,
+		Type:        typ,
+		ServiceName: s.Name,
+		IsInterface: true,
+	}
+	s.ifaces[name] = iface
+
+	for _, opt := range options {
+		opt.apply(s, iface)
+	}
+
+	return iface
+}
+
 // Object registers a struct as a GraphQL Object in our Schema.
 // (https://facebook.github.io/graphql/June2018/#sec-Objects)
 // We'll read the fields of the struct to determine it's basic "Fields" and
@@ -209,6 +234,7 @@ func (s *Schema) Build() (*graphql.Schema, error) {
 		types:        make(map[reflect.Type]graphql.Type),
 		typeNames:    make(map[string]reflect.Type),
 		objects:      make(map[reflect.Type]*Object),
+		ifaces:       make(map[reflect.Type]*Object),
 		enumMappings: s.enumTypes,
 		typeCache:    make(map[reflect.Type]cachedType, 0),
 	}
@@ -229,6 +255,14 @@ func (s *Schema) Build() (*graphql.Schema, error) {
 		sb.objects[typ] = object
 	}
 
+	for _, iface := range s.ifaces {
+		typ := reflect.TypeOf(iface.Type).Elem()
+		if _, ok := sb.ifaces[typ]; ok {
+			return nil, fmt.Errorf("duplicate object for %s", typ.String())
+		}
+		sb.ifaces[typ] = iface
+	}
+
 	queryTyp, err := sb.getType(reflect.TypeOf(&query{}))
 	if err != nil {
 		return nil, err
@@ -247,10 +281,20 @@ func (s *Schema) Build() (*graphql.Schema, error) {
 		objects = append(objects, tt)
 	}
 
+	var ifaces []graphql.Type
+	for t := range sb.ifaces {
+		tt, err := sb.getType(t)
+		if err != nil {
+			return nil, fmt.Errorf("ifaces: get type: %s: %w", t, err)
+		}
+		ifaces = append(ifaces, tt)
+	}
+
 	return &graphql.Schema{
 		Query:    queryTyp,
 		Mutation: mutationTyp,
 		Objects:  objects,
+		Ifaces:   ifaces,
 	}, nil
 }
 

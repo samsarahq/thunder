@@ -51,6 +51,7 @@ type Object struct {
 	Description string
 	KeyField    *Field
 	Fields      map[string]*Field
+	IsInterface bool
 }
 
 func (o *Object) isType() {}
@@ -148,6 +149,7 @@ type Schema struct {
 	Query    Type
 	Mutation Type
 	Objects  []Type
+	Ifaces   []Type
 }
 
 // SelectionSet represents a core GraphQL query

@@ -17,6 +17,7 @@ type schemaBuilder struct {
 	types        map[reflect.Type]graphql.Type
 	typeNames    map[string]reflect.Type
 	objects      map[reflect.Type]*Object
+	ifaces       map[reflect.Type]*Object
 	enumMappings map[reflect.Type]*EnumMapping
 	typeCache    map[reflect.Type]cachedType // typeCache maps Go types to GraphQL datatypes
 }
@@ -62,6 +63,12 @@ func (sb *schemaBuilder) getType(nodeType reflect.Type) (graphql.Type, error) {
 	// Structs
 	if nodeType.Kind() == reflect.Struct {
 		if err := sb.buildStruct(nodeType); err != nil {
+			return nil, err
+		}
+		return &graphql.NonNull{Type: sb.types[nodeType]}, nil
+	}
+	if nodeType.Kind() == reflect.Interface {
+		if err := sb.buildIface(nodeType); err != nil {
 			return nil, err
 		}
 		return &graphql.NonNull{Type: sb.types[nodeType]}, nil

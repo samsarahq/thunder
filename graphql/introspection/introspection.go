@@ -126,8 +126,11 @@ var skipDirective = Directive{
 func (s *introspection) registerType(schema *schemabuilder.Schema) {
 	object := schema.Object("__Type", Type{})
 	object.FieldFunc("kind", func(t Type) TypeKind {
-		switch t.Inner.(type) {
+		switch v := t.Inner.(type) {
 		case *graphql.Object:
+			if v.IsInterface {
+				return INTERFACE
+			}
 			return OBJECT
 		case *graphql.Union:
 			return UNION
@@ -384,6 +387,9 @@ func BareIntrospectionSchema(schema *graphql.Schema) *graphql.Schema {
 	collectTypes(schema.Query, types)
 	collectTypes(schema.Mutation, types)
 	for _, obj := range schema.Objects {
+		collectTypes(obj, types)
+	}
+	for _, obj := range schema.Ifaces {
 		collectTypes(obj, types)
 	}
 
