@@ -1618,7 +1618,7 @@ func TestConnectionManual(t *testing.T) {
 		schemabuilder.FilterField("number", func(i Item) string {
 			return strconv.FormatInt(i.Id, 10)
 		}),
-		schemabuilder.SortField("number", func(i Item) string { return string(i.Id) }),
+		schemabuilder.SortField("number", func(i Item) string { return string(fmt.Sprint(i.Id)) }),
 	)
 
 	builtSchema := schema.MustBuild()
