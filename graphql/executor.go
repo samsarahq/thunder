@@ -134,9 +134,7 @@ func PrepareQuery(ctx context.Context, typ Type, selectionSet *SelectionSet) err
 				}
 			}
 		}
-		log.Printf("SELECTION SET")
 		for _, selection := range selectionSet.Selections {
-			log.Printf("SELECTION: %s %s", selection.Name, selection.ParentType)
 			if selection.Name == "__typename" {
 				if !isNilArgs(selection.UnparsedArgs) {
 					return NewClientError(`error parsing args for "__typename": no args expected`)
@@ -156,7 +154,27 @@ func PrepareQuery(ctx context.Context, typ Type, selectionSet *SelectionSet) err
 		if selectionSet == nil {
 			return NewClientError("object field must have selections")
 		}
+
+		for _, fragment := range selectionSet.Fragments {
+			if !typ.IsInterface {
+				if err := PrepareQuery(ctx, typ, fragment.SelectionSet); err != nil {
+					return err
+				}
+			}
+
+			for typString, graphqlTyp := range typ.PossibleTypes {
+				if fragment.On != typString {
+					continue
+				}
+				if err := PrepareQuery(ctx, graphqlTyp, fragment.SelectionSet); err != nil {
+					return err
+				}
+				return nil
+			}
+		}
+
 		for _, selection := range selectionSet.Selections {
+			log.Printf("select %s on %s", selection.Name, typ.Name)
 			if selection.Name == "__typename" {
 				if !isNilArgs(selection.UnparsedArgs) {
 					return NewClientError(`error parsing args for "__typename": no args expected`)
@@ -188,27 +206,7 @@ func PrepareQuery(ctx context.Context, typ Type, selectionSet *SelectionSet) err
 				return err
 			}
 		}
-		for _, fragment := range selectionSet.Fragments {
-			log.Printf("FRAGMENT: %s", fragment.On)
-			if !typ.IsInterface {
-				if err := PrepareQuery(ctx, typ, fragment.SelectionSet); err != nil {
-					return err
-				}
-			}
 
-			for typString, graphqlTyp := range typ.PossibleTypes {
-				if fragment.On != typString {
-					continue
-				}
-				if err := PrepareQuery(ctx, graphqlTyp, fragment.SelectionSet); err != nil {
-					return err
-				}
-			}
-
-			if err := PrepareQuery(ctx, typ, fragment.SelectionSet); err != nil {
-				return err
-			}
-		}
 		return nil
 
 	case *List:
