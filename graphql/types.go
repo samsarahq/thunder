@@ -147,6 +147,7 @@ type Field struct {
 type Schema struct {
 	Query    Type
 	Mutation Type
+	Objects  []Type
 }
 
 // SelectionSet represents a core GraphQL query

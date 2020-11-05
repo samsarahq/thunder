@@ -383,6 +383,10 @@ func BareIntrospectionSchema(schema *graphql.Schema) *graphql.Schema {
 	types := make(map[string]graphql.Type)
 	collectTypes(schema.Query, types)
 	collectTypes(schema.Mutation, types)
+	for _, obj := range schema.Objects {
+		collectTypes(obj, types)
+	}
+
 	is := &introspection{
 		types:    types,
 		query:    schema.Query,

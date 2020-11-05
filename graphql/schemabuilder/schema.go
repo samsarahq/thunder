@@ -237,9 +237,20 @@ func (s *Schema) Build() (*graphql.Schema, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	var objects []graphql.Type
+	for t := range sb.objects {
+		tt, err := sb.getType(t)
+		if err != nil {
+			return nil, fmt.Errorf("objects: get type: %s: %w", t, err)
+		}
+		objects = append(objects, tt)
+	}
+
 	return &graphql.Schema{
 		Query:    queryTyp,
 		Mutation: mutationTyp,
+		Objects:  objects,
 	}, nil
 }
 
