@@ -1,42 +1,50 @@
 package schemabuilder
 
 import (
-	"bytes"
 	"context"
 	"encoding"
 	"fmt"
 	"reflect"
 	"strings"
-	"unicode"
 
 	"github.com/northvolt/thunder/graphql"
+	"github.com/pascaldekloe/name"
 )
+
+var rewrites = []func(string) string{
+	rewrite("iD", "id"),
+}
+
+var reverseRewrites = []func(string) string{
+	rewrite("id", "iD"),
+}
+
+func rewrite(from, to string) func(string) string {
+	return func(s string) string {
+		if strings.HasPrefix(s, from) {
+			return strings.Replace(s, from, to, 1)
+		}
+		return s
+	}
+}
 
 // makeGraphql converts a field name "MyField" into a graphQL field name "myField".
 func makeGraphql(s string) string {
-	var b bytes.Buffer
-	for i, c := range s {
-		if i == 0 {
-			b.WriteRune(unicode.ToLower(c))
-		} else {
-			b.WriteRune(c)
-		}
+	res := name.CamelCase(s, false)
+	for _, fn := range rewrites {
+		res = fn(res)
 	}
-	return b.String()
+	return res
 }
 
 // reverseGraphqlFieldName converts a graphql field name "myField" into a
 // non-graphQL field name "MyField".
 func reverseGraphqlFieldName(s string) string {
-	var b bytes.Buffer
-	for i, c := range s {
-		if i == 0 {
-			b.WriteRune(unicode.ToUpper(c))
-		} else {
-			b.WriteRune(c)
-		}
+	res := name.CamelCase(s, true)
+	for _, fn := range reverseRewrites {
+		res = fn(res)
 	}
-	return b.String()
+	return res
 }
 
 // graphQLFieldInfo contains basic struct field information related to GraphQL.

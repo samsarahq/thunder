@@ -5,9 +5,43 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"strings"
 
 	"github.com/northvolt/thunder/graphql"
 )
+
+// IfaceStrategy determines the strategy that should be used for what fields
+// to expose in GraphQL for a specific type.
+type IfaceStrategy func(*schemaBuilder, reflect.Method) (string, *graphql.Field, error)
+
+// IfaceGetterStrategy only exposes fields for methods that starts with 'Get'.
+// Example:
+// func GetID() string => id: String!
+// func getID() string => nothing
+// func ID() string => nothing
+func IfaceGetterStrategy(sb *schemaBuilder, method reflect.Method) (string, *graphql.Field, error) {
+	// Ignore methods without output
+	if method.Type.NumOut() == 0 {
+		return "", nil, nil
+	}
+
+	fieldName := strings.Replace(method.Name, "Get", "", 1)
+	// Ignore methods that don't start with 'Get'
+	if fieldName == method.Name {
+		return "", nil, nil
+	}
+
+	retType, err := sb.getType(method.Type.Out(0))
+	if err != nil {
+		return "", nil, err
+	}
+
+	return makeGraphql(fieldName), &graphql.Field{
+		Resolve:        createIfaceResolver(method.Name),
+		Type:           retType,
+		ParseArguments: nilParseArguments,
+	}, nil
+}
 
 func (sb *schemaBuilder) buildIface(typ reflect.Type) error {
 	if sb.types[typ] != nil {
@@ -24,14 +58,11 @@ func (sb *schemaBuilder) buildIface(typ reflect.Type) error {
 		description = object.Description
 		// methods = object.Methods
 		// objectKey = object.key
-		log.Printf("GOT POS TYPES %s: %v", object.Name, len(object.PossibleTypes))
 		for _, obj := range object.PossibleTypes {
-			log.Printf("Adding possible type: %s on %s", obj, object.Name)
 			sb.buildStruct(obj)
 			obj := sb.types[obj].(*graphql.Object)
 			possibleTypes[obj.Name] = obj
 		}
-		log.Printf("SETTING POS TYPES %s: %v", object.Name, len(possibleTypes))
 	}
 
 	if name == "" {
@@ -57,16 +88,15 @@ func (sb *schemaBuilder) buildIface(typ reflect.Type) error {
 
 	for i := 0; i < typ.NumMethod(); i++ {
 		m := typ.Method(i)
-		field, err := sb.buildIfaceField(m)
+		fieldName, field, err := sb.ifaceStrategy(sb, m)
 		if err != nil {
 			return fmt.Errorf("method: %s.%s: %w", typ.Name(), m.Name, err)
 		}
-		if field == nil {
+		if field == nil || fieldName == "" {
 			continue
 		}
-		object.Fields[makeGraphql(m.Name)] = field
+		object.Fields[fieldName] = field
 	}
-
 	return nil
 }
 
@@ -82,30 +112,35 @@ func (sb *schemaBuilder) buildIfaceField(method reflect.Method) (*graphql.Field,
 	}
 
 	return &graphql.Field{
-		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
-			t := reflect.TypeOf(source)
-
-			midx := -1
-			for i := 0; i < t.NumMethod(); i++ {
-				mm := t.Method(i)
-				if mm.Name == method.Name {
-					midx = i
-					break
-				}
-			}
-
-			if midx < 0 {
-				return nil, fmt.Errorf("unable to execute")
-			}
-
-			value := reflect.ValueOf(source)
-			res := value.Method(midx).Call(nil)
-			for _, v := range res {
-				return v.Interface(), nil
-			}
-			return nil, fmt.Errorf("no result")
-		},
+		Resolve:        createIfaceResolver(method.Name),
 		Type:           retType,
 		ParseArguments: nilParseArguments,
 	}, nil
+}
+
+func createIfaceResolver(methodName string) graphql.Resolver {
+	return func(ctx context.Context, source, args interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
+		// Find the method on the specific type we received.
+		m, ok := findMethodOnType(source, methodName)
+		if !ok {
+			return nil, fmt.Errorf("method %s not found on %T", methodName, source)
+		}
+		// Call it without any input arguments.
+		for _, v := range m.Call(nil) {
+			// We always return the first result.
+			return v.Interface(), nil
+		}
+		return nil, fmt.Errorf("no result")
+	}
+}
+
+func findMethodOnType(source interface{}, name string) (reflect.Value, bool) {
+	t := reflect.TypeOf(source)
+	for i := 0; i < t.NumMethod(); i++ {
+		m := t.Method(i)
+		if m.Name == name {
+			return reflect.ValueOf(source).Method(i), true
+		}
+	}
+	return reflect.Value{}, false
 }

@@ -20,13 +20,31 @@ type Schema struct {
 	objects   map[string]*Object
 	ifaces    map[string]*Object
 	enumTypes map[reflect.Type]*EnumMapping
+
+	ifaceStrategy IfaceStrategy
+}
+
+// SchemaOption specifies functionality for the schema.
+type SchemaOption func(*Schema)
+
+// WithIfaceStrategy specifies the strategy that should be used
+// to translate interfaces to go types.
+func WithIfaceStrategy(is IfaceStrategy) SchemaOption {
+	return func(s *Schema) {
+		s.ifaceStrategy = is
+	}
 }
 
 // NewSchema creates a new schema.
-func NewSchema() *Schema {
+func NewSchema(opts ...SchemaOption) *Schema {
 	schema := &Schema{
-		objects: make(map[string]*Object),
-		ifaces:  make(map[string]*Object),
+		objects:       make(map[string]*Object),
+		ifaces:        make(map[string]*Object),
+		ifaceStrategy: IfaceGetterStrategy,
+	}
+
+	for _, o := range opts {
+		o(schema)
 	}
 
 	// Default registrations.
@@ -234,12 +252,13 @@ func (s *Schema) Mutation() *Object {
 // other Objects that we can resolve in our GraphQL graph.
 func (s *Schema) Build() (*graphql.Schema, error) {
 	sb := &schemaBuilder{
-		types:        make(map[reflect.Type]graphql.Type),
-		typeNames:    make(map[string]reflect.Type),
-		objects:      make(map[reflect.Type]*Object),
-		ifaces:       make(map[reflect.Type]*Object),
-		enumMappings: s.enumTypes,
-		typeCache:    make(map[reflect.Type]cachedType, 0),
+		types:         make(map[reflect.Type]graphql.Type),
+		typeNames:     make(map[string]reflect.Type),
+		objects:       make(map[reflect.Type]*Object),
+		ifaces:        make(map[reflect.Type]*Object),
+		enumMappings:  s.enumTypes,
+		typeCache:     make(map[reflect.Type]cachedType, 0),
+		ifaceStrategy: s.ifaceStrategy,
 	}
 
 	s.Object("Query", query{})
