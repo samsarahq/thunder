@@ -3,6 +3,7 @@ package graphql
 import (
 	"context"
 	"fmt"
+	"reflect"
 )
 
 // Type represents a GraphQL type, and should be either an Object, a Scalar,
@@ -54,6 +55,7 @@ type Object struct {
 	IsInterface   bool
 	Interfaces    map[string]*Object
 	PossibleTypes map[string]*Object
+	Type          reflect.Type
 }
 
 func (o *Object) isType() {}

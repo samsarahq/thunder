@@ -3,6 +3,7 @@ package schemabuilder
 import (
 	"context"
 	"fmt"
+	"log"
 	"reflect"
 	"sort"
 
@@ -52,6 +53,7 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 		Description: description,
 		Fields:      make(map[string]*graphql.Field),
 		Interfaces:  make(map[string]*graphql.Object),
+		Type:        typ,
 	}
 	sb.types[typ] = object
 	sb.typeNames[name] = typ
@@ -248,6 +250,7 @@ func (sb *schemaBuilder) buildField(field reflect.StructField) (*graphql.Field, 
 
 	return &graphql.Field{
 		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
+			log.Printf("RESOLVE HERE %T", source)
 			value := reflect.ValueOf(source)
 			if value.Kind() == reflect.Ptr {
 				value = value.Elem()

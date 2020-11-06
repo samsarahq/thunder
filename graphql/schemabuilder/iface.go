@@ -82,6 +82,7 @@ func (sb *schemaBuilder) buildIface(typ reflect.Type) error {
 		Fields:        make(map[string]*graphql.Field),
 		IsInterface:   true,
 		PossibleTypes: possibleTypes,
+		Type:          typ,
 	}
 	sb.types[typ] = object
 	sb.typeNames[name] = typ
