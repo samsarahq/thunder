@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"reflect"
 	"strconv"
 
@@ -215,6 +216,7 @@ func executeNonExpensiveWorkUnit(unit *WorkUnit) []*WorkUnit {
 		}
 		results = append(results, fieldResult)
 	}
+	log.Printf("RESOLVE BATCH %s", unit.field.Type)
 	unitChildren, err := resolveBatch(unit.Ctx, results, unit.field.Type, unit.selection.SelectionSet, unit.destinations)
 	if err != nil {
 		for _, dest := range unit.destinations {
@@ -292,8 +294,10 @@ func resolveBatch(ctx context.Context, sources []interface{}, typ Type, selectio
 	case *Union:
 		return resolveUnionBatch(ctx, sources, typ, selectionSet, destinations)
 	case *Object:
+		log.Printf("object: %s", typ)
 		return resolveObjectBatch(ctx, sources, typ, selectionSet, destinations)
 	case *NonNull:
+		log.Printf("non-null: %s", typ)
 		return resolveBatch(ctx, sources, typ.Type, selectionSet, destinations)
 	default:
 		panic(typ)
@@ -421,10 +425,11 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 	numExpensive := 0
 	numNonExpensive := 0
 	for _, selection := range selections {
-		field, ok := typ.Fields[selection.Name]
-		if !ok {
+		field, err := selectField(typ, selection)
+		if err != nil {
 			continue
 		}
+		log.Printf("SHOULD USE %s.%s", typ.Name, selection.Name)
 		if shouldUseBatch(ctx, field) {
 			numNonExpensive++
 			continue
@@ -482,7 +487,11 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 			destMap[selection.Alias] = filler
 		}
 
-		field := typ.Fields[selection.Name]
+		field, err := selectField(typ, selection)
+		if err != nil {
+			return nil, fmt.Errorf("select field: %w", err)
+		}
+		log.Printf("FIELD FOR %s.%s: (%s) %v", typ.Name, selection.Name, selection.ParentType, field)
 		unit := &WorkUnit{
 			Ctx:          ctx,
 			field:        field,
@@ -551,5 +560,29 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 // shouldUseBatch determines whether we will execute this field as a batch
 // based on the field information.
 func shouldUseBatch(ctx context.Context, field *Field) bool {
+	if field == nil {
+		log.Println("NO FIELD")
+	}
 	return field.Batch && field.UseBatchFunc(ctx)
+}
+
+func selectField(typ *Object, selection *Selection) (*Field, error) {
+	if selection.ParentType == typ.Name {
+		f, ok := typ.Fields[selection.Name]
+		if !ok {
+			return nil, fmt.Errorf("no field %s found on %s", selection.Name, typ.Name)
+		}
+		return f, nil
+	}
+
+	// If we get here, the selection is on an interface.
+	selectedType, ok := typ.PossibleTypes[selection.ParentType]
+	if !ok {
+		return nil, fmt.Errorf("selection parent type %s invalid for %s", selectedType.Name, typ.Name)
+	}
+	f, ok := selectedType.Fields[selection.Name]
+	if !ok {
+		return nil, fmt.Errorf("no field %s found on %s", selection.Name, selectedType.Name)
+	}
+	return f, nil
 }

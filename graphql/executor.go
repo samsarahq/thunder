@@ -169,7 +169,6 @@ func PrepareQuery(ctx context.Context, typ Type, selectionSet *SelectionSet) err
 				if err := PrepareQuery(ctx, graphqlTyp, fragment.SelectionSet); err != nil {
 					return err
 				}
-				return nil
 			}
 		}
 
@@ -181,6 +180,9 @@ func PrepareQuery(ctx context.Context, typ Type, selectionSet *SelectionSet) err
 				}
 				if selection.SelectionSet != nil {
 					return NewClientError(`scalar field "__typename" must have no selection`)
+				}
+				for _, fragment := range selectionSet.Fragments {
+					fragment.SelectionSet.Selections = append(fragment.SelectionSet.Selections, selection)
 				}
 				continue
 			}
