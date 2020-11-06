@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"log"
 	"reflect"
 	"runtime"
 )
@@ -173,7 +172,6 @@ func PrepareQuery(ctx context.Context, typ Type, selectionSet *SelectionSet) err
 		}
 
 		for _, selection := range selectionSet.Selections {
-			log.Printf("select %s on %s", selection.Name, typ.Name)
 			if selection.Name == "__typename" {
 				if !isNilArgs(selection.UnparsedArgs) {
 					return NewClientError(`error parsing args for "__typename": no args expected`)

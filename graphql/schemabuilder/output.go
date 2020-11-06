@@ -3,7 +3,6 @@ package schemabuilder
 import (
 	"context"
 	"fmt"
-	"log"
 	"reflect"
 	"sort"
 
@@ -250,7 +249,6 @@ func (sb *schemaBuilder) buildField(field reflect.StructField) (*graphql.Field, 
 
 	return &graphql.Field{
 		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *graphql.SelectionSet) (interface{}, error) {
-			log.Printf("RESOLVE HERE %T", source)
 			value := reflect.ValueOf(source)
 			if value.Kind() == reflect.Ptr {
 				value = value.Elem()

@@ -2,7 +2,6 @@ package schemabuilder
 
 import (
 	"fmt"
-	"log"
 	"reflect"
 	"strings"
 
@@ -336,15 +335,9 @@ func (s *Schema) MustBuild() *graphql.Schema {
 func (s *Schema) updateLinks() {
 	for _, obj := range s.objects {
 		obj.Interfaces = s.findInterfaces(obj.Type)
-		if len(obj.Interfaces) > 0 {
-			log.Printf("has ifaces %s: %v", obj.Name, obj.Interfaces)
-		}
 	}
 	for _, iface := range s.ifaces {
 		iface.PossibleTypes = s.findPossibleTypes(iface.Type)
-		if len(iface.PossibleTypes) > 0 {
-			log.Printf("has poss types %s: %v", iface.Name, iface.PossibleTypes)
-		}
 	}
 }
 

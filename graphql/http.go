@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 	"sync"
 
@@ -91,13 +90,6 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("QUERY PREPARED")
-	log.Println()
-	log.Println()
-	printSelections(query.Selections)
-	log.Println()
-	log.Println()
-
 	var wg sync.WaitGroup
 	e := h.executor
 
@@ -138,22 +130,4 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	wg.Wait()
 	runner.Stop()
-}
-
-func printSelections(selections []*Selection) {
-	for _, s := range selections {
-		log.Printf("SELECT %s %s", s.Name, s.ParentType)
-		if ss := s.SelectionSet; ss != nil {
-			for _, f := range ss.Fragments {
-				if f.SelectionSet != nil {
-					log.Println("FRAGMENT on", f.On)
-					printSelections(f.SelectionSet.Selections)
-					log.Println("END FRAGMENT")
-				}
-			}
-		}
-		if ss := s.SelectionSet; ss != nil {
-			printSelections(ss.Selections)
-		}
-	}
 }
