@@ -11,7 +11,7 @@ require (
 	github.com/juju/errors v0.0.0-20160809030848-6f54ff631840
 	github.com/kylelemons/godebug v1.1.0
 	github.com/ngaut/log v0.0.0-20160810023011-cec23d3e10b0
-	github.com/pascaldekloe/name v1.0.1 // indirect
+	github.com/pascaldekloe/name v1.0.1
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
 	github.com/samsarahq/go v0.0.0-20181026175739-13570df44b46
 	github.com/satori/go.uuid v0.0.0-20160218235746-e673fdd4dea8
