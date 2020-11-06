@@ -312,6 +312,10 @@ func (s *Schema) Build() (*graphql.Schema, error) {
 		ifaces = append(ifaces, tt)
 	}
 
+	if err := sb.validateInterfaces(); err != nil {
+		return nil, err
+	}
+
 	return &graphql.Schema{
 		Query:    queryTyp,
 		Mutation: mutationTyp,

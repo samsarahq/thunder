@@ -144,3 +144,28 @@ func findMethodOnType(source interface{}, name string) (reflect.Value, bool) {
 	}
 	return reflect.Value{}, false
 }
+
+func (sb *schemaBuilder) validateInterfaces() error {
+	for t, iface := range sb.ifaces {
+		for _, pt := range iface.PossibleTypes {
+			impl, ok := sb.types[pt]
+			if !ok {
+				return fmt.Errorf("found missing possible type: %s for %s", pt, iface.Name)
+			}
+			obj, ok := impl.(*graphql.Object)
+			if !ok {
+				return fmt.Errorf("not object %s for %s", impl.String(), iface.Name)
+			}
+			for name, f := range sb.types[t].(*graphql.Object).Fields {
+				ff, ok := obj.Fields[name]
+				if !ok {
+					return fmt.Errorf("missing field %s on %s for %s", name, obj.Name, iface.Name)
+				}
+				if f.Type.String() != ff.Type.String() {
+					return fmt.Errorf("non-matching types %s and %s on field %s for %s and %s", f.Type.String(), ff.Type.String(), name, iface.Name, obj.Name)
+				}
+			}
+		}
+	}
+	return nil
+}
