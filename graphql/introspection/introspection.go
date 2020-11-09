@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"sort"
 
 	"github.com/northvolt/thunder/graphql"
@@ -193,7 +192,6 @@ func (s *introspection) registerType(schema *schemabuilder.Schema) {
 		return nil
 	})
 	object.FieldFunc("possibleTypes", func(t Type) []Type {
-		log.Printf("POSSIBLE TYPES FOR: %s", t.Inner.String())
 		switch t := t.Inner.(type) {
 		case *graphql.Object:
 			if !t.IsInterface {

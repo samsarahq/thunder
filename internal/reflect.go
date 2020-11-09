@@ -1,6 +1,8 @@
 package internal
 
-import "reflect"
+import (
+	"reflect"
+)
 
 func IsScalarType(t reflect.Type) bool {
 	switch t.Kind() {
@@ -20,7 +22,11 @@ func IsScalarType(t reflect.Type) bool {
 }
 
 func TypesIdenticalOrScalarAliases(a, b reflect.Type) bool {
-	return a == b || (a.Kind() == b.Kind() && IsScalarType(a))
+	if a == b {
+		return true
+	}
+	// reflect.TypeOf(interface{}(nil)) == nil
+	return a != nil && b != nil && (a.Kind() == b.Kind() && IsScalarType(a))
 }
 
 // interfaceTyp is the reflect.Type of interface{}

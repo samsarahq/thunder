@@ -191,7 +191,7 @@ func (sb *schemaBuilder) makeArgParserInner(typ reflect.Type) (*argParser, graph
 		return parser, argType, nil
 	}
 
-	if parser, argType, ok := getScalarArgParser(typ); ok {
+	if parser, argType, ok := sb.getScalarArgParser(typ); ok {
 		return parser, argType, nil
 	}
 
@@ -330,10 +330,10 @@ func (sb *schemaBuilder) makeSliceParser(typ reflect.Type) (*argParser, graphql.
 }
 
 // getScalarArgParser creates an arg parser for a scalar type.
-func getScalarArgParser(typ reflect.Type) (*argParser, graphql.Type, bool) {
+func (sb *schemaBuilder) getScalarArgParser(typ reflect.Type) (*argParser, graphql.Type, bool) {
 	for match, argParser := range scalarArgParsers {
 		if internal.TypesIdenticalOrScalarAliases(match, typ) {
-			name, ok := getScalar(typ)
+			name, ok := sb.getScalar(typ)
 			if !ok {
 				panic(typ)
 			}

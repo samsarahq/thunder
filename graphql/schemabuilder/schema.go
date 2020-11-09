@@ -20,6 +20,7 @@ type Schema struct {
 	ifaces    map[string]*Object
 	enumTypes map[reflect.Type]*EnumMapping
 
+	scalars       map[reflect.Type]string
 	ifaceStrategy IfaceStrategy
 }
 
@@ -31,6 +32,13 @@ type SchemaOption func(*Schema)
 func WithIfaceStrategy(is IfaceStrategy) SchemaOption {
 	return func(s *Schema) {
 		s.ifaceStrategy = is
+	}
+}
+
+// WithScalars specifies a set of scalars.
+func WithScalars(scalars map[reflect.Type]string) SchemaOption {
+	return func(s *Schema) {
+		s.scalars = scalars
 	}
 }
 
@@ -258,6 +266,7 @@ func (s *Schema) Build() (*graphql.Schema, error) {
 		enumMappings:  s.enumTypes,
 		typeCache:     make(map[reflect.Type]cachedType, 0),
 		ifaceStrategy: s.ifaceStrategy,
+		scalars:       mergeScalars(defaultScalars(), s.scalars),
 	}
 
 	s.Object("Query", query{})
@@ -366,6 +375,21 @@ func (s *Schema) findInterfaces(v interface{}) []reflect.Type {
 		t := reflect.TypeOf(obj.Type).Elem()
 		if impl.Implements(t) {
 			out = append(out, t)
+		}
+	}
+	return out
+}
+
+func mergeScalars(a, b map[reflect.Type]string) map[reflect.Type]string {
+	out := make(map[reflect.Type]string)
+	if a != nil {
+		for k, v := range a {
+			out[k] = v
+		}
+	}
+	if b != nil {
+		for k, v := range b {
+			out[k] = v
 		}
 	}
 	return out

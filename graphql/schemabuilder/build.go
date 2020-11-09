@@ -15,6 +15,7 @@ import (
 // are stored in the type map which we can use to see sections of the graph.
 type schemaBuilder struct {
 	ifaceStrategy IfaceStrategy
+	scalars       map[reflect.Type]string
 
 	types        map[reflect.Type]graphql.Type
 	typeNames    map[string]reflect.Type
@@ -49,11 +50,11 @@ func (sb *schemaBuilder) getType(nodeType reflect.Type) (graphql.Type, error) {
 		return &graphql.NonNull{Type: &graphql.Enum{Type: typeName, Values: values, ReverseMap: sb.enumMappings[nodeType].ReverseMap}}, nil
 	}
 
-	if typeName, ok := getScalar(nodeType); ok {
+	if typeName, ok := sb.getScalar(nodeType); ok {
 		return &graphql.NonNull{Type: &graphql.Scalar{Type: typeName}}, nil
 	}
 	if nodeType.Kind() == reflect.Ptr {
-		if typeName, ok := getScalar(nodeType.Elem()); ok {
+		if typeName, ok := sb.getScalar(nodeType.Elem()); ok {
 			return &graphql.Scalar{Type: typeName}, nil // XXX: prefix typ with "*"
 		}
 	}
@@ -144,8 +145,8 @@ func (sb *schemaBuilder) getEnum(typ reflect.Type) (string, []string, bool) {
 
 // getScalar grabs the appropriate scalar graphql field type name for the passed
 // in variable reflect type.
-func getScalar(typ reflect.Type) (string, bool) {
-	for match, name := range scalars {
+func (sb *schemaBuilder) getScalar(typ reflect.Type) (string, bool) {
+	for match, name := range sb.scalars {
 		if internal.TypesIdenticalOrScalarAliases(match, typ) {
 			return name, true
 		}
@@ -153,21 +154,23 @@ func getScalar(typ reflect.Type) (string, bool) {
 	return "", false
 }
 
-var scalars = map[reflect.Type]string{
-	reflect.TypeOf(bool(false)): "Boolean",
-	reflect.TypeOf(int(0)):      "Int",
-	reflect.TypeOf(int8(0)):     "Int",
-	reflect.TypeOf(int16(0)):    "Int",
-	reflect.TypeOf(int32(0)):    "Int",
-	reflect.TypeOf(int64(0)):    "Int",
-	reflect.TypeOf(uint(0)):     "Int",
-	reflect.TypeOf(uint8(0)):    "Int",
-	reflect.TypeOf(uint16(0)):   "Int",
-	reflect.TypeOf(uint32(0)):   "Int",
-	reflect.TypeOf(uint64(0)):   "Int",
-	reflect.TypeOf(float32(0)):  "Float",
-	reflect.TypeOf(float64(0)):  "Float",
-	reflect.TypeOf(string("")):  "String",
-	reflect.TypeOf(time.Time{}): "Time",
-	reflect.TypeOf([]byte{}):    "Bytes",
+func defaultScalars() map[reflect.Type]string {
+	return map[reflect.Type]string{
+		reflect.TypeOf(bool(false)): "Boolean",
+		reflect.TypeOf(int(0)):      "Int",
+		reflect.TypeOf(int8(0)):     "Int",
+		reflect.TypeOf(int16(0)):    "Int",
+		reflect.TypeOf(int32(0)):    "Int",
+		reflect.TypeOf(int64(0)):    "Int",
+		reflect.TypeOf(uint(0)):     "Int",
+		reflect.TypeOf(uint8(0)):    "Int",
+		reflect.TypeOf(uint16(0)):   "Int",
+		reflect.TypeOf(uint32(0)):   "Int",
+		reflect.TypeOf(uint64(0)):   "Int",
+		reflect.TypeOf(float32(0)):  "Float",
+		reflect.TypeOf(float64(0)):  "Float",
+		reflect.TypeOf(string("")):  "String",
+		reflect.TypeOf(time.Time{}): "Time",
+		reflect.TypeOf([]byte{}):    "Bytes",
+	}
 }
