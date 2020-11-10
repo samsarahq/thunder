@@ -28,7 +28,7 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 
 	var name string
 	var description string
-	var methods Methods
+	methods := Methods{}
 	var objectKey string
 	if object, ok := sb.objects[typ]; ok {
 		name = object.Name

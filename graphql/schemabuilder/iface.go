@@ -50,13 +50,13 @@ func (sb *schemaBuilder) buildIface(typ reflect.Type) error {
 
 	var name string
 	var description string
-	// var methods Methods
+	methods := Methods{}
 	// var objectKey string
 	possibleTypes := make(map[string]*graphql.Object)
 	if object, ok := sb.ifaces[typ]; ok {
 		name = object.Name
 		description = object.Description
-		// methods = object.Methods
+		methods = object.Methods
 		// objectKey = object.key
 		for _, obj := range object.PossibleTypes {
 			sb.buildStruct(obj)
@@ -98,6 +98,15 @@ func (sb *schemaBuilder) buildIface(typ reflect.Type) error {
 		}
 		object.Fields[fieldName] = field
 	}
+
+	for name, method := range methods {
+		fn, err := sb.buildFunction(typ, method)
+		if err != nil {
+			return fmt.Errorf("build method %s on %s: %w", name, object.Name, err)
+		}
+		object.Fields[name] = fn
+	}
+
 	return nil
 }
 
