@@ -233,10 +233,18 @@ func (funcCtx *funcContext) consumeContextAndSource(in []reflect.Type) []reflect
 		in = in[1:]
 	}
 
-	if len(in) > 0 && (in[0] == funcCtx.typ || in[0] == ptr) {
-		funcCtx.hasSource = true
-		funcCtx.isPtrFunc = in[0] == ptr
-		in = in[1:]
+	if len(in) > 0 {
+		if in[0] == funcCtx.typ {
+			funcCtx.hasSource = true
+			// If the source is an interface we accept pointer inputs.
+			funcCtx.isPtrFunc = in[0].Kind() == reflect.Interface
+			return in[1:]
+		}
+		if in[0] == ptr || (in[0].Kind() == reflect.Interface && reflect.PtrTo(funcCtx.typ).Implements(in[0])) {
+			funcCtx.hasSource = true
+			funcCtx.isPtrFunc = true
+			return in[1:]
+		}
 	}
 
 	return in
