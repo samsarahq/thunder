@@ -173,8 +173,17 @@ func mergeSameAlias(selections []*graphql.Selection) ([]*graphql.Selection, erro
 			}
 			last.SelectionSet.Selections = append(last.SelectionSet.Selections,
 				selection.SelectionSet.Selections...)
-			last.SelectionSet.Fragments = append(last.SelectionSet.Fragments,
-				selection.SelectionSet.Fragments...)
+
+			// Only add new fragments to avoid infinite recursion.
+			seenFragments := make(map[*graphql.Fragment]struct{}, len(last.SelectionSet.Fragments))
+			for _, seen := range last.SelectionSet.Fragments {
+				seenFragments[seen] = struct{}{}
+			}
+			for _, f := range selection.SelectionSet.Fragments {
+				if _, ok := seenFragments[f]; ok {
+					last.SelectionSet.Fragments = append(last.SelectionSet.Fragments, f)
+				}
+			}
 		}
 	}
 	return newSelections, nil
