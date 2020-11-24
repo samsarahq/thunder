@@ -30,6 +30,8 @@ func NewSchema() *Schema {
 	schema.Enum(SortOrder(0), map[string]SortOrder{
 		"asc":  SortOrder_Ascending,
 		"desc": SortOrder_Descending,
+		"asc_lower":  SortOrder_Ascending,
+		"desc_lower": SortOrder_Descending,
 	})
 
 	return schema
@@ -46,6 +48,8 @@ func NewSchemaWithName(name string) *Schema {
 	schema.Enum(SortOrder(0), map[string]SortOrder{
 		"asc":  SortOrder_Ascending,
 		"desc": SortOrder_Descending,
+		"asc_lower":  SortOrder_Ascending_Lower,
+		"desc_lower": SortOrder_Descending_Lower,
 	})
 	return schema
 }

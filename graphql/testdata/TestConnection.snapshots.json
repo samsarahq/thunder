@@ -545,7 +545,115 @@
             },
             "totalCount": 5
           },
+          "stringsAscLower": {
+            "edges": [
+              {
+                "cursor": "MQ==",
+                "node": {
+                  "__key": 1,
+                  "id": 1,
+                  "string": "1"
+                }
+              },
+              {
+                "cursor": "NA==",
+                "node": {
+                  "__key": 4,
+                  "id": 4,
+                  "string": "2"
+                }
+              },
+              {
+                "cursor": "Mg==",
+                "node": {
+                  "__key": 2,
+                  "id": 2,
+                  "string": "3"
+                }
+              },
+              {
+                "cursor": "NQ==",
+                "node": {
+                  "__key": 5,
+                  "id": 5,
+                  "string": "4"
+                }
+              },
+              {
+                "cursor": "Mw==",
+                "node": {
+                  "__key": 3,
+                  "id": 3,
+                  "string": "5"
+                }
+              }
+            ],
+            "pageInfo": {
+              "endCursor": "Mw==",
+              "hasNextPage": false,
+              "hasPrevPage": false,
+              "pages": [
+                ""
+              ],
+              "startCursor": "MQ=="
+            },
+            "totalCount": 5
+          },
           "stringsDesc": {
+            "edges": [
+              {
+                "cursor": "Mw==",
+                "node": {
+                  "__key": 3,
+                  "id": 3,
+                  "string": "5"
+                }
+              },
+              {
+                "cursor": "NQ==",
+                "node": {
+                  "__key": 5,
+                  "id": 5,
+                  "string": "4"
+                }
+              },
+              {
+                "cursor": "Mg==",
+                "node": {
+                  "__key": 2,
+                  "id": 2,
+                  "string": "3"
+                }
+              },
+              {
+                "cursor": "NA==",
+                "node": {
+                  "__key": 4,
+                  "id": 4,
+                  "string": "2"
+                }
+              },
+              {
+                "cursor": "MQ==",
+                "node": {
+                  "__key": 1,
+                  "id": 1,
+                  "string": "1"
+                }
+              }
+            ],
+            "pageInfo": {
+              "endCursor": "MQ==",
+              "hasNextPage": false,
+              "hasPrevPage": false,
+              "pages": [
+                ""
+              ],
+              "startCursor": "Mw=="
+            },
+            "totalCount": 5
+          },
+          "stringsDescLower": {
             "edges": [
               {
                 "cursor": "Mw==",

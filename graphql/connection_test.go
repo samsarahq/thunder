@@ -384,7 +384,41 @@ func TestConnection(t *testing.T) {
 					pages
 				}
 			}
+			stringsAscLower: innerConnectionWithSort(sortBy: "strings", sortOrder: "asc_lower", first: 5, after: "") {
+				totalCount
+				edges {
+					node {
+						id
+						string
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+					pages
+				}
+			}
 			stringsDesc: innerConnectionWithSort(sortBy: "strings", sortOrder: "desc", first: 5, after: "") {
+				totalCount
+				edges {
+					node {
+						id
+						string
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+					pages
+				}
+			}
+			stringsDescLower: innerConnectionWithSort(sortBy: "strings", sortOrder: "desc_lower", first: 5, after: "") {
 				totalCount
 				edges {
 					node {
@@ -1291,11 +1325,11 @@ func TestPaginatedSorts(t *testing.T) {
 	}, schemabuilder.Paginated)
 	inner.FieldFunc("innerConnectionWithSort", func() []Item {
 		return []Item{
-			{Id: 1, Number: 1, String: "1", Float: 1.0},
-			{Id: 2, Number: 3, String: "3", Float: 3.0},
-			{Id: 3, Number: 5, String: "5", Float: 5.0},
-			{Id: 4, Number: 2, String: "2", Float: 2.0},
-			{Id: 5, Number: 4, String: "4", Float: 4.0},
+			{Id: 1, Number: 1, String: "a1", Float: 1.0},
+			{Id: 2, Number: 3, String: "A3", Float: 3.0},
+			{Id: 3, Number: 5, String: "a5", Float: 5.0},
+			{Id: 4, Number: 2, String: "A2", Float: 2.0},
+			{Id: 5, Number: 4, String: "a4", Float: 4.0},
 		}
 	},
 		schemabuilder.Paginated,
@@ -1618,7 +1652,7 @@ func TestConnectionManual(t *testing.T) {
 		schemabuilder.FilterField("number", func(i Item) string {
 			return strconv.FormatInt(i.Id, 10)
 		}),
-		schemabuilder.SortField("number", func(i Item) string { return string(i.Id) }),
+		schemabuilder.SortField("number", func(i Item) string { return fmt.Sprint(i.Id) }),
 	)
 
 	builtSchema := schema.MustBuild()

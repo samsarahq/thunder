@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/samsarahq/thunder/batch"
@@ -750,6 +751,8 @@ type SortOrder int64
 const (
 	SortOrder_Ascending SortOrder = iota
 	SortOrder_Descending
+	SortOrder_Ascending_Lower
+	SortOrder_Descending_Lower
 )
 
 type sortReference struct {
@@ -778,7 +781,7 @@ var sorts = map[reflect.Kind]func([]sortReference, SortOrder){
 		sort.SliceStable(slice, func(i, j int) bool {
 			a := slice[i].value
 			b := slice[j].value
-			if order == SortOrder_Ascending {
+			if order == SortOrder_Ascending || order ==SortOrder_Ascending_Lower {
 				return a.Int() < b.Int()
 			} else {
 				return a.Int() > b.Int()
@@ -789,7 +792,7 @@ var sorts = map[reflect.Kind]func([]sortReference, SortOrder){
 		sort.SliceStable(slice, func(i, j int) bool {
 			a := slice[i].value
 			b := slice[j].value
-			if order == SortOrder_Ascending {
+			if order == SortOrder_Ascending || order == SortOrder_Ascending_Lower {
 				return a.Uint() < b.Uint()
 			} else {
 				return a.Uint() > b.Uint()
@@ -800,7 +803,7 @@ var sorts = map[reflect.Kind]func([]sortReference, SortOrder){
 		sort.SliceStable(slice, func(i, j int) bool {
 			a := slice[i].value
 			b := slice[j].value
-			if order == SortOrder_Ascending {
+			if order == SortOrder_Ascending || order == SortOrder_Ascending_Lower{
 				return a.Float() < b.Float()
 			} else {
 				return a.Float() > b.Float()
@@ -811,7 +814,11 @@ var sorts = map[reflect.Kind]func([]sortReference, SortOrder){
 		sort.SliceStable(slice, func(i, j int) bool {
 			a := slice[i].value
 			b := slice[j].value
-			if order == SortOrder_Ascending {
+			if order == SortOrder_Ascending_Lower {
+				return strings.ToLower(a.String()) < strings.ToLower(b.String())
+			} else if order == SortOrder_Descending_Lower {
+				return strings.ToLower(a.String()) > strings.ToLower(b.String())
+			} else if order == SortOrder_Ascending {
 				return a.String() < b.String()
 			} else {
 				return a.String() > b.String()
