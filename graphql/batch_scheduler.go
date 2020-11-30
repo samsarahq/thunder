@@ -18,7 +18,7 @@ func (q *immediateGoroutineScheduler) Run(resolver UnitResolver, initialUnits ..
 	r.runEnqueue(resolver, initialUnits...)
 
 	r.wg.Wait()
-	fmt.Println("GJVHBKJNLKM:L<", r.errors)
+	// fmt.Println("GJV .HBKJNLKM:L<", r.errors)
 	return r.errors
 	// fmt.Println("EEEEE", e)
 }

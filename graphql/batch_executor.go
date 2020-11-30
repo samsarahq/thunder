@@ -171,11 +171,11 @@ func (e *Executor) ExecuteWithPartialFailures(ctx context.Context, typ Type, sou
 	}
 
 	errors := e.scheduler.Run(executeWorkUnit, initialSelectionWorkUnits...)
-	fmt.Println("MY ERRORS", errors)
+	// fmt.Println("MY ERRORS", errors)
 	if topLevelRespWriter.errRecorder.err != nil {
 		return nil, nil, topLevelRespWriter.errRecorder.err
 	}
-	fmt.Println("VYIBNLKM", writers)
+	// fmt.Println("VYIBNLKM", writers)
 	return outputNodeToJSON(writers), errors, nil
 }
 
