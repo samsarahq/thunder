@@ -88,7 +88,6 @@ func ExecuteRequest(ctx context.Context, req *thunderpb.ExecuteRequest, gqlSchem
 		}()
 
 		res, partialErrors, err := localExecutor.ExecuteWithPartialFailures(ctx, schema, nil, query)
-		fmt.Println("METADATAAAA", partialErrors)
 		if err != nil {
 			return nil, fmt.Errorf("executing query: %v", err)
 		}
@@ -139,9 +138,7 @@ func marshalPbSelections(selectionSet *graphql.SelectionSet) (*thunderpb.Selecti
 			if err != nil {
 				return nil, oops.Wrapf(err, "marshaling args")
 			}
-		}
-
-		// fmt.Println("SLECTCIOn", selection.Directives)
+		}		
 
 		directives := make([]*thunderpb.Directives, len(selection.Directives))
 		for i, directive := range selection.Directives {
@@ -149,7 +146,6 @@ func marshalPbSelections(selectionSet *graphql.SelectionSet) (*thunderpb.Selecti
 				Name: directive.Name,
 			}
 		}
-		// fmt.Println("SLECTCIOn dirteives", directives)
 
 		selections = append(selections, &thunderpb.Selection{
 			Name:         selection.Name,
@@ -198,8 +194,6 @@ func unmarshalPbSelectionSet(selectionSet *thunderpb.SelectionSet) (*graphql.Sel
 			}
 		}
 
-		// fmt.Println("PARSED", selection.Directives)
-		// Directives   []*Directive
 		directives := make([]*graphql.Directive, len(selection.Directives))
 		for i, directive := range selection.Directives {
 			directives[i] = &graphql.Directive{

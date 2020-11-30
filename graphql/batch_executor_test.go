@@ -489,8 +489,6 @@ func (q *counterGoroutineScheduler) runEnqueue(resolver graphql.UnitResolver, er
 			*errors = append(*errors, unitErrors...)
 			fmt.Println("YPPP", units, len(*errors), unitErrors)
 			q.runEnqueue(resolver, errors, units...)
-			// *errors = append(*errors, childrenErrors...)
-			// return errors 
 		}(unit, errors)
 	}
 }

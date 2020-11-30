@@ -303,7 +303,6 @@ func (c *conn) handleMutate(in *inEnvelope) error {
 		middlewares = append(middlewares, c.middlewares...)
 		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
 			output := next(input)
-			// output.Current, output.Error = e.Execute(input.Ctx, c.mutationSchema.Mutation, c.mutationSchema.Mutation, query)
 			executeErrors := []error{}
 			output.Current, executeErrors, output.Error = e.ExecuteWithPartialFailures(input.Ctx, c.mutationSchema.Mutation, c.mutationSchema.Mutation, query)
 			output.Metadata["errors"] = executeErrors

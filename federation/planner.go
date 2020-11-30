@@ -189,10 +189,6 @@ func (e *Planner) planObject(typ *graphql.Object, selectionSet *graphql.Selectio
 	}
 
 	for _, selection := range selectionSet.Selections {
-		if len(selection.Directives) > 0 {
-			fmt.Println("YEET", selection.Directives[0].Name)
-		}
-
 		ok, err := graphql.ShouldIncludeNode(selection.Directives)
 		if err != nil {
 			return nil, oops.Wrapf(err, "applying directive")

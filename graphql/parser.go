@@ -1,7 +1,6 @@
 package graphql
 
 import (
-	"fmt"
 	"reflect"
 	"strconv"
 
@@ -75,7 +74,6 @@ func parseDirectives(directives []*ast.Directive, vars map[string]interface{}) (
 	d := make([]*Directive, 0, len(directives))
 	for _, directive := range directives {
 		args, err := argsToJson(directive.Arguments, vars)
-
 		if err != nil {
 			return nil, err
 		}
@@ -84,8 +82,6 @@ func parseDirectives(directives []*ast.Directive, vars map[string]interface{}) (
 			Name: directive.Name.Value,
 			Args: args,
 		})
-		fmt.Println("ARGS", d[0].Name, d[0].Args)
-
 	}
 	return d, nil
 }

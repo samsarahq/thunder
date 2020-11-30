@@ -133,14 +133,7 @@ func (e *Executor) ExecuteWithPartialFailures(ctx context.Context, typ Type, sou
 	initialSelectionWorkUnits := make([]*WorkUnit, 0, len(topLevelSelections))
 	writers := make(map[string]*outputNode)
 	for _, selection := range topLevelSelections {
-		if len(selection.Directives) > 0 {
-			fmt.Println("YAHH2", selection.Directives[0].Name)
-		}
 		supportsPartialFailures := SupportsPartialFailures(selection.Directives)
-		if supportsPartialFailures {
-			fmt.Println(selection.Name, " SUPPROTS PARTIAL FAILURES")
-		}
-		// fmt.Println(supportsPartialFailures)
 		ok, err := ShouldIncludeNode(selection.Directives)
 		if err != nil {
 			return nil, nil, err
@@ -171,11 +164,9 @@ func (e *Executor) ExecuteWithPartialFailures(ctx context.Context, typ Type, sou
 	}
 
 	errors := e.scheduler.Run(executeWorkUnit, initialSelectionWorkUnits...)
-	// fmt.Println("MY ERRORS", errors)
 	if topLevelRespWriter.errRecorder.err != nil {
 		return nil, nil, topLevelRespWriter.errRecorder.err
 	}
-	// fmt.Println("VYIBNLKM", writers)
 	return outputNodeToJSON(writers), errors, nil
 }
 
@@ -183,7 +174,6 @@ func (e *Executor) ExecuteWithPartialFailures(ctx context.Context, typ Type, sou
 // selections of the unit to determine if it needs to schedule more work (which
 // will be returned as new work units that will need to get scheduled.
 func executeWorkUnit(unit *WorkUnit) ([]*WorkUnit, []error) {
-	fmt.Println("HERE", unit.errorable)
 	if unit.field.Batch && unit.useBatch {
 		return executeBatchWorkUnit(unit), nil
 	}
@@ -192,7 +182,6 @@ func executeWorkUnit(unit *WorkUnit) ([]*WorkUnit, []error) {
 		result, errors := executeNonExpensiveWorkUnit(unit)
 		fmt.Println("ERRORRRSS2", result, errors, len(errors))
 		return result, errors
-		// return executeNonExpensiveWorkUnit(unit)
 	}
 
 	var units []*WorkUnit
@@ -203,10 +192,8 @@ func executeWorkUnit(unit *WorkUnit) ([]*WorkUnit, []error) {
 }
 
 func executeBatchWorkUnit(unit *WorkUnit) []*WorkUnit {
-	fmt.Println("executinggggg")
 	results, err := SafeExecuteBatchResolver(unit.Ctx, unit.field, unit.sources, unit.selection.Args, unit.selection.SelectionSet)
 	if err != nil {
-		fmt.Println("ERROR NOT NIL")
 		for _, dest := range unit.destinations {
 			dest.Fail(err)
 		}
@@ -214,7 +201,6 @@ func executeBatchWorkUnit(unit *WorkUnit) []*WorkUnit {
 	}
 	unitChildren, err := resolveBatch(unit.Ctx, results, unit.field.Type, unit.selection.SelectionSet, unit.destinations)
 	if err != nil {
-		fmt.Println("ERROR NOT NIL2")
 		for _, dest := range unit.destinations {
 			dest.Fail(err)
 		}
@@ -240,21 +226,14 @@ func executeNonExpensiveWorkUnit(unit *WorkUnit) ([]*WorkUnit, []error) {
 			unit.destinations[idx].Fail(err)
 			return nil, nil
 		}
-		if unit.errorable {
-			// fmt.Println("ERROBLE", err)
-			if err != nil {
-				// return []*WorkUnit{}, nil
-				return []*WorkUnit{}, []error{err}
-			}
-			// return []*WorkUnit{}, []error{err}
+		if unit.errorable && err != nil {
+			return []*WorkUnit{}, []error{err}
 		}
-		// fmt.Println("fieldResult", fieldResult)
 		results = append(results, fieldResult)
 	}
 	unitChildren, err := resolveBatch(unit.Ctx, results, unit.field.Type, unit.selection.SelectionSet, unit.destinations)
 	if err != nil {
 		for _, dest := range unit.destinations {
-			fmt.Println("ERROR NOT NIL4")
 			dest.Fail(err)
 		}
 		return nil, nil
@@ -504,11 +483,6 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 				nonNilDestinations[idx][selection.Alias] = typ.Name
 			}
 			continue
-		}
-		// fmt.Println(selection.Directives)
-
-		if len(selection.Directives) > 0 {
-			fmt.Println("YAHH", selection.Directives[0].Name)
 		}
 
 		supportsPartialFailures := SupportsPartialFailures(selection.Directives)
