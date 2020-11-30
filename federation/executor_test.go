@@ -74,10 +74,14 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 	s1.Query().FieldFunc("usersWithArgs", func(args struct {
 		Name string
 	}) ([]*User, error) {
-		// users := make([]*User, 0, 1)
-		// users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: args.Name})
-		// return users, nil
-		return nil, oops.Errorf("ERROR")
+		users := make([]*User, 0, 1)
+		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: args.Name})
+		return users, nil
+	})
+	s1.Query().FieldFunc("usersFail", func(args struct {
+		Name string
+	}) ([]*User, error) {
+		return nil, oops.Errorf("failed to get users")
 	})
 
 	type Admin struct {
@@ -1276,23 +1280,129 @@ func TestExecutorQueriesWithDirectivesWithVariables(t *testing.T) {
 		ExpectedError string
 	}{
 		{
-			Name: "directive top level selection true",
+			Name: "directive with skip variable true",
 			Query: `
 				query Foo {
-					usersWithArgs(name: "foo") @errorable {
+					...Bar @skip(if: $something)
+				}
+				fragment Bar on Query {
+					users {
 						name
 					}
 				}`,
 			Output: `
+			{}`,
+			Variables: map[string]interface{}{"something": true},
+			Error:     false,
+		},
+		{
+			Name: "directive with both variables false",
+			Query: `
+				query Foo {
+					...Bar @skip(if: $something)
+				}
+				fragment Bar on Query {
+					users {
+						name
+						id @include(if: $somethingElse)
+					}
+				}`,
+			Output: `
 			{
-				"usersWithArgs":[
+				"users":[
 					{
 						"__key":1,
-						"name":"foo"
+						"name":"testUser"
+					},
+					{
+						"__key":2,
+						"name":"testUser2"
 					}
 				]
 			}`,
+			Variables: map[string]interface{}{"something": false, "somethingElse": false},
+			Error:     false,
+		},
+		{
+			Name: "directive with both variables false",
+			Query: `
+				query Foo {
+					...Bar @skip(if: $something)
+				}
+				fragment Bar on Query {
+					users {
+						name
+					}
+				}`,
+			Output:        "",
+			Variables:     map[string]interface{}{"something": "wrong type"},
+			Error:         true,
+			ExpectedError: "expected type boolean, found type string in \"if\" argument",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.Name, func(t *testing.T) {
+			ctx := context.Background()
+			if !testCase.Error {
+				res, _, err := e.Execute(ctx, graphql.MustParse(testCase.Query, testCase.Variables), nil)
+				require.NoError(t, err)
+				var expected interface{}
+				err = json.Unmarshal([]byte(testCase.Output), &expected)
+				require.NoError(t, err)
+				assert.Equal(t, expected, res)
+			} else {
+				_, _, err := e.Execute(ctx, graphql.MustParse(testCase.Query, testCase.Variables), nil)
+				assert.True(t, strings.Contains(err.Error(), testCase.ExpectedError))
+			}
+
+		})
+	}
+}
+
+func TestExecutorQueriesWithPartialErrors(t *testing.T) {
+	e, _, _, _, err := createExecutorWithFederatedUser()
+	require.NoError(t, err)
+	testCases := []struct {
+		Name          string
+		Query         string
+		Variables     map[string]interface{}
+		Output        string
+		Error         bool
+		ExpectedError string
+		PartialErrors []string
+	}{
+		{
+			Name: "directive top level selection true",
+			Query: `
+				query Foo {
+					usersFail(name: "foo") @errorable {
+						name
+					}
+					test: usersFail(name: "foo") @errorable {
+						name
+					}
+					users {
+						id
+					}
+				}`,
+			Output: `
+			{
+				"users":[
+						{
+							"__key":1,
+							"id":1
+						},
+						{
+							"__key":2,
+							"id":2
+						}
+					],
+				"usersFail":null,
+				"test":null
+			}`,
 			Error: false,
+			PartialErrors: []string{"failed to get users", "failed to get users"},
+
 		},
 	}
 	for _, testCase := range testCases {
@@ -1300,7 +1410,27 @@ func TestExecutorQueriesWithDirectivesWithVariables(t *testing.T) {
 			ctx := context.Background()
 			if !testCase.Error {
 				res, metadata, err := e.Execute(ctx, graphql.MustParse(testCase.Query, testCase.Variables), nil)
-				fmt.Println("METADATA", metadata)
+	
+				// Check that the partial errors in the metadata are expected
+				metadataParsed, ok := metadata[0].(map[string]interface{})
+				assert.True(t, ok, true)
+				if metadataParsed["errors"] != nil {
+					metadataParsedStrings, ok := metadataParsed["errors"].([]string)
+					assert.True(t, ok, true)
+					assert.Equal(t, len(testCase.PartialErrors), len(metadataParsedStrings))
+					partialErrorStrings := ""
+					for  _, errString := range metadataParsedStrings  {
+						partialErrorStrings += errString
+					}
+					for _, expectedPartialError := range testCase.PartialErrors {
+						assert.True(t, strings.Contains(partialErrorStrings, expectedPartialError))
+					}
+				} else {
+					assert.Equal(t, len(testCase.PartialErrors), 0)
+				}
+	
+			
+			
 				require.NoError(t, err)
 				var expected interface{}
 				err = json.Unmarshal([]byte(testCase.Output), &expected)

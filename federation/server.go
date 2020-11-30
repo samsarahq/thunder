@@ -87,7 +87,7 @@ func ExecuteRequest(ctx context.Context, req *thunderpb.ExecuteRequest, gqlSchem
 			close(done)
 		}()
 
-		res, partialErrors, err := localExecutor.Execute(ctx, schema, nil, query)
+		res, partialErrors, err := localExecutor.ExecuteWithPartialFailures(ctx, schema, nil, query)
 		fmt.Println("METADATAAAA", partialErrors)
 		if err != nil {
 			return nil, fmt.Errorf("executing query: %v", err)
