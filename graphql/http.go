@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"sync"
+	"fmt"
 
 	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/reactive"
@@ -104,9 +105,10 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
 			output := next(input)
 			// output.Current, _, output.Error = e.Execute(input.Ctx, schema, nil, input.ParsedQuery)
-			executeErrors := ""
-			output.Current, executeErrors, output.Error = e.Execute(input.Ctx, schema, nil, input.ParsedQuery)
+			executeErrors := []error{}
+			output.Current, executeErrors, output.Error = e.ExecuteWithPartialFailures(input.Ctx, schema, nil, input.ParsedQuery)
 			output.Metadata["errors"] = executeErrors
+			fmt.Println("YPOOOO4", output.Current)
 			return output
 		})
 

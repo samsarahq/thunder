@@ -33,7 +33,7 @@ func (c *DirectExecutorClient) Execute(ctx context.Context, request *QueryReques
 	}
 
 	respMetadata := make(map[string]interface{})
-	respMetadata["errors"] = resp.Errors
+	respMetadata["errors"] = resp.PartialErrors
 	return &QueryResponse{Result: resp.Result, Metadata: respMetadata}, nil
 }
 
@@ -87,8 +87,8 @@ func ExecuteRequest(ctx context.Context, req *thunderpb.ExecuteRequest, gqlSchem
 			close(done)
 		}()
 
-		res, metadata, err := localExecutor.Execute(ctx, schema, nil, query)
-		fmt.Println("METADATAAAA", metadata)
+		res, partialErrors, err := localExecutor.Execute(ctx, schema, nil, query)
+		fmt.Println("METADATAAAA", partialErrors)
 		if err != nil {
 			return nil, fmt.Errorf("executing query: %v", err)
 		}
@@ -98,9 +98,14 @@ func ExecuteRequest(ctx context.Context, req *thunderpb.ExecuteRequest, gqlSchem
 			return nil, oops.Wrapf(err, "unmarshalling json query response")
 		}
 
+		partialErrorStrings := make([]string, 0, len(partialErrors))
+		for _, partialErr := range partialErrors {
+			partialErrorStrings  = append(partialErrorStrings,partialErr.Error() )
+		}
+
 		return &thunderpb.ExecuteResponse{
 			Result: bytes,
-			Errors: metadata,
+			PartialErrors: partialErrorStrings,
 		}, nil
 	}, time.Hour, false)
 

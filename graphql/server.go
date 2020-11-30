@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"sync"
 	"time"
+	"fmt"
 
 	"github.com/gorilla/websocket"
 	"github.com/samsarahq/go/oops"
@@ -172,9 +173,10 @@ func (c *conn) handleSubscribe(in *inEnvelope) error {
 		middlewares = append(middlewares, c.middlewares...)
 		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
 			output := next(input)
-			executeErrors := ""
-			output.Current, executeErrors, output.Error = e.Execute(input.Ctx, c.schema.Query, nil, input.ParsedQuery)
+			executeErrors := []error{}
+			output.Current, executeErrors, output.Error = e.ExecuteWithPartialFailures(input.Ctx, c.schema.Query, nil, input.ParsedQuery)
 			output.Metadata["errors"] = executeErrors
+			fmt.Println("YPOOOO", output.Current)
 			return output
 		})
 
@@ -302,10 +304,10 @@ func (c *conn) handleMutate(in *inEnvelope) error {
 		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
 			output := next(input)
 			// output.Current, output.Error = e.Execute(input.Ctx, c.mutationSchema.Mutation, c.mutationSchema.Mutation, query)
-			executeErrors := ""
-			output.Current, executeErrors, output.Error = e.Execute(input.Ctx, c.mutationSchema.Mutation, c.mutationSchema.Mutation, query)
+			executeErrors := []error{}
+			output.Current, executeErrors, output.Error = e.ExecuteWithPartialFailures(input.Ctx, c.mutationSchema.Mutation, c.mutationSchema.Mutation, query)
 			output.Metadata["errors"] = executeErrors
-
+			fmt.Println("YPOOOO", output.Current)
 			return output
 		})
 

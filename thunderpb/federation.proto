@@ -40,7 +40,7 @@ message ExecuteRequest {
 
 message ExecuteResponse { 
   bytes result = 1; 
-  string errors = 2;
+  repeated string partial_errors = 2;
 }
 
 service Executor {

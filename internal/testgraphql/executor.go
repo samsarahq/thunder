@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"testing"
+	"fmt"
 
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/internal"
@@ -48,7 +49,8 @@ func (e *ExecutorWrapper) Execute(ctx context.Context, typ graphql.Type, source 
 	var lastErr error
 	runOnce := false
 	for _, executorAndName := range GetExecutors() {
-		output, metadata, err := executorAndName.Executor.Execute(ctx, typ, source, query)
+		output, _, err := executorAndName.Executor.ExecuteWithPartialFailures(ctx, typ, source, query)
+		fmt.Println("YPOOOO3", output)
 		if !runOnce {
 			lastOutput = output
 			lastErr = err

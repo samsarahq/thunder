@@ -13,7 +13,7 @@ func NewImmediateGoroutineScheduler() WorkScheduler {
 
 type immediateGoroutineScheduler struct{}
 
-func (q *immediateGoroutineScheduler) Run(resolver UnitResolver, initialUnits ...*WorkUnit) string {
+func (q *immediateGoroutineScheduler) Run(resolver UnitResolver, initialUnits ...*WorkUnit) []error {
 	r := &immediateGoroutineSchedulerRunner{}
 	r.runEnqueue(resolver, initialUnits...)
 
@@ -25,7 +25,7 @@ func (q *immediateGoroutineScheduler) Run(resolver UnitResolver, initialUnits ..
 
 type immediateGoroutineSchedulerRunner struct {
 	wg     sync.WaitGroup
-	errors string
+	errors []error
 }
 
 func (r *immediateGoroutineSchedulerRunner) runEnqueue(resolver UnitResolver, units ...*WorkUnit) {
@@ -36,7 +36,7 @@ func (r *immediateGoroutineSchedulerRunner) runEnqueue(resolver UnitResolver, un
 			defer r.wg.Done()
 			units, errors := resolver(u)
 			fmt.Println("YEEEEEEET", errors)
-			r.errors = errors
+			r.errors = append(r.errors, errors...)
 			// fmt.Println("GYIUHOIJL", errors)
 			// errors2 = errors
 			// fmt.Println("GYIUHOIJL", errors2)

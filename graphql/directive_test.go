@@ -1,6 +1,7 @@
 package graphql_test
 
 import (
+	"fmt"
 	"context"
 	"testing"
 
@@ -23,10 +24,10 @@ func buildSchema() *graphql.Schema {
 	item := schema.Object("item", Item{})
 	item.Key("id")
 	item.FieldFunc("name", func(ctx context.Context, item Item) (string, error) {
-		return string(item.Id), nil
+		return fmt.Sprint(item.Id), nil
 	})
 	item.FieldFunc("number", func(ctx context.Context, item Item) (string, error) {
-		return string(item.Number), nil
+		return fmt.Sprint(item.Number), nil
 	})
 	query.FieldFunc("items", func(ctx context.Context) ([]Item, error) {
 		retList := make([]Item, 5)

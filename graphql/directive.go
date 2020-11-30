@@ -12,8 +12,8 @@ const (
 )
 
 func SupportsPartialFailures(directives []*Directive) bool {
-	skipDirective := findDirectiveWithName(directives, ERRORABLE)
-	return skipDirective != nil
+	errorableDirective := findDirectiveWithName(directives, ERRORABLE)
+	return errorableDirective != nil
 }
 
 // ShouldIncludeNode validates and checks the value of a skip or include directive
