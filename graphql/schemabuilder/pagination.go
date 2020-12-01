@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"sort"
 	"sync"
+	"strings"
 
 	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/graphql"
@@ -812,9 +813,9 @@ var sorts = map[reflect.Kind]func([]sortReference, SortOrder){
 			a := slice[i].value
 			b := slice[j].value
 			if order == SortOrder_Ascending {
-				return a.String() < b.String()
+				return strings.ToLower(a.String()) < strings.ToLower(b.String())
 			} else {
-				return a.String() > b.String()
+				return strings.ToLower(a.String()) > strings.ToLower(b.String())
 			}
 		})
 	},
