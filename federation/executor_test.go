@@ -694,6 +694,83 @@ func TestExecutorQueriesWithFragments(t *testing.T) {
 				]
 			}`,
 		},
+		{
+			Name: "query fields with repeated fields and fragments",
+			Query: `
+			query Foo {
+				users {
+					...Bar
+				}
+				users2: users {
+					...Bar
+				}
+			}
+			fragment Bar on User {
+				id
+				name
+				email
+				device {
+					...DeviceInfo
+				}
+			}
+			fragment DeviceInfo on Device {
+				id
+				temp
+			}
+			
+			`,
+			Output: `
+			{
+				"users":[
+					{
+						"__key":1,
+						"id":1,
+						"name":"testUser",
+						"email":"email@gmail.com",
+						"device":{
+							"__key":1,
+							"id":1,
+							"temp":70
+						}
+					},
+					{
+						"__key":2,
+						"id":2,
+						"name":"testUser2",
+						"email":"email@gmail.com",
+						"device":{
+							"__key":1,
+							"id":1,
+							"temp":70
+						}
+					}
+				],
+				"users2":[
+					{
+						"__key":1,
+						"id":1,
+						"name":"testUser",
+						"email":"email@gmail.com",
+						"device":{
+							"__key":1,
+							"id":1,
+							"temp":70
+						}
+					},
+					{
+						"__key":2,
+						"id":2,
+						"name":"testUser2",
+						"email":"email@gmail.com",
+						"device":{
+							"__key":1,
+							"id":1,
+							"temp":70
+						}
+					}
+				]
+			}`,
+		},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.Name, func(t *testing.T) {

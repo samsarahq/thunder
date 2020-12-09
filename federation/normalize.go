@@ -231,8 +231,9 @@ func (f *flattener) flatten(selectionSet *graphql.SelectionSet, typ graphql.Type
 		if err != nil {
 			return nil, err
 		}
-		selectionSet.Fragments = fragments
-
+		if len(fragments) > 0 {
+			selectionSet.Fragments = append(selectionSet.Fragments, fragments...)
+		}
 		// Recursively flatten.
 		for _, selection := range selections {
 			// Get the type of the field.
