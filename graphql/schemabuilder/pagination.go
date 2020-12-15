@@ -873,7 +873,7 @@ func (c *connectionContext) consumeSorts(sb *schemaBuilder, m *method, typ refle
 
 		// Build a GraphQL field for the function.
 		var field *graphql.Field
-		if sortMethod.Batch && sortMethod.BatchArgs.FallbackFunc != nil && sortMethod.BatchArgs.ShouldUseFallbackFunc != nil {
+		if sortMethod.Batch && sortMethod.BatchArgs.FallbackFunc != nil && sortMethod.BatchArgs.ShouldUseBatchFunc != nil {
 			field, err = sb.buildBatchFunctionWithFallback(typ, sortMethod)
 		} else if sortMethod.Batch {
 			field, err = sb.buildBatchFunction(typ, sortMethod)
@@ -926,7 +926,7 @@ func (c *connectionContext) consumeTextFilters(sb *schemaBuilder, m *method, typ
 		}
 
 		var field *graphql.Field
-		if filterMethod.Batch && filterMethod.BatchArgs.FallbackFunc != nil && filterMethod.BatchArgs.ShouldUseFallbackFunc != nil {
+		if filterMethod.Batch && filterMethod.BatchArgs.FallbackFunc != nil && filterMethod.BatchArgs.ShouldUseBatchFunc != nil {
 			field, err = sb.buildBatchFunctionWithFallback(typ, filterMethod)
 		} else if filterMethod.Batch {
 			field, err = sb.buildBatchFunction(typ, filterMethod)
@@ -1088,7 +1088,7 @@ func (sb *schemaBuilder) buildPaginatedFieldWithFallback(typ reflect.Type, m *me
 	field := &graphql.Field{
 		Resolve: func(ctx context.Context, source, args interface{}, selectionSet *graphql.SelectionSet) (i interface{}, e error) {
 			dualArgs := args.(dualArgResponses)
-			if m.ManualPaginationArgs.ShouldUseFallbackFunc(ctx) {
+			if m.ManualPaginationArgs.ShouldUseBatchFunc(ctx) {
 				return fallbackField.Resolve(ctx, source, dualArgs.fallbackArgValue, selectionSet)
 			}
 			return manualPaginationField.Resolve(ctx, source, dualArgs.argValue, selectionSet)
