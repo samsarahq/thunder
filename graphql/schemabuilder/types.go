@@ -89,7 +89,7 @@ func BatchFilterFieldWithFallback(name string, batchFilter interface{}, filter i
 		Fn: batchFilter,
 		BatchArgs: batchArgs{
 			FallbackFunc:          filter,
-			ShouldUseFallbackFunc: flag,
+			ShouldUseBatchFunc: flag,
 		}, Batch: true,
 		MarkedNonNullable: true}
 	for _, opt := range options {
@@ -146,7 +146,7 @@ func BatchSortFieldWithFallback(name string, batchSort interface{}, sort interfa
 		Fn: batchSort,
 		BatchArgs: batchArgs{
 			FallbackFunc:          sort,
-			ShouldUseFallbackFunc: flag,
+			ShouldUseBatchFunc: flag,
 		}, Batch: true,
 		MarkedNonNullable: true}
 	for _, opt := range options {
@@ -226,7 +226,7 @@ func (s *Object) BatchFieldFuncWithFallback(name string, batchFunc interface{}, 
 		Fn: batchFunc,
 		BatchArgs: batchArgs{
 			FallbackFunc:          fallbackFunc,
-			ShouldUseFallbackFunc: flag,
+			ShouldUseBatchFunc: flag,
 		},
 		Batch: true,
 	}
@@ -249,7 +249,7 @@ func (s *Object) ManualPaginationWithFallback(name string, manualPaginatedFunc i
 		Fn: manualPaginatedFunc,
 		ManualPaginationArgs: manualPaginationArgs{
 			FallbackFunc:          fallbackFunc,
-			ShouldUseFallbackFunc: flag,
+			ShouldUseBatchFunc: flag,
 		},
 		Paginated: true,
 	}
@@ -326,12 +326,12 @@ type UseFallbackFlag func(context.Context) bool
 
 type batchArgs struct {
 	FallbackFunc          interface{}
-	ShouldUseFallbackFunc UseFallbackFlag
+	ShouldUseBatchFunc UseFallbackFlag
 }
 
 type manualPaginationArgs struct {
 	FallbackFunc          interface{}
-	ShouldUseFallbackFunc UseFallbackFlag
+	ShouldUseBatchFunc UseFallbackFlag
 }
 
 // A Methods map represents the set of methods exposed on a Object.
