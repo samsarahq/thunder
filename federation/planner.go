@@ -152,9 +152,6 @@ func (e *Planner) selectService(
 		customService = e.serviceSelector(typeName, selection.Name)
 	}
 	if customService == "" {
-		if len(field.FederatedKey) == 0 && len(fieldInfo.Services) != 1 {
-			return "", oops.Errorf("field %s is not in serviceSelector and has %d associate services, current service %s", selection.Name, len(fieldInfo.Services), currentService)
-		}
 		if fieldInfo.Services[currentService] {
 			return currentService, nil
 		}

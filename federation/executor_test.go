@@ -1429,3 +1429,157 @@ func TestExecutorQueriesWithDirectivesWithVariables(t *testing.T) {
 		})
 	}
 }
+
+func TestBasicFederatedObjectFetchAllFields(t *testing.T) {
+	type User struct {
+		Id          int64
+		OrgId       int64
+		Name        string
+		Email       string
+		PhoneNumber string
+	}
+	s1 := schemabuilder.NewSchemaWithName("s1")
+	type UserKey struct {
+		Id int64
+	}
+	user := s1.Object("User", User{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*UserKey }) []*User {
+		users := make([]*User, 0, 2)
+		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: "testUser", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		users = append(users, &User{Id: int64(2), OrgId: int64(2), Name: "testUser2", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		return users
+	}))
+	user.Key("id")
+	type UserIds struct {
+		Id    int64
+		OrgId int64
+	}
+	s1.Query().FieldFunc("users", func(ctx context.Context) ([]*User, error) {
+		users := make([]*User, 0, 2)
+		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: "testUser", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		users = append(users, &User{Id: int64(2), OrgId: int64(2), Name: "testUser2", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		return users, nil
+	})
+
+	s2 := schemabuilder.NewSchemaWithName("s2")
+	user2 := s2.Object("User", User{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*UserKey }) []*User {
+		users := make([]*User, 0, 2)
+		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: "testUser", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		users = append(users, &User{Id: int64(2), OrgId: int64(2), Name: "testUser2", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		return users
+	}))
+	user2.Key("id")
+	user2.FieldFunc("isCool", func(ctx context.Context) (bool, error) {
+		return true, nil
+	})
+	s2.Query().FieldFunc("users2", func(ctx context.Context) ([]*User, error) {
+		users := make([]*User, 0, 2)
+		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: "testUser", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		users = append(users, &User{Id: int64(2), OrgId: int64(2), Name: "testUser2", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		return users, nil
+	})
+
+	// Create the executor with all the schemas
+	ctx := context.Background()
+	execs, err := makeExecutors(map[string]*schemabuilder.Schema{
+		"s1": s1,
+		"s2": s2,
+	})
+	e, err := NewExecutor(ctx, execs, &SchemaSyncerConfig{SchemaSyncer: NewIntrospectionSchemaSyncer(ctx, execs, nil)})
+	assert.NoError(t, err)
+
+	testCases := []struct {
+		Name          string
+		Query         string
+		Variables     map[string]interface{}
+		Output        string
+		Error         bool
+		ExpectedError string
+	}{
+		{
+			Name: "full query with all fields",
+			Query: `
+				query Foo {
+					users {
+						id
+						name
+						orgId
+						email
+						phoneNumber
+						isCool
+					}
+					users2 {
+						id
+						name
+						orgId
+						email
+						phoneNumber
+						isCool
+					}
+				}
+				`,
+				Output: `
+				{
+					"users":[
+						{
+							"__key":1,
+							"id":1,
+							"name":"testUser",
+							"email":"email@gmail.com",
+							"isCool":true, 
+							"phoneNumber":"555-5555",
+							"orgId":1
+						},
+						{
+							"__key":2,
+							"id":2,
+							"name":"testUser2",
+							"email":"email@gmail.com",
+							"isCool":true, 
+							"phoneNumber":"555-5555",
+							"orgId":2
+						}
+					],
+					"users2":[
+						{
+							"__key":1,
+							"id":1,
+							"name":"testUser",
+							"email":"email@gmail.com",
+							"isCool":true, 
+							"phoneNumber":"555-5555",
+							"orgId":1
+						},
+						{
+							"__key":2,
+							"id":2,
+							"name":"testUser2",
+							"email":"email@gmail.com",
+							"isCool":true, 
+							"phoneNumber":"555-5555",
+							"orgId":2
+						}
+					]
+				}`,
+			Variables: map[string]interface{}{"something": true},
+			Error:     false,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.Name, func(t *testing.T) {
+			ctx := context.Background()
+			if !testCase.Error {
+				res, _, err := e.Execute(ctx, graphql.MustParse(testCase.Query, testCase.Variables), nil)
+				require.NoError(t, err)
+				var expected interface{}
+				err = json.Unmarshal([]byte(testCase.Output), &expected)
+				require.NoError(t, err)
+				fmt.Println(expected)
+				assert.Equal(t, expected, res)
+			} else {
+				_, _, err := e.Execute(ctx, graphql.MustParse(testCase.Query, testCase.Variables), nil)
+				assert.True(t, strings.Contains(err.Error(), testCase.ExpectedError))
+			}
+
+		})
+	}
+}
