@@ -86,7 +86,10 @@ func WriteToFile(filename string, data string) error {
 }
 
 func writeSchemaToFile(name string, data []byte) error {
-	fileName := "./testdata/fileschemasyncer" + name
+	if _, err := os.Stat("testdata/temp/"); os.IsNotExist(err) {
+		os.Mkdir("testdata/temp/", 0755)
+	}
+	fileName := "./testdata/temp/fileschemasyncer-" + name
 	file, err := os.Create(fileName)
 	if err != nil {
 		return err
@@ -101,7 +104,10 @@ func writeSchemaToFile(name string, data []byte) error {
 }
 
 func readFile(name string) ([]byte, error) {
-	fileName := "./testdata/fileschemasyncer" + name
+	if _, err := os.Stat("testdata/temp/"); os.IsNotExist(err) {
+		os.Mkdir("testdata/temp/", 0755)
+	}
+	fileName := "./testdata/temp/fileschemasyncer-" + name
 	return ioutil.ReadFile(fileName)
 }
 
@@ -223,11 +229,7 @@ func TestExecutorQueriesWithCustomSchemaSyncer(t *testing.T) {
 	}
 	// Sleep for 3 seconds to wait for the schema syncer to get the update
 	time.Sleep(3 * time.Second)
-	// Run the same query, the query should fail because the selection field has
-	// more than 1 service associated without a selector.
-	runAndValidateQueryError(t, ctx, e, query2, expectedOutput2, "is not in serviceSelector")
 
-	// Test case 5.
 	// Update the serviceSelector, syncerTestFunc to be resolved by service 1.
 	schemaSyncer.serviceSelector = func(typeName string, fieldName string) string {
 		if typeName == "Query" && fieldName == "syncerTest" {
