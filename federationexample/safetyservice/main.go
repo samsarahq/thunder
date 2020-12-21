@@ -25,6 +25,7 @@ func schema() *schemabuilder.Schema {
 	}
 	schema.Object("Location", Location{}, 
 		schemabuilder.FetchObjectFromKeys(func(ctx context.Context, args struct{ Keys []*Location }) ([]*Location) {
+			// In this case the keys are a full location object, so we can just return the keys
 			return args.Keys
 		}),
 	)
