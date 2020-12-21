@@ -13,6 +13,25 @@ import (
 	"github.com/samsarahq/thunder/thunderpb"
 )
 
+type GrpcExecutorClient struct {
+	Client thunderpb.ExecutorClient
+}
+
+func (c *GrpcExecutorClient) Execute(ctx context.Context, req *QueryRequest) (*QueryResponse, error) {
+	marshaled, err := MarshalQuery(req.Query)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.Client.Execute(ctx, &thunderpb.ExecuteRequest{
+		Query: marshaled,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &QueryResponse{Result: resp.Result}, nil
+}
+
+
 // DirectExecutorClient is used to execute directly on any of the graphql servers
 type DirectExecutorClient struct {
 	Client thunderpb.ExecutorServer
