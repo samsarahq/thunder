@@ -34,6 +34,11 @@ func (w *WorkUnit) Selection() *Selection {
 	return w.selection
 }
 
+func (w *WorkUnit) ParentSelection() string {
+	return w.selection.ParentType
+}
+
+
 // Splits the work unit to a series of work units (one for every source/dest pair).
 func splitWorkUnit(unit *WorkUnit) []*WorkUnit {
 	workUnits := make([]*WorkUnit, 0, len(unit.sources))
