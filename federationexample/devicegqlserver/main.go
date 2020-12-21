@@ -42,7 +42,7 @@ func schema() *schemabuilder.Schema {
 	type DeviceKey struct {
 		Id int64
 	}
-		device := schema.Object("Device", Device{},
+	device := schema.Object("Device", Device{},
 		schemabuilder.FetchObjectFromKeys(func(ctx context.Context, args struct{ Keys []*DeviceKey }) ([]*Device, error) {
 			devices := make([]*Device, 0, len(args.Keys))
 			for _, key := range args.Keys {
