@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"bytes"
 
 	"github.com/samsarahq/go/oops"
 	"github.com/samsarahq/thunder/graphql"
@@ -123,7 +124,9 @@ func executeSuccesfulQuery(t *testing.T, ctx context.Context, e *Executor, extra
 	 		]
 	 	}`
 	var expected interface{}
-	err = json.Unmarshal([]byte(output), &expected)
+	d := json.NewDecoder(bytes.NewReader([]byte(output)))
+	d.UseNumber()
+	err = d.Decode(&expected)
 	require.NoError(t, err)
 	assert.Equal(t, expected, res)
 	expectedoptionalRespMetadata := make([]interface{}, 1)

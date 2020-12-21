@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"sync"
 	"time"
+	"bytes"
 
 	"github.com/samsarahq/go/oops"
 	"golang.org/x/sync/errgroup"
@@ -228,7 +229,9 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 	}
 	// Unmarshal json from results
 	var res interface{}
-	if err := json.Unmarshal(response.Result, &res); err != nil {
+	d := json.NewDecoder(bytes.NewReader(response.Result))
+	d.UseNumber()
+	if err := d.Decode(&res); err != nil {
 		return nil, nil, oops.Wrapf(err, "unmarshal res")
 	}
 

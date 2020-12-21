@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"bytes"
 
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
@@ -242,7 +243,9 @@ func runAndValidateQueryResults(t *testing.T, ctx context.Context, e *Executor, 
 	res, _, err := e.Execute(ctx, graphql.MustParse(query, map[string]interface{}{}), nil)
 	require.NoError(t, err)
 	var expected interface{}
-	err = json.Unmarshal([]byte(out), &expected)
+	d := json.NewDecoder(bytes.NewReader([]byte(out)))
+	d.UseNumber()
+	err = d.Decode(&expected)
 	require.NoError(t, err)
 	assert.Equal(t, expected, res)
 }
@@ -1418,7 +1421,9 @@ func TestExecutorQueriesWithDirectivesWithVariables(t *testing.T) {
 				res, _, err := e.Execute(ctx, graphql.MustParse(testCase.Query, testCase.Variables), nil)
 				require.NoError(t, err)
 				var expected interface{}
-				err = json.Unmarshal([]byte(testCase.Output), &expected)
+				d := json.NewDecoder(bytes.NewReader([]byte(testCase.Output)))
+				d.UseNumber()
+				err = d.Decode(&expected)
 				require.NoError(t, err)
 				assert.Equal(t, expected, res)
 			} else {
@@ -1571,7 +1576,10 @@ func TestBasicFederatedObjectFetchAllFields(t *testing.T) {
 				res, _, err := e.Execute(ctx, graphql.MustParse(testCase.Query, testCase.Variables), nil)
 				require.NoError(t, err)
 				var expected interface{}
-				err = json.Unmarshal([]byte(testCase.Output), &expected)
+				d := json.NewDecoder(bytes.NewReader([]byte(testCase.Output)))
+				d.UseNumber()
+				err = d.Decode(&expected)
+
 				require.NoError(t, err)
 				fmt.Println(expected)
 				assert.Equal(t, expected, res)
