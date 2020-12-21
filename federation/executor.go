@@ -1,6 +1,7 @@
 package federation
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -228,9 +229,19 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 	}
 	// Unmarshal json from results
 	var res interface{}
-	if err := json.Unmarshal(response.Result, &res); err != nil {
+	// if err := json.Unmarshal(response.Result, &res); err != nil {
+	// 	return nil, nil, oops.Wrapf(err, "unmarshal res")
+	// }
+
+	d := json.NewDecoder(bytes.NewReader(response.Result))
+	d.UseNumber()
+	if err := d.Decode(&res); err != nil {
 		return nil, nil, oops.Wrapf(err, "unmarshal res")
 	}
+
+
+	// if err := json.Unmarshal([]byte(result.Output), &output); err != nil {
+
 
 	if !isRoot {
 		result, ok := res.(map[string]interface{})

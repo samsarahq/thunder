@@ -1,6 +1,7 @@
 package federation
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -172,9 +173,18 @@ func unmarshalPbSelectionSet(selectionSet *thunderpb.SelectionSet) (*graphql.Sel
 
 		var args map[string]interface{}
 		if len(selection.Arguments) != 0 {
-			if err := json.Unmarshal(selection.Arguments, &args); err != nil {
+			// if err := json.Unmarshal(selection.Arguments, &args); err != nil {
+			// 	return nil, oops.Wrapf(err, "unmarshaling selection arguments")
+			// }
+
+			d := json.NewDecoder(bytes.NewReader(selection.Arguments))
+			d.UseNumber()
+			if err := d.Decode(&args); err != nil {
 				return nil, oops.Wrapf(err, "unmarshaling selection arguments")
 			}
+
+			
+
 		}
 
 		selections = append(selections, &graphql.Selection{
