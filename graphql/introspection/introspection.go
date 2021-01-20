@@ -123,6 +123,15 @@ var skipDirective = Directive{
 	},
 }
 
+var typeAsOptionalDirective = Directive{
+	Description: "Client-side-only directive that instructs the type generator to mark this field as optional. This is useful for making the generated types compliant with Troy persistence schema.",
+	Locations: []DirectiveLocation{
+		FIELD,
+	},
+	Name: "type_as_optional",
+	Args: []InputValue{},
+}
+
 func (s *introspection) registerType(schema *schemabuilder.Schema) {
 	object := schema.Object("__Type", Type{})
 	object.FieldFunc("kind", func(t Type) TypeKind {
@@ -349,7 +358,11 @@ func (s *introspection) registerQuery(schema *schemabuilder.Schema) {
 			Types:        types,
 			QueryType:    &Type{Inner: s.query},
 			MutationType: &Type{Inner: s.mutation},
-			Directives:   []Directive{includeDirective, skipDirective},
+			Directives: []Directive{
+				includeDirective,
+				skipDirective,
+				typeAsOptionalDirective,
+			},
 		}
 	})
 
