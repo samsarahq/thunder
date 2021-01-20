@@ -54,6 +54,12 @@
                 "INLINE_FRAGMENT"
               ],
               "name": "skip"
+            },
+            {
+                "args": [],
+                "description": "Client-side-only directive that instructs the type generator to mark this field as optional. This is useful for making the generated types compliant with Troy persistence schema.",
+                "locations": ["FIELD"],
+                "name": "type_as_optional"
             }
           ],
           "mutationType": {
