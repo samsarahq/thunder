@@ -10,6 +10,12 @@ message Selection {
   string alias = 2;
   SelectionSet selection_set = 3;
   bytes arguments = 4;
+  repeated Directives directives = 5;
+}
+
+message Directives {
+  string name = 1;
+  bytes arguments = 2;
 }
 
 message Fragment {
@@ -32,7 +38,10 @@ message ExecuteRequest {
   Query query = 1;
 }
 
-message ExecuteResponse { bytes result = 1; }
+message ExecuteResponse { 
+  bytes result = 1; 
+  repeated string partial_errors = 2;
+}
 
 service Executor {
   rpc Execute(ExecuteRequest) returns (ExecuteResponse) {}

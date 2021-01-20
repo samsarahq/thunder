@@ -123,6 +123,17 @@ var skipDirective = Directive{
 	},
 }
 
+var errorableDirective = Directive{
+	Description: "Directs the executor to allow partial failures for that section of the query",
+	Locations: []DirectiveLocation{
+		FIELD,
+		FRAGMENT_SPREAD,
+		INLINE_FRAGMENT,
+	},
+	Name: "errorable",
+	Args: []InputValue{},
+}
+
 func (s *introspection) registerType(schema *schemabuilder.Schema) {
 	object := schema.Object("__Type", Type{})
 	object.FieldFunc("kind", func(t Type) TypeKind {
@@ -349,7 +360,7 @@ func (s *introspection) registerQuery(schema *schemabuilder.Schema) {
 			Types:        types,
 			QueryType:    &Type{Inner: s.query},
 			MutationType: &Type{Inner: s.mutation},
-			Directives:   []Directive{includeDirective, skipDirective},
+			Directives:   []Directive{includeDirective, skipDirective, errorableDirective},
 		}
 	})
 

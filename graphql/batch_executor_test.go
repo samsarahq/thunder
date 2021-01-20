@@ -6,7 +6,10 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"fmt"
 
+
+	"github.com/samsarahq/go/oops"
 	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
@@ -374,6 +377,45 @@ func TestNonExpensiveExecution(t *testing.T) {
 			}`,
 			wantError: "objects.0.value: bad times",
 		},
+		{
+			name: "non-expensive run with errorable directive",
+			registrationFunc: func(schema *schemabuilder.Schema) error {
+				schema.Query().FieldFunc("objects", func(ctx context.Context) []*Object { return []*Object{&Object{Key: "key1"}} })
+				obj := schema.Object("Object", Object{})
+				obj.FieldFunc("value", func(object *Object) (*Object, error) {
+					return nil, oops.Errorf("test error")
+					// return object, nil
+				})
+				obj.FieldFunc("value2", func(object *Object) (*Object, error) {
+					// return nil, oops.Errorf("test error")
+					return object, nil
+				})
+				return nil
+			},
+			query: `
+			{
+				objects @errorable {
+					key
+					value @errorable {
+						key
+						value2 {
+							key
+						}
+					}
+					value2 @errorable {
+						key
+						value @errorable {
+							key
+						}
+					}
+				}
+			}`,
+			wantResultJSON: `
+			{"objects": [
+			{"key": "key1", "value": null, "value2": {"key":"key1","value":null}}
+			]}
+			`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -395,7 +437,8 @@ func TestNonExpensiveExecution(t *testing.T) {
 			e := graphql.NewExecutor(c)
 
 			ctx := context.Background()
-			res, err := e.Execute(ctx, schema.Query, nil, q)
+			res, errors, err := e.ExecuteWithPartialFailures(ctx, schema.Query, nil, q)
+			fmt.Println("YPOOOO6", res, errors)
 			if tt.wantError != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.wantError)
@@ -414,7 +457,10 @@ func TestNonExpensiveExecution(t *testing.T) {
 				internal.MarshalJSON(wantParsedJSON),
 				internal.MarshalJSON(gotJSON),
 			)
-			require.Equal(t, tt.wantRuns, c.count, "unexpected number of work units")
+			if tt.wantRuns != 0 {
+				require.Equal(t, tt.wantRuns, c.count, "unexpected number of work units")
+			}
+		
 		})
 	}
 }
@@ -425,20 +471,24 @@ type counterGoroutineScheduler struct {
 	count int64
 }
 
-func (q *counterGoroutineScheduler) Run(resolver graphql.UnitResolver, initialUnits ...*graphql.WorkUnit) {
-	q.runEnqueue(resolver, initialUnits...)
+func (q *counterGoroutineScheduler) Run(resolver graphql.UnitResolver, initialUnits ...*graphql.WorkUnit) []error {
+	errors := make([]error, 0, len(initialUnits))
+	q.runEnqueue(resolver,  &errors, initialUnits...)
 
 	q.wg.Wait()
+	return errors
 }
 
-func (q *counterGoroutineScheduler) runEnqueue(resolver graphql.UnitResolver, units ...*graphql.WorkUnit) {
+func (q *counterGoroutineScheduler) runEnqueue(resolver graphql.UnitResolver, errors *[]error, units ...*graphql.WorkUnit)  {
 	atomic.AddInt64(&q.count, int64(len(units)))
 	for _, unit := range units {
 		q.wg.Add(1)
-		go func(u *graphql.WorkUnit) {
+		go func(u *graphql.WorkUnit, errors *[]error) {
 			defer q.wg.Done()
-			units := resolver(u)
-			q.runEnqueue(resolver, units...)
-		}(unit)
+			units, unitErrors := resolver(u)
+			*errors = append(*errors, unitErrors...)
+			fmt.Println("YPPP", units, len(*errors), unitErrors)
+			q.runEnqueue(resolver, errors, units...)
+		}(unit, errors)
 	}
 }

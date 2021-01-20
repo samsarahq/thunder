@@ -56,8 +56,8 @@ func (s *Snapshotter) SnapshotQuery(name, query string, opts ...Option) {
 	var lastErr error
 	runOnce := false
 	for _, executorAndName := range GetExecutors() {
-		output, err := executorAndName.Executor.Execute(context.Background(), s.schema.Query, nil, q)
-
+		output, _, err := executorAndName.Executor.ExecuteWithPartialFailures(context.Background(), s.schema.Query, nil, q)
+		fmt.Println("YPOOOO2", output)
 		if err != nil && opt.recordError {
 			s.Snapshot(fmt.Sprintf("%s%s", executorAndName.Name, name), struct{ Error string }{err.Error()})
 		} else {

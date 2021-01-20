@@ -9,6 +9,7 @@ import (
 	"testing"
 	"bytes"
 
+	"github.com/samsarahq/go/oops"
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 
@@ -61,6 +62,10 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		return args.Keys
 	}))
 	user.Key("id")
+	user.FieldFunc("badfield", func() (string, error) {
+		return "", oops.Errorf("bad field")
+	})
+
 	type UserIds struct {
 		Id    int64
 		OrgId int64
@@ -77,6 +82,11 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		users := make([]*User, 0, 1)
 		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: args.Name})
 		return users, nil
+	})
+	s1.Query().FieldFunc("usersFail", func(args struct {
+		Name string
+	}) ([]*User, error) {
+		return nil, oops.Errorf("failed to get users")
 	})
 
 	type Admin struct {
@@ -1582,6 +1592,124 @@ func TestBasicFederatedObjectFetchAllFields(t *testing.T) {
 
 				require.NoError(t, err)
 				fmt.Println(expected)
+				assert.Equal(t, expected, res)
+			} else {
+				_, _, err := e.Execute(ctx, graphql.MustParse(testCase.Query, testCase.Variables), nil)
+				assert.True(t, strings.Contains(err.Error(), testCase.ExpectedError))
+			}
+
+		})
+	}
+}
+
+func TestExecutorQueriesWithPartialErrors(t *testing.T) {
+	e, _, _, _, err := createExecutorWithFederatedUser()
+	require.NoError(t, err)
+	testCases := []struct {
+		Name          string
+		Query         string
+		Variables     map[string]interface{}
+		Output        string
+		Error         bool
+		ExpectedError string
+		PartialErrors []string
+	}{
+		{
+			Name: "directive multiple top level selections erroring",
+			Query: `
+				query Foo {
+					usersFail(name: "foo") @errorable {
+						name
+					}
+					test: usersFail(name: "foo") @errorable {
+						name
+					}
+					users {
+						id
+					}
+				}`,
+			Output: `
+			{
+				"users":[
+						{
+							"__key":1,
+							"id":1
+						},
+						{
+							"__key":2,
+							"id":2
+						}
+					],
+				"usersFail":null,
+				"test":null
+			}`,
+			Error: false,
+			PartialErrors: []string{"failed to get users", "failed to get users"},
+		},
+		// This test fails, run on service needs to handdl errors
+		// {
+		// 	Name: "directive with nested selection errorable",
+		// 	Query: `
+		// 		query Foo {
+		// 			users {
+		// 				id
+		// 				badfield
+		// 			}
+		// 		}`,
+		// 	Output: `
+		// 	{
+		// 		"users":[
+		// 				{
+		// 					"__key":1,
+		// 					"id":1,
+		// 					"badfield": null
+		// 				},
+		// 				{
+		// 					"__key":2,
+		// 					"id":2,
+		// 					"badfield": null
+		// 				}
+		// 			]
+		// 	}`,
+		// 	Error: false,
+		// 	PartialErrors: []string{"bad field"},
+		// },
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.Name, func(t *testing.T) {
+			ctx := context.Background()
+			if !testCase.Error {
+				res, metadata, err := e.Execute(ctx, graphql.MustParse(testCase.Query, testCase.Variables), nil)
+	
+				// Check that the partial errors in the metadata are expected
+				if len(testCase.PartialErrors) > 0 {
+					assert.True(t, len(metadata) > 0, true)
+					
+					metadataParsed, ok := metadata[0].(map[string]interface{})
+					assert.True(t, ok, true)
+					if metadataParsed["errors"] != nil {
+						metadataParsedStrings, ok := metadataParsed["errors"].([]string)
+						assert.True(t, ok, true)
+						assert.Equal(t, len(testCase.PartialErrors), len(metadataParsedStrings))
+						partialErrorStrings := ""
+						for  _, errString := range metadataParsedStrings  {
+							partialErrorStrings += errString
+						}
+						for _, expectedPartialError := range testCase.PartialErrors {
+							assert.True(t, strings.Contains(partialErrorStrings, expectedPartialError))
+						}
+					} else {
+						assert.Equal(t, len(testCase.PartialErrors), 0)
+					}
+				}
+				
+	
+			
+			
+				require.NoError(t, err)
+				var expected interface{}
+				err = json.Unmarshal([]byte(testCase.Output), &expected)
+				require.NoError(t, err)
 				assert.Equal(t, expected, res)
 			} else {
 				_, _, err := e.Execute(ctx, graphql.MustParse(testCase.Query, testCase.Variables), nil)

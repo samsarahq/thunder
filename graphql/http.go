@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"sync"
+	"fmt"
 
 	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/reactive"
@@ -40,12 +41,19 @@ type httpResponse struct {
 }
 
 func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	writeResponse := func(value interface{}, err error) {
+	writeResponse := func(value interface{}, partialErrors interface{}, err error) {
 		response := httpResponse{}
 		if err != nil {
 			response.Errors = []string{err.Error()}
 		} else {
 			response.Data = value
+
+			partialErrors := partialErrors.([]error)
+			errorStrings := make([]string, 0, len(partialErrors))
+			for _, partialErr := range partialErrors{
+				errorStrings = append(errorStrings,partialErr.Error() )
+			}
+			response.Errors = errorStrings
 		}
 
 		responseJSON, err := json.Marshal(response)
@@ -60,24 +68,24 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method != "POST" {
-		writeResponse(nil, errors.New("request must be a POST"))
+		writeResponse(nil, nil, errors.New("request must be a POST"))
 		return
 	}
 
 	if r.Body == nil {
-		writeResponse(nil, errors.New("request must include a query"))
+		writeResponse(nil, nil, errors.New("request must include a query"))
 		return
 	}
 
 	var params httpPostBody
 	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
-		writeResponse(nil, err)
+		writeResponse(nil, nil,  err)
 		return
 	}
 
 	query, err := Parse(params.Query, params.Variables)
 	if err != nil {
-		writeResponse(nil, err)
+		writeResponse(nil, nil, err)
 		return
 	}
 
@@ -86,7 +94,7 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		schema = h.schema.Mutation
 	}
 	if err := PrepareQuery(r.Context(), schema, query.SelectionSet); err != nil {
-		writeResponse(nil, err)
+		writeResponse(nil, nil, err)
 		return
 	}
 
@@ -103,7 +111,11 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		middlewares = append(middlewares, h.middlewares...)
 		middlewares = append(middlewares, func(input *ComputationInput, next MiddlewareNextFunc) *ComputationOutput {
 			output := next(input)
-			output.Current, output.Error = e.Execute(input.Ctx, schema, nil, input.ParsedQuery)
+			// output.Current, _, output.Error = e.Execute(input.Ctx, schema, nil, input.ParsedQuery)
+			executeErrors := []error{}
+			output.Current, executeErrors, output.Error = e.ExecuteWithPartialFailures(input.Ctx, schema, nil, input.ParsedQuery)
+			output.Metadata["errors"] = executeErrors
+			fmt.Println("YPOOOO4", output.Current)
 			return output
 		})
 
@@ -113,18 +125,18 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Query:       params.Query,
 			Variables:   params.Variables,
 		})
-		current, err := output.Current, output.Error
+		current, partialErrors, err := output.Current, output.Metadata["errors"], output.Error
 
 		if err != nil {
 			if ErrorCause(err) == context.Canceled {
 				return nil, err
 			}
 
-			writeResponse(nil, err)
+			writeResponse(nil, nil, err)
 			return nil, err
 		}
 
-		writeResponse(current, nil)
+		writeResponse(current, partialErrors,  nil)
 		return nil, nil
 	}, DefaultMinRerunInterval, false)
 

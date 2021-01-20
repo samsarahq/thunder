@@ -23,6 +23,7 @@ type Selection struct {
 	Alias        string        `protobuf:"bytes,2,opt,name=alias,proto3" json:"alias,omitempty"`
 	SelectionSet *SelectionSet `protobuf:"bytes,3,opt,name=selection_set,json=selectionSet" json:"selection_set,omitempty"`
 	Arguments    []byte        `protobuf:"bytes,4,opt,name=arguments,proto3" json:"arguments,omitempty"`
+	Directives   []*Directives `protobuf:"bytes,5,rep,name=directives" json:"directives,omitempty"`
 }
 
 func (m *Selection) Reset()                    { *m = Selection{} }
@@ -58,6 +59,37 @@ func (m *Selection) GetArguments() []byte {
 	return nil
 }
 
+func (m *Selection) GetDirectives() []*Directives {
+	if m != nil {
+		return m.Directives
+	}
+	return nil
+}
+
+type Directives struct {
+	Name      string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Arguments []byte `protobuf:"bytes,2,opt,name=arguments,proto3" json:"arguments,omitempty"`
+}
+
+func (m *Directives) Reset()                    { *m = Directives{} }
+func (m *Directives) String() string            { return proto.CompactTextString(m) }
+func (*Directives) ProtoMessage()               {}
+func (*Directives) Descriptor() ([]byte, []int) { return fileDescriptorFederation, []int{1} }
+
+func (m *Directives) GetName() string {
+	if m != nil {
+		return m.Name
+	}
+	return ""
+}
+
+func (m *Directives) GetArguments() []byte {
+	if m != nil {
+		return m.Arguments
+	}
+	return nil
+}
+
 type Fragment struct {
 	On           string        `protobuf:"bytes,1,opt,name=on,proto3" json:"on,omitempty"`
 	SelectionSet *SelectionSet `protobuf:"bytes,2,opt,name=selection_set,json=selectionSet" json:"selection_set,omitempty"`
@@ -66,7 +98,7 @@ type Fragment struct {
 func (m *Fragment) Reset()                    { *m = Fragment{} }
 func (m *Fragment) String() string            { return proto.CompactTextString(m) }
 func (*Fragment) ProtoMessage()               {}
-func (*Fragment) Descriptor() ([]byte, []int) { return fileDescriptorFederation, []int{1} }
+func (*Fragment) Descriptor() ([]byte, []int) { return fileDescriptorFederation, []int{2} }
 
 func (m *Fragment) GetOn() string {
 	if m != nil {
@@ -90,7 +122,7 @@ type SelectionSet struct {
 func (m *SelectionSet) Reset()                    { *m = SelectionSet{} }
 func (m *SelectionSet) String() string            { return proto.CompactTextString(m) }
 func (*SelectionSet) ProtoMessage()               {}
-func (*SelectionSet) Descriptor() ([]byte, []int) { return fileDescriptorFederation, []int{2} }
+func (*SelectionSet) Descriptor() ([]byte, []int) { return fileDescriptorFederation, []int{3} }
 
 func (m *SelectionSet) GetSelections() []*Selection {
 	if m != nil {
@@ -115,7 +147,7 @@ type Query struct {
 func (m *Query) Reset()                    { *m = Query{} }
 func (m *Query) String() string            { return proto.CompactTextString(m) }
 func (*Query) ProtoMessage()               {}
-func (*Query) Descriptor() ([]byte, []int) { return fileDescriptorFederation, []int{3} }
+func (*Query) Descriptor() ([]byte, []int) { return fileDescriptorFederation, []int{4} }
 
 func (m *Query) GetKind() string {
 	if m != nil {
@@ -145,7 +177,7 @@ type ExecuteRequest struct {
 func (m *ExecuteRequest) Reset()                    { *m = ExecuteRequest{} }
 func (m *ExecuteRequest) String() string            { return proto.CompactTextString(m) }
 func (*ExecuteRequest) ProtoMessage()               {}
-func (*ExecuteRequest) Descriptor() ([]byte, []int) { return fileDescriptorFederation, []int{4} }
+func (*ExecuteRequest) Descriptor() ([]byte, []int) { return fileDescriptorFederation, []int{5} }
 
 func (m *ExecuteRequest) GetQuery() *Query {
 	if m != nil {
@@ -155,13 +187,14 @@ func (m *ExecuteRequest) GetQuery() *Query {
 }
 
 type ExecuteResponse struct {
-	Result []byte `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
+	Result        []byte   `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
+	PartialErrors []string `protobuf:"bytes,2,rep,name=partial_errors,json=partialErrors" json:"partial_errors,omitempty"`
 }
 
 func (m *ExecuteResponse) Reset()                    { *m = ExecuteResponse{} }
 func (m *ExecuteResponse) String() string            { return proto.CompactTextString(m) }
 func (*ExecuteResponse) ProtoMessage()               {}
-func (*ExecuteResponse) Descriptor() ([]byte, []int) { return fileDescriptorFederation, []int{5} }
+func (*ExecuteResponse) Descriptor() ([]byte, []int) { return fileDescriptorFederation, []int{6} }
 
 func (m *ExecuteResponse) GetResult() []byte {
 	if m != nil {
@@ -170,8 +203,16 @@ func (m *ExecuteResponse) GetResult() []byte {
 	return nil
 }
 
+func (m *ExecuteResponse) GetPartialErrors() []string {
+	if m != nil {
+		return m.PartialErrors
+	}
+	return nil
+}
+
 func init() {
 	proto.RegisterType((*Selection)(nil), "thunderpb.Selection")
+	proto.RegisterType((*Directives)(nil), "thunderpb.Directives")
 	proto.RegisterType((*Fragment)(nil), "thunderpb.Fragment")
 	proto.RegisterType((*SelectionSet)(nil), "thunderpb.SelectionSet")
 	proto.RegisterType((*Query)(nil), "thunderpb.Query")
@@ -290,6 +331,48 @@ func (m *Selection) MarshalTo(dAtA []byte) (int, error) {
 	}
 	if len(m.Arguments) > 0 {
 		dAtA[i] = 0x22
+		i++
+		i = encodeVarintFederation(dAtA, i, uint64(len(m.Arguments)))
+		i += copy(dAtA[i:], m.Arguments)
+	}
+	if len(m.Directives) > 0 {
+		for _, msg := range m.Directives {
+			dAtA[i] = 0x2a
+			i++
+			i = encodeVarintFederation(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	return i, nil
+}
+
+func (m *Directives) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Directives) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Name) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintFederation(dAtA, i, uint64(len(m.Name)))
+		i += copy(dAtA[i:], m.Name)
+	}
+	if len(m.Arguments) > 0 {
+		dAtA[i] = 0x12
 		i++
 		i = encodeVarintFederation(dAtA, i, uint64(len(m.Arguments)))
 		i += copy(dAtA[i:], m.Arguments)
@@ -462,6 +545,21 @@ func (m *ExecuteResponse) MarshalTo(dAtA []byte) (int, error) {
 		i = encodeVarintFederation(dAtA, i, uint64(len(m.Result)))
 		i += copy(dAtA[i:], m.Result)
 	}
+	if len(m.PartialErrors) > 0 {
+		for _, s := range m.PartialErrors {
+			dAtA[i] = 0x12
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
+		}
+	}
 	return i, nil
 }
 
@@ -487,6 +585,26 @@ func (m *Selection) Size() (n int) {
 	}
 	if m.SelectionSet != nil {
 		l = m.SelectionSet.Size()
+		n += 1 + l + sovFederation(uint64(l))
+	}
+	l = len(m.Arguments)
+	if l > 0 {
+		n += 1 + l + sovFederation(uint64(l))
+	}
+	if len(m.Directives) > 0 {
+		for _, e := range m.Directives {
+			l = e.Size()
+			n += 1 + l + sovFederation(uint64(l))
+		}
+	}
+	return n
+}
+
+func (m *Directives) Size() (n int) {
+	var l int
+	_ = l
+	l = len(m.Name)
+	if l > 0 {
 		n += 1 + l + sovFederation(uint64(l))
 	}
 	l = len(m.Arguments)
@@ -562,6 +680,12 @@ func (m *ExecuteResponse) Size() (n int) {
 	l = len(m.Result)
 	if l > 0 {
 		n += 1 + l + sovFederation(uint64(l))
+	}
+	if len(m.PartialErrors) > 0 {
+		for _, s := range m.PartialErrors {
+			l = len(s)
+			n += 1 + l + sovFederation(uint64(l))
+		}
 	}
 	return n
 }
@@ -700,6 +824,147 @@ func (m *Selection) Unmarshal(dAtA []byte) error {
 			}
 			iNdEx = postIndex
 		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Arguments", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowFederation
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthFederation
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Arguments = append(m.Arguments[:0], dAtA[iNdEx:postIndex]...)
+			if m.Arguments == nil {
+				m.Arguments = []byte{}
+			}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Directives", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowFederation
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthFederation
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Directives = append(m.Directives, &Directives{})
+			if err := m.Directives[len(m.Directives)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipFederation(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthFederation
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *Directives) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowFederation
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Directives: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Directives: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowFederation
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthFederation
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Name = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Arguments", wireType)
 			}
@@ -1259,6 +1524,35 @@ func (m *ExecuteResponse) Unmarshal(dAtA []byte) error {
 				m.Result = []byte{}
 			}
 			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PartialErrors", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowFederation
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthFederation
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PartialErrors = append(m.PartialErrors, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipFederation(dAtA[iNdEx:])
@@ -1388,30 +1682,34 @@ var (
 func init() { proto.RegisterFile("federation.proto", fileDescriptorFederation) }
 
 var fileDescriptorFederation = []byte{
-	// 399 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x52, 0xcd, 0x6e, 0xd3, 0x40,
-	0x10, 0x66, 0xdd, 0xa6, 0xd4, 0x93, 0x50, 0xaa, 0xa5, 0x02, 0x13, 0xa1, 0xc8, 0xf2, 0xa1, 0x32,
-	0x07, 0x6c, 0x61, 0x7a, 0xe0, 0xc0, 0xa9, 0x12, 0x1c, 0x91, 0xd8, 0x5e, 0x10, 0x17, 0xb4, 0x4e,
-	0x26, 0x8e, 0x45, 0xbc, 0x9b, 0xec, 0x8f, 0x80, 0xc7, 0xe0, 0xad, 0x38, 0xf2, 0x08, 0x28, 0x4f,
-	0x82, 0xbc, 0x76, 0xdc, 0x45, 0xe4, 0x82, 0x7a, 0x9b, 0x6f, 0x67, 0xbe, 0x1f, 0x7d, 0x5a, 0x38,
-	0x5f, 0xe2, 0x02, 0x15, 0x37, 0xb5, 0x14, 0xd9, 0x46, 0x49, 0x23, 0x69, 0x68, 0x56, 0x56, 0x2c,
-	0x50, 0x6d, 0xca, 0xe9, 0x8b, 0xaa, 0x36, 0x2b, 0x5b, 0x66, 0x73, 0xd9, 0xe4, 0x95, 0xac, 0x64,
-	0xee, 0x2e, 0x4a, 0xbb, 0x74, 0xc8, 0x01, 0x37, 0x75, 0xcc, 0xe4, 0x07, 0x81, 0xf0, 0x06, 0xd7,
-	0x38, 0x6f, 0xd5, 0x28, 0x85, 0x63, 0xc1, 0x1b, 0x8c, 0x48, 0x4c, 0xd2, 0x90, 0xb9, 0x99, 0x5e,
-	0xc0, 0x88, 0xaf, 0x6b, 0xae, 0xa3, 0xc0, 0x3d, 0x76, 0x80, 0xbe, 0x81, 0x07, 0x7a, 0x4f, 0xfb,
-	0xac, 0xd1, 0x44, 0x47, 0x31, 0x49, 0xc7, 0xc5, 0x93, 0x6c, 0x48, 0x92, 0x0d, 0xb2, 0x37, 0x68,
-	0xd8, 0x44, 0x7b, 0x88, 0x3e, 0x83, 0x90, 0xab, 0xca, 0x36, 0x28, 0x8c, 0x8e, 0x8e, 0x63, 0x92,
-	0x4e, 0xd8, 0xed, 0x43, 0xf2, 0x11, 0x4e, 0xdf, 0x29, 0x5e, 0xb5, 0x80, 0x9e, 0x41, 0x20, 0x45,
-	0x9f, 0x27, 0x90, 0xe2, 0x5f, 0xdf, 0xe0, 0x3f, 0x7c, 0x93, 0xaf, 0x30, 0xf1, 0xb7, 0xf4, 0x0a,
-	0x60, 0xd8, 0xeb, 0x88, 0xc4, 0x47, 0xe9, 0xb8, 0xb8, 0x38, 0x24, 0xc5, 0xbc, 0x3b, 0xfa, 0x12,
-	0xc2, 0x65, 0x9f, 0xaf, 0x6d, 0xa5, 0x25, 0x3d, 0xf2, 0x48, 0xfb, 0xec, 0xec, 0xf6, 0x2a, 0x69,
-	0x60, 0xf4, 0xc1, 0xa2, 0xfa, 0xde, 0x36, 0xfc, 0xa5, 0x16, 0x8b, 0x7d, 0xc3, 0xed, 0x3c, 0xb4,
-	0x1e, 0x78, 0xad, 0xdf, 0xa9, 0xdf, 0xe4, 0x35, 0x9c, 0xbd, 0xfd, 0x86, 0x73, 0x6b, 0x90, 0xe1,
-	0xd6, 0xa2, 0x36, 0xf4, 0x12, 0x46, 0xdb, 0x36, 0x80, 0x33, 0x1e, 0x17, 0xe7, 0x9e, 0x8e, 0x0b,
-	0xc6, 0xba, 0x75, 0xf2, 0x1c, 0x1e, 0x0e, 0x4c, 0xbd, 0x91, 0x42, 0x23, 0x7d, 0x0c, 0x27, 0x0a,
-	0xb5, 0x5d, 0x1b, 0xc7, 0x9d, 0xb0, 0x1e, 0x15, 0xef, 0xe1, 0xb4, 0x3b, 0x95, 0x8a, 0x5e, 0xc3,
-	0xfd, 0x9e, 0x46, 0x9f, 0x7a, 0xd2, 0x7f, 0x87, 0x98, 0x4e, 0x0f, 0xad, 0x3a, 0x97, 0xe4, 0xde,
-	0xf5, 0xd5, 0xcf, 0xdd, 0x8c, 0xfc, 0xda, 0xcd, 0xc8, 0xef, 0xdd, 0x8c, 0x7c, 0xba, 0xf4, 0xfe,
-	0xb1, 0xe6, 0x8d, 0xe6, 0x8a, 0xaf, 0xb6, 0x79, 0xcf, 0xcf, 0x07, 0x9d, 0xf2, 0xc4, 0xfd, 0xe3,
-	0x57, 0x7f, 0x02, 0x00, 0x00, 0xff, 0xff, 0xaf, 0x5d, 0x70, 0x78, 0x15, 0x03, 0x00, 0x00,
+	// 455 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x53, 0x4d, 0x6f, 0xd3, 0x40,
+	0x10, 0x65, 0xdd, 0xa6, 0xd4, 0x93, 0x34, 0x54, 0x4b, 0x01, 0x13, 0xa1, 0x28, 0xb2, 0x44, 0x95,
+	0x0b, 0x89, 0x08, 0x45, 0xe2, 0x80, 0x38, 0x54, 0x94, 0x23, 0x82, 0xed, 0x05, 0x71, 0xa9, 0x36,
+	0xc9, 0xc4, 0xb1, 0x88, 0x77, 0x93, 0xfd, 0xe0, 0xe3, 0x1f, 0xf6, 0xc8, 0x4f, 0x40, 0xf9, 0x25,
+	0x68, 0xd7, 0x8e, 0xb3, 0x81, 0x5c, 0x10, 0xb7, 0x7d, 0xf3, 0xe6, 0xbd, 0x79, 0x33, 0x96, 0xe1,
+	0x74, 0x86, 0x53, 0x54, 0xdc, 0xe4, 0x52, 0x0c, 0x96, 0x4a, 0x1a, 0x49, 0x63, 0x33, 0xb7, 0x62,
+	0x8a, 0x6a, 0x39, 0xee, 0x3c, 0xcb, 0x72, 0x33, 0xb7, 0xe3, 0xc1, 0x44, 0x16, 0xc3, 0x4c, 0x66,
+	0x72, 0xe8, 0x3b, 0xc6, 0x76, 0xe6, 0x91, 0x07, 0xfe, 0x55, 0x2a, 0xd3, 0x5b, 0x02, 0xf1, 0x35,
+	0x2e, 0x70, 0xe2, 0xdc, 0x28, 0x85, 0x43, 0xc1, 0x0b, 0x4c, 0x48, 0x8f, 0xf4, 0x63, 0xe6, 0xdf,
+	0xf4, 0x0c, 0x1a, 0x7c, 0x91, 0x73, 0x9d, 0x44, 0xbe, 0x58, 0x02, 0xfa, 0x1a, 0x4e, 0xf4, 0x46,
+	0x76, 0xa3, 0xd1, 0x24, 0x07, 0x3d, 0xd2, 0x6f, 0x8e, 0x1e, 0x0d, 0xea, 0x24, 0x83, 0xda, 0xf6,
+	0x1a, 0x0d, 0x6b, 0xe9, 0x00, 0xd1, 0x27, 0x10, 0x73, 0x95, 0xd9, 0x02, 0x85, 0xd1, 0xc9, 0x61,
+	0x8f, 0xf4, 0x5b, 0x6c, 0x5b, 0xa0, 0x2f, 0x01, 0xa6, 0xb9, 0x72, 0xdd, 0x5f, 0x51, 0x27, 0x8d,
+	0xde, 0x41, 0xbf, 0x39, 0x7a, 0x10, 0x18, 0xbf, 0xad, 0x49, 0x16, 0x34, 0xa6, 0x6f, 0x00, 0xb6,
+	0xcc, 0xde, 0x55, 0x76, 0xc6, 0x46, 0x7f, 0x8c, 0x4d, 0x3f, 0xc1, 0xf1, 0x3b, 0xc5, 0x33, 0x07,
+	0x68, 0x1b, 0x22, 0x29, 0x2a, 0x6d, 0x24, 0xc5, 0xdf, 0xeb, 0x46, 0xff, 0xb0, 0x6e, 0xfa, 0x0d,
+	0x5a, 0x21, 0x4b, 0x2f, 0x00, 0x6a, 0x5e, 0x27, 0xc4, 0x2f, 0x78, 0xb6, 0xcf, 0x8a, 0x05, 0x7d,
+	0xf4, 0x39, 0xc4, 0xb3, 0x2a, 0x9f, 0x4b, 0xef, 0x44, 0xf7, 0x03, 0xd1, 0x26, 0x3b, 0xdb, 0x76,
+	0xa5, 0x05, 0x34, 0x3e, 0x5a, 0x54, 0x3f, 0xdc, 0x35, 0xbe, 0xe4, 0x62, 0xba, 0xb9, 0x86, 0x7b,
+	0xd7, 0x17, 0x8a, 0x82, 0x0b, 0xfd, 0xd7, 0x67, 0x4d, 0x5f, 0x41, 0xfb, 0xea, 0x3b, 0x4e, 0xac,
+	0x41, 0x86, 0x2b, 0x8b, 0xda, 0xd0, 0x73, 0x68, 0xac, 0x5c, 0x00, 0x3f, 0xb8, 0x39, 0x3a, 0x0d,
+	0x7c, 0x7c, 0x30, 0x56, 0xd2, 0xe9, 0x07, 0xb8, 0x57, 0x2b, 0xf5, 0x52, 0x0a, 0x8d, 0xf4, 0x21,
+	0x1c, 0x29, 0xd4, 0x76, 0x61, 0xbc, 0xb6, 0xc5, 0x2a, 0x44, 0x9f, 0x42, 0x7b, 0xc9, 0x95, 0xc9,
+	0xf9, 0xe2, 0x06, 0x95, 0x92, 0xaa, 0xbc, 0x45, 0xcc, 0x4e, 0xaa, 0xea, 0x95, 0x2f, 0x8e, 0xde,
+	0xc3, 0x71, 0xe9, 0x28, 0x15, 0xbd, 0x84, 0xbb, 0x95, 0x3b, 0x7d, 0x1c, 0x24, 0xd8, 0xcd, 0xda,
+	0xe9, 0xec, 0xa3, 0xca, 0x30, 0xe9, 0x9d, 0xcb, 0x8b, 0xdb, 0x75, 0x97, 0xfc, 0x5c, 0x77, 0xc9,
+	0xaf, 0x75, 0x97, 0x7c, 0x3e, 0x0f, 0xfe, 0x32, 0xcd, 0x0b, 0xcd, 0x15, 0x9f, 0xaf, 0x86, 0x95,
+	0x7e, 0x58, 0xfb, 0x8c, 0x8f, 0xfc, 0x5f, 0xf6, 0xe2, 0x77, 0x00, 0x00, 0x00, 0xff, 0xff, 0x3b,
+	0xf6, 0x21, 0x1b, 0xb3, 0x03, 0x00, 0x00,
 }

@@ -50,7 +50,10 @@ func (c *DirectExecutorClient) Execute(ctx context.Context, request *QueryReques
 	if err != nil {
 		return nil, oops.Wrapf(err, "executing query")
 	}
-	return &QueryResponse{Result: resp.Result}, nil
+
+	respMetadata := make(map[string]interface{})
+	respMetadata["errors"] = resp.PartialErrors
+	return &QueryResponse{Result: resp.Result, Metadata: respMetadata}, nil
 }
 
 // Server must implement thunderpb.ExecutorServer.
@@ -103,7 +106,7 @@ func ExecuteRequest(ctx context.Context, req *thunderpb.ExecuteRequest, gqlSchem
 			close(done)
 		}()
 
-		res, err := localExecutor.Execute(ctx, schema, nil, query)
+		res, partialErrors, err := localExecutor.ExecuteWithPartialFailures(ctx, schema, nil, query)
 		if err != nil {
 			return nil, fmt.Errorf("executing query: %v", err)
 		}
@@ -113,8 +116,14 @@ func ExecuteRequest(ctx context.Context, req *thunderpb.ExecuteRequest, gqlSchem
 			return nil, oops.Wrapf(err, "unmarshalling json query response")
 		}
 
+		partialErrorStrings := make([]string, 0, len(partialErrors))
+		for _, partialErr := range partialErrors {
+			partialErrorStrings  = append(partialErrorStrings,partialErr.Error() )
+		}
+
 		return &thunderpb.ExecuteResponse{
 			Result: bytes,
+			PartialErrors: partialErrorStrings,
 		}, nil
 	}, time.Hour, false)
 
@@ -148,6 +157,13 @@ func marshalPbSelections(selectionSet *graphql.SelectionSet) (*thunderpb.Selecti
 			if err != nil {
 				return nil, oops.Wrapf(err, "marshaling args")
 			}
+		}		
+
+		directives := make([]*thunderpb.Directives, len(selection.Directives))
+		for i, directive := range selection.Directives {
+			directives[i] = &thunderpb.Directives{
+				Name: directive.Name,
+			}
 		}
 
 		selections = append(selections, &thunderpb.Selection{
@@ -155,6 +171,7 @@ func marshalPbSelections(selectionSet *graphql.SelectionSet) (*thunderpb.Selecti
 			Alias:        selection.Alias,
 			SelectionSet: children,
 			Arguments:    args,
+			Directives:   directives,
 		})
 	}
 
@@ -196,11 +213,19 @@ func unmarshalPbSelectionSet(selectionSet *thunderpb.SelectionSet) (*graphql.Sel
 			}
 		}
 
+		directives := make([]*graphql.Directive, len(selection.Directives))
+		for i, directive := range selection.Directives {
+			directives[i] = &graphql.Directive{
+				Name: directive.Name,
+			}
+		}
+
 		selections = append(selections, &graphql.Selection{
 			Name:         selection.Name,
 			Alias:        selection.Alias,
 			SelectionSet: children,
 			UnparsedArgs: args,
+			Directives:   directives,
 		})
 	}
 

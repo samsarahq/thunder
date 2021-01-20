@@ -238,6 +238,7 @@ func (e *Planner) planObject(typ *graphql.Object, selectionSet *graphql.Selectio
 			Alias:        selection.Alias,
 			Name:         selection.Name,
 			Args:         selection.Args,
+			Directives:   selection.Directives,
 			UnparsedArgs: selection.UnparsedArgs,
 			ParentType:   selection.ParentType,
 		}

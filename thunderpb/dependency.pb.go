@@ -14,6 +14,7 @@
 		SQLFilter
 		ExpirationTime
 		Selection
+		Directives
 		Fragment
 		SelectionSet
 		Query

@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"fmt"
 	"sync"
 )
 
@@ -12,15 +13,17 @@ func NewImmediateGoroutineScheduler() WorkScheduler {
 
 type immediateGoroutineScheduler struct{}
 
-func (q *immediateGoroutineScheduler) Run(resolver UnitResolver, initialUnits ...*WorkUnit) {
+func (q *immediateGoroutineScheduler) Run(resolver UnitResolver, initialUnits ...*WorkUnit) []error {
 	r := &immediateGoroutineSchedulerRunner{}
 	r.runEnqueue(resolver, initialUnits...)
 
 	r.wg.Wait()
+	return r.errors
 }
 
 type immediateGoroutineSchedulerRunner struct {
-	wg sync.WaitGroup
+	wg     sync.WaitGroup
+	errors []error
 }
 
 func (r *immediateGoroutineSchedulerRunner) runEnqueue(resolver UnitResolver, units ...*WorkUnit) {
@@ -28,7 +31,9 @@ func (r *immediateGoroutineSchedulerRunner) runEnqueue(resolver UnitResolver, un
 		r.wg.Add(1)
 		go func(u *WorkUnit) {
 			defer r.wg.Done()
-			units := resolver(u)
+			units, errors := resolver(u)
+			fmt.Println("YEEEEEEET", errors)
+			r.errors = append(r.errors, errors...)
 			r.runEnqueue(resolver, units...)
 		}(unit)
 	}
