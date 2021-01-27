@@ -56,7 +56,7 @@ device.FieldFunc("camera", func(ctx context.Context, device *Device) ([]*Camera 
 ```
 
 We then register the `camera` object and the field func `cameraLocation`
-``
+```
 type Camera struct {
   Id int64
   IsOn bool
