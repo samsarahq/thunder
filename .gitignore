@@ -9,3 +9,4 @@ experimental/
 .rpt2_cache/
 
 federation/testdata/temp/*
+.idea/
