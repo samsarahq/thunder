@@ -21,7 +21,11 @@ func (w *SimpleWhere) ToSQL() (string, []interface{}) {
 				buffer.WriteString(" AND ")
 			}
 			buffer.WriteString(column)
-			buffer.WriteString(" = ?")
+			if w.Values[i] == nil {
+				buffer.WriteString(" IS ?")
+			} else {
+				buffer.WriteString(" = ?")
+			}
 		}
 	}
 

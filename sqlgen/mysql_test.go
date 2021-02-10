@@ -32,6 +32,11 @@ func TestSimpleWhere(t *testing.T) {
 		Columns: []string{"foo", "bar"},
 		Values:  []interface{}{1, 2},
 	}, "foo = ? AND bar = ?", []interface{}{1, 2}, t)
+
+	testQuery(&SimpleWhere{
+		Columns: []string{"foo", "bar", "baz"},
+		Values:  []interface{}{1, 2, nil},
+	}, "foo = ? AND bar = ? AND baz IS ?", []interface{}{1, 2, nil}, t)
 }
 
 func TestCountQuery(t *testing.T) {
@@ -50,6 +55,14 @@ func TestCountQuery(t *testing.T) {
 			Values:  []interface{}{"xyz"},
 		},
 	}, "SELECT COUNT(*) FROM foo2 WHERE baz = ?", []interface{}{"xyz"}, t)
+
+	testQuery(&countQuery{
+		Table:   "foo3",
+		Where: &SimpleWhere{
+			Columns: []string{"baz", "blah"},
+			Values:  []interface{}{"xyz", nil},
+		},
+	}, "SELECT COUNT(*) FROM foo3 WHERE baz = ? AND blah IS ?", []interface{}{"xyz", nil}, t)
 }
 
 func TestSelectQuery(t *testing.T) {
@@ -61,6 +74,16 @@ func TestSelectQuery(t *testing.T) {
 			Values: []interface{}{3},
 		},
 	}, "SELECT bar FROM foo WHERE bar = ?", []interface{}{3}, t)
+
+	testQuery(&SelectQuery{
+		Table:   "foo",
+		Columns: []string{"bar"},
+		Options: &SelectOptions{
+			Where:  "bar = ? AND baz IS ?",
+			Values: []interface{}{3, nil},
+		},
+	}, "SELECT bar FROM foo WHERE bar = ? AND baz IS ?", []interface{}{3, nil}, t)
+
 
 	testQuery(&SelectQuery{
 		Table:   "foo",
