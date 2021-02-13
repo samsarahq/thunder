@@ -153,6 +153,26 @@ func TestUpsertQuery(t *testing.T) {
 	}, "INSERT INTO foo (bar, baz) VALUES (?, ?) ON DUPLICATE KEY UPDATE bar=VALUES(bar), baz=VALUES(baz)", []interface{}{10, "buh"}, t)
 }
 
+func TestBatchUpsertQuery(t *testing.T) {
+	testQuery(&BatchUpsertQuery{
+		Table:   "foo",
+		Columns: []string{"bar"},
+		Values:  []interface{}{3, 4},
+	}, "INSERT INTO foo (bar) VALUES (?), (?) ON DUPLICATE KEY UPDATE bar=VALUES(bar)", []interface{}{3, 4}, t)
+
+	testQuery(&BatchUpsertQuery{
+		Table:   "foo2",
+		Columns: []string{"bar", "baz"},
+		Values:  []interface{}{3, "buh"},
+	}, "INSERT INTO foo2 (bar, baz) VALUES (?, ?) ON DUPLICATE KEY UPDATE bar=VALUES(bar), baz=VALUES(baz)", []interface{}{3, "buh"}, t)
+
+	testQuery(&BatchUpsertQuery{
+		Table:   "foo2",
+		Columns: []string{"bar", "baz"},
+		Values:  []interface{}{3, "buh", 5, "test"},
+	}, "INSERT INTO foo2 (bar, baz) VALUES (?, ?), (?, ?) ON DUPLICATE KEY UPDATE bar=VALUES(bar), baz=VALUES(baz)", []interface{}{3, "buh", 5, "test"}, t)
+}
+
 func TestUpdateQuery(t *testing.T) {
 	testQuery(&UpdateQuery{
 		Table:   "foo",

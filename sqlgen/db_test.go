@@ -223,6 +223,72 @@ func TestShardLimitBatchInsert(t *testing.T) {
 	}
 }
 
+func TestShardLimitBatchUpsert(t *testing.T) {
+	testcases := getLimitTestcases(t, "BatchUpsert")
+	for _, testcase := range testcases {
+		t.Run(testcase.title, func(t *testing.T) {
+			tdb, db, err := setup()
+			assert.NoError(t, err)
+			defer tdb.Close()
+			ctx := context.Background()
+
+			just1Db := testcase.withFilterLimit(db, Filter{"id": int64(1)})
+
+			id1 := &JustId{Id: 1}
+			id2 := &JustId{Id: 2}
+
+			// Check just1Db can upsert id1.
+			_, err = just1Db.UpsertRow(ctx, id1)
+			assert.NoError(t, err)
+
+			var justId *JustId
+			err = just1Db.QueryRow(ctx, &justId, Filter{"id": int64(1)}, nil)
+			assert.NoError(t, err)
+
+			// Check just1Db can't upsert id1 and id2.
+			err = just1Db.UpsertRows(ctx, [](*JustId){id1, id2}, 100)
+			assert.Contains(t, err.Error(), "id = 1")
+
+			id3 := &JustId{Id: 3}
+			id4 := &JustId{Id: 4}
+
+			// Check db can upsert id3 and id4 with a batch size of 1.
+			err = db.UpsertRows(ctx, [](*JustId){id3, id4}, 1)
+			assert.NoError(t, err)
+
+			err = db.QueryRow(ctx, &justId, Filter{"id": int64(3)}, nil)
+			assert.NoError(t, err)
+			err = db.QueryRow(ctx, &justId, Filter{"id": int64(4)}, nil)
+			assert.NoError(t, err)
+
+			// Check db can query id2
+			err = db.QueryRow(ctx, &justId, Filter{"id": int64(2)}, nil)
+			assert.Contains(t, err.Error(), "sql: no rows in result set")
+
+			// Check db can upsert id2 within a transaction
+			transactionCtx, tx, err := db.WithTx(ctx)
+			assert.NoError(t, err)
+			defer tx.Rollback()
+
+			err = db.UpsertRows(transactionCtx, [](*JustId){id2}, 100)
+			assert.NoError(t, err)
+
+			assert.NoError(t, tx.Commit())
+
+			err = db.QueryRow(ctx, &justId, Filter{"id": int64(1)}, nil)
+			assert.NoError(t, err)
+			err = db.QueryRow(ctx, &justId, Filter{"id": int64(2)}, nil)
+			assert.NoError(t, err)
+
+			// Check db can upsert id1 again
+			err = db.UpsertRows(ctx, [](*JustId){id1}, 1)
+			assert.NoError(t, err)
+			err = db.QueryRow(ctx, &justId, Filter{"id": int64(1)}, nil)
+			assert.NoError(t, err)
+		})
+	}
+}
+
 func TestShardLimitQueryRow(t *testing.T) {
 	testcases := getLimitTestcases(t, "Query row")
 	for _, testcase := range testcases {
