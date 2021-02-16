@@ -122,47 +122,6 @@ func TestIntegrationBasic(t *testing.T) {
 	assert.Equal(t, int64(1), numBobs)
 }
 
-// TestContextCancelBeforeRowsScan demonstrates we don't
-// always get context.Canceled back from sql library. This
-// affects our error handling and we need to be aware of it.
-func TestContextCancelBeforeRowsScan(t *testing.T) {
-	testDb, err := testfixtures.NewTestDatabase()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer testDb.Close()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	rows, err := testDb.QueryContext(ctx, `select "foo"`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer rows.Close()
-
-	// When we cancel the context after rows.Next() returns true,
-	// database/sql.(*Rows).initContextClose monitors the context
-	// and closes rows asynchronously, and subsequent rows.Scan()
-	// returns errors.New("sql: Rows are closed") instead of
-	// context.Canceled.
-	for rows.Next() {
-		cancel()
-		time.Sleep(1000 * time.Millisecond)
-
-		var foo string
-		err := rows.Scan(&foo)
-
-		// err is not context.Canceled.
-		if err == nil || err.Error() != "sql: Rows are closed" {
-			t.Fatalf("expecting 'sql: Rows are closed' from rows.Scan(), got %v", err)
-		}
-	}
-	if err := rows.Err(); err != context.Canceled {
-		t.Fatalf("expecting context.Canceled from rows.Err(), got %v", err)
-	}
-}
-
 // TestBatchFilter shows sqlgen batching matcher does not match if
 // filter type does not exactly match column type.
 func TestBatchFilter(t *testing.T) {
