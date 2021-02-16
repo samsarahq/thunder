@@ -71,27 +71,27 @@
           {
             "__key": 1,
             "id": 1,
-            "number": "\u000b"
+            "number": "11"
           },
           {
             "__key": 2,
             "id": 2,
-            "number": "\u000c"
+            "number": "12"
           },
           {
             "__key": 3,
             "id": 3,
-            "number": "\r"
+            "number": "13"
           },
           {
             "__key": 4,
             "id": 4,
-            "number": "\u000e"
+            "number": "14"
           },
           {
             "__key": 5,
             "id": 5,
-            "number": "\u000f"
+            "number": "15"
           }
         ]
       }

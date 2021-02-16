@@ -2,6 +2,7 @@ package graphql_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/samsarahq/thunder/graphql"
@@ -23,10 +24,10 @@ func buildSchema() *graphql.Schema {
 	item := schema.Object("item", Item{})
 	item.Key("id")
 	item.FieldFunc("name", func(ctx context.Context, item Item) (string, error) {
-		return string(item.Id), nil
+		return fmt.Sprint(item.Id), nil
 	})
 	item.FieldFunc("number", func(ctx context.Context, item Item) (string, error) {
-		return string(item.Number), nil
+		return fmt.Sprint(item.Number), nil
 	})
 	query.FieldFunc("items", func(ctx context.Context) ([]Item, error) {
 		retList := make([]Item, 5)
@@ -198,23 +199,23 @@ func TestDirectivesWithVariables(t *testing.T) {
 		"items": []interface{}{
 			map[string]interface{}{
 				"__key": int64(1),
-				"name":  "\x01",
+				"name":  "1",
 			},
 			map[string]interface{}{
 				"__key": int64(2),
-				"name":  "\x02",
+				"name":  "2",
 			},
 			map[string]interface{}{
 				"__key": int64(3),
-				"name":  "\x03",
+				"name":  "3",
 			},
 			map[string]interface{}{
 				"__key": int64(4),
-				"name":  "\x04",
+				"name":  "4",
 			},
 			map[string]interface{}{
 				"__key": int64(5),
-				"name":  "\x05",
+				"name":  "5",
 			},
 		},
 	}, val)

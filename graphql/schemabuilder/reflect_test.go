@@ -325,9 +325,9 @@ func TestEnumMapWrongArg3(t *testing.T) {
 	}()
 
 	schema.Enum(enumType3(1), map[string]string{
-		"firstField":  string(1),
-		"secondField": string(2),
-		"thirdField":  string(3),
+		"firstField":  "1",
+		"secondField": "2",
+		"thirdField":  "3",
 	})
 }
 
