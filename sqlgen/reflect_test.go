@@ -402,6 +402,48 @@ func TestMakeUpsertUniqueId(t *testing.T) {
 	assert.Equal(t, []interface{}{int64(5), "alice", int64(30), "temp", make([]byte, 16)}, query.Values)
 }
 
+func TestMakeBatchUpsertAutoIncrement(t *testing.T) {
+	s := NewSchema()
+	if err := s.RegisterType("users", AutoIncrement, user{}); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := s.MakeBatchUpsertRow([](interface{}){
+		&user{
+			Name: "bob",
+			Age:  20,
+		},
+		&user{
+			Name: "ben",
+			Age:  30,
+		}})
+	if err == nil || !strings.Contains(err.Error(), "batch upsert only supports unique value primary keys") {
+		t.Errorf("expected failure upserting autoincrement, got %s", err)
+	}
+}
+
+func TestMakeBatchUpsertUniqueId(t *testing.T) {
+	s := NewSchema()
+	if err := s.RegisterType("users", UniqueId, user{}); err != nil {
+		t.Fatal(err)
+	}
+
+	query, err := s.MakeBatchUpsertRow([](interface{}){
+		&user{
+			Id:   10,
+			Name: "bob",
+			Age:  20,
+		},
+		&user{
+			Id:   20,
+			Name: "ben",
+			Age:  30,
+		}})
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"id", "name", "age", "optional", "uuid"}, query.Columns)
+	assert.Equal(t, []interface{}{int64(10), "bob", int64(20), nil, make([]byte, 16), int64(20), "ben", int64(30), nil, make([]byte, 16)}, query.Values)
+}
+
 func TestMakeUpdateAutoIncrement(t *testing.T) {
 	s := NewSchema()
 	if err := s.RegisterType("users", AutoIncrement, user{}); err != nil {

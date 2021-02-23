@@ -211,6 +211,59 @@ func (q *UpsertQuery) ToSQL() (string, []interface{}) {
 	return buffer.String(), q.Values
 }
 
+// BatchUpsertQuery represents a INSERT ... ON DUPLICATE KEY UPDATE query with multiple rows
+type BatchUpsertQuery struct {
+	Table   string
+	Columns []string
+	Values  []interface{}
+}
+
+// ToSQL builds a parameterized INSERT INTO x (a, b) VALUES (?, ?) ON DUPLICATE KEY UPDATE query statement
+func (q *BatchUpsertQuery) ToSQL() (string, []interface{}) {
+	var buffer bytes.Buffer
+	buffer.WriteString("INSERT INTO ")
+	buffer.WriteString(q.Table)
+
+	if len(q.Columns) > 0 {
+		buffer.WriteString(" (")
+		for i, column := range q.Columns {
+			if i > 0 {
+				buffer.WriteString(", ")
+			}
+			buffer.WriteString(column)
+		}
+		buffer.WriteString(") VALUES ")
+
+		numRows := len(q.Values) / len(q.Columns)
+		for i := 0; i < numRows; i++ {
+			if i > 0 {
+				buffer.WriteString(", ")
+			}
+			buffer.WriteString("(")
+			for j := range q.Columns {
+				if j > 0 {
+					buffer.WriteString(", ")
+				}
+				buffer.WriteString("?")
+			}
+			buffer.WriteString(")")
+		}
+	}
+
+	buffer.WriteString(" ON DUPLICATE KEY UPDATE ")
+	for i, column := range q.Columns {
+		if i > 0 {
+			buffer.WriteString(", ")
+		}
+		buffer.WriteString(column)
+		buffer.WriteString("=VALUES(")
+		buffer.WriteString(column)
+		buffer.WriteString(")")
+	}
+
+	return buffer.String(), q.Values
+}
+
 // UpdateQuery represents a UPDATE query
 type UpdateQuery struct {
 	Table   string
