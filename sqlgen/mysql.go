@@ -95,6 +95,10 @@ func (q *SelectQuery) ToSQL() (string, []interface{}) {
 		fmt.Fprint(&buffer, q.Options.Limit)
 	}
 
+	if q.Options.ForUpdate {
+		buffer.WriteString(" FOR UPDATE")
+	}
+
 	return buffer.String(), q.Options.Values
 }
 
