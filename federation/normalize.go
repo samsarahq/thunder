@@ -110,7 +110,7 @@ func (f *flattener) applies(obj *graphql.Object, fragment *graphql.Fragment) (bo
 // flattenFragments flattens all fragments at the current level. It inlines the
 // selections of each fragment, but does not descend down recursively into those
 // selections.
-func (f *flattener) flattenFragments(selectionSet *graphql.SelectionSet, typ *graphql.Object, target *[]*graphql.Selection, targetFragments *[]*graphql.Fragment) error {
+func (f *flattener) flattenFragments(selectionSet *graphql.SelectionSet, typ *graphql.Object, target *[]*graphql.Selection) error {
 	// Start with the non-fragment selections.
 	*target = append(*target, selectionSet.Selections...)
 
@@ -128,11 +128,9 @@ func (f *flattener) flattenFragments(selectionSet *graphql.SelectionSet, typ *gr
 			return err
 		}
 		if ok {
-			if err := f.flattenFragments(fragment.SelectionSet, typ, target, targetFragments); err != nil {
+			if err := f.flattenFragments(fragment.SelectionSet, typ, target); err != nil {
 				return err
 			}
-		} else {
-			*targetFragments = append(*targetFragments, fragment)
 		}
 	}
 
@@ -223,16 +221,12 @@ func (f *flattener) flatten(selectionSet *graphql.SelectionSet, typ graphql.Type
 		// Collect all selections on this object and merge selections
 		// with the same alias.
 		selections := make([]*graphql.Selection, 0, len(selectionSet.Selections))
-		fragments := make([]*graphql.Fragment, 0, len(selectionSet.Fragments))
-		if err := f.flattenFragments(selectionSet, typ, &selections, &fragments); err != nil {
+		if err := f.flattenFragments(selectionSet, typ, &selections); err != nil {
 			return nil, err
 		}
 		selections, err := mergeSameAlias(selections)
 		if err != nil {
 			return nil, err
-		}
-		if len(fragments) > 0 {
-			selectionSet.Fragments = append(selectionSet.Fragments, fragments...)
 		}
 		// Recursively flatten.
 		for _, selection := range selections {
