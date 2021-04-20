@@ -4,7 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-
+	"strings"
+	
 	"github.com/samsarahq/go/oops"
 	"github.com/samsarahq/thunder/graphql"
 )
@@ -112,7 +113,7 @@ func printPlan(rootPlan *Plan) {
 		for _, selection := range plan.SelectionSet.Selections {
 			fmt.Println("service: ", plan.Service)
 			fmt.Println(selection.Name)
-			printSelections(selection.SelectionSet)
+			printSelections(selection.SelectionSet, 0)
 
 			fmt.Println("")
 		}
@@ -122,19 +123,19 @@ func printPlan(rootPlan *Plan) {
 	}
 }
 
-func printSelections(selectionSet *graphql.SelectionSet) {
+func printSelections(selectionSet *graphql.SelectionSet, level int) {
 	if selectionSet != nil {
-		fmt.Println(" selections")
+		fmt.Println(strings.Repeat(" ", level), "selections")
 		for _, subSelection := range selectionSet.Selections {
-			fmt.Println(" ", subSelection.Name)
+			fmt.Println(strings.Repeat(" ", level), " ", subSelection.Name)
 			if subSelection.Args != nil {
-				fmt.Println("   args ", subSelection.Args)
+				fmt.Println(strings.Repeat(" ", level), "   args ", subSelection.Args)
 			}
-			printSelections(subSelection.SelectionSet)
+			printSelections(subSelection.SelectionSet, level+ 1)
 		}
-		fmt.Println(" fragments")
+		fmt.Println(strings.Repeat(" ", level), "fragments")
 		for _, subFragment := range selectionSet.Fragments {
-			printSelections(subFragment.SelectionSet)
+			printSelections(subFragment.SelectionSet, level+ 1)
 		}
 	}
 }
