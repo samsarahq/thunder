@@ -2,7 +2,7 @@ package federation
 
 import (
 	"testing"
-
+	
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 	"github.com/stretchr/testify/assert"
@@ -282,14 +282,32 @@ func TestNormalize(t *testing.T) {
 							... Bar
 						}
 					}
+					search {
+						... Zar
+					}
 				}
 
 				fragment Bar on User {
 					name
 				}
+
+				fragment Zar on House {
+					name
+					users {
+						... Bar
+					}
+				}
 			`,
 			output: `
 				{
+					search {
+						... on House {
+							name
+							users {
+								name
+							}
+						}
+					}
 					users {
 						__typename
 						friends {
