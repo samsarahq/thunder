@@ -3,6 +3,7 @@ package sqlgen
 import (
 	"context"
 	"database/sql"
+	"sync"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/samsarahq/thunder/internal/proto"
 	"github.com/samsarahq/thunder/internal/testfixtures"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func setup() (*testfixtures.TestDatabase, *DB, error) {
@@ -40,9 +42,23 @@ func setup() (*testfixtures.TestDatabase, *DB, error) {
 		return nil, nil, err
 	}
 
+	if _, err = testDb.Exec(`
+		CREATE TABLE owls (
+			species VARCHAR(100) NOT NULL,
+			common_name VARCHAR(100) NOT NULL,
+			genus VARCHAR(100) NOT NULL,
+			family VARCHAR(100) NOT NULL,
+			PRIMARY KEY (species),
+			KEY family_and_genus_index (family, genus)
+		)
+	`); err != nil {
+		return nil, nil, err
+	}
+
 	schema := NewSchema()
 	schema.MustRegisterType("users", AutoIncrement, User{})
 	schema.MustRegisterType("just_ids", UniqueId, JustId{})
+	schema.MustRegisterType("owls", UniqueId, Owl{})
 
 	return testDb, NewDB(testDb.DB, schema), nil
 }
@@ -68,6 +84,13 @@ type Complex struct {
 	Blob         []byte            `sql:",binary"`
 	Mappings     map[string]string `sql:",json"`
 	ImplicitNull string            `sql:",implicitnull"`
+}
+
+type Owl struct {
+	Species    string `sql:",primary"`
+	CommonName string
+	Genus      string
+	Family     string
 }
 
 func TestTagOverrides(t *testing.T) {
@@ -171,6 +194,179 @@ func TestBatchFilter(t *testing.T) {
 	// String does not work either.
 	if err := db.QueryRow(ctx, &user, Filter{"id": "1"}, nil); err != sql.ErrNoRows {
 		t.Fatalf("expecting sql.ErrNoRows, got: %v", err)
+	}
+}
+
+func TestSelectForUpdate(t *testing.T) {
+	initialDbState := []*Owl{
+		{Species: "Tyto alba", CommonName: "Barn Owl", Genus: "Tyto", Family: "Tytonidae"},
+		{Species: "Bubo bubo", CommonName: "Eurasian Eagle-Owl", Genus: "Bubo", Family: "Strigidae"},
+		{Species: "Bubo virginianus", CommonName: "Great Horned Owl", Genus: "Bubo", Family: "Strigidae"},
+		{Species: "Megascops kennicottii", CommonName: "Western Screech-Owl", Genus: "Megascops", Family: "Strigidae"},
+		{Species: "Psiloscops flammeolus", CommonName: "Flammulated Owl", Genus: "Psiloscops", Family: "Strigidae"},
+		{Species: "Strix occidentalis lucida", CommonName: "Mexican Spotted Owl", Genus: "Strix", Family: "Strigidae"},
+	}
+
+	testCases := []struct {
+		name                    string
+		description             string
+		mainThreadFilter        Filter
+		mainThreadOptions       *SelectOptions
+		goroutineFilter         Filter
+		goroutineOptions        *SelectOptions
+		mainThreadUpdateFunc    func(ctx context.Context, db *DB, waiter *sync.WaitGroup) error
+		goroutineExpectedResult []*Owl
+	}{
+		{
+			name:              "main thread blocks goroutine for same query",
+			description:       "The main thread and the goroutine both SELECT...FOR UPDATE the same rows. After the main thread performs an UPDATE and a DELETE, the goroutine should be unblocked to SELECT the updated data",
+			mainThreadFilter:  Filter{"family": "Strigidae", "genus": "Bubo"},
+			mainThreadOptions: &SelectOptions{ForUpdate: true},
+			goroutineFilter:   Filter{"family": "Strigidae", "genus": "Bubo"},
+			goroutineOptions:  &SelectOptions{ForUpdate: true},
+			mainThreadUpdateFunc: func(ctx context.Context, db *DB, waiter *sync.WaitGroup) error {
+				// Delete one of the rows and update the other row.
+				if err := db.DeleteRow(ctx, &Owl{Species: "Bubo virginianus"}); err != nil {
+					return err
+				}
+				if err := db.UpdateRow(ctx, &Owl{Species: "Bubo bubo", CommonName: "TESTING TESTING 1 2 3", Genus: "Bubo", Family: "Strigidae"}); err != nil {
+					return err
+				}
+				return nil
+			},
+			goroutineExpectedResult: []*Owl{
+				{Species: "Bubo bubo", CommonName: "TESTING TESTING 1 2 3", Genus: "Bubo", Family: "Strigidae"},
+			},
+		},
+		{
+			name:              "goroutine does dirty read",
+			description:       "The main thread does a SELECT...FOR UPDATE, but the goroutine does a basic SELECT to get a 'dirty read'. Even though the main thread updates the data, the goroutine has read the original data",
+			mainThreadFilter:  Filter{"family": "Strigidae", "genus": "Bubo"},
+			mainThreadOptions: &SelectOptions{ForUpdate: true},
+			goroutineFilter:   Filter{"family": "Strigidae", "genus": "Bubo"},
+			goroutineOptions:  &SelectOptions{OrderBy: "species"},
+			mainThreadUpdateFunc: func(ctx context.Context, db *DB, waiter *sync.WaitGroup) error {
+				// Wait until the goroutine has performed its SELECT.
+				// Then, DELETE one of the rows and UPDATE the other row.
+				waiter.Wait()
+
+				if err := db.DeleteRow(ctx, &Owl{Species: "Bubo virginianus"}); err != nil {
+					return err
+				}
+				if err := db.UpdateRow(ctx, &Owl{Species: "Bubo bubo", CommonName: "TESTING TESTING 1 2 3", Genus: "Bubo", Family: "Strigidae"}); err != nil {
+					return err
+				}
+				return nil
+			},
+			goroutineExpectedResult: []*Owl{
+				{Species: "Bubo bubo", CommonName: "Eurasian Eagle-Owl", Genus: "Bubo", Family: "Strigidae"},
+				{Species: "Bubo virginianus", CommonName: "Great Horned Owl", Genus: "Bubo", Family: "Strigidae"},
+			},
+		},
+		{
+			name:              "main thread blocks with broad query",
+			description:       "Main thread performs a broad SELECT ... FOR UPDATE. The goroutine does a narrow SELECT ... FOR UPDATE and should be blocked by the main thread's query. The main thread INSERTs a new row, and the goroutine should pick it up.",
+			mainThreadFilter:  Filter{"family": "Strigidae"},
+			mainThreadOptions: &SelectOptions{ForUpdate: true},
+			goroutineFilter:   Filter{"family": "Strigidae", "genus": "Megascops"},
+			goroutineOptions:  &SelectOptions{ForUpdate: true, OrderBy: "species"},
+			mainThreadUpdateFunc: func(ctx context.Context, db *DB, waiter *sync.WaitGroup) error {
+				// INSERT A new row that the goroutine should get in its SELECT query.
+				if _, err := db.InsertRow(ctx, &Owl{Species: "Megascops asio", CommonName: "Eastern Screech Owl", Genus: "Megascops", Family: "Strigidae"}); err != nil {
+					return err
+				}
+				return nil
+			},
+			goroutineExpectedResult: []*Owl{
+				{Species: "Megascops asio", CommonName: "Eastern Screech Owl", Genus: "Megascops", Family: "Strigidae"},
+				{Species: "Megascops kennicottii", CommonName: "Western Screech-Owl", Genus: "Megascops", Family: "Strigidae"},
+			},
+		},
+		{
+			name:              "non-blocking queries on different parts of the index",
+			description:       "The main thread and the goroutine both perform a SELECT ... FOR UPDATE, but their queries shouldn't block each other because they are selecting different parts of the index",
+			mainThreadFilter:  Filter{"family": "Strigidae", "genus": "Megascops"},
+			mainThreadOptions: &SelectOptions{ForUpdate: true},
+			goroutineFilter:   Filter{"family": "Strigidae", "genus": "Psiloscops"},
+			goroutineOptions:  &SelectOptions{ForUpdate: true},
+			mainThreadUpdateFunc: func(ctx context.Context, db *DB, waiter *sync.WaitGroup) error {
+				// Wait until the goroutine has performed its SELECT.
+				// Then, INSERT a new row.
+				waiter.Wait()
+
+				if _, err := db.InsertRow(ctx, &Owl{Species: "Megascops asio", CommonName: "Eastern Screech Owl", Genus: "Megascops", Family: "Strigidae"}); err != nil {
+					return err
+				}
+				return nil
+			},
+			goroutineExpectedResult: []*Owl{
+				{Species: "Psiloscops flammeolus", CommonName: "Flammulated Owl", Genus: "Psiloscops", Family: "Strigidae"},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create the test database and insert some initial rows into the owls table.
+			tdb, db, err := setup()
+			require.NoError(t, err)
+			defer tdb.Close()
+
+			err = db.InsertRows(context.Background(), initialDbState, 100)
+			require.NoError(t, err)
+
+			// Begin a transaction and SELECT ... FOR UPDATE some rows.
+			txCtx, tx, err := db.WithTx(context.Background())
+			require.NoError(t, err)
+			defer tx.Rollback()
+
+			var result []*Owl
+			err = db.Query(txCtx, &result, tc.mainThreadFilter, tc.mainThreadOptions)
+			require.NoError(t, err)
+
+			// In a separate goroutine, begin a new transaction and perform a SELECT statement.
+			// Depending on the test case, this goroutine may be blocked by the main thread's SELECT...FOR UPDATE
+			// statement. In other cases, the SELECT statement isn't blocking, and the goroutine should
+			// finish immediately.
+			//
+			// The goroutine's results will be returned to the main thread via this returnChan channel.
+			returnChan := make(chan []*Owl)
+			// When the goroutine's SELECT is complete, it'll signal that it's done using this WaitGroup.
+			// This will be used in cases where we want the main thread to wait, in order to verify that the
+			// goroutine was not blocked.
+			goroutineWaiter := &sync.WaitGroup{}
+			goroutineWaiter.Add(1)
+			go func(db *DB) {
+				// Create the new transaction.
+				goroutineTxCtx, goroutineTx, err := db.WithTx(context.Background())
+				require.NoError(t, err)
+				defer tx.Rollback()
+
+				// Perform a SELECT statement.
+				var result []*Owl
+				err = db.Query(goroutineTxCtx, &result, tc.goroutineFilter, tc.goroutineOptions)
+				require.NoError(t, err)
+
+				// Signal that the goroutine is done, commit, and return.
+				goroutineWaiter.Done()
+				err = goroutineTx.Commit()
+				require.NoError(t, err)
+				returnChan <- result
+			}(db)
+
+			// Perform some actions and commit the transaction.
+			err = tc.mainThreadUpdateFunc(txCtx, db, goroutineWaiter)
+			require.NoError(t, err)
+
+			err = tx.Commit()
+			require.NoError(t, err)
+
+			// Wait for the goroutine to return the result through the channel.
+			goroutineResult := <-returnChan
+
+			// Verify that the inner goroutine's SELECT statement returned the expected result.
+			assert.Equal(t, tc.goroutineExpectedResult, goroutineResult)
+		})
 	}
 }
 

@@ -41,7 +41,7 @@ func TestSimpleWhere(t *testing.T) {
 
 func TestCountQuery(t *testing.T) {
 	testQuery(&countQuery{
-		Table:   "foo",
+		Table: "foo",
 		Where: &SimpleWhere{
 			Columns: []string{"bar"},
 			Values:  []interface{}{3},
@@ -49,7 +49,7 @@ func TestCountQuery(t *testing.T) {
 	}, "SELECT COUNT(*) FROM foo WHERE bar = ?", []interface{}{3}, t)
 
 	testQuery(&countQuery{
-		Table:   "foo2",
+		Table: "foo2",
 		Where: &SimpleWhere{
 			Columns: []string{"baz"},
 			Values:  []interface{}{"xyz"},
@@ -57,7 +57,7 @@ func TestCountQuery(t *testing.T) {
 	}, "SELECT COUNT(*) FROM foo2 WHERE baz = ?", []interface{}{"xyz"}, t)
 
 	testQuery(&countQuery{
-		Table:   "foo3",
+		Table: "foo3",
 		Where: &SimpleWhere{
 			Columns: []string{"baz", "blah"},
 			Values:  []interface{}{"xyz", nil},
@@ -83,7 +83,6 @@ func TestSelectQuery(t *testing.T) {
 			Values: []interface{}{3, nil},
 		},
 	}, "SELECT bar FROM foo WHERE bar = ? AND baz IS ?", []interface{}{3, nil}, t)
-
 
 	testQuery(&SelectQuery{
 		Table:   "foo",
@@ -120,6 +119,16 @@ func TestSelectQuery(t *testing.T) {
 			OrderBy: "bar",
 		},
 	}, "SELECT foo, bar FROM foo ORDER BY bar", nil, t)
+
+	testQuery(&SelectQuery{
+		Table:   "foo",
+		Columns: []string{"foo", "bar"},
+		Options: &SelectOptions{
+			Where:     "foo = ? AND bar = ?",
+			Values:    []interface{}{25, "xyz"},
+			ForUpdate: true,
+		},
+	}, "SELECT foo, bar FROM foo WHERE foo = ? AND bar = ? FOR UPDATE", []interface{}{25, "xyz"}, t)
 }
 
 func TestInsertQuery(t *testing.T) {
