@@ -21,8 +21,9 @@ type SelectOptions struct {
 	Where  string
 	Values []interface{}
 
-	OrderBy string
-	Limit   int
+	OrderBy   string
+	Limit     int
+	ForUpdate bool
 
 	AllowNoIndex bool
 }
