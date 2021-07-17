@@ -125,6 +125,7 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 				return err
 			}
 			object.Fields[name] = typedField
+			object.Fields[name].Description = method.Description
 			continue
 		}
 
@@ -133,6 +134,7 @@ func (sb *schemaBuilder) buildStruct(typ reflect.Type) error {
 			return fmt.Errorf("bad method %s on type %s: %s", name, typ, err)
 		}
 		object.Fields[name] = built
+		object.Fields[name].Description = method.Description
 	}
 
 	if objectKey != "" {

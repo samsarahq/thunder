@@ -127,6 +127,7 @@ type Field struct {
 	Resolve        Resolver
 	BatchResolver  BatchResolver
 	Type           Type
+	Description    string
 	Args           map[string]Type
 	ParseArguments func(json interface{}) (interface{}, error)
 

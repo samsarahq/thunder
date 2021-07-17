@@ -88,7 +88,7 @@ func BatchFilterFieldWithFallback(name string, batchFilter interface{}, filter i
 	textFilterMethod := &method{
 		Fn: batchFilter,
 		BatchArgs: batchArgs{
-			FallbackFunc:          filter,
+			FallbackFunc:       filter,
 			ShouldUseBatchFunc: flag,
 		}, Batch: true,
 		MarkedNonNullable: true}
@@ -145,7 +145,7 @@ func BatchSortFieldWithFallback(name string, batchSort interface{}, sort interfa
 	sortMethod := &method{
 		Fn: batchSort,
 		BatchArgs: batchArgs{
-			FallbackFunc:          sort,
+			FallbackFunc:       sort,
 			ShouldUseBatchFunc: flag,
 		}, Batch: true,
 		MarkedNonNullable: true}
@@ -162,6 +162,12 @@ func BatchSortFieldWithFallback(name string, batchSort interface{}, sort interfa
 		m.SortMethods[name] = sortMethod
 	}
 	return fieldFuncSortFields
+}
+
+type Description string
+
+func (s Description) apply(m *method) {
+	m.Description = string(s)
 }
 
 // FieldFunc exposes a field on an object. The function f can take a number of
@@ -225,7 +231,7 @@ func (s *Object) BatchFieldFuncWithFallback(name string, batchFunc interface{}, 
 	m := &method{
 		Fn: batchFunc,
 		BatchArgs: batchArgs{
-			FallbackFunc:          fallbackFunc,
+			FallbackFunc:       fallbackFunc,
 			ShouldUseBatchFunc: flag,
 		},
 		Batch: true,
@@ -248,7 +254,7 @@ func (s *Object) ManualPaginationWithFallback(name string, manualPaginatedFunc i
 	m := &method{
 		Fn: manualPaginatedFunc,
 		ManualPaginationArgs: manualPaginationArgs{
-			FallbackFunc:          fallbackFunc,
+			FallbackFunc:       fallbackFunc,
 			ShouldUseBatchFunc: flag,
 		},
 		Paginated: true,
@@ -308,6 +314,9 @@ type method struct {
 	// is a shadow object. A shadow object's fields are each of the
 	// field that are sent as args to a federated sunquery.
 	ShadowObjectType reflect.Type
+
+	// Human readable description of this method.
+	Description string
 }
 
 type concurrencyArgs struct {
@@ -320,17 +329,19 @@ type concurrencyArgs struct {
 // the different goroutines.
 type NumParallelInvocationsFunc func(ctx context.Context, numNodes int) int
 
-func (f NumParallelInvocationsFunc) apply(m *method) { m.ConcurrencyArgs.numParallelInvocationsFunc = f }
+func (f NumParallelInvocationsFunc) apply(m *method) {
+	m.ConcurrencyArgs.numParallelInvocationsFunc = f
+}
 
 type UseFallbackFlag func(context.Context) bool
 
 type batchArgs struct {
-	FallbackFunc          interface{}
+	FallbackFunc       interface{}
 	ShouldUseBatchFunc UseFallbackFlag
 }
 
 type manualPaginationArgs struct {
-	FallbackFunc          interface{}
+	FallbackFunc       interface{}
 	ShouldUseBatchFunc UseFallbackFlag
 }
 
