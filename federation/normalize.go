@@ -144,8 +144,12 @@ func mergeSameAlias(selections []*graphql.Selection) ([]*graphql.Selection, erro
 		return selections[i].Alias < selections[j].Alias
 	})
 
+	// It is safe to initialize newSelections with selections[:0] because:
+	// 1. in mergeSameAlias, newSelections will override the value in selections only after the value is used.
+	// 2. the only caller of mergeSameAlias does not reference to the input selections after it calls mergeSameAlias.
 	newSelections := selections[:0]
 	var last *graphql.Selection
+	var isLastSelectionSetCopied bool
 	for _, selection := range selections {
 		if last == nil || selection.Alias != last.Alias {
 			// Make a copy of the selection so we can modify it below
@@ -160,6 +164,7 @@ func mergeSameAlias(selections []*graphql.Selection) ([]*graphql.Selection, erro
 			selection = &cp
 			newSelections = append(newSelections, selection)
 			last = selection
+			isLastSelectionSetCopied = false
 			continue
 		}
 
@@ -177,13 +182,18 @@ func mergeSameAlias(selections []*graphql.Selection) ([]*graphql.Selection, erro
 				return nil, fmt.Errorf("one selection with alias %s has subselections and one does not",
 					selection.Alias)
 			}
+
+			if !isLastSelectionSetCopied {
+				last.SelectionSet = last.SelectionSet.ShallowCopy()
+				isLastSelectionSetCopied = true
+			}
+
 			seenSelections := make(map[string]struct{}, len(selection.SelectionSet.Selections))
 			for _, s := range selection.SelectionSet.Selections {
 				if _, ok := seenSelections[s.Alias]; !ok {
 					seenSelections[s.Alias] = struct{}{}
 					last.SelectionSet.Selections = append(last.SelectionSet.Selections, s)
 				}
-
 			}
 			seenFragments := make(map[*graphql.Fragment]struct{}, len(selection.SelectionSet.Fragments))
 			for _, f := range selection.SelectionSet.Fragments {
