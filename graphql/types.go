@@ -173,6 +173,20 @@ type SelectionSet struct {
 	Fragments  []*Fragment
 }
 
+// ShallowCopy returns a shallow copy of SelectionSet.
+func (s *SelectionSet) ShallowCopy() *SelectionSet {
+	cp := &SelectionSet{}
+	if s.Selections != nil {
+		cp.Selections = make([]*Selection, len(s.Selections))
+		copy(cp.Selections, s.Selections)
+	}
+	if s.Fragments != nil {
+		cp.Fragments = make([]*Fragment, len(s.Fragments))
+		copy(cp.Fragments, s.Fragments)
+	}
+	return cp
+}
+
 // A selection represents a part of a GraphQL query
 //
 // The selection
