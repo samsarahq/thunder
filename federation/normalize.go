@@ -171,18 +171,18 @@ func mergeSameAlias(selections []*graphql.Selection) ([]*graphql.Selection, erro
 				return nil, fmt.Errorf("one selection with alias %s has subselections and one does not",
 					selection.Alias)
 			}
-			seenSelections := make(map[string]bool, len(last.SelectionSet.Selections))
+			seenSelections := make(map[string]struct{}, len(selection.SelectionSet.Selections))
 			for _, s := range selection.SelectionSet.Selections {
-				if !seenSelections[s.Alias] {
-					seenSelections[s.Alias] = true
+				if _, ok := seenSelections[s.Alias]; !ok {
+					seenSelections[s.Alias] = struct{}{}
 					last.SelectionSet.Selections = append(last.SelectionSet.Selections, s)
 				}
 
 			}
-			seenFragments := make(map[*graphql.Fragment]bool, len(last.SelectionSet.Selections))
+			seenFragments := make(map[*graphql.Fragment]struct{}, len(selection.SelectionSet.Fragments))
 			for _, f := range selection.SelectionSet.Fragments {
-				if !seenFragments[f] {
-					seenFragments[f] = true
+				if _, ok := seenFragments[f]; !ok {
+					seenFragments[f] = struct{}{}
 					last.SelectionSet.Fragments = append(last.SelectionSet.Fragments, f)
 				}
 			}
