@@ -155,12 +155,6 @@ func mergeSameAlias(selections []*graphql.Selection) ([]*graphql.Selection, erro
 			// Make a copy of the selection so we can modify it below
 			// or when we flatten recursively later.
 			cp := *selection
-			if selection.SelectionSet != nil {
-				// Make a new SelectionSet for the copy so we will not append to the original slice later.
-				cp.SelectionSet = &graphql.SelectionSet{}
-				cp.SelectionSet.Selections = append(cp.SelectionSet.Selections, selection.SelectionSet.Selections...)
-				cp.SelectionSet.Fragments = append(cp.SelectionSet.Fragments, selection.SelectionSet.Fragments...)
-			}
 			selection = &cp
 			newSelections = append(newSelections, selection)
 			last = selection
