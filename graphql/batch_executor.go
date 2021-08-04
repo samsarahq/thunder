@@ -16,11 +16,11 @@ import (
 // graphql query.
 type WorkUnit struct {
 	Ctx          context.Context
-	field        *Field
+	Field        *Field
 	selection    *Selection
 	sources      []interface{}
 	destinations []*outputNode
-	useBatch     bool
+	UseBatch     bool
 	objectName   string
 }
 
@@ -40,11 +40,11 @@ func splitWorkUnit(unit *WorkUnit) []*WorkUnit {
 	for idx, source := range unit.sources {
 		workUnits = append(workUnits, &WorkUnit{
 			Ctx:          unit.Ctx,
-			field:        unit.field,
+			Field:        unit.Field,
 			selection:    unit.selection,
 			sources:      []interface{}{source},
 			destinations: []*outputNode{unit.destinations[idx]},
-			useBatch:     unit.useBatch,
+			UseBatch:     unit.UseBatch,
 			objectName:   unit.objectName,
 		})
 	}
@@ -65,11 +65,11 @@ func splitToNWorkUnits(unit *WorkUnit, numUnits int) []*WorkUnit {
 	for i := 0; i < numUnits; i++ {
 		workUnits = append(workUnits, &WorkUnit{
 			Ctx:          unit.Ctx,
-			field:        unit.field,
+			Field:        unit.Field,
 			selection:    unit.selection,
 			sources:      make([]interface{}, 0, avgUnitSize),
 			destinations: make([]*outputNode, 0, avgUnitSize),
-			useBatch:     unit.useBatch,
+			UseBatch:     unit.UseBatch,
 			objectName:   unit.objectName,
 		})
 	}
@@ -144,7 +144,7 @@ func (e *Executor) Execute(ctx context.Context, typ Type, source interface{}, qu
 			&WorkUnit{
 				Ctx:          ctx,
 				sources:      []interface{}{source},
-				field:        field,
+				Field:        field,
 				destinations: []*outputNode{writer},
 				selection:    selection,
 				objectName:   queryObject.Name,
@@ -164,11 +164,11 @@ func (e *Executor) Execute(ctx context.Context, typ Type, source interface{}, qu
 // selections of the unit to determine if it needs to schedule more work (which
 // will be returned as new work units that will need to get scheduled.
 func executeWorkUnit(unit *WorkUnit) []*WorkUnit {
-	if unit.field.Batch && unit.useBatch {
+	if unit.Field.Batch && unit.UseBatch {
 		return executeBatchWorkUnit(unit)
 	}
 
-	if !unit.field.Expensive {
+	if !unit.Field.Expensive {
 		return executeNonExpensiveWorkUnit(unit)
 	}
 
@@ -180,14 +180,14 @@ func executeWorkUnit(unit *WorkUnit) []*WorkUnit {
 }
 
 func executeBatchWorkUnit(unit *WorkUnit) []*WorkUnit {
-	results, err := SafeExecuteBatchResolver(unit.Ctx, unit.field, unit.sources, unit.selection.Args, unit.selection.SelectionSet)
+	results, err := SafeExecuteBatchResolver(unit.Ctx, unit.Field, unit.sources, unit.selection.Args, unit.selection.SelectionSet)
 	if err != nil {
 		for _, dest := range unit.destinations {
 			dest.Fail(err)
 		}
 		return nil
 	}
-	unitChildren, err := resolveBatch(unit.Ctx, results, unit.field.Type, unit.selection.SelectionSet, unit.destinations)
+	unitChildren, err := resolveBatch(unit.Ctx, results, unit.Field.Type, unit.selection.SelectionSet, unit.destinations)
 	if err != nil {
 		for _, dest := range unit.destinations {
 			dest.Fail(err)
@@ -207,7 +207,7 @@ func executeNonExpensiveWorkUnit(unit *WorkUnit) []*WorkUnit {
 		if unit.objectName != "Mutation" {
 			ctx = context.WithValue(unit.Ctx, nonExpensive{}, struct{}{})
 		}
-		fieldResult, err := SafeExecuteResolver(ctx, unit.field, src, unit.selection.Args, unit.selection.SelectionSet)
+		fieldResult, err := SafeExecuteResolver(ctx, unit.Field, src, unit.selection.Args, unit.selection.SelectionSet)
 		if err != nil {
 			// Fail the unit and exit.
 			unit.destinations[idx].Fail(err)
@@ -215,7 +215,7 @@ func executeNonExpensiveWorkUnit(unit *WorkUnit) []*WorkUnit {
 		}
 		results = append(results, fieldResult)
 	}
-	unitChildren, err := resolveBatch(unit.Ctx, results, unit.field.Type, unit.selection.SelectionSet, unit.destinations)
+	unitChildren, err := resolveBatch(unit.Ctx, results, unit.Field.Type, unit.selection.SelectionSet, unit.destinations)
 	if err != nil {
 		for _, dest := range unit.destinations {
 			dest.Fail(err)
@@ -233,7 +233,7 @@ func executeNonExpensiveWorkUnit(unit *WorkUnit) []*WorkUnit {
 //   error from propagating all the way to the top of the request stack.
 func executeNonBatchWorkUnitWithCaching(src interface{}, dest *outputNode, unit *WorkUnit) []*WorkUnit {
 	var workUnits []*WorkUnit
-	subDestRes, err := reactive.Cache(unit.Ctx, getWorkCacheKey(src, unit.field, unit.selection), func(ctx context.Context) (interface{}, error) {
+	subDestRes, err := reactive.Cache(unit.Ctx, getWorkCacheKey(src, unit.Field, unit.selection), func(ctx context.Context) (interface{}, error) {
 		subDest := newOutputNode(dest, "")
 		workUnits = executeNonBatchWorkUnit(ctx, src, subDest, unit)
 		return subDest.res, nil
@@ -262,12 +262,12 @@ func getWorkCacheKey(src interface{}, field *Field, selection *Selection) resolv
 
 // executeNonBatchWorkUnit resolves a non-batch field in our graphql response graph.
 func executeNonBatchWorkUnit(ctx context.Context, src interface{}, dest *outputNode, unit *WorkUnit) []*WorkUnit {
-	fieldResult, err := SafeExecuteResolver(ctx, unit.field, src, unit.selection.Args, unit.selection.SelectionSet)
+	fieldResult, err := SafeExecuteResolver(ctx, unit.Field, src, unit.selection.Args, unit.selection.SelectionSet)
 	if err != nil {
 		dest.Fail(err)
 		return nil
 	}
-	subFieldWorkUnits, err := resolveBatch(ctx, []interface{}{fieldResult}, unit.field.Type, unit.selection.SelectionSet, []*outputNode{dest})
+	subFieldWorkUnits, err := resolveBatch(ctx, []interface{}{fieldResult}, unit.Field.Type, unit.selection.SelectionSet, []*outputNode{dest})
 	if err != nil {
 		dest.Fail(err)
 		return nil
@@ -485,7 +485,7 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 		field := typ.Fields[selection.Name]
 		unit := &WorkUnit{
 			Ctx:          ctx,
-			field:        field,
+			Field:        field,
 			sources:      nonNilSources,
 			destinations: destForSelection,
 			selection:    selection,
@@ -494,7 +494,7 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 
 		switch {
 		case shouldUseBatch(ctx, field):
-			unit.useBatch = true
+			unit.UseBatch = true
 			if field.NumParallelInvocationsFunc != nil {
 				workUnits = append(workUnits, splitToNWorkUnits(unit, field.NumParallelInvocationsFunc(ctx, len(unit.sources)))...)
 			} else {
@@ -536,7 +536,7 @@ func resolveObjectBatch(ctx context.Context, sources []interface{}, typ *Object,
 			workUnits,
 			executeWorkUnit(&WorkUnit{
 				Ctx:          ctx,
-				field:        typ.KeyField,
+				Field:        typ.KeyField,
 				sources:      nonNilSources,
 				destinations: destForSelection,
 				selection:    &Selection{},
