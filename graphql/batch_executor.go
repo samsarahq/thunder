@@ -34,6 +34,14 @@ func (w *WorkUnit) Selection() *Selection {
 	return w.selection
 }
 
+func (w *WorkUnit) IsBatch() bool {
+	return w.useBatch
+}
+
+func (w *WorkUnit) IsExpensive() bool {
+	return w.field.Expensive
+}
+
 // Splits the work unit to a series of work units (one for every source/dest pair).
 func splitWorkUnit(unit *WorkUnit) []*WorkUnit {
 	workUnits := make([]*WorkUnit, 0, len(unit.sources))
