@@ -265,6 +265,55 @@
               "startCursor": "MQ=="
             },
             "totalCount": 3
+          },
+          "filterByCanAndCustomFilter": {
+            "edges": [
+              {
+                "cursor": "MQ==",
+                "node": {
+                  "__key": 1,
+                  "filterText": "can",
+                  "id": 1
+                }
+              },
+              {
+                "cursor": "Mw==",
+                "node": {
+                  "__key": 3,
+                  "filterText": "cannot",
+                  "id": 3
+                }
+              },
+              {
+                "cursor": "Ng==",
+                "node": {
+                  "__key": 6,
+                  "filterText": "crane",
+                  "id": 6
+                }
+              }
+            ],
+            "pageInfo": {
+              "endCursor": "Ng==",
+              "hasNextPage": false,
+              "hasPrevPage": false,
+              "pages": [
+                ""
+              ],
+              "startCursor": "MQ=="
+            },
+            "totalCount": 3
+          },
+          "filterByCanAndNonExistentFilterFunc": {
+            "edges": [],
+            "pageInfo": {
+              "endCursor": "",
+              "hasNextPage": false,
+              "hasPrevPage": false,
+              "pages": [],
+              "startCursor": ""
+            },
+            "totalCount": 0
           }
         }
       }

@@ -56,10 +56,12 @@
               "name": "skip"
             },
             {
-                "args": [],
-                "description": "Client-side-only directive that instructs the type generator to mark this field as optional. This is useful for making the generated types compliant with Troy persistence schema.",
-                "locations": ["FIELD"],
-                "name": "type_as_optional"
+              "args": [],
+              "description": "Client-side-only directive that instructs the type generator to mark this field as optional. This is useful for making the generated types compliant with Troy persistence schema.",
+              "locations": [
+                "FIELD"
+              ],
+              "name": "type_as_optional"
             }
           ],
           "mutationType": {
@@ -514,6 +516,16 @@
                     {
                       "defaultValue": null,
                       "description": "",
+                      "name": "filterType",
+                      "type": {
+                        "kind": "SCALAR",
+                        "name": "string",
+                        "ofType": null
+                      }
+                    },
+                    {
+                      "defaultValue": null,
+                      "description": "",
                       "name": "first",
                       "type": {
                         "kind": "SCALAR",
@@ -614,6 +626,16 @@
                             "ofType": null
                           }
                         }
+                      }
+                    },
+                    {
+                      "defaultValue": null,
+                      "description": "",
+                      "name": "filterType",
+                      "type": {
+                        "kind": "SCALAR",
+                        "name": "string",
+                        "ofType": null
                       }
                     },
                     {
