@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMatch(t *testing.T) {
+func TestDefaultMatchText(t *testing.T) {
 	testcases := []struct {
 		String  string
 		Query   string
@@ -24,10 +24,10 @@ func TestMatch(t *testing.T) {
 	}
 
 	for _, tc := range testcases {
-		matchStrings := filter.GetMatchStrings(tc.Query)
+		searchTokens := filter.GetDefaultSearchTokens(tc.Query)
 		assert.Equal(t,
 			tc.Matches,
-			filter.MatchText(tc.String, matchStrings),
+			filter.DefaultFilterFunc(tc.String, searchTokens),
 			"expected Match(`%s`, `%s`) to be %v", tc.String, tc.Query, tc.Matches,
 		)
 	}
