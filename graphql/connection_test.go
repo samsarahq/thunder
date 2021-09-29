@@ -66,9 +66,32 @@ func TestConnection(t *testing.T) {
 			{Id: 3, FilterText: "cannot"},
 			{Id: 4, FilterText: "soban"},
 			{Id: 5, FilterText: "socan"},
+			{Id: 6, FilterText: "crane"},
 		}
 
 	}, schemabuilder.Paginated,
+		schemabuilder.FilterFunc("customFilter", func(searchTerm string) []string {
+			return strings.Split(searchTerm, "")
+		}, func(itemString string, searchTokens []string) bool {
+			if len(itemString) < 1 {
+				return false
+			}
+
+			// If the first character of the itemString matches the first character of a searchToken
+			// return that it is a match
+			isMatch := false
+			for _, searchToken := range searchTokens {
+				if len(searchToken) < 1 {
+					continue
+				}
+
+				if itemString[0:1] == searchToken[0:1] {
+					isMatch = true
+					break
+				}
+			}
+			return isMatch
+		}),
 		schemabuilder.BatchFilterField("foo",
 			func(ctx context.Context, i map[batch.Index]Item) (map[batch.Index]string, error) {
 				myMap := make(map[batch.Index]string, len(i))
@@ -294,6 +317,40 @@ func TestConnection(t *testing.T) {
 
 	snap.SnapshotQuery("Pagination, filter", `{
 		inner {
+			filterByCanAndCustomFilter: innerConnectionWithFilter(filterText: "can", filterTextFields: ["foo","wug"], first: 5, after: "", filterType: "customFilter") {
+				totalCount
+				edges {
+					node {
+						id
+						filterText
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+					pages
+				}
+			}
+			filterByCanAndNonExistentFilterFunc: innerConnectionWithFilter(filterText: "can", filterTextFields: ["foo","wug"], first: 5, after: "", filterType: "nonExistent") {
+				totalCount
+				edges {
+					node {
+						id
+						filterText
+					}
+					cursor
+				}
+				pageInfo {
+					hasNextPage
+					hasPrevPage
+					startCursor
+					endCursor
+					pages
+				}
+			}
 			filterByCan: innerConnectionWithFilter(filterText: "can", filterTextFields: ["foo","wug"], first: 5, after: "") {
 				totalCount
 				edges {
