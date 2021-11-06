@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="f335c252-5641-470d-9db9-2bd37bb45b31" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/reactive/rerunner.go" beforeDir="false" afterPath="$PROJECT_DIR$/reactive/rerunner.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/reactive/rerunner_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/reactive/rerunner_test.go" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Go File" />
+      </list>
+    </option>
+  </component>
+  <component name="GOROOT" url="file://$PROJECT_DIR$/../../../../../opt/go1.16.5" />
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitToolBoxStore">
+    <option name="recentBranches">
+      <RecentBranches>
+        <option name="branchesForRepo">
+          <list>
+            <RecentBranchesForRepo>
+              <option name="branches">
+                <list>
+                  <RecentBranch>
+                    <option name="branchName" value="cleanup-messed-code" />
+                    <option name="lastUsedInstant" value="1628102012" />
+                  </RecentBranch>
+                  <RecentBranch>
+                    <option name="branchName" value="fix-infinite-loop-in-mergeSameAlias" />
+                    <option name="lastUsedInstant" value="1627673651" />
+                  </RecentBranch>
+                  <RecentBranch>
+                    <option name="branchName" value="master" />
+                    <option name="lastUsedInstant" value="1627673650" />
+                  </RecentBranch>
+                </list>
+              </option>
+              <option name="repositoryRootUrl" value="file://$PROJECT_DIR$" />
+            </RecentBranchesForRepo>
+          </list>
+        </option>
+      </RecentBranches>
+    </option>
+  </component>
+  <component name="GoLibraries">
+    <option name="indexEntireGoPath" value="false" />
+  </component>
+  <component name="ProjectId" id="1w05AOiizImppaCjRgll3UmzI9j" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectViewState">
+    <option name="autoscrollFromSource" value="true" />
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">
+    <property name="DefaultGoTemplateProperty" value="Go File" />
+    <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
+    <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
+    <property name="WebServerToolWindowFactoryState" value="false" />
+    <property name="configurable.GoLibrariesConfigurable.is.expanded" value="true" />
+    <property name="go.import.settings.migrated" value="true" />
+    <property name="go.sdk.automatically.set" value="true" />
+    <property name="go.tried.to.enable.integration.vgo.integrator" value="true" />
+    <property name="last_opened_file_path" value="$USER_HOME$" />
+    <property name="nodejs_package_manager_path" value="yarn" />
+    <property name="settings.editor.selected.configurable" value="preferences.keymap" />
+    <property name="ts.external.directory.path" value="$APPLICATION_HOME_DIR$/plugins/JavaScriptLanguage/jsLanguageServicesImpl/external" />
+  </component>
+  <component name="RunManager" selected="Go Test.BenchmarkAddDependencies in github.com/samsarahq/thunder/reactive">
+    <configuration name="BenchmarkAddDependencies in github.com/samsarahq/thunder/reactive" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="thunder" />
+      <working_directory value="$PROJECT_DIR$/reactive" />
+      <framework value="gobench" />
+      <kind value="PACKAGE" />
+      <package value="github.com/samsarahq/thunder/reactive" />
+      <directory value="$PROJECT_DIR$" />
+      <filePath value="$PROJECT_DIR$" />
+      <pattern value="^\QBenchmarkAddDependencies\E$" />
+      <method v="2" />
+    </configuration>
+    <configuration name="BenchmarkAddDependency in github.com/samsarahq/thunder/reactive" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="thunder" />
+      <working_directory value="$PROJECT_DIR$/reactive" />
+      <framework value="gobench" />
+      <kind value="PACKAGE" />
+      <package value="github.com/samsarahq/thunder/reactive" />
+      <directory value="$PROJECT_DIR$" />
+      <filePath value="$PROJECT_DIR$" />
+      <pattern value="^\QBenchmarkAddDependency\E$" />
+      <method v="2" />
+    </configuration>
+    <configuration name="TestNormalize in github.com/samsarahq/thunder/federation" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="thunder" />
+      <working_directory value="$PROJECT_DIR$/federation" />
+      <framework value="gotest" />
+      <kind value="PACKAGE" />
+      <package value="github.com/samsarahq/thunder/federation" />
+      <directory value="$PROJECT_DIR$" />
+      <filePath value="$PROJECT_DIR$" />
+      <pattern value="^\QTestNormalize\E$" />
+      <method v="2" />
+    </configuration>
+    <configuration name="TestSelectionSetShallowCopy in github.com/samsarahq/thunder/graphql" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="thunder" />
+      <working_directory value="$PROJECT_DIR$/graphql" />
+      <framework value="gotest" />
+      <kind value="PACKAGE" />
+      <package value="github.com/samsarahq/thunder/graphql" />
+      <directory value="$PROJECT_DIR$" />
+      <filePath value="$PROJECT_DIR$" />
+      <pattern value="^\QTestSelectionSetShallowCopy\E$" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go test github.com/samsarahq/thunder/federation" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="thunder" />
+      <working_directory value="$PROJECT_DIR$/federation" />
+      <framework value="gotest" />
+      <kind value="PACKAGE" />
+      <package value="github.com/samsarahq/thunder/federation" />
+      <directory value="$PROJECT_DIR$" />
+      <filePath value="$PROJECT_DIR$" />
+      <method v="2" />
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Go Test.BenchmarkAddDependencies in github.com/samsarahq/thunder/reactive" />
+        <item itemvalue="Go Test.BenchmarkAddDependency in github.com/samsarahq/thunder/reactive" />
+        <item itemvalue="Go Test.TestSelectionSetShallowCopy in github.com/samsarahq/thunder/graphql" />
+        <item itemvalue="Go Test.TestNormalize in github.com/samsarahq/thunder/federation" />
+        <item itemvalue="Go Test.go test github.com/samsarahq/thunder/federation" />
+      </list>
+    </recent_temporary>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="VgoProject">
+    <integration-enabled>true</integration-enabled>
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
+          <url>file://$PROJECT_DIR$/federation/planner_test.go</url>
+          <line>2</line>
+          <option name="timeStamp" value="1" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
+  </component>
+</project>
