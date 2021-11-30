@@ -240,7 +240,7 @@ User-managed pagination supports everything above, but it's managed by _you_.
 schema := schemabuilder.NewSchema()
 object := schema.Object("user", User{})
 object.FieldFunc("addresses", func(ctx context.Context, user *User, args struct {
-  PaginatedArgs schemabuilder.PaginatedArgs
+  PaginationArgs schemabuilder.PaginationArgs
 }) ([]*Address, schemabuilder.PaginationInfo, error) {
   addresses, pageInfo, err := GetPaginatedAddresses(ctx, user, args)
   addresses, pageInfo, err
