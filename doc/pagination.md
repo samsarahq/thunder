@@ -3,7 +3,7 @@
 Thunder supports paginated `FieldFunc`s. When creating a paginated field, you
 can either let Thunder handle pagination, or handle pagination yourself.
 
-Our Pagination implementation follows the [Relay spec](https://facebook.github.io/relay/docs/en/pagination-container.html)
+Our Pagination implementation follows the [Relay spec](https://relay.dev/docs/v10.1.3/pagination-container/)
 
 ## Thunder-managed pagination
 
