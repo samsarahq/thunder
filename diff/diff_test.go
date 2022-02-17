@@ -63,9 +63,19 @@ func TestDiffListRepeatedStrings(t *testing.T) {
 			diff: `{"$": [0, -1, 1], "1": 1}`,
 		},
 		{
+			old:  []interface{}{1, 1},
+			new:  []interface{}{1, 1, 3},
+			diff: `{"2": 3, "$": [[0, 2], -1]}`,
+		},
+		{
 			old:  []interface{}{1, 1, 3},
 			new:  []interface{}{1, 1},
 			diff: `{"$": [[0, 2]] }`,
+		},
+		{
+			old:  []interface{}{1, 1, 3},
+			new:  []interface{}{1, 3},
+			diff: `{"$": [0, 2] }`,
 		},
 	}
 
