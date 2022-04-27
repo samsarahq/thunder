@@ -31,6 +31,7 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 				_federation: User
 			}
 			users: [User]
+			emptyusers: [User]
 			usersWithArgs: [User]
 			Admin {
 				id: int64!
@@ -70,6 +71,9 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: "testUser", Email: "email@gmail.com", PhoneNumber: "555-5555"})
 		users = append(users, &User{Id: int64(2), OrgId: int64(2), Name: "testUser2", Email: "email@gmail.com", PhoneNumber: "555-5555"})
 		return users, nil
+	})
+	s1.Query().FieldFunc("emptyusers", func(ctx context.Context) ([]*User, error) {
+		return []*User{}, nil
 	})
 	s1.Query().FieldFunc("usersWithArgs", func(args struct {
 		Name string
@@ -331,6 +335,18 @@ func TestExecutorQueriesBasic(t *testing.T) {
 							}
 						]
 					}`,
+		},
+		{
+			Name: "query returning empty results on multiple schemas",
+			Query: `
+				query Foo {
+					emptyusers {
+						secret
+					}
+				}`,
+			Output: `{
+				"emptyusers": []
+			}`,
 		},
 	}
 	for _, testCase := range testCases {
