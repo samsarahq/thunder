@@ -1,13 +1,13 @@
 package federation
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"reflect"
 	"sync"
 	"time"
-	"bytes"
 
 	"github.com/samsarahq/go/oops"
 	"golang.org/x/sync/errgroup"
@@ -131,7 +131,7 @@ func (e *Executor) poll(ctx context.Context) error {
 	return nil
 }
 
-func (e *Executor) runOnService(ctx context.Context, service string, typName string, keys []interface{}, kind string, selectionSet *graphql.SelectionSet, metadata interface{}, planner *Planner) ([]interface{}, interface{}, error) {
+func (e *Executor) runOnService(ctx context.Context, isRootPlan bool, service string, typName string, keys []interface{}, kind string, selectionSet *graphql.SelectionSet, metadata interface{}, planner *Planner) ([]interface{}, interface{}, error) {
 	// Execute query on specified service
 	executorClient, ok := e.Executors[service]
 	if !ok {
@@ -148,8 +148,12 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 	//     }
 	//   }
 	// }
-	isRoot := keys == nil
-	if !isRoot {
+
+	if !isRootPlan && keys == nil {
+		return []interface{}{}, map[string]interface{}{}, nil
+	}
+
+	if !isRootPlan && keys != nil {
 		federatedName := fmt.Sprintf("%s_%s", service, typName)
 
 		var rootObject *graphql.Object
@@ -235,7 +239,7 @@ func (e *Executor) runOnService(ctx context.Context, service string, typName str
 		return nil, nil, oops.Wrapf(err, "unmarshal res")
 	}
 
-	if !isRoot {
+	if !isRootPlan && keys != nil {
 		result, ok := res.(map[string]interface{})
 		if !ok {
 			return nil, nil, oops.Errorf("executor res not a map[string]interface{}")
@@ -317,7 +321,7 @@ func (pathTargets *pathSubqueryMetadata) extractKeys(node interface{}, path []Pa
 	return nil
 }
 
-func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}, metadata interface{}, planner *Planner) ([]interface{}, []interface{}, error) {
+func (e *Executor) execute(ctx context.Context, isRootPlan bool, p *Plan, keys []interface{}, metadata interface{}, planner *Planner) ([]interface{}, []interface{}, error) {
 	var res []interface{}
 	optionalRespMetadata := make([]interface{}, 0)
 	// var optionalResponseArg interface{}
@@ -325,7 +329,7 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}, met
 	if p.Service != gatewayCoordinatorServiceName {
 		var err error
 		var optionalRespQueryMetaData interface{}
-		res, optionalRespQueryMetaData, err = e.runOnService(ctx, p.Service, p.Type, keys, p.Kind, p.SelectionSet, metadata, planner)
+		res, optionalRespQueryMetaData, err = e.runOnService(ctx, isRootPlan, p.Service, p.Type, keys, p.Kind, p.SelectionSet, metadata, planner)
 		if err != nil {
 			return nil, nil, oops.Wrapf(err, "run on service")
 		}
@@ -362,7 +366,7 @@ func (e *Executor) execute(ctx context.Context, p *Plan, keys []interface{}, met
 
 		g.Go(func() error {
 			// Execute the subquery on the specified service
-			executionResults, subQueryRespMetadata, err := e.execute(ctx, subPlan, subPlanMetaData.keys, metadata, planner)
+			executionResults, subQueryRespMetadata, err := e.execute(ctx, p.Service == gatewayCoordinatorServiceName, subPlan, subPlanMetaData.keys, metadata, planner)
 			if err != nil {
 				return oops.Wrapf(err, "executing sub plan: %v", err)
 			}
@@ -430,7 +434,7 @@ func (e *Executor) Execute(ctx context.Context, query *graphql.Query, metadata i
 		return nil, nil, err
 	}
 
-	r, responseMetadata, err := e.execute(ctx, plan, nil, metadata, planner)
+	r, responseMetadata, err := e.execute(ctx, true, plan, nil, metadata, planner)
 	if err != nil {
 		return nil, nil, err
 	}
