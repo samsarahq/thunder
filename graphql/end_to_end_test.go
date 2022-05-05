@@ -314,8 +314,8 @@ func TestEndToEndAwaitAndCache(t *testing.T) {
         ]}`)) {
 		t.Error("bad value")
 	}
-	if calls != 4 {
-		t.Errorf("expected 4 total calls to slow, got %d", calls)
+	if calls != 6 {
+		t.Errorf("expected 6 total calls to slow, got %d", calls)
 	}
 }
 
