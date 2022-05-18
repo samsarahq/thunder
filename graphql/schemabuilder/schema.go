@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/samsarahq/go/oops"
 	"github.com/samsarahq/thunder/graphql"
 )
 
@@ -199,12 +200,140 @@ func (s *Schema) Mutation() *Object {
 	return s.Object("Mutation", mutation{})
 }
 
+const DuplicateTypeNameErrFormat string = "%s type name is duplicated in packages %s and %s"
+
+// checkTypeNameUniqueness returns an error if the package of the typ argument
+// is different than the package mapped to the type name in typesToPackages.
+// In other words, checkTypeNameUniqueness returns an error if typ's name
+// is used in 2 different packages.
+func checkTypeNameUniqueness(typ reflect.Type, typesToPackages map[string]string) error {
+	// Invoke typ.Elem() until we get a struct or scalar type.
+	for kind := typ.Kind(); kind == reflect.Slice || kind == reflect.Ptr || kind == reflect.Map; kind = typ.Kind() {
+		typ = typ.Elem()
+	}
+
+	// Duplicate scalar type alias names are ok because scalar type aliases
+	// are converted to the underlying type.
+	// Types that implement the TextMarshaler interface are converted to strings.
+	if _, ok := getScalar(typ); ok || typ.Implements(textMarshalerType) {
+		return nil
+	}
+	// The union type marker is a special type to denote union types and is not
+	// included in the introspection result.
+	if typ == unionType {
+		return nil
+	}
+
+	packageName := typ.PkgPath()
+	typeName := typ.Name()
+
+	if seenPackage, ok := typesToPackages[typeName]; ok && seenPackage != packageName {
+		return fmt.Errorf(DuplicateTypeNameErrFormat, typeName, seenPackage, packageName)
+	} else if ok && seenPackage == packageName {
+		return nil
+	}
+
+	typesToPackages[typeName] = packageName
+
+	if typ.Kind() != reflect.Struct {
+		return nil
+	}
+
+	for i := 0; i < typ.NumField(); i++ {
+		field := typ.Field(i)
+		if err := checkTypeNameUniqueness(field.Type, typesToPackages); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// checkSchemaTypesAreUnique enforces that every type name used
+// in the schema is unique.
+// checkSchemaTypesAreUnique sterate over every object's registered fieldfuncs,
+// recursing through each fieldfunc's argument and return types to
+// collect a set of types which is compared to the registered enum types.
+//
+// Note that package names are not considered when comparing type names.
+// In other words, foo_package.SomeType and bar_package.SomeType
+// are considered to have the same name.
+func checkSchemaTypesAreUnique(objects map[string]*Object, enums map[reflect.Type]*EnumMapping) error {
+	typesToPackages := map[string]string{}
+
+	for _, object := range objects {
+		// Don't enforce type name uniqueness for objects used for introspection
+		// because they are not included in the schema.
+		if len(object.Name) >= 2 && object.Name[:2] == "__" {
+			continue
+		}
+
+		for methodName, method := range object.Methods {
+			// Don't enforce type name uniqueness for methods defined on objects
+			// used for introspection because they are not included in the schema.
+			if len(methodName) > 2 && methodName[:2] == "__" {
+				continue
+			}
+
+			// It is valid for federated fieldfuncs to contain a nil Fn field.
+			// We will validate registered fieldfuncs later in getType.
+			if fieldFuncKind := reflect.ValueOf(method.Fn).Kind(); fieldFuncKind != reflect.Func {
+				continue
+			}
+
+			fieldFuncType := reflect.TypeOf(method.Fn)
+
+			for i := 0; i < fieldFuncType.NumIn(); i++ {
+				arg := fieldFuncType.In(i)
+
+				// The context and selection set arguments are excluded from the introspection result.
+				if arg == contextType || arg == selectionSetType {
+					continue
+				}
+
+				if err := checkTypeNameUniqueness(arg, typesToPackages); err != nil {
+					return err
+				}
+			}
+
+			for i := 0; i < fieldFuncType.NumOut(); i++ {
+				ret := fieldFuncType.Out(i)
+
+				// The error return is excluded from the introspection result.
+				if ret == errType {
+					continue
+				}
+
+				if err := checkTypeNameUniqueness(ret, typesToPackages); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	for enum := range enums {
+		enumType := enum.Name()
+		enumPkg := enum.PkgPath()
+		if packageName, ok := typesToPackages[enumType]; ok && packageName != enumPkg {
+			return fmt.Errorf(DuplicateTypeNameErrFormat, enumType, packageName, enumPkg)
+		}
+
+		typesToPackages[enumType] = enumPkg
+	}
+
+	return nil
+}
+
 // Build takes the schema we have built on our Query and Mutation starting
 // points and builds a full graphql.Schema we can use to execute and run
 // queries.  Essentially we read through all the methods we've attached to our
 // Query and Mutation Objects and ensure that those functions are returning
 // other Objects that we can resolve in our GraphQL graph.
 func (s *Schema) Build() (*graphql.Schema, error) {
+	if err := checkSchemaTypesAreUnique(s.objects, s.enumTypes); err != nil {
+		return nil, oops.Wrapf(err, "type names in schema must be unique")
+	}
+
 	sb := &schemaBuilder{
 		types:        make(map[reflect.Type]graphql.Type),
 		typeNames:    make(map[string]reflect.Type),
