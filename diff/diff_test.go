@@ -77,6 +77,31 @@ func TestDiffListRepeatedStrings(t *testing.T) {
 	}
 }
 
+func TestDiffUpdateSliceToNil(t *testing.T) {
+	var emptySlice []interface{}
+	d := diff.Diff([]interface{}{
+		"1",
+		"2",
+		"1",
+	}, emptySlice)
+
+	if !reflect.DeepEqual(internal.AsJSON(d), internal.ParseJSON(`[null]`)) {
+		t.Errorf("expected no diff, but received %s", d)
+	}
+}
+
+func TestDiffUpdateMapToNil(t *testing.T) {
+	var emptyMap map[string]interface{}
+	d := diff.Diff(map[string]interface{}{
+		"__key": "a",
+		"foo":   "bar",
+	}, emptyMap)
+
+	if !reflect.DeepEqual(internal.AsJSON(d), internal.ParseJSON(`[null]`)) {
+		t.Errorf("expected no diff, but received %s", d)
+	}
+}
+
 func TestStripKey(t *testing.T) {
 	d := diff.StripKey(map[string]interface{}{
 		"__key": "foo",

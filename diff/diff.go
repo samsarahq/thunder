@@ -141,6 +141,11 @@ func diffMap(old map[string]interface{}, newAny interface{}) interface{} {
 		return markReplaced(newAny)
 	}
 
+	// Check if the new map is nil, and mark the entire map replaced if so.
+	if new == nil {
+		return markReplaced(nil)
+	}
+
 	// Check if two map are identical by comparing their pointers, and
 	// short-circuit if so.
 	if reflect.ValueOf(old).Pointer() == reflect.ValueOf(new).Pointer() {
@@ -262,6 +267,11 @@ func diffArray(old []interface{}, newAny interface{}) interface{} {
 	new, ok := newAny.([]interface{})
 	if !ok {
 		return markReplaced(newAny)
+	}
+
+	// Check if the new array is nil, and mark the entire array replaced if so.
+	if new == nil {
+		return markReplaced(nil)
 	}
 
 	// Check if two arrays are identical by comparing their pointers and length,
