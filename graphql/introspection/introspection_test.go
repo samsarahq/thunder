@@ -56,6 +56,12 @@ func makeSchema() *schemabuilder.Schema {
 	query.FieldFunc("nullableUser", func() (*User, error) {
 		return nil, nil
 	})
+	query.FieldFunc("usersPtrForceNonNullable", func() ([]*User, error) {
+		return nil, nil
+	}, schemabuilder.ListEntryNonNullable)
+	query.FieldFunc("usersPtr", func() ([]*User, error) {
+		return nil, nil
+	})
 	query.FieldFunc("usersConnection", func() ([]User, error) {
 		return nil, nil
 	}, schemabuilder.Paginated)
@@ -82,7 +88,7 @@ func makeSchema() *schemabuilder.Schema {
 
 	user.FieldFunc("friends", func(u *User) []*User {
 		return nil
-	})
+	}, schemabuilder.ListEntryNonNullable)
 	user.FieldFunc("greet", func(args struct {
 		Other     string
 		Include   *User
