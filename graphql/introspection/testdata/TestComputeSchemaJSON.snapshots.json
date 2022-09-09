@@ -698,6 +698,50 @@
                   "deprecationReason": "",
                   "description": "",
                   "isDeprecated": false,
+                  "name": "usersPtr",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "LIST",
+                      "name": null,
+                      "ofType": {
+                        "kind": "OBJECT",
+                        "name": "user",
+                        "ofType": null
+                      }
+                    }
+                  }
+                },
+                {
+                  "args": [],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
+                  "name": "usersPtrForceNonNullable",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "LIST",
+                      "name": null,
+                      "ofType": {
+                        "kind": "NON_NULL",
+                        "name": null,
+                        "ofType": {
+                          "kind": "OBJECT",
+                          "name": "user",
+                          "ofType": null
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "args": [],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
                   "name": "usersUuid",
                   "type": {
                     "kind": "NON_NULL",

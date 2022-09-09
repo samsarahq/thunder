@@ -46,7 +46,7 @@ func buildTestSchema1() *schemabuilder.Schema {
 				Name: "bob",
 			},
 		}
-	})
+	}, schemabuilder.ListEntryNonNullable)
 
 	query.FieldFunc("s1echo", func(args struct {
 		Foo      string
