@@ -38,6 +38,10 @@ var NonNullable fieldFuncOptionFunc = func(m *method) {
 	m.MarkedNonNullable = true
 }
 
+var ListEntryNonNullable fieldFuncOptionFunc = func(m *method) {
+	m.MarkedListEntryNonNullable = true
+}
+
 // Paginated is an option that can be passed to a FieldFunc to indicate that
 // its return value should be paginated.
 var Paginated fieldFuncOptionFunc = func(m *method) {
@@ -323,6 +327,8 @@ func (s *Object) Key(f string) {
 
 type method struct {
 	MarkedNonNullable bool
+	MarkedListEntryNonNullable bool
+
 	Fn                interface{}
 
 	// Whether or not the FieldFunc is paginated.

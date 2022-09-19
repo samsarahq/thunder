@@ -39,7 +39,7 @@ type cachedType struct {
 // through struct fields and attached object methods to generate the entire
 // graphql graph of possible queries.  This function will be called recursively
 // for types as we go through the graph.
-func (sb *schemaBuilder) getType(nodeType reflect.Type) (graphql.Type, error) {
+func (sb *schemaBuilder) getType(nodeType reflect.Type, forceListEntryNonNull bool) (graphql.Type, error) {
 	// Support scalars and optional scalars. Scalars have precedence over structs
 	// to have eg. time.Time function as a scalar.
 	if typeName, values, ok := sb.getEnum(nodeType); ok {
@@ -75,15 +75,18 @@ func (sb *schemaBuilder) getType(nodeType reflect.Type) (graphql.Type, error) {
 
 	switch nodeType.Kind() {
 	case reflect.Slice:
-		elementType, err := sb.getType(nodeType.Elem())
+		elementType, err := sb.getType(nodeType.Elem(), forceListEntryNonNull)
 		if err != nil {
 			return nil, err
 		}
 
-		// Wrap all slice elements in NonNull.
-		if _, ok := elementType.(*graphql.NonNull); !ok {
-			elementType = &graphql.NonNull{Type: elementType}
+		if forceListEntryNonNull {
+			// Wrap all slice elements in NonNull.
+			if _, ok := elementType.(*graphql.NonNull); !ok {
+				elementType = &graphql.NonNull{Type: elementType}
+			}
 		}
+
 
 		return &graphql.NonNull{Type: &graphql.List{Type: elementType}}, nil
 

@@ -196,7 +196,8 @@ func (sb *schemaBuilder) buildUnionStruct(typ reflect.Type) error {
 			return fmt.Errorf("bad type %s: union type member types must be anonymous", name)
 		}
 
-		typ, err := sb.getType(field.Type)
+		// Pass forceListEntryNonNull as true to keep backward compatibility.
+		typ, err := sb.getType(field.Type, true)
 		if err != nil {
 			return err
 		}
@@ -230,7 +231,8 @@ func isScalarType(typ graphql.Type) bool {
 // buildField generates a graphQL field for a struct's field.  This field can be
 // used to "resolve" a response for a graphql request.
 func (sb *schemaBuilder) buildField(field reflect.StructField) (*graphql.Field, error) {
-	retType, err := sb.getType(field.Type)
+	// Pass forceListEntryNonNull as true to keep backward compatibility.
+	retType, err := sb.getType(field.Type, true)
 	if err != nil {
 		return nil, err
 	}

@@ -108,7 +108,7 @@ func (sb *schemaBuilder) buildFunctionAndFuncCtx(typ reflect.Type, m *method) (*
 // as args to a shadow field func.
 func (sb *schemaBuilder) buildFederatedFunction(typ reflect.Type, m *method) (*graphql.Field, error) {
 	var argParser *argParser
-	returnType, err := sb.getType(m.RootObjectType)
+	returnType, err := sb.getType(m.RootObjectType, true)
 	if err != nil {
 		return nil, oops.Wrapf(err, "Invalid return type")
 	}
@@ -164,7 +164,7 @@ func (sb *schemaBuilder) buildShadowObjectFederationFunction(typ reflect.Type, m
 	}
 
 	// Return type is a nonnullable list of the shadow object type
-	returnType, err := sb.getType(m.ShadowObjectType)
+	returnType, err := sb.getType(m.ShadowObjectType, true)
 	if err != nil {
 		return nil, oops.Wrapf(err, "Invalid return type")
 	}
@@ -309,7 +309,7 @@ func (funcCtx *funcContext) getReturnType(sb *schemaBuilder, m *method) (graphql
 	var retType graphql.Type
 	if funcCtx.hasRet {
 		var err error
-		retType, err = sb.getType(funcCtx.funcType.Out(0))
+		retType, err = sb.getType(funcCtx.funcType.Out(0), m.MarkedListEntryNonNullable)
 		if err != nil {
 			return nil, err
 		}
@@ -321,7 +321,7 @@ func (funcCtx *funcContext) getReturnType(sb *schemaBuilder, m *method) (graphql
 		}
 	} else {
 		var err error
-		retType, err = sb.getType(reflect.TypeOf(true))
+		retType, err = sb.getType(reflect.TypeOf(true), m.MarkedListEntryNonNullable)
 		if err != nil {
 			return nil, err
 		}
