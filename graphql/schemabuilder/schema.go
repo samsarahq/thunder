@@ -123,7 +123,8 @@ type federation struct{}
 
 func FetchObjectFromKeys(f interface{}, options ...ObjectOption) ObjectOption {
 	// Create a method on the "Federation" object to create the shadow object from the federated keys
-	m := &method{Fn: f, Expensive: true}
+	// Force the returned list entry to be nullable to keep backward compatibility.
+	m := &method{Fn: f, Expensive: true, MarkedListEntryNonNullable: true}
 
 	var FetchObjectFromKeysField objectOptionFunc = func(s *Schema, obj *Object) {
 		q := s.Query()
@@ -358,11 +359,11 @@ func (s *Schema) Build() (*graphql.Schema, error) {
 		sb.objects[typ] = object
 	}
 
-	queryTyp, err := sb.getType(reflect.TypeOf(&query{}))
+	queryTyp, err := sb.getType(reflect.TypeOf(&query{}), true)
 	if err != nil {
 		return nil, err
 	}
-	mutationTyp, err := sb.getType(reflect.TypeOf(&mutation{}))
+	mutationTyp, err := sb.getType(reflect.TypeOf(&mutation{}), true)
 	if err != nil {
 		return nil, err
 	}

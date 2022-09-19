@@ -14,6 +14,7 @@ func (sb *schemaBuilder) buildBatchFunctionWithFallback(typ reflect.Type, m *met
 	fallbackField, fallbackFuncCtx, err := sb.buildFunctionAndFuncCtx(typ, &method{
 		Fn:                m.BatchArgs.FallbackFunc,
 		MarkedNonNullable: m.MarkedNonNullable,
+		MarkedListEntryNonNullable: m.MarkedListEntryNonNullable,
 		// We don't want to accidentally make the fallback non-expensive
 		// if someone forgets to pass the Expensive option to `BatchFieldFuncWithFallback`.
 		// It's safe to assume the fallback is expensive, because why else
@@ -259,7 +260,7 @@ func (funcCtx *batchFuncContext) getFuncOutputTypes() []reflect.Type {
 // and validates that the response is a proper batch type.
 func (funcCtx *batchFuncContext) consumeReturnValue(m *method, sb *schemaBuilder, out []reflect.Type) (graphql.Type, []reflect.Type, error) {
 	if len(out) == 0 || out[0] == errType {
-		retType, err := sb.getType(reflect.TypeOf(true))
+		retType, err := sb.getType(reflect.TypeOf(true), m.MarkedListEntryNonNullable)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -274,7 +275,7 @@ func (funcCtx *batchFuncContext) consumeReturnValue(m *method, sb *schemaBuilder
 			outType.String(),
 		)
 	}
-	retType, err := sb.getType(outType.Elem())
+	retType, err := sb.getType(outType.Elem(), m.MarkedListEntryNonNullable)
 	if err != nil {
 		return nil, nil, err
 	}

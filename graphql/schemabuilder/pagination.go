@@ -226,7 +226,7 @@ func (c *connectionContext) Validate() error {
 // constructEdgeType wraps the typ (which is the type of the Node) in an Edge type conforming to the
 // Relay spec.
 func (sb *schemaBuilder) constructEdgeType(typ reflect.Type) (graphql.Type, error) {
-	nodeType, err := sb.getType(typ)
+	nodeType, err := sb.getType(typ, true)
 	if err != nil {
 		return nil, err
 	}
@@ -247,7 +247,7 @@ func (sb *schemaBuilder) constructEdgeType(typ reflect.Type) (graphql.Type, erro
 	}
 	fieldMap["node"] = nodeField
 
-	cursorType, err := sb.getType(typeOfString)
+	cursorType, err := sb.getType(typeOfString, true)
 	if err != nil {
 		return nil, err
 	}
