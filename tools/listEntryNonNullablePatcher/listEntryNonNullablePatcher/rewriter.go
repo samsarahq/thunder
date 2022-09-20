@@ -1,7 +1,6 @@
 package listEntryNonNullablePatcher
 
 import (
-	"fmt"
 	"go/ast"
 	"go/types"
 	"strings"
@@ -69,7 +68,6 @@ func unwrapIdent(typ ast.Expr) ast.Expr {
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
-	fmt.Println("hello")
 	callFilter := []ast.Node{
 		(*ast.CallExpr)(nil),
 	}
