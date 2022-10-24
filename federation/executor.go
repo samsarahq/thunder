@@ -370,15 +370,16 @@ func (e *Executor) execute(ctx context.Context, isRootPlan bool, p *Plan, keys [
 			if err != nil {
 				return oops.Wrapf(err, "executing sub plan: %v", err)
 			}
+			
+			// Acquire mutex lock before modifying results
+			resMu.Lock()
+			defer resMu.Unlock()
 			optionalRespMetadata = append(optionalRespMetadata, subQueryRespMetadata...)
 
 			if len(executionResults) != len(subPlanMetaData.results) {
 				return fmt.Errorf("got %d results for %d targets", len(executionResults), len(subPlanMetaData.results))
 			}
 
-			// Acquire mutex lock before modifying results
-			resMu.Lock()
-			defer resMu.Unlock()
 			for i, result := range subPlanMetaData.results {
 				executionResult, ok := executionResults[i].(map[string]interface{})
 				if !ok {
