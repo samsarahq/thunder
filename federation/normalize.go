@@ -112,7 +112,9 @@ func (f *flattener) applies(obj *graphql.Object, fragment *graphql.Fragment) (bo
 // selections.
 func (f *flattener) flattenFragments(selectionSet *graphql.SelectionSet, typ *graphql.Object, target *[]*graphql.Selection) error {
 	// Start with the non-fragment selections.
-	*target = append(*target, selectionSet.Selections...)
+	for _, selection := range selectionSet.Selections {
+		*target = append(*target, Copy(selection).(*graphql.Selection))
+	}
 
 	// Descend into fragments matching the current type.
 	for _, fragment := range selectionSet.Fragments {
