@@ -1,0 +1,251 @@
+[
+    {
+      "Name": "batchExecutor:Pagination, with ctx and error",
+      "Values": [
+        {
+          "inner": {
+            "innerConnectionWithCtxAndError": {
+              "edges": [
+                {
+                  "cursor": "MQ==",
+                  "node": {
+                    "__key": 1,
+                    "id": 1
+                  }
+                },
+                {
+                  "cursor": "Mg==",
+                  "node": {
+                    "__key": 2,
+                    "id": 2
+                  }
+                },
+                {
+                  "cursor": "Mw==",
+                  "node": {
+                    "__key": 3,
+                    "id": 3
+                  }
+                }
+              ],
+              "pageInfo": {
+                "endCursor": "Mw==",
+                "hasNextPage": true,
+                "hasPrevPage": false,
+                "pages": [
+                  "",
+                  "Mw=="
+                ],
+                "startCursor": "MQ=="
+              },
+              "totalCount": 5
+            }
+          }
+        }
+      ]
+    },
+    {
+      "Name": "batchExecutor:Pagination, with ctx and error manual",
+      "Values": [
+        {
+          "inner": {
+            "innerConnectionWithCtxAndErrorManual": {
+              "edges": [
+                {
+                  "cursor": "MQ==",
+                  "node": {
+                    "__key": 1,
+                    "id": 1
+                  }
+                },
+                {
+                  "cursor": "Mg==",
+                  "node": {
+                    "__key": 2,
+                    "id": 2
+                  }
+                },
+                {
+                  "cursor": "Mw==",
+                  "node": {
+                    "__key": 3,
+                    "id": 3
+                  }
+                }
+              ],
+              "pageInfo": {
+                "endCursor": "Mw==",
+                "hasNextPage": true,
+                "hasPrevPage": false,
+                "pages": [],
+                "startCursor": "MQ=="
+              },
+              "totalCount": 5
+            }
+          }
+        }
+      ]
+    },
+    {
+      "Name": "batchExecutor:Pagination, uses manual pagination instead of fallback",
+      "Values": [
+        {
+          "inner": {
+            "innerConnectionWithCtxAndErrorManualAndFallback": {
+              "edges": [
+                {
+                  "cursor": "MQ==",
+                  "node": {
+                    "__key": 1,
+                    "id": 1
+                  }
+                },
+                {
+                  "cursor": "Mg==",
+                  "node": {
+                    "__key": 2,
+                    "id": 2
+                  }
+                },
+                {
+                  "cursor": "Mw==",
+                  "node": {
+                    "__key": 3,
+                    "id": 3
+                  }
+                }
+              ],
+              "pageInfo": {
+                "endCursor": "Mw==",
+                "hasNextPage": true,
+                "hasPrevPage": false,
+                "pages": [
+                  "",
+                  "Mw=="
+                ],
+                "startCursor": "MQ=="
+              },
+              "totalCount": 5
+            }
+          }
+        }
+      ]
+    },
+    {
+      "Name": "batchExecutor:Pagination, uses manual pagination instead of fallback, with filtertext",
+      "Values": [
+        {
+          "inner": {
+            "manualPaginationAndFallbackWithFiltersAndSorts": {
+              "edges": [
+                {
+                  "cursor": "MQ==",
+                  "node": {
+                    "__key": 1,
+                    "id": 1
+                  }
+                }
+              ],
+              "pageInfo": {
+                "endCursor": "MQ==",
+                "hasNextPage": false,
+                "hasPrevPage": false,
+                "pages": [
+                  ""
+                ],
+                "startCursor": "MQ=="
+              },
+              "totalCount": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "Name": "batchExecutor:Pagination, uses manual pagination instead of fallback, with sort by desc",
+      "Values": [
+        {
+          "inner": {
+            "manualPaginationAndFallbackWithFiltersAndSorts": {
+              "edges": [
+                {
+                  "cursor": "NQ==",
+                  "node": {
+                    "__key": 5,
+                    "id": 5
+                  }
+                },
+                {
+                  "cursor": "NA==",
+                  "node": {
+                    "__key": 4,
+                    "id": 4
+                  }
+                },
+                {
+                  "cursor": "Mw==",
+                  "node": {
+                    "__key": 3,
+                    "id": 3
+                  }
+                }
+              ],
+              "pageInfo": {
+                "endCursor": "Mw==",
+                "hasNextPage": true,
+                "hasPrevPage": false,
+                "pages": [
+                  "",
+                  "Mw=="
+                ],
+                "startCursor": "NQ=="
+              },
+              "totalCount": 5
+            }
+          }
+        }
+      ]
+    },
+    {
+      "Name": "batchExecutor:Pagination, uses fallback method",
+      "Values": [
+        {
+          "inner": {
+            "innerConnectionWithCtxAndErrorManualAndFallback": {
+              "edges": [
+                {
+                  "cursor": "MQ==",
+                  "node": {
+                    "__key": 1,
+                    "id": 1
+                  }
+                },
+                {
+                  "cursor": "Mg==",
+                  "node": {
+                    "__key": 2,
+                    "id": 2
+                  }
+                },
+                {
+                  "cursor": "Mw==",
+                  "node": {
+                    "__key": 3,
+                    "id": 3
+                  }
+                }
+              ],
+              "pageInfo": {
+                "endCursor": "Mw==",
+                "hasNextPage": true,
+                "hasPrevPage": false,
+                "pages": [],
+                "startCursor": "MQ=="
+              },
+              "totalCount": 5
+            }
+          }
+        }
+      ]
+    }
+  ]
