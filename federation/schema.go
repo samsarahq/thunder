@@ -165,11 +165,12 @@ func validateFieldsReturningFederatedObject(serviceNames []string, serviceSchema
 	return nil
 }
 
-// ConvertVersionedSchemas takes schemas for all of versions of
-// all executors services and generates a single merged schema
-// annotated with mapping from field to all services that know
-// how to resolve the field
-func ConvertVersionedSchemas(schemas serviceSchemas) (*SchemaWithFederationInfo, error) {
+// processSchemaVersions that takes in a map of service name to a slice of
+// introspection query results, and organizes them into a single introspection
+// query result per service name. It returns: a slice of service names, a slice
+// of introspection query results (one per service), and a map from each 
+// service name to an introspection query result.
+func processSchemaVersions(schemas serviceSchemas) ([]string, []*IntrospectionQueryResult, map[string]*IntrospectionQueryResult, error) {
 	serviceNames := make([]string, 0, len(schemas))
 	for service := range schemas {
 		serviceNames = append(serviceNames, service)
@@ -196,12 +197,43 @@ func ConvertVersionedSchemas(schemas serviceSchemas) (*SchemaWithFederationInfo,
 
 		serviceSchema, err := mergeSchemaSlice(versionSchemas, Intersection)
 		if err != nil {
-			return nil, err
+			return nil, nil, nil, err
 		}
 
 		serviceSchemasByName[service] = serviceSchema
-
 		serviceSchemas = append(serviceSchemas, serviceSchema)
+	}
+
+	return serviceNames, serviceSchemas, serviceSchemasByName, nil
+}
+
+// MergeIntrospectionSchemas takes the introspection query results
+// for all versions of all executor services, and merges them into
+// a single introspection query result that represents the full
+// federated schema.
+func MergeIntrospectionSchemas(schemas serviceSchemas) (*IntrospectionQueryResult, error) {
+	_, serviceSchemas, _, err := processSchemaVersions(schemas)
+	if err != nil {
+		return nil, err
+	}
+
+	// Finds the union of all the schemas from different executor services
+	merged, err := mergeSchemaSlice(serviceSchemas, Union)
+	if err != nil {
+		return nil, err
+	}
+
+	return merged, nil
+}
+
+// ConvertVersionedSchemas takes schemas for all of versions of
+// all executors services and generates a single merged schema
+// annotated with mapping from field to all services that know
+// how to resolve the field
+func ConvertVersionedSchemas(schemas serviceSchemas) (*SchemaWithFederationInfo, error) {
+	serviceNames, serviceSchemas, serviceSchemasByName, err := processSchemaVersions(schemas)
+	if err != nil {
+		return nil, err
 	}
 
 	// Finds the union of all the schemas from different executor services
