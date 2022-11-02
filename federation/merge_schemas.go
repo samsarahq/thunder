@@ -4,6 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+
+	"github.com/samsarahq/thunder/graphql"
+	"github.com/samsarahq/thunder/graphql/introspection"
 )
 
 // MergeMode controls how to combine two different schemas. Union is used for
@@ -75,10 +78,27 @@ type introspectionField struct {
 	Name string                    `json:"name"`
 	Type *introspectionTypeRef     `json:"type"`
 	Args []introspectionInputField `json:"args"`
+
+	DeprecationReason string `json:"deprecationReason"`
+	Description       string `json:"description"`
+	IsDeprecated      bool   `json:"isDeprecated"`
 }
 
 type introspectionEnumValue struct {
 	Name string `json:"name"`
+}
+
+type introspectiveDirectiveInputValue struct {
+	Name         string                `json:"name"`
+	Description  string                `json:"description"`
+	DefaultValue *string               `json:"defaultValue"`
+	Type         *introspectionTypeRef `json:"type"`
+}
+type introspectiveDirective struct {
+	Name        string                             `json:"name"`
+	Description string                             `json:"description"`
+	Locations   []string                           `json:"locations"`
+	Args        []introspectiveDirectiveInputValue `json:"args"`
 }
 
 type introspectionType struct {
@@ -88,10 +108,15 @@ type introspectionType struct {
 	InputFields   []introspectionInputField `json:"inputFields"`
 	PossibleTypes []*introspectionTypeRef   `json:"possibleTypes"`
 	EnumValues    []introspectionEnumValue  `json:"enumValues"`
+	Description   string                    `json:"description"`
+	Interfaces    []*introspectionTypeRef   `json:"interfaces"`
 }
 
 type introspectionSchema struct {
-	Types []introspectionType `json:"types"`
+	Types        []introspectionType      `json:"types"`
+	QueryType    introspectionType        `json:"queryType"`
+	MutationType introspectionType        `json:"mutationType"`
+	Directives   []introspectiveDirective `json:"directives"`
 }
 
 type IntrospectionQueryResult struct {
@@ -282,6 +307,11 @@ func mergePossibleTypes(a, b []*introspectionTypeRef, mode MergeMode) ([]*intros
 	return merged, nil
 }
 
+func mergeInterfaces(a, b []*introspectionTypeRef, mode MergeMode) ([]*introspectionTypeRef, error) {
+	// merging interfaces follows the same logic as merging possibleTypes
+	return mergePossibleTypes(a, b, mode)
+}
+
 func mergeEnumValues(a, b []introspectionEnumValue, mode MergeMode) ([]introspectionEnumValue, error) {
 	types := make(map[string][]introspectionEnumValue)
 	for _, a := range a {
@@ -324,6 +354,7 @@ func mergeTypes(a, b introspectionType, mode MergeMode) (*introspectionType, err
 		InputFields:   []introspectionInputField{},
 		PossibleTypes: []*introspectionTypeRef{},
 		EnumValues:    []introspectionEnumValue{},
+		Interfaces:    []*introspectionTypeRef{},
 	}
 
 	switch a.Kind {
@@ -348,6 +379,13 @@ func mergeTypes(a, b introspectionType, mode MergeMode) (*introspectionType, err
 		}
 		merged.PossibleTypes = possibleTypes
 
+	case "INTERFACE":
+		interfaces, err := mergeInterfaces(a.Interfaces, b.Interfaces, mode)
+		if err != nil {
+			return nil, fmt.Errorf("merging interfaces: %v", err)
+		}
+		merged.Interfaces = interfaces
+
 	case "ENUM":
 		enumValues, err := mergeEnumValues(a.EnumValues, b.EnumValues, mode)
 		if err != nil {
@@ -362,6 +400,35 @@ func mergeTypes(a, b introspectionType, mode MergeMode) (*introspectionType, err
 	}
 
 	return &merged, nil
+}
+
+func convertIntrospectionDirective(d introspection.Directive) introspectiveDirective {
+	locations := make([]string, 0, len(d.Locations))
+	for _, loc := range d.Locations {
+		locations = append(locations, string(loc))
+	}
+
+	args := make([]introspectiveDirectiveInputValue, 0, len(d.Args))
+	for _, arg := range d.Args {
+		nonNull := arg.Type.Inner.(*graphql.NonNull)
+		scalar := nonNull.Type.(*graphql.Scalar)
+
+		args = append(args, introspectiveDirectiveInputValue{
+			Name:         arg.Name,
+			Description:  arg.Description,
+			DefaultValue: arg.DefaultValue,
+			Type:         &introspectionTypeRef{Name: scalar.Type},
+		})
+	}
+
+	directive := introspectiveDirective{
+		Description: d.Description,
+		Locations:   locations,
+		Name:        d.Name,
+		Args:        args,
+	}
+
+	return directive
 }
 
 func mergeSchemas(a, b *IntrospectionQueryResult, mode MergeMode) (*IntrospectionQueryResult, error) {
@@ -397,7 +464,14 @@ func mergeSchemas(a, b *IntrospectionQueryResult, mode MergeMode) (*Introspectio
 
 	return &IntrospectionQueryResult{
 		Schema: introspectionSchema{
-			Types: merged,
+			Types:        merged,
+			QueryType:    introspectionType{Name: "Query"},
+			MutationType: introspectionType{Name: "Mutation"},
+			Directives: []introspectiveDirective{
+				convertIntrospectionDirective(introspection.IncludeDirective),
+				convertIntrospectionDirective(introspection.SkipDirective),
+				convertIntrospectionDirective(introspection.TypeAsOptionalDirective),
+			},
 		},
 	}, nil
 }

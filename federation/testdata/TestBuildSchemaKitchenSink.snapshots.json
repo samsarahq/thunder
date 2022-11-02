@@ -4,12 +4,96 @@
     "Values": [
       {
         "__schema": {
+          "directives": [
+            {
+              "args": [
+                {
+                  "defaultValue": null,
+                  "description": "Included when true.",
+                  "name": "if",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "bool",
+                      "ofType": null
+                    }
+                  }
+                }
+              ],
+              "description": "Directs the executor to include this field or fragment only when the `if` argument is true.",
+              "locations": [
+                "FIELD",
+                "FRAGMENT_SPREAD",
+                "INLINE_FRAGMENT"
+              ],
+              "name": "include"
+            },
+            {
+              "args": [
+                {
+                  "defaultValue": null,
+                  "description": "Skipped when true.",
+                  "name": "if",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": "",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "bool",
+                      "ofType": null
+                    }
+                  }
+                }
+              ],
+              "description": "Directs the executor to skip this field or fragment only when the `if` argument is true.",
+              "locations": [
+                "FIELD",
+                "FRAGMENT_SPREAD",
+                "INLINE_FRAGMENT"
+              ],
+              "name": "skip"
+            },
+            {
+              "args": [],
+              "description": "Client-side-only directive that instructs the type generator to mark this field as optional. This is useful for making the generated types compliant with Troy persistence schema.",
+              "locations": [
+                "FIELD"
+              ],
+              "name": "type_as_optional"
+            }
+          ],
+          "mutationType": {
+            "description": "",
+            "enumValues": null,
+            "fields": null,
+            "inputFields": null,
+            "interfaces": null,
+            "kind": "",
+            "name": "Mutation",
+            "possibleTypes": null
+          },
+          "queryType": {
+            "description": "",
+            "enumValues": null,
+            "fields": null,
+            "inputFields": null,
+            "interfaces": null,
+            "kind": "",
+            "name": "Query",
+            "possibleTypes": null
+          },
           "types": [
             {
+              "description": "",
               "enumValues": [],
               "fields": [
                 {
                   "args": [],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
                   "name": "_federation",
                   "type": {
                     "kind": "OBJECT",
@@ -19,6 +103,9 @@
                 },
                 {
                   "args": [],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
                   "name": "id",
                   "type": {
                     "kind": "NON_NULL",
@@ -32,6 +119,9 @@
                 },
                 {
                   "args": [],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
                   "name": "s1baz",
                   "type": {
                     "kind": "NON_NULL",
@@ -45,11 +135,13 @@
                 }
               ],
               "inputFields": [],
+              "interfaces": [],
               "kind": "OBJECT",
               "name": "Bar",
               "possibleTypes": []
             },
             {
+              "description": "",
               "enumValues": [],
               "fields": [],
               "inputFields": [
@@ -66,11 +158,13 @@
                   }
                 }
               ],
+              "interfaces": [],
               "kind": "INPUT_OBJECT",
               "name": "BarKeys_InputObject",
               "possibleTypes": []
             },
             {
+              "description": "",
               "enumValues": [],
               "fields": [],
               "inputFields": [
@@ -87,11 +181,13 @@
                   }
                 }
               ],
+              "interfaces": [],
               "kind": "INPUT_OBJECT",
               "name": "Bar_InputObject",
               "possibleTypes": []
             },
             {
+              "description": "",
               "enumValues": [
                 {
                   "name": "one"
@@ -99,11 +195,13 @@
               ],
               "fields": [],
               "inputFields": [],
+              "interfaces": [],
               "kind": "ENUM",
               "name": "Enum",
               "possibleTypes": []
             },
             {
+              "description": "",
               "enumValues": [],
               "fields": [
                 {
@@ -125,6 +223,9 @@
                       }
                     }
                   ],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
                   "name": "schema1_Bar",
                   "type": {
                     "kind": "NON_NULL",
@@ -163,6 +264,9 @@
                       }
                     }
                   ],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
                   "name": "schema1_Foo",
                   "type": {
                     "kind": "NON_NULL",
@@ -201,6 +305,9 @@
                       }
                     }
                   ],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
                   "name": "schema2_Bar",
                   "type": {
                     "kind": "NON_NULL",
@@ -239,6 +346,9 @@
                       }
                     }
                   ],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
                   "name": "schema2_Foo",
                   "type": {
                     "kind": "NON_NULL",
@@ -260,15 +370,20 @@
                 }
               ],
               "inputFields": [],
+              "interfaces": [],
               "kind": "OBJECT",
               "name": "Federation",
               "possibleTypes": []
             },
             {
+              "description": "",
               "enumValues": [],
               "fields": [
                 {
                   "args": [],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
                   "name": "_federation",
                   "type": {
                     "kind": "OBJECT",
@@ -278,6 +393,9 @@
                 },
                 {
                   "args": [],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
                   "name": "name",
                   "type": {
                     "kind": "NON_NULL",
@@ -291,6 +409,9 @@
                 },
                 {
                   "args": [],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
                   "name": "s1enum",
                   "type": {
                     "kind": "NON_NULL",
@@ -304,6 +425,9 @@
                 },
                 {
                   "args": [],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
                   "name": "s1hmm",
                   "type": {
                     "kind": "SCALAR",
@@ -313,6 +437,9 @@
                 },
                 {
                   "args": [],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
                   "name": "s1nest",
                   "type": {
                     "kind": "OBJECT",
@@ -322,6 +449,9 @@
                 },
                 {
                   "args": [],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
                   "name": "s2bar",
                   "type": {
                     "kind": "OBJECT",
@@ -331,6 +461,9 @@
                 },
                 {
                   "args": [],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
                   "name": "s2ok",
                   "type": {
                     "kind": "NON_NULL",
@@ -344,6 +477,9 @@
                 },
                 {
                   "args": [],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
                   "name": "s2ok2",
                   "type": {
                     "kind": "NON_NULL",
@@ -357,11 +493,13 @@
                 }
               ],
               "inputFields": [],
+              "interfaces": [],
               "kind": "OBJECT",
               "name": "Foo",
               "possibleTypes": []
             },
             {
+              "description": "",
               "enumValues": [],
               "fields": [],
               "inputFields": [
@@ -378,14 +516,17 @@
                   }
                 }
               ],
+              "interfaces": [],
               "kind": "INPUT_OBJECT",
               "name": "FooKeys_InputObject",
               "possibleTypes": []
             },
             {
+              "description": "",
               "enumValues": [],
               "fields": [],
               "inputFields": [],
+              "interfaces": [],
               "kind": "UNION",
               "name": "FooOrBar",
               "possibleTypes": [
@@ -402,6 +543,7 @@
               ]
             },
             {
+              "description": "",
               "enumValues": [],
               "fields": [],
               "inputFields": [
@@ -418,11 +560,13 @@
                   }
                 }
               ],
+              "interfaces": [],
               "kind": "INPUT_OBJECT",
               "name": "Foo_InputObject",
               "possibleTypes": []
             },
             {
+              "description": "",
               "enumValues": [],
               "fields": [
                 {
@@ -440,6 +584,9 @@
                       }
                     }
                   ],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
                   "name": "s1addFoo",
                   "type": {
                     "kind": "OBJECT",
@@ -449,11 +596,13 @@
                 }
               ],
               "inputFields": [],
+              "interfaces": [],
               "kind": "OBJECT",
               "name": "Mutation",
               "possibleTypes": []
             },
             {
+              "description": "",
               "enumValues": [],
               "fields": [],
               "inputFields": [
@@ -482,15 +631,20 @@
                   }
                 }
               ],
+              "interfaces": [],
               "kind": "INPUT_OBJECT",
               "name": "Pair_InputObject",
               "possibleTypes": []
             },
             {
+              "description": "",
               "enumValues": [],
               "fields": [
                 {
                   "args": [],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
                   "name": "_federation",
                   "type": {
                     "kind": "NON_NULL",
@@ -504,6 +658,9 @@
                 },
                 {
                   "args": [],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
                   "name": "s1both",
                   "type": {
                     "kind": "NON_NULL",
@@ -558,6 +715,9 @@
                       }
                     }
                   ],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
                   "name": "s1echo",
                   "type": {
                     "kind": "NON_NULL",
@@ -571,6 +731,9 @@
                 },
                 {
                   "args": [],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
                   "name": "s1f",
                   "type": {
                     "kind": "OBJECT",
@@ -580,6 +743,9 @@
                 },
                 {
                   "args": [],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
                   "name": "s1fff",
                   "type": {
                     "kind": "NON_NULL",
@@ -601,6 +767,9 @@
                 },
                 {
                   "args": [],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
                   "name": "s2root",
                   "type": {
                     "kind": "NON_NULL",
@@ -614,30 +783,37 @@
                 }
               ],
               "inputFields": [],
+              "interfaces": [],
               "kind": "OBJECT",
               "name": "Query",
               "possibleTypes": []
             },
             {
+              "description": "",
               "enumValues": [],
               "fields": [],
               "inputFields": [],
+              "interfaces": [],
               "kind": "SCALAR",
               "name": "int",
               "possibleTypes": []
             },
             {
+              "description": "",
               "enumValues": [],
               "fields": [],
               "inputFields": [],
+              "interfaces": [],
               "kind": "SCALAR",
               "name": "int64",
               "possibleTypes": []
             },
             {
+              "description": "",
               "enumValues": [],
               "fields": [],
               "inputFields": [],
+              "interfaces": [],
               "kind": "SCALAR",
               "name": "string",
               "possibleTypes": []

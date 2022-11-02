@@ -89,7 +89,7 @@ type Type struct {
 	Inner graphql.Type `graphql:"-"`
 }
 
-var includeDirective = Directive{
+var IncludeDirective = Directive{
 	Description: "Directs the executor to include this field or fragment only when the `if` argument is true.",
 	Locations: []DirectiveLocation{
 		FIELD,
@@ -106,7 +106,7 @@ var includeDirective = Directive{
 	},
 }
 
-var skipDirective = Directive{
+var SkipDirective = Directive{
 	Description: "Directs the executor to skip this field or fragment only when the `if` argument is true.",
 	Locations: []DirectiveLocation{
 		FIELD,
@@ -123,7 +123,7 @@ var skipDirective = Directive{
 	},
 }
 
-var typeAsOptionalDirective = Directive{
+var TypeAsOptionalDirective = Directive{
 	Description: "Client-side-only directive that instructs the type generator to mark this field as optional. This is useful for making the generated types compliant with Troy persistence schema.",
 	Locations: []DirectiveLocation{
 		FIELD,
@@ -359,9 +359,9 @@ func (s *introspection) registerQuery(schema *schemabuilder.Schema) {
 			QueryType:    &Type{Inner: s.query},
 			MutationType: &Type{Inner: s.mutation},
 			Directives: []Directive{
-				includeDirective,
-				skipDirective,
-				typeAsOptionalDirective,
+				IncludeDirective,
+				SkipDirective,
+				TypeAsOptionalDirective,
 			},
 		}
 	})
