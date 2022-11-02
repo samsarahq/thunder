@@ -824,3 +824,35 @@ func TestSchemaIntersectionInputFields(t *testing.T) {
 	})
 	assertSchemaIntersectionEq(t, s1, s2, s1)
 }
+
+func TestMergeIntrospectionSchemas(t *testing.T) {
+	schema1 := buildTestSchema1()
+	bytes1, err := introspection.ComputeSchemaJSON(*schema1)
+	assert.Nil(t, err)
+	var iQuery1 IntrospectionQueryResult
+	err = json.Unmarshal(bytes1, &iQuery1)
+	assert.Nil(t, err)
+
+	schema2 := buildTestSchema2()
+	bytes2, err := introspection.ComputeSchemaJSON(*schema2)
+	assert.Nil(t, err)
+	var iQuery2 IntrospectionQueryResult
+	err = json.Unmarshal(bytes2, &iQuery2)
+	assert.Nil(t, err)
+
+	serviceSchemas := map[string]map[string]*IntrospectionQueryResult{
+		"service1": {
+			"": &iQuery1,
+		},
+		"service2": {
+			"": &iQuery2,
+		},
+	}
+
+	mergedIq, err := MergeIntrospectionSchemas(serviceSchemas)
+	assert.Nil(t, err)
+
+	snapshotter := snapshotter.New(t)
+	defer snapshotter.Verify()
+	snapshotter.Snapshot("merged introspection schema", mergedIq)
+}
