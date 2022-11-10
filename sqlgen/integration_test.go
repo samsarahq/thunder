@@ -370,6 +370,68 @@ func TestSelectForUpdate(t *testing.T) {
 	}
 }
 
+func TestForceIndex(t *testing.T) {
+	initialDbState := []*Owl{
+		{Species: "Tyto alba", CommonName: "Barn Owl", Genus: "Tyto", Family: "Tytonidae"},
+		{Species: "Bubo bubo", CommonName: "Eurasian Eagle-Owl", Genus: "Bubo", Family: "Strigidae"},
+		{Species: "Bubo virginianus", CommonName: "Great Horned Owl", Genus: "Bubo", Family: "Strigidae"},
+		{Species: "Megascops kennicottii", CommonName: "Western Screech-Owl", Genus: "Megascops", Family: "Strigidae"},
+		{Species: "Psiloscops flammeolus", CommonName: "Flammulated Owl", Genus: "Psiloscops", Family: "Strigidae"},
+		{Species: "Strix occidentalis lucida", CommonName: "Mexican Spotted Owl", Genus: "Strix", Family: "Strigidae"},
+	}
+
+	testCases := []struct {
+		description         string
+		queryFilter         Filter
+		queryOptions        *SelectOptions
+		expectedErrorString string
+	}{
+		{
+			description:  "Specify an index to use",
+			queryFilter:  Filter{"family": "Strigidae", "genus": "Bubo"},
+			queryOptions: &SelectOptions{ForceIndex: []string{"family_and_genus_index"}},
+		},
+		{
+			description:  "Specify multiple index to consider",
+			queryFilter:  Filter{"family": "Strigidae", "genus": "Bubo"},
+			queryOptions: &SelectOptions{ForceIndex: []string{"family_and_genus_index", "PRIMARY"}},
+		},
+		{
+			description:         "Specify an index that doesn't exist",
+			queryFilter:         Filter{"family": "Strigidae", "genus": "Bubo"},
+			queryOptions:        &SelectOptions{ForceIndex: []string{"an_index_that_doesnt_exist"}},
+			expectedErrorString: "Error 1176: Key 'an_index_that_doesnt_exist' doesn't exist in table 'owls'",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			// Create the test database and insert some initial rows into the owls table.
+			tdb, db, err := setup()
+			require.NoError(t, err)
+			defer tdb.Close()
+
+			err = db.InsertRows(ctx, initialDbState, 100)
+			require.NoError(t, err)
+
+			// Execute the specified query
+			var result []*Owl
+			err = db.Query(ctx, &result, tc.queryFilter, tc.queryOptions)
+
+			// Verify the result
+			if tc.expectedErrorString == "" {
+				assert.NoError(t, err)
+				assert.Len(t, result, 2)
+			} else {
+				assert.Contains(t, err.Error(), tc.expectedErrorString)
+			}
+		})
+	}
+}
+
 func Benchmark(b *testing.B) {
 	tdb, db, err := setup()
 	if err != nil {

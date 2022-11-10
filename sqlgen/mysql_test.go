@@ -129,6 +129,67 @@ func TestSelectQuery(t *testing.T) {
 			ForUpdate: true,
 		},
 	}, "SELECT foo, bar FROM foo WHERE foo = ? AND bar = ? FOR UPDATE", []interface{}{25, "xyz"}, t)
+
+	// FORCE INDEX with a single index
+	testQuery(&SelectQuery{
+		Table:   "foo",
+		Columns: []string{"foo", "bar"},
+		Options: &SelectOptions{
+			Where:      "foo = ? AND bar = ?",
+			Values:     []interface{}{25, "xyz"},
+			OrderBy:    "bar",
+			ForceIndex: []string{"best_index"},
+		},
+	}, "SELECT foo, bar FROM foo FORCE INDEX(best_index) WHERE foo = ? AND bar = ? ORDER BY bar", []interface{}{25, "xyz"}, t)
+
+	// FORCE INDEX with multiple indexes
+	testQuery(&SelectQuery{
+		Table:   "foo",
+		Columns: []string{"foo", "bar"},
+		Options: &SelectOptions{
+			Where:      "foo = ? AND bar = ?",
+			Values:     []interface{}{25, "xyz"},
+			OrderBy:    "bar",
+			ForceIndex: []string{"best_index", "another_good_index"},
+		},
+	}, "SELECT foo, bar FROM foo FORCE INDEX(best_index,another_good_index) WHERE foo = ? AND bar = ? ORDER BY bar", []interface{}{25, "xyz"}, t)
+
+	// USE INDEX with a single index
+	testQuery(&SelectQuery{
+		Table:   "foo",
+		Columns: []string{"foo", "bar"},
+		Options: &SelectOptions{
+			Where:    "foo = ? AND bar = ?",
+			Values:   []interface{}{25, "xyz"},
+			OrderBy:  "bar",
+			UseIndex: []string{"best_index"},
+		},
+	}, "SELECT foo, bar FROM foo USE INDEX(best_index) WHERE foo = ? AND bar = ? ORDER BY bar", []interface{}{25, "xyz"}, t)
+
+	// USE INDEX with multiple indexes
+	testQuery(&SelectQuery{
+		Table:   "foo",
+		Columns: []string{"foo", "bar"},
+		Options: &SelectOptions{
+			Where:    "foo = ? AND bar = ?",
+			Values:   []interface{}{25, "xyz"},
+			OrderBy:  "bar",
+			UseIndex: []string{"best_index", "another_good_index"},
+		},
+	}, "SELECT foo, bar FROM foo USE INDEX(best_index,another_good_index) WHERE foo = ? AND bar = ? ORDER BY bar", []interface{}{25, "xyz"}, t)
+
+	// Both USE INDEX and FORCE INDEX are specified: only FORCE INDEX is applied
+	testQuery(&SelectQuery{
+		Table:   "foo",
+		Columns: []string{"foo", "bar"},
+		Options: &SelectOptions{
+			Where:      "foo = ? AND bar = ?",
+			Values:     []interface{}{25, "xyz"},
+			OrderBy:    "bar",
+			UseIndex:   []string{"good_index", "another_good_index"},
+			ForceIndex: []string{"best_index"},
+		},
+	}, "SELECT foo, bar FROM foo FORCE INDEX(best_index) WHERE foo = ? AND bar = ? ORDER BY bar", []interface{}{25, "xyz"}, t)
 }
 
 func TestInsertQuery(t *testing.T) {

@@ -26,6 +26,12 @@ type SelectOptions struct {
 	ForUpdate bool
 
 	AllowNoIndex bool
+	// A list of indexes to specify in the USE INDEX hint
+	UseIndex []string
+	// A list of indexes to specify in the FORCE INDEX hint.
+	// If both UseIndex and ForceIndex are provided, only ForceIndex will be used:
+	// a query that specifies both USE INDEX and FORCE INDEX would be invalid syntax.
+	ForceIndex []string
 }
 
 func (s *SelectOptions) IncludeFilter(table *Table, filter Filter) error {

@@ -3,6 +3,7 @@ package sqlgen
 import (
 	"bytes"
 	"fmt"
+	"strings"
 )
 
 // SimpleWhere represents a simple WHERE clause
@@ -79,6 +80,16 @@ func (q *SelectQuery) ToSQL() (string, []interface{}) {
 	}
 	buffer.WriteString(" FROM ")
 	buffer.WriteString(q.Table)
+
+	if len(q.Options.ForceIndex) > 0 {
+		buffer.WriteString(" FORCE INDEX(")
+		buffer.WriteString(strings.Join(q.Options.ForceIndex, ","))
+		buffer.WriteString(")")
+	} else if len(q.Options.UseIndex) > 0 {
+		buffer.WriteString(" USE INDEX(")
+		buffer.WriteString(strings.Join(q.Options.UseIndex, ","))
+		buffer.WriteString(")")
+	}
 
 	if q.Options.Where != "" {
 		buffer.WriteString(" WHERE ")
