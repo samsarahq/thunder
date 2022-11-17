@@ -1,14 +1,15 @@
 package federation
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"testing"
-	"bytes"
 
+	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 
@@ -169,6 +170,101 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 	userWithContactInfo.FieldFunc("secret", func(ctx context.Context, user *UserWithContactInfo) (string, error) {
 		return "shhhhh", nil
 	})
+
+	/*
+		----------------------------
+		Pagination Endpoints/Objects
+		----------------------------
+	*/
+	type Item struct {
+		Id         int64
+		FilterText string
+		Number     int64
+		String     string
+		Float      float64
+	}
+
+	type Args struct {
+		Additional string
+	}
+
+	item := s2.Object("item", Item{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*Item }) []*Item {
+		return args.Keys
+	}))
+	item.Key("id")
+
+	userWithContactInfo.FieldFunc("testPagination", func(args Args) []Item {
+		return []Item{{Id: 1}, {Id: 2}, {Id: 3}, {Id: 4}, {Id: 5}}
+	}, schemabuilder.Paginated)
+
+	userWithContactInfo.FieldFunc("testPaginationWithFilter", func() []Item {
+		return []Item{
+			{Id: 1, FilterText: "can"},
+			{Id: 2, FilterText: "man"},
+			{Id: 3, FilterText: "cannot"},
+			{Id: 4, FilterText: "soban"},
+			{Id: 5, FilterText: "socan"},
+			{Id: 6, FilterText: "crane"},
+		}
+
+	}, schemabuilder.Paginated,
+		schemabuilder.FilterFunc("customFilter", func(searchTerm string) []string {
+			return strings.Split(searchTerm, "")
+		}, func(itemString string, searchTokens []string) bool {
+			if len(itemString) < 1 {
+				return false
+			}
+
+			// If the first character of the itemString matches the first character of a searchToken
+			// return that it is a match
+			isMatch := false
+			for _, searchToken := range searchTokens {
+				if len(searchToken) < 1 {
+					continue
+				}
+
+				if itemString[0:1] == searchToken[0:1] {
+					isMatch = true
+					break
+				}
+			}
+			return isMatch
+		}),
+		schemabuilder.BatchFilterField("foo",
+			func(ctx context.Context, i map[batch.Index]Item) (map[batch.Index]string, error) {
+				myMap := make(map[batch.Index]string, len(i))
+				for i, item := range i {
+					myMap[i] = item.FilterText
+				}
+				return myMap, nil
+			},
+		),
+	)
+
+	userWithContactInfo.FieldFunc("testPaginationWithSort", func() []Item {
+		return []Item{
+			{Id: 1, Number: 1, String: "1", Float: 1.0},
+			{Id: 2, Number: 3, String: "3", Float: 3.0},
+			{Id: 3, Number: 5, String: "5", Float: 5.0},
+			{Id: 4, Number: 2, String: "2", Float: 2.0},
+			{Id: 5, Number: 4, String: "4", Float: 4.0},
+		}
+	},
+		schemabuilder.Paginated,
+		schemabuilder.BatchSortField(
+			"numbers", func(ctx context.Context, items map[batch.Index]Item) (map[batch.Index]int64, error) {
+				myMap := make(map[batch.Index]int64, len(items))
+				for i, item := range items {
+					myMap[i] = item.Number
+				}
+				return myMap, nil
+			}))
+
+	/*
+		----------------------------
+		Pagination Endpoints/Objects
+		----------------------------
+	*/
 
 	/*
 		Schema: s3
@@ -347,6 +443,498 @@ func TestExecutorQueriesBasic(t *testing.T) {
 			Output: `{
 				"emptyusers": []
 			}`,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.Name, func(t *testing.T) {
+			ctx := context.Background()
+			runAndValidateQueryResults(t, ctx, e, testCase.Query, testCase.Output)
+		})
+	}
+}
+
+func TestExecutorQueriesPagination(t *testing.T) {
+	e, _, _, _, err := createExecutorWithFederatedUser()
+	require.NoError(t, err)
+	testCases := []struct {
+		Name   string
+		Query  string
+		Output string
+	}{
+		{
+			Name: "query fields on multiple schemas with pagination (first + after)",
+			Query: `
+					query Foo {
+						users {
+							id
+							email
+							phoneNumber
+							isAdmin
+							secret
+							testPagination(first: 1, after: "", additional: "jk") {
+								totalCount
+								edges {
+									node {
+										id
+									}
+									cursor
+								}
+								pageInfo {
+									hasNextPage
+									hasPrevPage
+									startCursor
+									endCursor
+								}
+							}
+						}
+					}`,
+			Output: `
+					{
+						"users":[
+							{
+								"__key":1,
+								"id":1,
+								"email": "email@gmail.com",
+								"phoneNumber": "555-5555",
+								"isAdmin":true,
+								"secret": "shhhhh",
+								"testPagination":{
+									"edges": [
+										{
+											"cursor": "MQ==",
+											"node": {
+												"__key": 1,
+												"id": 1
+											}
+										}
+									],
+									"pageInfo": {
+										"endCursor": "MQ==",
+										"hasNextPage": true,
+										"hasPrevPage": false,
+										"startCursor": "MQ=="
+									},
+									"totalCount": 5
+								}
+							},{
+								"__key":2,
+								"id":2,
+								"email": "email@gmail.com",
+								"phoneNumber": "555-5555",
+								"isAdmin":true,
+								"secret": "shhhhh",
+								"testPagination":{
+									"edges": [
+										{
+											"cursor": "MQ==",
+											"node": {
+												"__key": 1,
+												"id": 1
+											}
+										}
+									],
+									"pageInfo": {
+										"endCursor": "MQ==",
+										"hasNextPage": true,
+										"hasPrevPage": false,
+										"startCursor": "MQ=="
+									},
+									"totalCount": 5
+								}
+							}
+						]
+					}`,
+		},
+		{
+			Name: "query fields on multiple schemas with pagination (last + before)",
+			Query: `
+					query Foo {
+						users {
+							id
+							email
+							phoneNumber
+							isAdmin
+							secret
+							testPagination(last: 2, before: "", additional: "jk") {
+								totalCount
+								edges {
+									node {
+										id
+									}
+									cursor
+								}
+								pageInfo {
+									hasNextPage
+									hasPrevPage
+									pages
+									startCursor
+									endCursor
+								}
+							}
+						}
+					}`,
+			Output: `
+					{
+						"users":[
+							{
+								"__key":1,
+								"id":1,
+								"email": "email@gmail.com",
+								"phoneNumber": "555-5555",
+								"isAdmin":true,
+								"secret": "shhhhh",
+								"testPagination":{
+									"edges": [
+										{
+											"cursor": "NA==",
+											"node": {
+												"__key": 4,
+												"id": 4
+											}
+										},
+										{
+											"cursor": "NQ==",
+											"node": {
+												"__key": 5,
+												"id": 5
+											}
+										}
+									],
+									"pageInfo": {
+										"endCursor": "NQ==",
+										"hasNextPage": false,
+										"hasPrevPage": true,
+										"pages": [
+											"",
+											"Mg==",
+											"NA=="
+										],
+										"startCursor": "NA=="
+									},
+									"totalCount": 5
+								}
+							},{
+								"__key":2,
+								"id":2,
+								"email": "email@gmail.com",
+								"phoneNumber": "555-5555",
+								"isAdmin":true,
+								"secret": "shhhhh",
+								"testPagination":{
+									"edges": [
+										{
+											"cursor": "NA==",
+											"node": {
+												"__key": 4,
+												"id": 4
+											}
+										},
+										{
+											"cursor": "NQ==",
+											"node": {
+												"__key": 5,
+												"id": 5
+											}
+										}
+									],
+									"pageInfo": {
+										"endCursor": "NQ==",
+										"hasNextPage": false,
+										"hasPrevPage": true,
+										"pages": [
+											"",
+											"Mg==",
+											"NA=="
+										],
+										"startCursor": "NA=="
+									},
+									"totalCount": 5
+								}
+							}
+						]
+					}`,
+		}, {
+			Name: "query fields on multiple schemas with pagination with filter",
+			Query: `
+					query Foo {
+						users {
+							id
+							email
+							phoneNumber
+							isAdmin
+							secret
+							testPaginationWithFilter(filterText: "can", filterTextFields: ["foo"], first: 5, after: "", filterType: "customFilter") {
+								totalCount
+								edges {
+									node {
+										id
+										filterText
+									}
+									cursor
+								}
+								pageInfo {
+									hasNextPage
+									hasPrevPage
+									startCursor
+									endCursor
+									pages
+								}
+							}
+						}
+					}`,
+			Output: `
+					{
+						"users":[
+							{
+								"__key":1,
+								"id":1,
+								"email": "email@gmail.com",
+								"phoneNumber": "555-5555",
+								"isAdmin":true,
+								"secret": "shhhhh",
+								"testPaginationWithFilter": {
+									"edges": [
+										{
+											"cursor": "MQ==",
+											"node": {
+												"__key": 1,
+												"filterText": "can",
+												"id": 1
+											}
+										},
+										{
+											"cursor": "Mw==",
+											"node": {
+												"__key": 3,
+												"filterText": "cannot",
+												"id": 3
+											}
+										},
+										{
+											"cursor": "Ng==",
+											"node": {
+												"__key": 6,
+												"filterText": "crane",
+												"id": 6
+											}
+										}
+									],
+									"pageInfo": {
+										"endCursor": "Ng==",
+										"hasNextPage": false,
+										"hasPrevPage": false,
+										"pages": [
+											""
+										],
+										"startCursor": "MQ=="
+									},
+									"totalCount": 3
+								}
+							},{
+								"__key":2,
+								"id":2,
+								"email": "email@gmail.com",
+								"phoneNumber": "555-5555",
+								"isAdmin":true,
+								"secret": "shhhhh",
+								"testPaginationWithFilter": {
+									"edges": [
+										{
+											"cursor": "MQ==",
+											"node": {
+												"__key": 1,
+												"filterText": "can",
+												"id": 1
+											}
+										},
+										{
+											"cursor": "Mw==",
+											"node": {
+												"__key": 3,
+												"filterText": "cannot",
+												"id": 3
+											}
+										},
+										{
+											"cursor": "Ng==",
+											"node": {
+												"__key": 6,
+												"filterText": "crane",
+												"id": 6
+											}
+										}
+									],
+									"pageInfo": {
+										"endCursor": "Ng==",
+										"hasNextPage": false,
+										"hasPrevPage": false,
+										"pages": [
+											""
+										],
+										"startCursor": "MQ=="
+									},
+									"totalCount": 3
+								}
+							}
+						]
+					}`,
+		}, {
+			Name: "query fields on multiple schemas with pagination with sort",
+			Query: `
+					query Foo {
+						users {
+							id
+							email
+							phoneNumber
+							isAdmin
+							secret
+							testPaginationWithSort(sortBy: "numbers", sortOrder: "desc", first: 5, after: "") {
+								totalCount
+								edges {
+									node {
+										id
+										number
+									}
+									cursor
+								}
+								pageInfo {
+									hasNextPage
+									hasPrevPage
+									startCursor
+									endCursor
+									pages
+								}
+							}
+						}
+					}`,
+			Output: `
+					{
+						"users":[
+							{
+								"__key":1,
+								"id":1,
+								"email": "email@gmail.com",
+								"phoneNumber": "555-5555",
+								"isAdmin":true,
+								"secret": "shhhhh",
+								"testPaginationWithSort": {
+									"edges": [
+										{
+											"cursor": "Mw==",
+											"node": {
+												"__key": 3,
+												"id": 3,
+												"number": 5
+											}
+										},
+										{
+											"cursor": "NQ==",
+											"node": {
+												"__key": 5,
+												"id": 5,
+												"number": 4
+											}
+										},
+										{
+											"cursor": "Mg==",
+											"node": {
+												"__key": 2,
+												"id": 2,
+												"number": 3
+											}
+										},
+										{
+											"cursor": "NA==",
+											"node": {
+												"__key": 4,
+												"id": 4,
+												"number": 2
+											}
+										},
+										{
+											"cursor": "MQ==",
+											"node": {
+												"__key": 1,
+												"id": 1,
+												"number": 1
+											}
+										}
+									],
+									"pageInfo": {
+										"endCursor": "MQ==",
+										"hasNextPage": false,
+										"hasPrevPage": false,
+										"pages": [
+											""
+										],
+										"startCursor": "Mw=="
+									},
+									"totalCount": 5
+								}
+							},{
+								"__key":2,
+								"id":2,
+								"email": "email@gmail.com",
+								"phoneNumber": "555-5555",
+								"isAdmin":true,
+								"secret": "shhhhh",
+								"testPaginationWithSort": {
+									"edges": [
+										{
+											"cursor": "Mw==",
+											"node": {
+												"__key": 3,
+												"id": 3,
+												"number": 5
+											}
+										},
+										{
+											"cursor": "NQ==",
+											"node": {
+												"__key": 5,
+												"id": 5,
+												"number": 4
+											}
+										},
+										{
+											"cursor": "Mg==",
+											"node": {
+												"__key": 2,
+												"id": 2,
+												"number": 3
+											}
+										},
+										{
+											"cursor": "NA==",
+											"node": {
+												"__key": 4,
+												"id": 4,
+												"number": 2
+											}
+										},
+										{
+											"cursor": "MQ==",
+											"node": {
+												"__key": 1,
+												"id": 1,
+												"number": 1
+											}
+										}
+									],
+									"pageInfo": {
+										"endCursor": "MQ==",
+										"hasNextPage": false,
+										"hasPrevPage": false,
+										"pages": [
+											""
+										],
+										"startCursor": "Mw=="
+									},
+									"totalCount": 5
+								}
+							}
+						]
+					}`,
 		},
 	}
 	for _, testCase := range testCases {
@@ -736,7 +1324,7 @@ func TestExecutorQueriesWithFragments(t *testing.T) {
 				id
 				temp
 			}
-			
+
 			`,
 			Output: `
 			{
@@ -1538,7 +2126,7 @@ func TestBasicFederatedObjectFetchAllFields(t *testing.T) {
 					}
 				}
 				`,
-				Output: `
+			Output: `
 				{
 					"users":[
 						{
@@ -1546,7 +2134,7 @@ func TestBasicFederatedObjectFetchAllFields(t *testing.T) {
 							"id":1,
 							"name":"testUser",
 							"email":"email@gmail.com",
-							"isCool":true, 
+							"isCool":true,
 							"phoneNumber":"555-5555",
 							"orgId":1
 						},
@@ -1555,7 +2143,7 @@ func TestBasicFederatedObjectFetchAllFields(t *testing.T) {
 							"id":2,
 							"name":"testUser2",
 							"email":"email@gmail.com",
-							"isCool":true, 
+							"isCool":true,
 							"phoneNumber":"555-5555",
 							"orgId":2
 						}
@@ -1566,7 +2154,7 @@ func TestBasicFederatedObjectFetchAllFields(t *testing.T) {
 							"id":1,
 							"name":"testUser",
 							"email":"email@gmail.com",
-							"isCool":true, 
+							"isCool":true,
 							"phoneNumber":"555-5555",
 							"orgId":1
 						},
@@ -1575,7 +2163,7 @@ func TestBasicFederatedObjectFetchAllFields(t *testing.T) {
 							"id":2,
 							"name":"testUser2",
 							"email":"email@gmail.com",
-							"isCool":true, 
+							"isCool":true,
 							"phoneNumber":"555-5555",
 							"orgId":2
 						}
