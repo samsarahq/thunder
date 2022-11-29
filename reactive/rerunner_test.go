@@ -38,6 +38,15 @@ func (e *Expect) Expect(t *testing.T, s string) {
 	}
 }
 
+func (e *Expect) Expect2(s string) {
+	select {
+	case <-e.ch:
+		return
+	case <-time.After(2 * time.Second):
+		panic("error")
+	}
+}
+
 // TestRerun tests that a computation is rerun after it is invalidated.
 func TestRerun(t *testing.T) {
 	released := NewExpect()
@@ -117,6 +126,62 @@ func TestCachePurge(t *testing.T) {
 	dep.Strobe()
 
 	run.Expect(t, "expected rerun")
+}
+
+
+func BenchmarkAddDependency(b *testing.B) {
+	b.ReportAllocs()
+	for n := 0; n < b.N; n++ {
+		testAddDependency(10000)
+	}
+}
+
+func BenchmarkAddDependencies(b *testing.B) {
+	b.ReportAllocs()
+	for n := 0; n < b.N; n++ {
+		testAddDependencies(10000)
+	}
+}
+
+type Filter map[string]interface{}
+
+type QueryDependency struct {
+	Table  string
+	Filter Filter
+}
+
+func testAddDependency(num int) {
+	run := NewExpect()
+	NewRerunner(context.Background(), func(ctx context.Context) (interface{},error) {
+		r := NewResource()
+		for i := 0; i < num; i++ {
+			AddDependency(ctx, r,QueryDependency{
+				Table:  "device",
+				Filter: Filter{"id": i},
+			})
+		}
+		run.Trigger()
+		return nil, nil
+		}, 0, false)
+	run.Expect2("expected run")
+}
+
+func testAddDependencies(num int) {
+	run := NewExpect()
+	deps := make([]Dependency, 0, num)
+	for i := 0; i < num ;i++ {
+		deps = append(deps, QueryDependency{
+			Table:  "device",
+			Filter: Filter{"id": i},
+		})
+	}
+	NewRerunner(context.Background(), func(ctx context.Context) (interface{},error) {
+		r := NewResource()
+		AddDependencies(ctx, r, deps)
+		run.Trigger()
+		return nil, nil
+	}, 0, false)
+	run.Expect2("expected run")
 }
 
 // TestRerunCache tests that a cached computation is rerun after it is invalidated.

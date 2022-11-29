@@ -170,6 +170,12 @@ func (ds *dependencySet) add(dep Dependency) {
 	ds.dependencies = append(ds.dependencies, dep)
 }
 
+func (ds *dependencySet) addDeps(dep []Dependency) {
+	ds.mu.Lock()
+	defer ds.mu.Unlock()
+	ds.dependencies = append(ds.dependencies, dep...)
+}
+
 func (ds *dependencySet) get() []Dependency {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
@@ -217,6 +223,23 @@ func AddDependency(ctx context.Context, r *Resource, dep Dependency) {
 		}
 		if callback, ok := ctx.Value(dependencyCallbackKey{}).(DependencyCallbackFunc); ok && callback != nil {
 			callback(ctx, dep)
+		}
+	}
+}
+
+func AddDependencies(ctx context.Context, r *Resource, deps []Dependency) {
+	if !HasRerunner(ctx) {
+		r.node.addOut(&node{released: true})
+		return
+	}
+
+	computation := ctx.Value(computationKey{}).(*computation)
+	r.node.addOut(&computation.node)
+
+	if deps != nil {
+		depSet, ok := ctx.Value(dependencySetKey{}).(*dependencySet)
+		if ok && depSet != nil {
+			depSet.addDeps(deps)
 		}
 	}
 }
