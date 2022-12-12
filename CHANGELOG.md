@@ -28,7 +28,7 @@
 
 #### `sqlgen`
 - Implemented a basic `(*sqlgen.DB).Count` receiver that wraps `SELECT COUNT(*)` functionality in SQL databases. ([#230](https://github.com/samsarahq/thunder/pull/230))
-
+- Use go standard library implementation of sql.NullTime over mysql.NullTime
 
 ## [0.5.0] 2019-01-10
 

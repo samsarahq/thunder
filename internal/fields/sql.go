@@ -9,7 +9,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/go-sql-driver/mysql"
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/gogo/protobuf/proto"
 )
 
@@ -228,7 +228,7 @@ func (s *Scanner) Scan(src interface{}) error {
 			return nil
 		}
 	case *time.Time:
-		t := mysql.NullTime{}
+		t := sql.NullTime{}
 		if err := t.Scan(src); err != nil {
 			return err
 		}
