@@ -423,13 +423,13 @@ type SafeBatchNodesToKeep struct {
 	mux         sync.Mutex
 }
 
-func (c *connectionContext) applyBatchTextFilter(ctx context.Context, nodes []interface{}, searchTokens []string, filterType *string, batchedFields map[string]*graphql.Field, nodesToKeep []bool) error {
+func (c *connectionContext) applyBatchTextFilter(ctx context.Context, nodes []interface{}, searchTokens []string, filterType *string, batchedFields map[string]*graphql.Field, nodesToKeep []bool, userArgs interface{}) error {
 	g, ctx := errgroup.WithContext(ctx)
 	m := &sync.Mutex{}
 	for unscopeName, unscopedFilterField := range batchedFields {
 		name, filterField := unscopeName, unscopedFilterField
 		g.Go(func() error {
-			texts, err := graphql.SafeExecuteBatchResolver(ctx, filterField, nodes, nil, nil)
+			texts, err := graphql.SafeExecuteBatchResolver(ctx, filterField, nodes, userArgs, nil)
 			if err != nil {
 				return err
 			}
@@ -462,11 +462,11 @@ func (c *connectionContext) applyBatchTextFilter(ctx context.Context, nodes []in
 	return nil
 }
 
-func (c *connectionContext) checkFilters(ctx context.Context, node interface{}, searchTokens []string, filterFields map[string]*graphql.Field, filterType *string) (bool, error) {
+func (c *connectionContext) checkFilters(ctx context.Context, node interface{}, searchTokens []string, filterFields map[string]*graphql.Field, filterType *string, userArgs interface{}) (bool, error) {
 	keep := false
 	for name, filterField := range filterFields {
 		// Resolve the graphql.Field made for sorting.
-		text, err := graphql.SafeExecuteResolver(ctx, filterField, node, nil, nil)
+		text, err := graphql.SafeExecuteResolver(ctx, filterField, node, userArgs, nil)
 		if err != nil {
 			return keep, err
 		}
@@ -494,12 +494,12 @@ func (c *connectionContext) checkFilters(ctx context.Context, node interface{}, 
 // We found that parallelizing non-expensive fields was slower due to the overhead of
 // spawning goroutines, so we execute non-expensive fields serially. We're also concerned
 // about the memory overhead of spawning many goroutines
-func (c *connectionContext) applyTextFilterNotBatchedExpensive(ctx context.Context, nodes []interface{}, searchTokens []string, filterType *string, filterFields map[string]*graphql.Field, nodesToKeep []bool) error {
+func (c *connectionContext) applyTextFilterNotBatchedExpensive(ctx context.Context, nodes []interface{}, searchTokens []string, filterType *string, filterFields map[string]*graphql.Field, nodesToKeep []bool, userArgs interface{}) error {
 	g, ctx := errgroup.WithContext(ctx)
 	for unscopedI, unscopedNode := range nodes {
 		i, node := unscopedI, unscopedNode
 		g.Go(func() error {
-			keep, err := c.checkFilters(ctx, node, searchTokens, filterFields, filterType)
+			keep, err := c.checkFilters(ctx, node, searchTokens, filterFields, filterType, userArgs)
 			nodesToKeep[i] = keep
 			return err
 		})
@@ -510,10 +510,10 @@ func (c *connectionContext) applyTextFilterNotBatchedExpensive(ctx context.Conte
 	return nil
 }
 
-func (c *connectionContext) applyTextFilterNotBatched(ctx context.Context, nodes []interface{}, searchTokens []string, filterType *string, filterFields map[string]*graphql.Field, nodesToKeep []bool) error {
+func (c *connectionContext) applyTextFilterNotBatched(ctx context.Context, nodes []interface{}, searchTokens []string, filterType *string, filterFields map[string]*graphql.Field, nodesToKeep []bool, userArgs interface{}) error {
 	for unscopedI, unscopedNode := range nodes {
 		i, node := unscopedI, unscopedNode
-		keep, err := c.checkFilters(ctx, node, searchTokens, filterFields, filterType)
+		keep, err := c.checkFilters(ctx, node, searchTokens, filterFields, filterType, userArgs)
 		if err != nil {
 			return err
 		}
@@ -522,7 +522,7 @@ func (c *connectionContext) applyTextFilterNotBatched(ctx context.Context, nodes
 	return nil
 }
 
-func (c *connectionContext) applyTextFilter(ctx context.Context, nodes []interface{}, args PaginationArgs) ([]interface{}, error) {
+func (c *connectionContext) applyTextFilter(ctx context.Context, nodes []interface{}, args PaginationArgs, userArgs interface{}) ([]interface{}, error) {
 	if args.FilterText == nil || *args.FilterText == "" {
 		return nodes, nil
 	}
@@ -572,17 +572,17 @@ func (c *connectionContext) applyTextFilter(ctx context.Context, nodes []interfa
 
 	if len(filterTextFieldsNotBatched) > 0 {
 		g.Go(func() error {
-			return c.applyTextFilterNotBatched(ctx, nodes, searchTokens, args.FilterType, filterTextFieldsNotBatched, nodesToKeep)
+			return c.applyTextFilterNotBatched(ctx, nodes, searchTokens, args.FilterType, filterTextFieldsNotBatched, nodesToKeep, userArgs)
 		})
 	}
 	if len(filterTextFieldsNotBatchedExpensive) > 0 {
 		g.Go(func() error {
-			return c.applyTextFilterNotBatchedExpensive(ctx, nodes, searchTokens, args.FilterType, filterTextFieldsNotBatchedExpensive, expensiveNodesToKeep)
+			return c.applyTextFilterNotBatchedExpensive(ctx, nodes, searchTokens, args.FilterType, filterTextFieldsNotBatchedExpensive, expensiveNodesToKeep, userArgs)
 		})
 	}
 	if len(filterTextFieldsBatched) > 0 {
 		g.Go(func() error {
-			return c.applyBatchTextFilter(ctx, nodes, searchTokens, args.FilterType, filterTextFieldsBatched, batchedNodesToKeep)
+			return c.applyBatchTextFilter(ctx, nodes, searchTokens, args.FilterType, filterTextFieldsBatched, batchedNodesToKeep, userArgs)
 		})
 	}
 	if err := g.Wait(); err != nil {
@@ -597,9 +597,9 @@ func (c *connectionContext) applyTextFilter(ctx context.Context, nodes []interfa
 	return filteredNodes, nil
 }
 
-func getSortReference(ctx context.Context, sortField *graphql.Field, node interface{}, i int) (*sortReference, error) {
+func getSortReference(ctx context.Context, sortField *graphql.Field, node interface{}, i int, userArgs interface{}) (*sortReference, error) {
 	// Resolve the graphql.Field made for sorting.
-	sortValue, err := graphql.SafeExecuteResolver(ctx, sortField, node, nil, nil)
+	sortValue, err := graphql.SafeExecuteResolver(ctx, sortField, node, userArgs, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -611,7 +611,7 @@ func getSortReference(ctx context.Context, sortField *graphql.Field, node interf
 
 }
 
-func (c *connectionContext) applySort(ctx context.Context, nodes []interface{}, args PaginationArgs) ([]interface{}, error) {
+func (c *connectionContext) applySort(ctx context.Context, nodes []interface{}, args PaginationArgs, userArgs interface{}) ([]interface{}, error) {
 	if args.SortBy == nil {
 		return nodes, nil
 	}
@@ -632,7 +632,7 @@ func (c *connectionContext) applySort(ctx context.Context, nodes []interface{}, 
 	sortValues := make([]sortReference, len(nodes))
 	g, ctx := errgroup.WithContext(ctx)
 	if sortField.Batch && sortField.UseBatchFunc(ctx) {
-		sortValuesBatched, err := graphql.SafeExecuteBatchResolver(ctx, sortField, nodes, nil, nil)
+		sortValuesBatched, err := graphql.SafeExecuteBatchResolver(ctx, sortField, nodes, userArgs, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -647,7 +647,7 @@ func (c *connectionContext) applySort(ctx context.Context, nodes []interface{}, 
 			i, node := unscopedI, unscopedNode
 			if sortField.Expensive {
 				g.Go(func() error {
-					sortValue, err := getSortReference(ctx, sortField, node, i)
+					sortValue, err := getSortReference(ctx, sortField, node, i, userArgs)
 					if err != nil {
 						return err
 					}
@@ -655,7 +655,7 @@ func (c *connectionContext) applySort(ctx context.Context, nodes []interface{}, 
 					return nil
 				})
 			} else {
-				sortValue, err := getSortReference(ctx, sortField, node, i)
+				sortValue, err := getSortReference(ctx, sortField, node, i, userArgs)
 				if err != nil {
 					return nil, err
 				}
@@ -682,7 +682,7 @@ func (c *connectionContext) applySort(ctx context.Context, nodes []interface{}, 
 
 // getConnection applies the ConnectionArgs to nodes and returns the result in a wrapped Connection
 // type.
-func (c *connectionContext) getConnection(ctx context.Context, out []reflect.Value, args PaginationArgs) (Connection, error) {
+func (c *connectionContext) getConnection(ctx context.Context, out []reflect.Value, args PaginationArgs, userArgs interface{}) (Connection, error) {
 	nodes := castSlice(out[0].Interface())
 	if len(nodes) == 0 {
 		return Connection{}, nil
@@ -690,7 +690,7 @@ func (c *connectionContext) getConnection(ctx context.Context, out []reflect.Val
 
 	if !c.IsExternallyManaged() || c.PostProcessOptions.ApplyTextFilter {
 		var err error
-		nodes, err = c.applyTextFilter(ctx, nodes, args)
+		nodes, err = c.applyTextFilter(ctx, nodes, args, userArgs)
 		if err != nil {
 			return Connection{}, err
 		}
@@ -698,7 +698,7 @@ func (c *connectionContext) getConnection(ctx context.Context, out []reflect.Val
 
 	if !c.IsExternallyManaged() {
 		var err error
-		nodes, err = c.applySort(ctx, nodes, args)
+		nodes, err = c.applySort(ctx, nodes, args, userArgs)
 		if err != nil {
 			return Connection{}, err
 		}
@@ -916,9 +916,6 @@ func (c *connectionContext) consumeSorts(sb *schemaBuilder, m *method, typ refle
 			return err
 		}
 
-		if field.Args != nil && len(field.Args) > 0 {
-			return fmt.Errorf("invalid sort field %s: sort fields can't take arguments", name)
-		}
 		c.SortFields[name] = field
 	}
 
@@ -981,9 +978,7 @@ func (c *connectionContext) consumeTextFilters(sb *schemaBuilder, m *method, typ
 		if err != nil {
 			return err
 		}
-		if field.Args != nil && len(field.Args) > 0 {
-			return fmt.Errorf("invalid text filter field %s: text filter fields can't take arguments", name)
-		}
+
 		c.FilterTextFields[name] = field
 	}
 	return nil
@@ -1256,6 +1251,7 @@ func (sb *schemaBuilder) buildPaginatedFunctionAndFuncCtx(typ reflect.Type, m *m
 
 func (c *connectionContext) extractReturnAndErr(ctx context.Context, out []reflect.Value, args interface{}, retType graphql.Type) (interface{}, error) {
 	var paginationArgs PaginationArgs
+	var userArgs interface{}
 
 	// If the pagination args are not embedded then they need to be extracted out of ConnectionArgs
 	// struct and setup for the slicing functions.
@@ -1273,12 +1269,16 @@ func (c *connectionContext) extractReturnAndErr(ctx context.Context, out []refle
 			SortOrder:        connectionArgs.SortOrder,
 			FilterType:       connectionArgs.FilterType,
 		}
+		hasArgs := connectionArgs.Args != nil
+		if hasArgs {
+			userArgs = reflect.ValueOf(connectionArgs.Args).Elem().Interface()
+		}
 	} else {
 		paginationArgs = reflect.ValueOf(args).Field(c.PaginationArgsIndex).Interface().(PaginationArgs)
 		c.PostProcessOptions = out[2].Interface().(PostProcessOptions)
 	}
 
-	result, err := c.getConnection(ctx, out, paginationArgs)
+	result, err := c.getConnection(ctx, out, paginationArgs, userArgs)
 	if err != nil {
 		return nil, err
 	}
