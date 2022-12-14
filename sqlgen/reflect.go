@@ -323,7 +323,8 @@ func (s *Schema) ParseRows(query *SelectQuery, res *sql.Rows) ([]interface{}, er
 	for res.Next() {
 		row, err := parseQueryRow(table, res)
 		if err != nil {
-			return nil, err
+			stmt, vals := query.ToSQL()
+			return nil, fmt.Errorf("parse rows from query (`%s`, %+v): %s", stmt, vals, err.Error())
 		}
 		rows = append(rows, row)
 	}
