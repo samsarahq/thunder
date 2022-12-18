@@ -14,7 +14,7 @@ schemas. This section provides a brief overview of some of them.
 
 Thunder generates resolvers automatically from Go struct types and function
 definitions. For example, the `Friend` struct below gets exposed as a graphql
-object type with `firstName` and `lastName` resolvers that return the fields
+object type with `firstName` and `lastName` resolvers that returns the fields
 on the type.
 
 ```go
@@ -133,7 +133,7 @@ type Author struct {
 // registerPost registers resolvers on the Post type.
 func (s *Server) registerPost(schema *schemabuilder.Schema) {
   object := schema.Object("post", Post{})
-  // author return the Author object corresponding to a Post's AuthorId.
+  // author returns the Author object corresponding to a Post's AuthorId.
   object.FieldFunc("author", func(ctx context.Context, p *Post) (*Author, error) {
     var author *Author
     if err := s.db.QueryRow(ctx, &author, sqlgen.Filter{"id": p.AuthorId}, nil); err != nil {
