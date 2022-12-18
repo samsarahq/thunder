@@ -1026,7 +1026,7 @@ func (sb *schemaBuilder) getKeyFieldOnStruct(nodeType reflect.Type) (string, err
 		nodeObj = sb.objects[nodeType.Elem()]
 	}
 	if nodeObj == nil {
-		return "", fmt.Errorf("%s must be a struct and registered as an object along with its key", nodeType)
+		return "", fmt.Errorf("%s must be a struct and registered as an object (using schema.Object) along with its key", nodeType)
 	}
 	nodeKey := reverseGraphqlFieldName(nodeObj.key)
 	if nodeKey == "" {
