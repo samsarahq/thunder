@@ -30,43 +30,48 @@ func newFileSchemaSyncer(ctx context.Context, services []string) *FileSchemaSync
 	return ss
 }
 
-func (s *FileSchemaSyncer) FetchPlanner(ctx context.Context) (*Planner, error) {
+func (s *FileSchemaSyncer) FetchPlannerAndIntrospectionQueryResult(ctx context.Context) (*Planner, []byte, error) {
 	schemas := make(map[string]*IntrospectionQueryResult)
 	for _, server := range s.services {
 		schema, err := readFile(server)
 		if err != nil {
-			return nil, oops.Wrapf(err, "error reading file for server %s", server)
+			return nil, nil, oops.Wrapf(err, "error reading file for server %s", server)
 		}
 		var iq IntrospectionQueryResult
 		if err := json.Unmarshal(schema, &iq); err != nil {
-			return nil, oops.Wrapf(err, "unmarshaling schema %s", server)
+			return nil, nil, oops.Wrapf(err, "unmarshaling schema %s", server)
 		}
 		schemas[server] = &iq
 	}
 
 	types, err := convertSchema(schemas)
 	if err != nil {
-		return nil, oops.Wrapf(err, "converting schemas error")
+		return nil, nil, oops.Wrapf(err, "converting schemas error")
 	}
 
 	introspectionSchema := introspection.BareIntrospectionSchema(types.Schema)
 	schema, err := introspection.RunIntrospectionQuery(introspection.BareIntrospectionSchema(introspectionSchema))
 	if err != nil || schema == nil {
-		return nil, oops.Wrapf(err, "error running introspection query")
+		return nil, nil, oops.Wrapf(err, "error running introspection query")
 	}
 
 	var iq IntrospectionQueryResult
 	if err := json.Unmarshal(schema, &iq); err != nil {
-		return nil, oops.Wrapf(err, "unmarshaling introspection schema")
+		return nil, nil, oops.Wrapf(err, "unmarshaling introspection schema")
 	}
 
 	schemas["introspection"] = &iq
 	types, err = convertSchema(schemas)
 	if err != nil {
-		return nil, oops.Wrapf(err, "converting schemas error")
+		return nil, nil, oops.Wrapf(err, "converting schemas error")
 	}
 
-	return NewPlanner(types, s.serviceSelector)
+	planner, err := NewPlanner(types, s.serviceSelector)
+	if err != nil {
+		return nil, nil, oops.Wrapf(err, "error ")
+	}
+
+	return planner, schema, nil
 }
 
 // WriteToFile will print any string of text to a file safely by
