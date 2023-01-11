@@ -11,7 +11,6 @@ import (
 
 	"github.com/samsarahq/thunder/batch"
 	"github.com/samsarahq/thunder/graphql"
-	"github.com/samsarahq/thunder/graphql/introspection"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 
 	"github.com/stretchr/testify/assert"
@@ -1945,46 +1944,6 @@ func TestExecutorQueriesWithDirectives(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestFederatedIntrospectionQuery(t *testing.T) {
-	e, s1, s2, s3, err := createExecutorWithFederatedUser()
-	require.NoError(t, err)
-
-	// Reconstruct the expected introspection query result manually.
-	schemaVersions := make(map[string]map[string]*IntrospectionQueryResult, 3)
-	for i, s := range []*schemabuilder.Schema{s1, s2, s3} {
-		iqBytes, err := introspection.ComputeSchemaJSON(*s)
-		require.NoError(t, err)
-		var iq IntrospectionQueryResult
-		require.NoError(t, json.Unmarshal(iqBytes, &iq))
-		schemaVersions[fmt.Sprintf("%d", i)] = map[string]*IntrospectionQueryResult{
-			"": &iq,
-		}
-	}
-
-	convertedSchema, err := ConvertVersionedSchemas(schemaVersions)
-	require.NoError(t, err)
-
-	schema := introspection.BareIntrospectionSchema(convertedSchema.Schema)
-	schemaBytes, err := introspection.RunIntrospectionQuery(introspection.BareIntrospectionSchema(schema))
-	require.NoError(t, err)
-
-	var expectedIqRes IntrospectionQueryResult
-	require.NoError(t, json.Unmarshal(schemaBytes, &expectedIqRes))
-
-	// Run introspection query, expect the result to match.
-	ctx := context.Background()
-	res, _, err := e.Execute(ctx, graphql.MustParse(introspection.IntrospectionQuery, nil), nil)
-	require.NoError(t, err)
-
-	byts, err := json.Marshal(res)
-	require.NoError(t, err)
-
-	var actualIqRes IntrospectionQueryResult
-	require.NoError(t, json.Unmarshal(byts, &actualIqRes))
-
-	assert.Equal(t, expectedIqRes, actualIqRes)
 }
 
 func TestExecutorQueriesWithDirectivesWithVariables(t *testing.T) {

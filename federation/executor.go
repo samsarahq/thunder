@@ -64,13 +64,10 @@ func (e *Executor) getPlanner() *Planner {
 	return e.syncer.planner
 }
 
-func (e *Executor) setPlanner(p *Planner, iqRes []byte) {
+func (e *Executor) setPlanner(p *Planner) {
 	e.syncer.plannerMu.Lock()
 	defer e.syncer.plannerMu.Unlock()
 	e.syncer.planner = p
-
-	introspectionClient := NewIntrospectionClient(iqRes)
-	e.Executors[IntrospectionClientName] = introspectionClient
 }
 
 func fetchSchema(ctx context.Context, e ExecutorClient, metadata interface{}) (*QueryResponse, error) {
@@ -98,13 +95,10 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient, c *Sc
 		c.SchemaSyncIntervalSeconds = func(ctx context.Context) int64 { return minSchemaSyncIntervalSeconds }
 	}
 
-	planner, res, err := c.SchemaSyncer.FetchPlannerAndIntrospectionQueryResult(ctx)
+	planner, err := c.SchemaSyncer.FetchPlanner(ctx)
 	if err != nil {
 		return nil, oops.Wrapf(err, "failed to load schema")
 	}
-
-	introspectionClient := NewIntrospectionClient(res)
-	executors[IntrospectionClientName] = introspectionClient
 
 	schemaSyncIntervalSeconds := c.SchemaSyncIntervalSeconds(ctx)
 
@@ -125,9 +119,9 @@ func (e *Executor) poll(ctx context.Context) error {
 	for {
 		select {
 		case <-e.syncer.ticker.C:
-			newPlanner, newIqRes, err := e.syncer.schemaSyncer.FetchPlannerAndIntrospectionQueryResult(ctx)
+			newPlanner, err := e.syncer.schemaSyncer.FetchPlanner(ctx)
 			if err == nil && newPlanner != nil {
-				e.setPlanner(newPlanner, newIqRes)
+				e.setPlanner(newPlanner)
 			}
 		case <-ctx.Done():
 			e.syncer.ticker.Stop()
@@ -376,7 +370,7 @@ func (e *Executor) execute(ctx context.Context, isRootPlan bool, p *Plan, keys [
 			if err != nil {
 				return oops.Wrapf(err, "executing sub plan: %v", err)
 			}
-
+			
 			// Acquire mutex lock before modifying results
 			resMu.Lock()
 			defer resMu.Unlock()
