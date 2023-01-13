@@ -73,17 +73,9 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		Name        string
 		Email       string
 		PhoneNumber string
-		UserSkills  Skills
 	}
 	s1 := schemabuilder.NewSchemaWithName("s1")
 	user := s1.Object("User", User{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*User }) []*User {
-		return args.Keys
-	}))
-
-	s1.Object("UserSkills", Skills{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*Skills }) []*Skills {
-		return args.Keys
-	}))
-	s1.Object("Abilities", Abilities{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*Abilities }) []*Abilities {
 		return args.Keys
 	}))
 
@@ -94,14 +86,8 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 	}
 	s1.Query().FieldFunc("users", func(ctx context.Context) ([]*User, error) {
 		users := make([]*User, 0, 1)
-		plumbing := true
-		thunder := true
-		sampleAbilities := Abilities{Teleportation: true, BreathingFire: []int{1, 2, 3}}
-		sampleAbilities2 := Abilities{Teleportation: true, BreathingFire: []int{4, 5, 6}, Thunder: &thunder}
-		sampleSkills := Skills{Eating: 1, Plumbing: &plumbing, Sports: nil, Abilities: sampleAbilities, AllAbilities: []*Abilities{&sampleAbilities, &sampleAbilities2}}
-		sampleSkills2 := Skills{Eating: 2, Plumbing: &plumbing, Sports: []string{"basketball", "swimming", "tennis"}, AbilitiesPointer: &sampleAbilities2}
-		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: "testUser", Email: "email@gmail.com", PhoneNumber: "555-5555", UserSkills: sampleSkills})
-		users = append(users, &User{Id: int64(2), OrgId: int64(2), Name: "testUser2", Email: "email@gmail.com", PhoneNumber: "555-5555", UserSkills: sampleSkills2})
+		users = append(users, &User{Id: int64(1), OrgId: int64(1), Name: "testUser", Email: "email@gmail.com", PhoneNumber: "555-5555"})
+		users = append(users, &User{Id: int64(2), OrgId: int64(2), Name: "testUser2", Email: "email@gmail.com", PhoneNumber: "555-5555"})
 		return users, nil
 	})
 	s1.Query().FieldFunc("emptyusers", func(ctx context.Context) ([]*User, error) {
@@ -187,7 +173,15 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		Name        string
 		Email       string
 		PhoneNumber string
-		UserSkills  Skills
+		Skills      Skills
+	}
+
+	type UserWithContactInfoKeys struct {
+		Id          int64
+		OrgId       int64
+		Name        string
+		Email       string
+		PhoneNumber string
 	}
 
 	type UserKeysWithOrgId struct {
@@ -195,10 +189,27 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		OrgId int64
 	}
 	s2 := schemabuilder.NewSchemaWithName("s2")
-	userWithContactInfo := s2.Object("User", UserWithContactInfo{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*UserWithContactInfo }) []*UserWithContactInfo {
-		return args.Keys
+	userWithContactInfo := s2.Object("User", UserWithContactInfo{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*UserWithContactInfoKeys }) []*UserWithContactInfo {
+		help := []*UserWithContactInfo{}
+		plumbing := true
+		thunder := true
+		sampleAbilities := Abilities{Teleportation: true, BreathingFire: []int{1, 2, 3}}
+		sampleAbilities2 := Abilities{Teleportation: true, BreathingFire: []int{4, 5, 6}, Thunder: &thunder}
+		sampleSkills := Skills{Eating: 1, Plumbing: &plumbing, Sports: nil, Abilities: sampleAbilities, AbilitiesPointer: &sampleAbilities2, AllAbilities: []*Abilities{&sampleAbilities, &sampleAbilities2}}
+		for _, i := range args.Keys {
+			new := &UserWithContactInfo{
+				Id:          i.Id,
+				OrgId:       i.OrgId,
+				Name:        i.Name,
+				Email:       i.Email,
+				PhoneNumber: i.PhoneNumber,
+				Skills:      sampleSkills,
+			}
+			help = append(help, new)
+		}
+		return help
 	}))
-	s2.Object("UserSkills", Skills{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*Skills }) []*Skills {
+	s2.Object("Skills", Skills{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*Skills }) []*Skills {
 		return args.Keys
 	}))
 	s2.Object("Abilities", Abilities{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*Abilities }) []*Abilities {
@@ -210,8 +221,8 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		return "shhhhh", nil
 	})
 
-	userWithContactInfo.FieldFunc("getSkills", func(ctx context.Context, user *UserWithContactInfo) (Skills, error) {
-		return user.UserSkills, nil
+	userWithContactInfo.FieldFunc("skills", func(ctx context.Context, user *UserWithContactInfo) (Skills, error) {
+		return user.Skills, nil
 	})
 
 	/*
@@ -336,7 +347,6 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		Name        string
 		Email       string
 		PhoneNumber string
-		UserSkills  Skills
 	}
 	type UserKeys struct {
 		Id int64
@@ -348,12 +358,6 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 			users = append(users, &UserWithAdminPrivelages{Id: key.Id, OrgId: 0})
 		}
 		return users
-	}))
-	s3.Object("UserSkills", Skills{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*Skills }) []*Skills {
-		return args.Keys
-	}))
-	s3.Object("Abilities", Abilities{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*Abilities }) []*Abilities {
-		return args.Keys
 	}))
 	userWithAdminPrivelages.Key("id")
 	userWithAdminPrivelages.FieldFunc("isAdmin", func(ctx context.Context, user *UserWithAdminPrivelages) (bool, error) {
@@ -523,7 +527,7 @@ func TestExecutorQueriesWithObjectKey(t *testing.T) {
 							phoneNumber
 							isAdmin
 							secret
-							getSkills {
+							skills {
 								sports
 								plumbing
 								eating
@@ -553,7 +557,7 @@ func TestExecutorQueriesWithObjectKey(t *testing.T) {
 								"phoneNumber": "555-5555",
 								"isAdmin":true,
 								"secret": "shhhhh",
-								"getSkills": {
+								"skills": {
 									"sports": [],
 									"plumbing": true,
 									"eating": 1,
@@ -561,7 +565,11 @@ func TestExecutorQueriesWithObjectKey(t *testing.T) {
 										"teleportation": true,
 										"breathingFire": [1, 2, 3]
 									},
-									"abilitiesPointer": null,
+									"abilitiesPointer": {
+										"teleportation": true,
+										"breathingFire": [4, 5, 6],
+										"thunder": true
+									},
 									"allAbilities": [
 										{
 											"teleportation": true,
@@ -580,20 +588,29 @@ func TestExecutorQueriesWithObjectKey(t *testing.T) {
 								"phoneNumber": "555-5555",
 								"isAdmin":true,
 								"secret": "shhhhh",
-								"getSkills": {
-									"sports": ["basketball", "swimming", "tennis"],
+								"skills": {
+									"sports": [],
 									"plumbing": true,
-									"eating": 2,
+									"eating": 1,
 									"abilities": {
-										"teleportation": false,
-										"breathingFire": []
+										"teleportation": true,
+										"breathingFire": [1, 2, 3]
 									},
 									"abilitiesPointer": {
 										"teleportation": true,
 										"breathingFire": [4, 5, 6],
 										"thunder": true
 									},
-									"allAbilities": []
+									"allAbilities": [
+										{
+											"teleportation": true,
+											"breathingFire": [1, 2, 3]
+										},
+										{
+											"teleportation": true,
+											"breathingFire": [4, 5, 6]
+										}
+									]
 								}
 							}
 						]
