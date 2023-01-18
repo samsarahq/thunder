@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/introspection"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 )
@@ -11,18 +12,35 @@ import (
 const IntrospectionClientName = "introspectionclient"
 
 type IntrospectionClient struct {
-	IntrospectionQueryResult []byte
+	Schema   *graphql.Schema
+	Executor graphql.ExecutorRunner
 }
 
-func NewIntrospectionClient(res []byte) *IntrospectionClient {
+func NewIntrospectionClient(schema *graphql.Schema) *IntrospectionClient {
+	executor := graphql.NewExecutor(graphql.NewImmediateGoroutineScheduler())
 	return &IntrospectionClient{
-		IntrospectionQueryResult: res,
+		Schema:   schema,
+		Executor: executor,
 	}
 }
 
 func (c *IntrospectionClient) Execute(ctx context.Context, request *QueryRequest) (*QueryResponse, error) {
+	if err := graphql.PrepareQuery(ctx, c.Schema.Query, request.Query.SelectionSet); err != nil {
+		return nil, err
+	}
+
+	res, err := c.Executor.Execute(ctx, c.Schema.Query, nil, request.Query)
+	if err != nil {
+		return nil, err
+	}
+
+	byts, err := json.MarshalIndent(res, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+
 	return &QueryResponse{
-		Result: c.IntrospectionQueryResult,
+		Result: byts,
 	}, nil
 }
 

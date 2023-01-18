@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/samsarahq/go/oops"
+	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/introspection"
 	"github.com/samsarahq/thunder/graphql/schemabuilder"
 	"github.com/stretchr/testify/require"
@@ -30,7 +31,7 @@ func newFileSchemaSyncer(ctx context.Context, services []string) *FileSchemaSync
 	return ss
 }
 
-func (s *FileSchemaSyncer) FetchPlannerAndIntrospectionQueryResult(ctx context.Context) (*Planner, []byte, error) {
+func (s *FileSchemaSyncer) FetchPlannerAndSchema(ctx context.Context) (*Planner, *graphql.Schema, error) {
 	schemas := make(map[string]*IntrospectionQueryResult)
 	for _, server := range s.services {
 		schema, err := readFile(server)
@@ -71,7 +72,7 @@ func (s *FileSchemaSyncer) FetchPlannerAndIntrospectionQueryResult(ctx context.C
 		return nil, nil, oops.Wrapf(err, "error ")
 	}
 
-	return planner, schema, nil
+	return planner, introspection.BareIntrospectionSchema(types.Schema), nil
 }
 
 // WriteToFile will print any string of text to a file safely by

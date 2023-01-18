@@ -1963,11 +1963,14 @@ func TestFederatedIntrospectionQuery(t *testing.T) {
 		}
 	}
 
+	schemaVersions, err = AddIntrospectionQueryToSchemaVersions(schemaVersions)
+	require.NoError(t, err)
+
 	convertedSchema, err := ConvertVersionedSchemas(schemaVersions)
 	require.NoError(t, err)
 
 	schema := introspection.BareIntrospectionSchema(convertedSchema.Schema)
-	schemaBytes, err := introspection.RunIntrospectionQuery(introspection.BareIntrospectionSchema(schema))
+	schemaBytes, err := introspection.RunIntrospectionQuery(schema)
 	require.NoError(t, err)
 
 	var expectedIqRes IntrospectionQueryResult
