@@ -64,12 +64,12 @@ func (e *Executor) getPlanner() *Planner {
 	return e.syncer.planner
 }
 
-func (e *Executor) setPlanner(p *Planner, iqRes []byte) {
+func (e *Executor) setPlanner(p *Planner, schema *graphql.Schema) {
 	e.syncer.plannerMu.Lock()
 	defer e.syncer.plannerMu.Unlock()
 	e.syncer.planner = p
 
-	introspectionClient := NewIntrospectionClient(iqRes)
+	introspectionClient := NewIntrospectionClient(schema)
 	e.Executors[IntrospectionClientName] = introspectionClient
 }
 
@@ -98,7 +98,7 @@ func NewExecutor(ctx context.Context, executors map[string]ExecutorClient, c *Sc
 		c.SchemaSyncIntervalSeconds = func(ctx context.Context) int64 { return minSchemaSyncIntervalSeconds }
 	}
 
-	planner, res, err := c.SchemaSyncer.FetchPlannerAndIntrospectionQueryResult(ctx)
+	planner, res, err := c.SchemaSyncer.FetchPlannerAndSchema(ctx)
 	if err != nil {
 		return nil, oops.Wrapf(err, "failed to load schema")
 	}
@@ -125,9 +125,9 @@ func (e *Executor) poll(ctx context.Context) error {
 	for {
 		select {
 		case <-e.syncer.ticker.C:
-			newPlanner, newIqRes, err := e.syncer.schemaSyncer.FetchPlannerAndIntrospectionQueryResult(ctx)
+			newPlanner, schema, err := e.syncer.schemaSyncer.FetchPlannerAndSchema(ctx)
 			if err == nil && newPlanner != nil {
-				e.setPlanner(newPlanner, newIqRes)
+				e.setPlanner(newPlanner, schema)
 			}
 		case <-ctx.Done():
 			e.syncer.ticker.Stop()

@@ -5,13 +5,16 @@ import (
 	"encoding/json"
 
 	"github.com/samsarahq/go/oops"
+	"github.com/samsarahq/thunder/graphql"
 	"github.com/samsarahq/thunder/graphql/introspection"
 )
 
 // SchemaSyncer has a function that checks if the schema has changed,
-// and if so updates the planner in the federated executor
+// and if so updates the planner in the federated executor. It will
+// also return a bare introspection schema for the complete federated
+// schema.
 type SchemaSyncer interface {
-	FetchPlannerAndIntrospectionQueryResult(ctx context.Context) (*Planner, []byte, error)
+	FetchPlannerAndSchema(ctx context.Context) (*Planner, *graphql.Schema, error)
 }
 type IntrospectionSchemaSyncer struct {
 	executors     map[string]ExecutorClient
@@ -27,7 +30,7 @@ func NewIntrospectionSchemaSyncer(ctx context.Context, executors map[string]Exec
 	return ss
 }
 
-func (s *IntrospectionSchemaSyncer) FetchPlannerAndIntrospectionQueryResult(ctx context.Context) (*Planner, []byte, error) {
+func (s *IntrospectionSchemaSyncer) FetchPlannerAndSchema(ctx context.Context) (*Planner, *graphql.Schema, error) {
 	schemas := make(map[string]*IntrospectionQueryResult)
 	for server, client := range s.executors {
 		resp, err := fetchSchema(ctx, client, s.queryMetadata)
@@ -48,6 +51,7 @@ func (s *IntrospectionSchemaSyncer) FetchPlannerAndIntrospectionQueryResult(ctx 
 		return nil, nil, oops.Wrapf(err, "converting schemas error")
 	}
 
+	// Perform an introspection query on the federated schema, and assign the result to the introspection client.
 	introspectionSchema := introspection.BareIntrospectionSchema(types.Schema)
 	schema, err := introspection.RunIntrospectionQuery(introspection.BareIntrospectionSchema(introspectionSchema))
 	if err != nil || schema == nil {
@@ -71,5 +75,5 @@ func (s *IntrospectionSchemaSyncer) FetchPlannerAndIntrospectionQueryResult(ctx 
 		return nil, nil, oops.Wrapf(err, "creating planner")
 	}
 
-	return planner, schema, nil
+	return planner, introspection.BareIntrospectionSchema(types.Schema), nil
 }
