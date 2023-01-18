@@ -35,12 +35,23 @@ type ManualArgs struct {
 	PaginationArgs schemabuilder.PaginationArgs
 }
 
+type TimeBasedArgs struct {
+	StartMs int64
+	EndMs int64
+}
+
 type Item struct {
 	Id         int64
 	FilterText string
 	Number     int64
 	String     string
 	Float      float64
+}
+
+type AltItem struct {
+	Id int64
+	Time int64
+	Number int64
 }
 
 func TestConnection(t *testing.T) {
@@ -633,8 +644,7 @@ func TestPaginateBuildFailure(t *testing.T) {
 		))
 
 		_, err := schema.Build()
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "text filter fields can't take arguments")
+		require.NoError(t, err)
 	})
 
 	t.Run("non-string sort return", func(t *testing.T) {
@@ -684,8 +694,7 @@ func TestPaginateBuildFailure(t *testing.T) {
 		))
 
 		_, err := schema.Build()
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "sort fields can't take arguments")
+		require.NoError(t, err)
 	})
 }
 
@@ -1276,6 +1285,59 @@ func TestPaginatedFilters(t *testing.T) {
 				return false
 			}),
 	)
+
+
+	inner.FieldFunc("innerConnectionWithFilterWithArgs", func(args TimeBasedArgs) []Item {
+		return []Item{
+			{Id: 1, FilterText: "can", String: "a"},
+			{Id: 2, FilterText: "man", String: "a"},
+			{Id: 3, FilterText: "cannot", String: "a"},
+			{Id: 4, FilterText: "soban", String: "a"},
+			{Id: 5, FilterText: "socan", String: "a"},
+			{Id: 6, FilterText: "aan", String: "a"},
+			{Id: 7, FilterText: "jan", String: "a"},
+			{Id: 8, FilterText: "ban", String: "a"},
+			{Id: 9, FilterText: "dan", String: "a"},
+			{Id: 10, FilterText: "ean", String: "a"},
+			{Id: 11, FilterText: "fan", String: "a"},
+			{Id: 12, FilterText: "gan", String: "a"},
+		}
+
+	}, schemabuilder.Paginated,
+		schemabuilder.BatchFilterField("filterTextBatched",
+			func(items map[batch.Index]Item, args TimeBasedArgs) (map[batch.Index]string, error) {
+				// Can consume args to optimize any external db reference
+				myMap := make(map[batch.Index]string, len(items))
+				for i, item := range items {
+					myMap[i] = item.FilterText
+				}
+				return myMap, nil
+			},
+		),
+		schemabuilder.FilterField("filterTextNotBatched",
+			func(item Item, args TimeBasedArgs) string {
+				// Can consume args to optimize any external db referenceQ
+				return item.FilterText
+			},
+		),
+		schemabuilder.BatchFilterFieldWithFallback("filterTextBatchWithFallback",
+			func(items map[batch.Index]Item, args TimeBasedArgs) (map[batch.Index]string, error) {
+				// Can consume args to optimize any external db reference
+				myMap := make(map[batch.Index]string, len(items))
+				for i, item := range items {
+					myMap[i] = item.FilterText
+				}
+				return myMap, nil
+			},
+			func(item Item, args TimeBasedArgs) (string, error) {
+				// Can consume args to optimize any external db reference
+				return item.FilterText, nil
+			},
+			func(context.Context) bool {
+				return true
+			}),
+	)
+	
 	builtSchema := schema.MustBuild()
 
 	q := graphql.MustParse(`
@@ -1301,6 +1363,57 @@ func TestPaginatedFilters(t *testing.T) {
 	assert.Equal(t, map[string]interface{}{
 		"inner": map[string]interface{}{
 			"innerConnectionWithFilter": map[string]interface{}{
+				"totalCount": float64(3),
+				"edges": []interface{}{
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": float64(1),
+							"id":    float64(1),
+						},
+						"cursor": "MQ==",
+					},
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": float64(3),
+							"id":    float64(3),
+						},
+						"cursor": "Mw==",
+					},
+					map[string]interface{}{
+						"node": map[string]interface{}{
+							"__key": float64(5),
+							"id":    float64(5),
+						},
+						"cursor": "NQ==",
+					},
+				},
+			},
+		},
+	}, internal.AsJSON(val))
+
+	q = graphql.MustParse(`
+		{
+			inner {
+				innerConnectionWithFilterWithArgs(filterText: "can", first: 4, after: "", startMs: 2000, endMs: 4000) {
+					totalCount
+					edges {
+						node {
+							id
+						}
+						cursor
+					}
+				}
+			}
+		}`, nil)
+	if err = graphql.PrepareQuery(context.Background(), builtSchema.Query, q.SelectionSet); err != nil {
+		t.Error(err)
+	}
+	e = testgraphql.NewExecutorWrapper(t)
+	val, err = e.Execute(context.Background(), builtSchema.Query, nil, q)
+	assert.Nil(t, err)
+	assert.Equal(t, map[string]interface{}{
+		"inner": map[string]interface{}{
+			"innerConnectionWithFilterWithArgs": map[string]interface{}{
 				"totalCount": float64(3),
 				"edges": []interface{}{
 					map[string]interface{}{
@@ -1429,9 +1542,99 @@ func TestPaginatedSorts(t *testing.T) {
 			},
 		),
 	)
+	inner.FieldFunc("innerConnectionWithSortWithArgs", func(args TimeBasedArgs) []Item {
+		return []Item{
+			{Id: 1, Number: 1, String: "1", Float: 1.0},
+			{Id: 2, Number: 3, String: "3", Float: 3.0},
+			{Id: 3, Number: 5, String: "5", Float: 5.0},
+			{Id: 4, Number: 2, String: "2", Float: 2.0},
+			{Id: 5, Number: 4, String: "4", Float: 4.0},
+		}
+	},
+		schemabuilder.Paginated,
+		schemabuilder.BatchSortField(
+			"numbersBatched", func(ctx context.Context, items map[batch.Index]Item, args TimeBasedArgs) (map[batch.Index]int64, error) {
+				// Mimic alt data source
+				altItems := map[int64]AltItem{
+					1: {Id: 1, Time: 1000, Number: 1},
+					2: {Id: 2, Time: 2000, Number: 3},
+					3: {Id: 3, Time: 3000, Number: 5},
+					4: {Id: 4, Time: 4000, Number: 2},
+					5: {Id: 5, Time: 5000, Number: 4},
+				}
+				myMap := make(map[batch.Index]int64, len(items))
+				for i, item := range items {
+					altItem := altItems[item.Id]
+					if altItem.Time >= args.StartMs && altItem.Time <= args.EndMs {
+						myMap[i] = altItems[item.Id].Number
+					} else {
+						myMap[i] = 0
+					}
+				}
+				return myMap, nil
+			}),
+		schemabuilder.SortField(
+			"numbers", func(ctx context.Context, item Item, args TimeBasedArgs) int64 {
+				// Mimic alt data source
+				altItems := map[int64]AltItem{
+					1: {Id: 1, Time: 1000, Number: 1},
+					2: {Id: 2, Time: 2000, Number: 3},
+					3: {Id: 3, Time: 3000, Number: 5},
+					4: {Id: 4, Time: 4000, Number: 2},
+					5: {Id: 5, Time: 5000, Number: 4},
+				}
+				altItem := altItems[item.Id]
+				if altItem.Time >= args.StartMs && altItem.Time <= args.EndMs {
+					return altItems[item.Id].Number
+				} else {
+					return 0
+				}
+			}),
+		schemabuilder.BatchSortFieldWithFallback("numbersBatchedWithFallback",
+			func(ctx context.Context, items map[batch.Index]Item, args TimeBasedArgs) (map[batch.Index]int64, error) {
+				// Mimic alt data source
+				altItems := map[int64]AltItem{
+					1: {Id: 1, Time: 1000, Number: 1},
+					2: {Id: 2, Time: 2000, Number: 3},
+					3: {Id: 3, Time: 3000, Number: 5},
+					4: {Id: 4, Time: 4000, Number: 2},
+					5: {Id: 5, Time: 5000, Number: 4},
+				}
+				myMap := make(map[batch.Index]int64, len(items))
+				for i, item := range items {
+					altItem := altItems[item.Id]
+					if altItem.Time >= args.StartMs && altItem.Time <= args.EndMs {
+						myMap[i] = altItems[item.Id].Number
+					} else {
+						myMap[i] = 0
+					}
+				}
+				return myMap, nil
+			},
+			func(ctx context.Context, item Item, args TimeBasedArgs) (int64, error) {
+				// Mimic alt data source
+				altItems := map[int64]AltItem{
+					1: {Id: 1, Time: 1000, Number: 1},
+					2: {Id: 2, Time: 2000, Number: 3},
+					3: {Id: 3, Time: 3000, Number: 5},
+					4: {Id: 4, Time: 4000, Number: 2},
+					5: {Id: 5, Time: 5000, Number: 4},
+				}
+				altItem := altItems[item.Id]
+				if altItem.Time >= args.StartMs && altItem.Time <= args.EndMs {
+					return altItems[item.Id].Number, nil
+				} else {
+					return 0, nil
+				}
+			},
+			func(context.Context) bool {
+				return false
+			},
+		),
+	)
 
 	builtSchema := schema.MustBuild()
-	// Test querries that succesfully sort
+	// Test queries that succesfully sort
 	queries := []*graphql.Query{
 		graphql.MustParse(`
 		{
@@ -1537,7 +1740,99 @@ func TestPaginatedSorts(t *testing.T) {
 		}, internal.AsJSON(val))
 	}
 
-	// Test querries that don't succesfully sort
+	// Test queries that succesfully sort with args
+	queries = []*graphql.Query{
+		graphql.MustParse(`
+		{
+			inner {
+				innerConnectionWithSortWithArgs(sortBy: "numbersBatched", sortOrder: "asc", first: 4, after: "", startMs: 2000, endMs: 4000) {
+					totalCount
+					edges {
+						node {
+							id
+							number
+						}
+					}
+				}
+			}
+		}`, nil),
+		graphql.MustParse(`
+		{
+			inner {
+				innerConnectionWithSortWithArgs(sortBy: "numbers", sortOrder: "asc", first: 4, after: "", startMs: 2000, endMs: 4000) {
+					totalCount
+					edges {
+						node {
+							id
+							number
+						}
+					}
+				}
+			}
+		}`, nil),
+		graphql.MustParse(`
+		{
+			inner {
+				innerConnectionWithSortWithArgs(sortBy: "numbersBatchedWithFallback", sortOrder: "asc", first: 4, after: "", startMs: 2000, endMs: 4000) {
+					totalCount
+					edges {
+						node {
+							id
+							number
+						}
+					}
+				}
+			}
+		}`, nil),
+	}
+
+	for _, q := range queries {
+		if err := graphql.PrepareQuery(context.Background(), builtSchema.Query, q.SelectionSet); err != nil {
+			t.Error(err)
+		}
+		e := testgraphql.NewExecutorWrapper(t)
+		val, err := e.Execute(context.Background(), builtSchema.Query, nil, q)
+		assert.Nil(t, err)
+		assert.Equal(t, map[string]interface{}{
+			"inner": map[string]interface{}{
+				"innerConnectionWithSortWithArgs": map[string]interface{}{
+					"totalCount": float64(5),
+					"edges": []interface{}{
+						map[string]interface{}{
+							"node": map[string]interface{}{
+								"__key":  float64(1),
+								"id":     float64(1),
+								"number": float64(1),
+							},
+						},
+						map[string]interface{}{
+							"node": map[string]interface{}{
+								"__key":  float64(5),
+								"id":     float64(5),
+								"number": float64(4),
+							},
+						},
+						map[string]interface{}{
+							"node": map[string]interface{}{
+								"__key":  float64(4),
+								"id":     float64(4),
+								"number": float64(2),
+							},
+						},
+						map[string]interface{}{
+							"node": map[string]interface{}{
+								"__key":  float64(2),
+								"id":     float64(2),
+								"number": float64(3),
+							},
+						},
+					},
+				},
+			},
+		}, internal.AsJSON(val))
+	}
+
+	// Test queries that don't succesfully sort
 	queries = []*graphql.Query{
 		graphql.MustParse(`
 		{
