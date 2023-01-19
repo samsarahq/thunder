@@ -21,6 +21,12 @@ func setupExecutor(t *testing.T) (*Planner, error) {
 		"schema2": {
 			"schema2": buildTestSchema2(),
 		},
+		"schema3": {
+			"schema3": buildTestSchema3(),
+		},
+		"schema4": {
+			"schema4": buildTestSchema4(),
+		},
 	}
 
 	builtSchemas := make(serviceSchemas)
@@ -325,6 +331,82 @@ func TestPlanner(t *testing.T) {
 					SelectionSet: mustParse(`{
 						s2root
 					}`),
+				},
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.Name, func(t *testing.T) {
+			plan, err := e.planRoot(graphql.MustParse(testCase.Input, map[string]interface{}{}))
+			require.NoError(t, err)
+			assert.Equal(t, testCase.Output, plan.After)
+		})
+	}
+
+}
+
+func TestPlannerObjectPass(t *testing.T) {
+	e, err := setupExecutor(t)
+	require.NoError(t, err)
+
+	testCases := []struct {
+		Name   string
+		Input  string
+		Output []*Plan
+	}{
+		{
+			Name: "query with no object selection in query, should still show all keys",
+			Input: `query Test {
+				s1qux {
+					id
+					s2qux {
+						userId
+					}
+				}
+			}`,
+			Output: []*Plan{
+				{
+					Service: "schema3",
+					Type:    "Query",
+					Kind:    "query",
+					SelectionSet: mustParse(`{
+						s1qux {
+							id
+							_federation {
+								id
+								testObjPass {
+									allIds
+									name
+									testObjArray {
+										id
+									}
+									testObjDeeper {
+										id
+									}
+									testObjPointer {
+										id
+									}
+									userId
+								}
+							}
+						}
+					}`),
+					After: []*Plan{
+						{
+							Path: []PathStep{
+								{Kind: KindField, Name: "s1qux"},
+							},
+							Type:    "Qux",
+							Kind:    "query",
+							Service: "schema4",
+							SelectionSet: mustParse(`{
+								s2qux {
+									userId
+								}
+							}`),
+						},
+					},
 				},
 			},
 		},

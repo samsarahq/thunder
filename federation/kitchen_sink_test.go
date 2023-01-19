@@ -18,6 +18,24 @@ type Bar struct {
 	Id int64
 }
 
+type Qux struct {
+	Id          int64
+	TestObjPass Corge
+}
+
+type Corge struct {
+	AllIds         []int64
+	Name           *string
+	UserId         int64
+	TestObjDeeper  Garply
+	TestObjPointer *Garply
+	TestObjArray   []Garply
+}
+
+type Garply struct {
+	Id string
+}
+
 type FooOrBar struct {
 	schemabuilder.Union
 	*Foo
@@ -152,5 +170,55 @@ func buildTestSchema2() *schemabuilder.Schema {
 	schema.Object("Bar", Bar{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*Bar }) []*Bar {
 		return args.Keys
 	}))
+
+	return schema
+}
+
+// Test Schema 3 and 4 are for the purpose of testing object passing (passing objects between team services during federation)
+func buildTestSchema3() *schemabuilder.Schema {
+	schema := schemabuilder.NewSchemaWithName("schema3")
+
+	query := schema.Query()
+
+	schema.Object("Qux", Qux{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*Qux }) []*Qux {
+		return args.Keys
+	}))
+
+	schema.Object("Corge", Corge{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*Corge }) []*Corge {
+		return args.Keys
+	}))
+
+	schema.Object("Garply", Garply{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*Garply }) []*Garply {
+		return args.Keys
+	}))
+
+	query.FieldFunc("s1qux", func() Qux {
+		return Qux{
+			Id: 5,
+		}
+	})
+
+	return schema
+}
+
+func buildTestSchema4() *schemabuilder.Schema {
+	schema := schemabuilder.NewSchemaWithName("schema4")
+
+	qux := schema.Object("Qux", Qux{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*Qux }) []*Qux {
+		return args.Keys
+	}))
+
+	schema.Object("Corge", Corge{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*Corge }) []*Corge {
+		return args.Keys
+	}))
+
+	schema.Object("Garply", Garply{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*Garply }) []*Garply {
+		return args.Keys
+	}))
+
+	qux.FieldFunc("s2qux", func(in *Qux) (Corge, error) {
+		return in.TestObjPass, nil
+	})
+
 	return schema
 }
