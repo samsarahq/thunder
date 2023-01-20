@@ -298,18 +298,8 @@ func (e *Planner) planObject(typ *graphql.Object, selectionSet *graphql.Selectio
 			//	 id (federatedKey)
 			// }
 			selections := make([]*graphql.Selection, 0, len(typ.Fields))
-			for name, field := range typ.Fields {
-				for service := range field.FederatedKey {
-					if len(selectionsByService[service]) > 0 {
-						selections = append(selections, &graphql.Selection{
-							Name:         name,
-							Alias:        name,
-							UnparsedArgs: map[string]interface{}{},
-						})
-						break
-					}
-				}
-			}
+			ssResult := getFederatedSelectionsForObject(typ, service, selectionsByService)
+			selections = ssResult.Selections
 
 			federatedSelection := &graphql.Selection{
 				Name:         federationField,

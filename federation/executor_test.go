@@ -52,6 +52,22 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 			}
 		}
 	*/
+
+	type Abilities struct {
+		Teleportation bool
+		BreathingFire []int
+		Thunder       *bool
+	}
+
+	type Skills struct {
+		Sports           []string
+		Plumbing         *bool
+		Eating           int
+		Abilities        Abilities
+		AbilitiesPointer *Abilities
+		AllAbilities     []*Abilities
+	}
+
 	type User struct {
 		Id          int64
 		OrgId       int64
@@ -63,6 +79,7 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 	user := s1.Object("User", User{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*User }) []*User {
 		return args.Keys
 	}))
+
 	user.Key("id")
 	type UserIds struct {
 		Id    int64
@@ -157,6 +174,15 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		Name        string
 		Email       string
 		PhoneNumber string
+		Skills      Skills
+	}
+
+	type UserWithContactInfoKeys struct {
+		Id          int64
+		OrgId       int64
+		Name        string
+		Email       string
+		PhoneNumber string
 	}
 
 	type UserKeysWithOrgId struct {
@@ -164,12 +190,40 @@ func createExecutorWithFederatedUser() (*Executor, *schemabuilder.Schema, *schem
 		OrgId int64
 	}
 	s2 := schemabuilder.NewSchemaWithName("s2")
-	userWithContactInfo := s2.Object("User", UserWithContactInfo{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*UserWithContactInfo }) []*UserWithContactInfo {
+	userWithContactInfo := s2.Object("User", UserWithContactInfo{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*UserWithContactInfoKeys }) []*UserWithContactInfo {
+		help := []*UserWithContactInfo{}
+		plumbing := true
+		thunder := true
+		sampleAbilities := Abilities{Teleportation: true, BreathingFire: []int{1, 2, 3}}
+		sampleAbilities2 := Abilities{Teleportation: true, BreathingFire: []int{4, 5, 6}, Thunder: &thunder}
+		sampleSkills := Skills{Eating: 1, Plumbing: &plumbing, Sports: nil, Abilities: sampleAbilities, AbilitiesPointer: &sampleAbilities2, AllAbilities: []*Abilities{&sampleAbilities, &sampleAbilities2}}
+		for _, i := range args.Keys {
+			new := &UserWithContactInfo{
+				Id:          i.Id,
+				OrgId:       i.OrgId,
+				Name:        i.Name,
+				Email:       i.Email,
+				PhoneNumber: i.PhoneNumber,
+				Skills:      sampleSkills,
+			}
+			help = append(help, new)
+		}
+		return help
+	}))
+	s2.Object("Skills", Skills{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*Skills }) []*Skills {
 		return args.Keys
 	}))
+	s2.Object("Abilities", Abilities{}, schemabuilder.FetchObjectFromKeys(func(args struct{ Keys []*Abilities }) []*Abilities {
+		return args.Keys
+	}))
+
 	userWithContactInfo.Key("id")
 	userWithContactInfo.FieldFunc("secret", func(ctx context.Context, user *UserWithContactInfo) (string, error) {
 		return "shhhhh", nil
+	})
+
+	userWithContactInfo.FieldFunc("skills", func(ctx context.Context, user *UserWithContactInfo) (Skills, error) {
+		return user.Skills, nil
 	})
 
 	/*
@@ -444,6 +498,124 @@ func TestExecutorQueriesBasic(t *testing.T) {
 			Output: `{
 				"emptyusers": []
 			}`,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.Name, func(t *testing.T) {
+			ctx := context.Background()
+			runAndValidateQueryResults(t, ctx, e, testCase.Query, testCase.Output)
+		})
+	}
+}
+
+// This function checks that we are able to query for and receive an object that was passed between gql servers
+// Specifically, it tests the functions in planner_helpers.go
+func TestExecutorQueriesWithObjectKey(t *testing.T) {
+	e, _, _, _, err := createExecutorWithFederatedUser()
+	require.NoError(t, err)
+	testCases := []struct {
+		Name   string
+		Query  string
+		Output string
+	}{
+		{
+			Name: "query fields on multiple fields with object passthrough as well as nested object",
+			Query: `
+					query Foo {
+						users {
+							id
+							email
+							phoneNumber
+							isAdmin
+							secret
+							skills {
+								sports
+								plumbing
+								eating
+								abilities {
+									teleportation
+									breathingFire
+								}
+								abilitiesPointer{
+									teleportation
+									breathingFire
+									thunder
+								}
+								allAbilities {
+									teleportation
+									breathingFire
+								}
+							}
+						}
+					}`,
+			Output: `
+					{
+						"users":[
+							{
+								"__key":1,
+								"id":1,
+								"email": "email@gmail.com",
+								"phoneNumber": "555-5555",
+								"isAdmin":true,
+								"secret": "shhhhh",
+								"skills": {
+									"sports": [],
+									"plumbing": true,
+									"eating": 1,
+									"abilities": {
+										"teleportation": true,
+										"breathingFire": [1, 2, 3]
+									},
+									"abilitiesPointer": {
+										"teleportation": true,
+										"breathingFire": [4, 5, 6],
+										"thunder": true
+									},
+									"allAbilities": [
+										{
+											"teleportation": true,
+											"breathingFire": [1, 2, 3]
+										},
+										{
+											"teleportation": true,
+											"breathingFire": [4, 5, 6]
+										}
+									]
+								}
+							},{
+								"__key":2,
+								"id":2,
+								"email": "email@gmail.com",
+								"phoneNumber": "555-5555",
+								"isAdmin":true,
+								"secret": "shhhhh",
+								"skills": {
+									"sports": [],
+									"plumbing": true,
+									"eating": 1,
+									"abilities": {
+										"teleportation": true,
+										"breathingFire": [1, 2, 3]
+									},
+									"abilitiesPointer": {
+										"teleportation": true,
+										"breathingFire": [4, 5, 6],
+										"thunder": true
+									},
+									"allAbilities": [
+										{
+											"teleportation": true,
+											"breathingFire": [1, 2, 3]
+										},
+										{
+											"teleportation": true,
+											"breathingFire": [4, 5, 6]
+										}
+									]
+								}
+							}
+						]
+					}`,
 		},
 	}
 	for _, testCase := range testCases {
