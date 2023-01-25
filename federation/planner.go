@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	
+
 	"github.com/samsarahq/go/oops"
 	"github.com/samsarahq/thunder/graphql"
+	"github.com/samsarahq/thunder/graphql/introspection"
 )
 
 const queryString string = "query"
@@ -25,18 +26,22 @@ const (
 // resolved on a single GraphQL server. Lets go through a few examples
 //
 // If we have a selection type like the example below
-// previouspathstep {
-//  a: s1nest
-// }
+//
+//	previouspathstep {
+//	 a: s1nest
+//	}
+//
 // The list of path steps should include {Kind: KindField, Name: "previouspathstep"} and {Kind: KindField, Name: "a"} to indicate this
 // subquery is nested on "previouspathstep" and "a"
 //
 // If we have a union type like the example below,
-// previouspathstep {
-// 	... on Foo {
-// 		name
-// 	}
-// }
+//
+//	previouspathstep {
+//		... on Foo {
+//			name
+//		}
+//	}
+//
 // The list of path steps should include  {Kind: KindField, Name: "previouspathstep"} and {Kind: KindType, Name: "Foo"} to indicate this
 // subquery is nested on "previouspathstep" selection and the "Foo" type.
 type PathStep struct {
@@ -131,11 +136,11 @@ func printSelections(selectionSet *graphql.SelectionSet, level int) {
 			if subSelection.Args != nil {
 				fmt.Println(strings.Repeat(" ", level), "   args ", subSelection.Args)
 			}
-			printSelections(subSelection.SelectionSet, level+ 1)
+			printSelections(subSelection.SelectionSet, level+1)
 		}
 		fmt.Println(strings.Repeat(" ", level), "fragments")
 		for _, subFragment := range selectionSet.Fragments {
-			printSelections(subFragment.SelectionSet, level+ 1)
+			printSelections(subFragment.SelectionSet, level+1)
 		}
 	}
 }
@@ -153,6 +158,9 @@ func (e *Planner) selectService(
 		customService = e.serviceSelector(typeName, selection.Name)
 	}
 	if customService == "" {
+		if introspection.IntrospectionQueryTypeOrSelection(typeName, selection.Name) {
+			return IntrospectionClientName, nil
+		}
 		if fieldInfo.Services[currentService] {
 			return currentService, nil
 		}
