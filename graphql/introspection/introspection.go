@@ -444,3 +444,17 @@ func RunIntrospectionQuery(schema *graphql.Schema) ([]byte, error) {
 
 	return json.MarshalIndent(value, "", "  ")
 }
+
+func IntrospectionQueryTypeOrSelection(typeName, selectionName string) bool {
+	if selectionName == "__schema" ||
+		typeName == "__Schema" ||
+		typeName == "__Directive" ||
+		typeName == "__InputValue" ||
+		typeName == "__Type" ||
+		typeName == "__EnumValue" ||
+		typeName == "__Field" {
+		return true
+	}
+
+	return false
+}
