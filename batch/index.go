@@ -16,14 +16,10 @@ func NewIndex(key int) Index {
 	return Index{key: key}
 }
 
-// Create another type for Index so that MarshalText and UnmarshalText
-// don't run into recursion issues.
-type index Index
-
 func (i Index) MarshalText() (text []byte, err error) {
-	return json.Marshal(index(i))
+	return json.Marshal(i.key)
 }
 
 func (i *Index) UnmarshalText(text []byte) error {
-	return json.Unmarshal(text, (*index)(i))
+	return json.Unmarshal(text, &i.key)
 }
