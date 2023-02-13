@@ -133,6 +133,45 @@
             {
               "description": "",
               "enumValues": [],
+              "fields": [
+                {
+                  "args": [],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
+                  "name": "enum",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "ENUM",
+                      "name": "enumType",
+                      "ofType": null
+                    }
+                  }
+                },
+                {
+                  "args": [],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
+                  "name": "maybeEnum",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "enumType",
+                    "ofType": null
+                  }
+                }
+              ],
+              "inputFields": [],
+              "interfaces": [],
+              "kind": "OBJECT",
+              "name": "EnumStruct",
+              "possibleTypes": []
+            },
+            {
+              "description": "",
+              "enumValues": [],
               "fields": [],
               "inputFields": [],
               "interfaces": [],
@@ -1203,6 +1242,59 @@
                       "name": "string",
                       "ofType": null
                     }
+                  }
+                },
+                {
+                  "args": [
+                    {
+                      "defaultValue": null,
+                      "description": "",
+                      "name": "enumfield",
+                      "type": {
+                        "kind": "NON_NULL",
+                        "name": null,
+                        "ofType": {
+                          "kind": "ENUM",
+                          "name": "enumType",
+                          "ofType": null
+                        }
+                      }
+                    },
+                    {
+                      "defaultValue": null,
+                      "description": "",
+                      "name": "maybeEnum",
+                      "type": {
+                        "kind": "ENUM",
+                        "name": "enumType",
+                        "ofType": null
+                      }
+                    }
+                  ],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
+                  "name": "queryEnums",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "string",
+                      "ofType": null
+                    }
+                  }
+                },
+                {
+                  "args": [],
+                  "deprecationReason": "",
+                  "description": "",
+                  "isDeprecated": false,
+                  "name": "returnEnums",
+                  "type": {
+                    "kind": "OBJECT",
+                    "name": "EnumStruct",
+                    "ofType": null
                   }
                 },
                 {

@@ -207,7 +207,7 @@ func TestEnum(t *testing.T) {
 	val, err = e.Execute(context.Background(), builtSchema.Query, nil, q)
 	assert.Nil(t, err)
 	assert.Equal(t, map[string]interface{}{
-		"pointerret": float64(1),
+		"pointerret": "firstField",
 	}, internal.AsJSON(val))
 
 }

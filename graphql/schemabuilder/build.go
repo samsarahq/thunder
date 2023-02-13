@@ -49,7 +49,12 @@ func (sb *schemaBuilder) getType(nodeType reflect.Type, forceListEntryNonNull bo
 	if typeName, ok := getScalar(nodeType); ok {
 		return &graphql.NonNull{Type: &graphql.Scalar{Type: typeName}}, nil
 	}
+
+	// Support optional scalars & enums
 	if nodeType.Kind() == reflect.Ptr {
+		if typeName, values, ok := sb.getEnum(nodeType.Elem()); ok {
+			return &graphql.Enum{Type: typeName, Values: values, ReverseMap: sb.enumMappings[nodeType.Elem()].ReverseMap}, nil
+		}
 		if typeName, ok := getScalar(nodeType.Elem()); ok {
 			return &graphql.Scalar{Type: typeName}, nil // XXX: prefix typ with "*"
 		}

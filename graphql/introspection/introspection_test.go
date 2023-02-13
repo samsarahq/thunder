@@ -36,6 +36,11 @@ type Gateway struct {
 
 type enumType int32
 
+type EnumStruct struct {
+	Enum      enumType
+	MaybeEnum *enumType
+}
+
 func makeSchema() *schemabuilder.Schema {
 	schema := schemabuilder.NewSchema()
 	user := schema.Object("user", User{})
@@ -96,6 +101,25 @@ func makeSchema() *schemabuilder.Schema {
 		Optional  string `graphql:",optional"`
 	}) string {
 		return ""
+	})
+
+	// Enums work as both required and optional fields in arguments,
+	// with schema.json generating enum types for both
+	user.FieldFunc("queryEnums", func(args struct {
+		Enumfield enumType
+		MaybeEnum *enumType
+	}) string {
+		return ""
+	})
+
+	// MaybeEnum works as a return value within a struct, both the
+	// value and optional value have the correct type
+	user.FieldFunc("returnEnums", func() *EnumStruct {
+		res := &EnumStruct{}
+		res.Enum = enumType(2)
+		maybeEnum := enumType(1)
+		res.MaybeEnum = &maybeEnum
+		return res
 	})
 
 	mutation := schema.Mutation()
