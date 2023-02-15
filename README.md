@@ -1,3 +1,9 @@
+# ⚠️ Deprecated
+
+As of Feb 15, 2023, this repository is deprecated and no longer maintained. If you are looking for a GraphQL server library in Golang, please consider [alternatives](https://graphql.org/code/#go). Thank you for your interest in Thunder.
+
+# Thunder
+
 Thunder is a Go framework for rapidly building powerful graphql servers.
 Thunder has support for schemas automatically generated from Go types, live
 queries, query batching, and more. Thunder is an open-source project from
