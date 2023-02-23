@@ -5,7 +5,7 @@
     "react-scripts": "0.7.0"
   },
   "dependencies": {
-    "graphiql": "0.8.0",
+    "graphiql": "1.4.7",
     "graphql": "0.8.2",
     "lodash.assign": "4.2.0",
     "lodash.isequal": "4.4.0",
