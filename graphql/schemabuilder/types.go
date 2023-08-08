@@ -214,6 +214,12 @@ func BatchSortFieldWithFallback(name string, batchSort interface{}, sort interfa
 	return fieldFuncSortFields
 }
 
+type Description string
+
+func (s Description) apply(m *method) {
+	m.Description = string(s)
+}
+
 // FieldFunc exposes a field on an object. The function f can take a number of
 // optional arguments:
 // func([ctx context.Context], [o *Type], [args struct {}]) ([Result], [error])
@@ -366,6 +372,9 @@ type method struct {
 	// is a shadow object. A shadow object's fields are each of the
 	// field that are sent as args to a federated sunquery.
 	ShadowObjectType reflect.Type
+
+	// Human readable description of this method.
+	Description string
 }
 
 type concurrencyArgs struct {

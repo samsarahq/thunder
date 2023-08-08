@@ -454,7 +454,7 @@
                 {
                   "args": [],
                   "deprecationReason": "",
-                  "description": "",
+                  "description": "This gets the uuid for a user",
                   "isDeprecated": false,
                   "name": "userUuid",
                   "type": {

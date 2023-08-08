@@ -70,7 +70,7 @@ func makeSchema() *schemabuilder.Schema {
 	}, schemabuilder.Paginated)
 	query.FieldFunc("userUuid", func() (*Uuid, error) {
 		return nil, nil
-	})
+	}, schemabuilder.Description("This gets the uuid for a user"))
 	query.FieldFunc("usersUuid", func() ([]Uuid, error) {
 		return nil, nil
 	})
