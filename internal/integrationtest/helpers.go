@@ -18,6 +18,7 @@ type DB interface {
 	InsertRow(ctx context.Context, row interface{}) (sql.Result, error)
 	UpsertRow(ctx context.Context, row interface{}) (sql.Result, error)
 	UpdateRow(ctx context.Context, row interface{}) error
+	UpdateRowWithResult(ctx context.Context, row interface{}) (sql.Result, error)
 	DeleteRow(ctx context.Context, row interface{}) error
 }
 
